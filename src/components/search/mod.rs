@@ -1,8 +1,11 @@
-use crate::stores::use_search_store;
+use crate::stores::{use_app_store, use_search_store};
 use leptos::prelude::*;
 
 #[component]
 pub fn SearchFilters() -> impl IntoView {
+    let app_store = use_app_store();
+    let search_store = use_search_store();
+
     let (adv_open, set_adv_open) = signal(false);
     let (lineage_open, set_lineage_open) = signal(false);
     let (tree_open, set_tree_open) = signal(false);
@@ -21,6 +24,51 @@ pub fn SearchFilters() -> impl IntoView {
 
     view! {
         <div class="sd-panel">
+            <div class="sd-search-bar">
+                <input
+                    type="text"
+                    class="sd-search-input"
+                    placeholder="Search..."
+                    prop:value={move || search_store.get().query}
+                    on:input=move |ev| {
+                        let v = event_target_value(&ev);
+                        search_store.update(|s| s.set_query(v));
+                    }
+                />
+                <button class="sd-search-close-btn" on:click=move |_| app_store.update(|s| s.close_search())>"✕"</button>
+            </div>
+
+            {move || {
+                let store = search_store.get();
+                let suggestions: Vec<String> = if store.query.len() >= 2 {
+                    store.suggestions.clone()
+                } else {
+                    store.recent_searches.clone().into_iter().rev().take(5).collect()
+                };
+                if suggestions.is_empty() {
+                    ().into_any()
+                } else {
+                    view! {
+                        <div class="sd-suggestions">
+                            <div class="sd-suggestions-label">"Relevant searches"</div>
+                            {suggestions.into_iter().map(|s| {
+                                let s_clone = s.clone();
+                                view! {
+                                    <div
+                                        class="sd-suggestion"
+                                        on:click=move |_| search_store.update(|st| st.set_query(s_clone.clone()))
+                                    >
+                                        {s}
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    }.into_any()
+                }
+            }}
+
+            <SearchResults />
+
             <div class="sd-section">
                 <div class="sd-section-header" on:click=move |_| set_adv_open.update(|v| *v = !*v)>
                     <span class="sd-section-title">"ADVANCED SEARCH"</span>

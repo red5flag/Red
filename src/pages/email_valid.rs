@@ -9,7 +9,10 @@ cfg_if! {
         use axum::http::StatusCode;
         use serde::Deserialize;
         use crate::api::email;
-        use crate::api::email::{SignupRequest, SignupResponse, ValidateRequest, ValidateResponse, LoginRequest, LoginResponse};
+        use crate::api::email::{SignupRequest, SignupResponse, ValidateRequest, ValidateResponse, LoginRequest, LoginResponse,
+            VerifyTotpRequest, VerifyTotpResponse, VerifyEmail2faRequest, VerifyEmail2faResponse,
+            EnableTotpRequest, EnableTotpResponse, ConfirmTotpRequest, ConfirmTotpResponse,
+            ToggleEmail2faRequest, ToggleEmail2faResponse};
 
         #[derive(Deserialize)]
         pub struct EmailValidQuery {
@@ -218,17 +221,199 @@ cfg_if! {
             axum::Json(req): axum::Json<LoginRequest>,
         ) -> Result<AxumJson<LoginResponse>, (StatusCode, String)> {
             match email::check_validated_user(&req.username, &req.password).await {
-                Some(user) => Ok(AxumJson(LoginResponse {
-                    success: true,
-                    message: "Login successful".to_string(),
-                    display_name: Some(user.display_name),
-                    email: Some(user.email),
-                })),
+                Some(user) => {
+                    let requires_totp = user.totp_enabled;
+                    let requires_email_2fa = user.email_2fa_enabled;
+                    if requires_email_2fa {
+                        let code = email::generate_email_2fa_code();
+                        email::enqueue_2fa_email(user.email.clone(), user.username.clone(), code).await;
+                    }
+                    Ok(AxumJson(LoginResponse {
+                        success: !requires_totp && !requires_email_2fa,
+                        message: if requires_totp || requires_email_2fa {
+                            "Two-factor authentication required".to_string()
+                        } else {
+                            "Login successful".to_string()
+                        },
+                        display_name: if requires_totp || requires_email_2fa { None } else { Some(user.display_name) },
+                        email: if requires_totp || requires_email_2fa { None } else { Some(user.email) },
+                        requires_totp,
+                        requires_email_2fa,
+                        totp_uri: None,
+                    }))
+                }
                 None => Ok(AxumJson(LoginResponse {
                     success: false,
                     message: "Invalid username or password, or email not yet validated".to_string(),
                     display_name: None,
                     email: None,
+                    requires_totp: false,
+                    requires_email_2fa: false,
+                    totp_uri: None,
+                })),
+            }
+        }
+
+        // API: POST /api/verify_totp
+        pub async fn api_verify_totp(
+            axum::Json(req): axum::Json<VerifyTotpRequest>,
+        ) -> Result<AxumJson<VerifyTotpResponse>, (StatusCode, String)> {
+            match email::get_validated_user(&req.username).await {
+                Some(user) if user.totp_enabled => {
+                    if let Some(ref secret) = user.totp_secret {
+                        if email::verify_totp_code(secret, &req.code) {
+                            Ok(AxumJson(VerifyTotpResponse {
+                                success: true,
+                                message: "TOTP verified".to_string(),
+                                display_name: Some(user.display_name),
+                                email: Some(user.email),
+                            }))
+                        } else {
+                            Ok(AxumJson(VerifyTotpResponse {
+                                success: false,
+                                message: "Invalid TOTP code".to_string(),
+                                display_name: None,
+                                email: None,
+                            }))
+                        }
+                    } else {
+                        Ok(AxumJson(VerifyTotpResponse {
+                            success: false,
+                            message: "TOTP not configured".to_string(),
+                            display_name: None,
+                            email: None,
+                        }))
+                    }
+                }
+                _ => Ok(AxumJson(VerifyTotpResponse {
+                    success: false,
+                    message: "User not found or TOTP not enabled".to_string(),
+                    display_name: None,
+                    email: None,
+                })),
+            }
+        }
+
+        // API: POST /api/verify_email_2fa
+        pub async fn api_verify_email_2fa(
+            axum::Json(req): axum::Json<VerifyEmail2faRequest>,
+        ) -> Result<AxumJson<VerifyEmail2faResponse>, (StatusCode, String)> {
+            let emails = email::get_pending_emails().await;
+            let valid = emails.iter().any(|e| {
+                e.username == req.username && e.validation_token.starts_with("2fa_") && e.body.contains(&req.code)
+            });
+            if valid {
+                if let Some(user) = email::get_validated_user(&req.username).await {
+                    Ok(AxumJson(VerifyEmail2faResponse {
+                        success: true,
+                        message: "Email 2FA verified".to_string(),
+                        display_name: Some(user.display_name),
+                        email: Some(user.email),
+                    }))
+                } else {
+                    Ok(AxumJson(VerifyEmail2faResponse {
+                        success: false,
+                        message: "User not found".to_string(),
+                        display_name: None,
+                        email: None,
+                    }))
+                }
+            } else {
+                Ok(AxumJson(VerifyEmail2faResponse {
+                    success: false,
+                    message: "Invalid email 2FA code".to_string(),
+                    display_name: None,
+                    email: None,
+                }))
+            }
+        }
+
+        // API: POST /api/enable_totp
+        pub async fn api_enable_totp(
+            axum::Json(req): axum::Json<EnableTotpRequest>,
+        ) -> Result<AxumJson<EnableTotpResponse>, (StatusCode, String)> {
+            match email::check_validated_user(&req.username, &req.password).await {
+                Some(user) => {
+                    match email::generate_totp_secret(&user.username, "Farley") {
+                        Ok((secret, uri)) => Ok(AxumJson(EnableTotpResponse {
+                            success: true,
+                            message: "Scan the QR code or enter the secret in Google Authenticator".to_string(),
+                            secret: Some(secret),
+                            uri: Some(uri),
+                        })),
+                        Err(e) => Ok(AxumJson(EnableTotpResponse {
+                            success: false,
+                            message: e,
+                            secret: None,
+                            uri: None,
+                        })),
+                    }
+                }
+                None => Ok(AxumJson(EnableTotpResponse {
+                    success: false,
+                    message: "Invalid username or password".to_string(),
+                    secret: None,
+                    uri: None,
+                })),
+            }
+        }
+
+        // API: POST /api/confirm_totp
+        pub async fn api_confirm_totp(
+            axum::Json(req): axum::Json<ConfirmTotpRequest>,
+        ) -> Result<AxumJson<ConfirmTotpResponse>, (StatusCode, String)> {
+            if email::verify_totp_code(&req.secret, &req.code) {
+                if let Some(mut user) = email::get_validated_user(&req.username).await {
+                    user.totp_secret = Some(req.secret);
+                    user.totp_enabled = true;
+                    match email::update_user_2fa(user).await {
+                        Ok(_) => Ok(AxumJson(ConfirmTotpResponse {
+                            success: true,
+                            message: "TOTP enabled".to_string(),
+                        })),
+                        Err(e) => Ok(AxumJson(ConfirmTotpResponse {
+                            success: false,
+                            message: e,
+                        })),
+                    }
+                } else {
+                    Ok(AxumJson(ConfirmTotpResponse {
+                        success: false,
+                        message: "User not found".to_string(),
+                    }))
+                }
+            } else {
+                Ok(AxumJson(ConfirmTotpResponse {
+                    success: false,
+                    message: "Invalid TOTP code".to_string(),
+                }))
+            }
+        }
+
+        // API: POST /api/toggle_email_2fa
+        pub async fn api_toggle_email_2fa(
+            axum::Json(req): axum::Json<ToggleEmail2faRequest>,
+        ) -> Result<AxumJson<ToggleEmail2faResponse>, (StatusCode, String)> {
+            match email::check_validated_user(&req.username, &req.password).await {
+                Some(mut user) => {
+                    user.email_2fa_enabled = req.enabled;
+                    match email::update_user_2fa(user).await {
+                        Ok(_) => Ok(AxumJson(ToggleEmail2faResponse {
+                            success: true,
+                            message: format!("Email 2FA {}", if req.enabled { "enabled" } else { "disabled" }),
+                            enabled: req.enabled,
+                        })),
+                        Err(e) => Ok(AxumJson(ToggleEmail2faResponse {
+                            success: false,
+                            message: e,
+                            enabled: !req.enabled,
+                        })),
+                    }
+                }
+                None => Ok(AxumJson(ToggleEmail2faResponse {
+                    success: false,
+                    message: "Invalid username or password".to_string(),
+                    enabled: false,
                 })),
             }
         }

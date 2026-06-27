@@ -41,17 +41,18 @@ pub fn App() -> impl IntoView {
     provide_context(undo_store);
 
     let is_authenticated = Memo::new(move |_| app_store.get().is_authenticated);
+    let theme_attr = Memo::new(move |_| app_store.get().theme.as_str().to_string());
 
     view! {
         <Show
             when=move || is_authenticated.get()
             fallback=move || view! {
-                <div class="app-container">
+                <div class="app-container" data-theme={move || theme_attr.get()}>
                     <LoginPage />
                 </div>
             }
         >
-            <div class="app-container">
+            <div class="app-container" data-theme={move || theme_attr.get()}>
                 // Main content area with collapsible tabs
                 <main class="main-content">
                     <TabsContainer />

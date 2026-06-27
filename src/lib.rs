@@ -3,6 +3,7 @@ pub mod app;
 pub mod components;
 pub mod models;
 pub mod pages;
+pub mod server;
 pub mod stores;
 pub mod types;
 pub mod utils;

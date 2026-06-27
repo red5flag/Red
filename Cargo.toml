@@ -49,11 +49,14 @@ argon2 = { version = "0.5", features = ["password-hash"] }
 base64 = "0.22"
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
+chacha20poly1305 = "0.10"
+totp-rs = { version = "5.6", optional = true, features = ["gen_secret", "otpauth"] }
 
 # Async runtime
 parking_lot = { version = "0.12", optional = true }
 dashmap = { version = "5.5", optional = true }
 sled = { version = "0.34", optional = true }
+zstd = { version = "0.13", optional = true }
 
 # HTTP client
 reqwest = { version = "0.11", features = ["json"], optional = true }
@@ -64,7 +67,7 @@ gloo-net = { version = "0.5", features = ["http"], optional = true }
 [features]
 default = []
 hydrate = ["leptos/hydrate", "gloo-net"]
-ssr = ["leptos/ssr", "leptos_axum", "leptos_router/ssr", "leptos_meta/ssr", "axum", "tower", "tower-http", "tokio-stream", "bcrypt", "jsonwebtoken", "meilisearch-sdk", "reqwest", "parking_lot", "dashmap", "sled", "tracing-subscriber", "tokio", "tokio/rt-multi-thread", "tokio/net"]
+ssr = ["leptos/ssr", "leptos_axum", "leptos_router/ssr", "leptos_meta/ssr", "axum", "tower", "tower-http", "tokio-stream", "bcrypt", "jsonwebtoken", "meilisearch-sdk", "reqwest", "parking_lot", "dashmap", "sled", "zstd", "tracing-subscriber", "tokio", "tokio/rt-multi-thread", "tokio/net", "totp-rs"]
 csr = ["leptos/csr"]
 
 [[bin]]

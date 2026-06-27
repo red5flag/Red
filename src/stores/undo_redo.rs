@@ -1,5 +1,6 @@
 use crate::models::Action;
 use crate::types::ActionType;
+use chrono::{DateTime, Utc};
 use leptos::prelude::*;
 use std::collections::VecDeque;
 use uuid::Uuid;
@@ -15,15 +16,20 @@ pub fn create_action(
     user_name: &str,
     user_role: &str,
     org_id: Option<Uuid>,
+    reason: Option<String>,
 ) -> Action {
-    Action::new(
+    let mut action = Action::new(
         action_type,
         entity_type.to_string(),
         Uuid::new_v4(),
         description.to_string(),
         user_id,
     )
-    .with_user(user_name.to_string(), user_role.to_string(), org_id)
+    .with_user(user_name.to_string(), user_role.to_string(), org_id);
+    if let Some(r) = reason {
+        action = action.with_reason(r);
+    }
+    action
 }
 
 // Undo/Redo store for complete action history
@@ -142,6 +148,84 @@ impl UndoRedoStore {
     pub fn is_empty(&self) -> bool {
         self.past.is_empty()
     }
+
+    /// Complex search across the full action history: who, what, where, when, why.
+    /// Query text is matched against description, entity_type, user_name, user_role, tab_context, and reason.
+    pub fn search_actions(&self, query: &HistoryQuery) -> Vec<&Action> {
+        let q = query.text.trim().to_lowercase();
+        self.past
+            .iter()
+            .filter(|a| {
+                let mut keep = true;
+                if !q.is_empty() {
+                    keep = keep && (
+                        a.description.to_lowercase().contains(&q) ||
+                        a.entity_type.to_lowercase().contains(&q) ||
+                        a.user_name.to_lowercase().contains(&q) ||
+                        a.user_role.to_lowercase().contains(&q) ||
+                        a.tab_context.as_ref().map(|s| s.to_lowercase().contains(&q)).unwrap_or(false) ||
+                        a.reason.as_ref().map(|s| s.to_lowercase().contains(&q)).unwrap_or(false) ||
+                        a.metadata.to_string().to_lowercase().contains(&q)
+                    );
+                }
+                if let Some(ref types) = query.action_types {
+                    keep = keep && types.contains(&a.action_type);
+                }
+                if let Some(ref entities) = query.entity_types {
+                    keep = keep && entities.contains(&a.entity_type);
+                }
+                if let Some(ref users) = query.user_ids {
+                    keep = keep && users.contains(&a.user_id);
+                }
+                if let Some((start, end)) = query.date_range {
+                    keep = keep && a.timestamp >= start && a.timestamp <= end;
+                }
+                if let Some(ref tab) = query.tab_context {
+                    keep = keep && a.tab_context.as_ref().map(|t| t.eq_ignore_ascii_case(tab)).unwrap_or(false);
+                }
+                if query.has_reason_only {
+                    keep = keep && a.reason.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+                }
+                keep
+            })
+            .collect()
+    }
+
+    // Unique users that appear in the history.
+    pub fn history_users(&self) -> Vec<(Uuid, String, String)> {
+        let mut seen = std::collections::HashSet::new();
+        self.past
+            .iter()
+            .filter_map(|a| {
+                if seen.insert(a.user_id) {
+                    Some((a.user_id, a.user_name.clone(), a.user_role.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    // Unique entity types that appear in the history.
+    pub fn history_entity_types(&self) -> Vec<String> {
+        let mut seen = std::collections::HashSet::new();
+        self.past
+            .iter()
+            .filter_map(|a| if seen.insert(a.entity_type.clone()) { Some(a.entity_type.clone()) } else { None })
+            .collect()
+    }
+}
+
+/// Query object for complex history search/filtering.
+#[derive(Clone, Debug, Default)]
+pub struct HistoryQuery {
+    pub text: String,
+    pub action_types: Option<Vec<ActionType>>,
+    pub entity_types: Option<Vec<String>>,
+    pub user_ids: Option<Vec<Uuid>>,
+    pub date_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
+    pub tab_context: Option<String>,
+    pub has_reason_only: bool,
 }
 
 // Create a signal-based store for Leptos

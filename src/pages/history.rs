@@ -1,4 +1,4 @@
-use crate::stores::{format_action_description, use_app_store, use_undo_redo_store};
+use crate::stores::{format_action_description, use_app_store, use_undo_redo_store, HistoryQuery};
 use crate::types::{ActionType, SortMode};
 use leptos::prelude::*;
 
@@ -25,17 +25,37 @@ pub fn HistoryPage() -> impl IntoView {
     let undo_store = use_undo_redo_store();
     let app_store = use_app_store();
 
-    let action_count = move || undo_store.get().past.len();
-    let recent_actions = move || undo_store.get().get_recent_actions(50);
+    let (search_text, set_search_text) = signal(String::new());
+    let (type_filter, set_type_filter) = signal::<Option<ActionType>>(None);
+    let (has_reason_only, set_has_reason_only) = signal(false);
     let (sort_mode, set_sort_mode) = signal(SortMode::Recent);
+
     let current_user_name = move || app_store.get().current_user.name.clone();
     let current_user_role = move || format!("{:?}", app_store.get().current_user.role);
+
+    let filtered_actions = move || {
+        let mut q = HistoryQuery::default();
+        q.text = search_text.get();
+        if let Some(t) = type_filter.get() {
+            q.action_types = Some(vec![t]);
+        }
+        q.has_reason_only = has_reason_only.get();
+        let mut actions: Vec<_> = undo_store.get().search_actions(&q).into_iter().cloned().collect();
+        match sort_mode.get() {
+            SortMode::Oldest => actions.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
+            _ => actions.sort_by(|a, b| b.timestamp.cmp(&a.timestamp)),
+        }
+        actions
+    };
+
+    let action_count = move || filtered_actions().len();
+    let total_count = move || undo_store.get().past.len();
 
     view! {
         <div class="home-screen">
             <div class="welcome-header">
                 <h1>"History"</h1>
-                <p>{move || format!("{} recorded actions", action_count())}</p>
+                <p>{move || format!("{} matching / {} recorded", action_count(), total_count())}</p>
             </div>
 
             // Current user info
@@ -74,18 +94,60 @@ pub fn HistoryPage() -> impl IntoView {
                         <option value="oldest">"Oldest"</option>
                     </select>
                 </div>
+
+                // Search / filter bar
+                <div class="history-filter-bar">
+                    <input
+                        class="history-search-input"
+                        type="text"
+                        placeholder="Search who, what, where, why…"
+                        prop:value=move || search_text.get()
+                        on:input=move |ev| set_search_text.set(event_target_value(&ev))
+                    />
+                    <select
+                        class="history-filter-select"
+                        on:change=move |ev| {
+                            let v = event_target_value(&ev);
+                            let f = match v.as_str() {
+                                "create" => Some(ActionType::Create),
+                                "update" => Some(ActionType::Update),
+                                "delete" => Some(ActionType::Delete),
+                                "view" => Some(ActionType::View),
+                                "navigate" => Some(ActionType::Navigate),
+                                "search" => Some(ActionType::Search),
+                                "login" => Some(ActionType::Login),
+                                "logout" => Some(ActionType::Logout),
+                                _ => None,
+                            };
+                            set_type_filter.set(f);
+                        }
+                    >
+                        <option value="">"All types"</option>
+                        <option value="create">"Create"</option>
+                        <option value="update">"Update"</option>
+                        <option value="delete">"Delete"</option>
+                        <option value="view">"View"</option>
+                        <option value="navigate">"Navigate"</option>
+                        <option value="search">"Search"</option>
+                        <option value="login">"Login"</option>
+                        <option value="logout">"Logout"</option>
+                    </select>
+                    <label class="history-filter-check">
+                        <input
+                            type="checkbox"
+                            on:change=move |ev| set_has_reason_only.set(event_target_checked(&ev))
+                        />
+                        "Has reason"
+                    </label>
+                </div>
+
                 {move || {
-                    let sort = sort_mode.get();
-                    let mut actions = recent_actions();
-                    actions.sort_by(|a, b| match sort {
-                        SortMode::Oldest => a.timestamp.cmp(&b.timestamp),
-                        _ => b.timestamp.cmp(&a.timestamp),
-                    });
+                    let actions = filtered_actions();
                     if actions.is_empty() {
                         view! {
-                            <div style="padding: 20px; text-align: center; color: var(--text-secondary);">
-                                <p>"No actions recorded yet"</p>
-                                <div style="margin-top: 20px; font-size: 48px;">"📜"</div>
+                            <div class="history-empty">
+                                <p>"No matching actions"</p>
+                                <div class="history-empty-icon">"📜"</div>
                             </div>
                         }
                             .into_any()
@@ -109,6 +171,7 @@ pub fn HistoryPage() -> impl IntoView {
                                         } else {
                                             action.user_role.clone()
                                         };
+                                        let why = action.reason.clone();
 
                                         view! {
                                             <div class="timeline-item">
@@ -122,6 +185,11 @@ pub fn HistoryPage() -> impl IntoView {
                                                         <span class="timeline-user">{user_name}</span>
                                                         <span class="timeline-role">{user_role}</span>
                                                         <span class="timeline-date">{date}</span>
+                                                        {if let Some(r) = why {
+                                                            if !r.trim().is_empty() {
+                                                                view! { <span class="timeline-reason">{format!("Why: {}", r)}</span> }.into_any()
+                                                            } else { ().into_any() }
+                                                        } else { ().into_any() }}
                                                     </div>
                                                 </div>
                                             </div>

@@ -22,6 +22,7 @@ pub struct Action {
     pub navigated_from: Option<String>,
     pub navigated_to: Option<String>,
     pub metadata: serde_json::Value,
+    pub reason: Option<String>,
 }
 
 impl Action {
@@ -49,7 +50,13 @@ impl Action {
             navigated_from: None,
             navigated_to: None,
             metadata: serde_json::json!({}),
+            reason: None,
         }
+    }
+
+    pub fn with_reason(mut self, reason: String) -> Self {
+        self.reason = Some(reason);
+        self
     }
 
     pub fn with_user(mut self, name: String, role: String, org_id: Option<Uuid>) -> Self {

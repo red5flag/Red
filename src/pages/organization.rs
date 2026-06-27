@@ -329,6 +329,7 @@ pub fn OrganizationPage() -> impl IntoView {
                                                             let _uid = user.id;
                                                             let uid_del = user.id;
                                                             let uid_role = user.id;
+                                                            let uid_assign = user.id;
                                                             let role_str = format!("{:?}", user.role);
                                                             view! {
                                                                 <div class="list-item">
@@ -375,6 +376,51 @@ pub fn OrganizationPage() -> impl IntoView {
                                                                             }.into_any()
                                                                         }}
                                                                     </div>
+                                                                    {if can {
+                                                                        let uid_a = uid_assign;
+                                                                        view! {
+                                                                            <div class="assignment-panel" style="width: 100%; margin-top: 6px;">
+                                                                                <div class="assignment-title">"Portfolio access"</div>
+                                                                                {move || {
+                                                                                    let ps = app_store.get().portfolios.clone();
+                                                                                    view! {
+                                                                                        <div>
+                                                                                            {if ps.is_empty() {
+                                                                                                view! { <div class="assignment-empty">"No portfolios"</div> }.into_any()
+                                                                                            } else {
+                                                                                                ps.into_iter().map(|p| {
+                                                                                                    let checked = p.assigned_users.contains(&uid_a);
+                                                                                                    let pid = p.id;
+                                                                                                    let uid_a2 = uid_a;
+                                                                                                    view! {
+                                                                                                        <label class="assignment-row">
+                                                                                                            <input type="checkbox" checked=checked on:change=move |_| {
+                                                                                                                app_store.update(|s| {
+                                                                                                                    if let Some(port) = s.get_portfolio_mut(pid) {
+                                                                                                                        if port.assigned_users.contains(&uid_a2) {
+                                                                                                                            port.assigned_users.retain(|&id| id != uid_a2);
+                                                                                                                        } else {
+                                                                                                                            port.assigned_users.push(uid_a2);
+                                                                                                                        }
+                                                                                                                    }
+                                                                                                                });
+                                                                                                                if let Some(port) = app_store.get().get_portfolio(pid).cloned() {
+                                                                                                                    leptos::task::spawn_local(async move {
+                                                                                                                        let _ = crate::server::save_portfolio(port).await;
+                                                                                                                    });
+                                                                                                                }
+                                                                                                            } />
+                                                                                                            <span>{p.name}</span>
+                                                                                                        </label>
+                                                                                                    }
+                                                                                                }).collect::<Vec<_>>().into_any()
+                                                                                            }}
+                                                                                        </div>
+                                                                                    }.into_any()
+                                                                                }}
+                                                                            </div>
+                                                                        }.into_any()
+                                                                    } else { ().into_any() }}
                                                                 </div>
                                                             }.into_any()
                                                         }).collect::<Vec<_>>()}

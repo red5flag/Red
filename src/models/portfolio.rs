@@ -25,6 +25,8 @@ pub struct Portfolio {
     pub status: PortfolioStatus,
     pub view_mode: ViewMode,
     pub documents: Vec<Document>,
+    pub calendar_events: Vec<crate::models::CalendarEvent>,
+    pub assigned_users: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +60,8 @@ impl Portfolio {
             status: PortfolioStatus::Active,
             view_mode: ViewMode::default(),
             documents: Vec::new(),
+            calendar_events: Vec::new(),
+            assigned_users: Vec::new(),
         }
     }
 
@@ -82,6 +86,10 @@ impl Portfolio {
         if self.purchase_value > 0.0 {
             self.profit_loss_percent = (self.profit_loss / self.purchase_value) * 100.0;
         }
+    }
+
+    pub fn is_visible_to(&self, user_id: Uuid, can_view_all: bool) -> bool {
+        can_view_all || self.owner_id == user_id || self.assigned_users.contains(&user_id)
     }
 
     pub fn get_all_assets(&self) -> Vec<&Asset> {
@@ -133,6 +141,8 @@ pub struct AssetGroup {
     pub updated_at: DateTime<Utc>,
     pub tags: Vec<String>,
     pub documents: Vec<Document>,
+    pub calendar_events: Vec<crate::models::CalendarEvent>,
+    pub assigned_users: Vec<Uuid>,
 }
 
 impl AssetGroup {
@@ -152,6 +162,8 @@ impl AssetGroup {
             updated_at: now,
             tags: Vec::new(),
             documents: Vec::new(),
+            calendar_events: Vec::new(),
+            assigned_users: Vec::new(),
         }
     }
 
@@ -170,6 +182,10 @@ impl AssetGroup {
         if self.purchase_value > 0.0 {
             self.profit_loss_percent = (self.profit_loss / self.purchase_value) * 100.0;
         }
+    }
+
+    pub fn is_visible_to(&self, user_id: Uuid, can_view_all: bool) -> bool {
+        can_view_all || self.assigned_users.contains(&user_id)
     }
 }
 
@@ -196,6 +212,7 @@ pub struct Asset {
     pub assigned_workers: Vec<Uuid>,
     pub quick_sale_enabled: bool,
     pub notification_settings: Vec<AssetNotificationSetting>,
+    pub calendar_events: Vec<crate::models::CalendarEvent>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,6 +234,10 @@ pub struct AssetNotificationSetting {
 }
 
 impl Asset {
+    pub fn is_visible_to(&self, user_id: Uuid, can_view_all: bool) -> bool {
+        can_view_all || self.assigned_workers.contains(&user_id)
+    }
+
     pub fn new(name: String, asset_type: AssetType, purchase_value: f64) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -239,6 +260,7 @@ impl Asset {
             assigned_workers: Vec::new(),
             quick_sale_enabled: false,
             notification_settings: Vec::new(),
+            calendar_events: Vec::new(),
         }
     }
 
@@ -269,6 +291,7 @@ pub struct Document {
     pub url: String,
     pub uploaded_at: DateTime<Utc>,
     pub uploaded_by: Uuid,
+    pub content: Option<String>,
 }
 
 // Trending data for overview

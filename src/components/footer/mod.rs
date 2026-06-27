@@ -24,6 +24,7 @@ pub fn Footer() -> impl IntoView {
                 &user_name,
                 &user_role,
                 org_id,
+                None,
             ));
         });
         app_store.update(|store| store.logout());
@@ -60,6 +61,17 @@ pub fn Footer() -> impl IntoView {
                 <button class="footer-btn" on:click=on_portfolio_click title="Quick access to Portfolios">
                     "📁 Portfolios"
                 </button>
+            </div>
+            <div class="footer-section footer-section-right">
+                <a
+                    class="footer-btn footer-changelog-link"
+                    href="https://github.com/red5flag/Carly"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="View Carly repo and latest branch changes on GitHub"
+                >
+                    "📜 Changelog"
+                </a>
             </div>
         </footer>
     }

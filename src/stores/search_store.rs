@@ -216,6 +216,9 @@ impl SearchStore {
             TabType::Transactions => {
                 // Prioritize transactions
             }
+            TabType::Calendar => {
+                // Prioritize bookings and calendar events
+            }
             TabType::History => {
                 // Prioritize actions
             }

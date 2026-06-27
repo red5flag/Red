@@ -139,6 +139,9 @@ cfg_if! {
                 display_name: reg.username.clone(),
                 email: reg.email.clone(),
                 validated_at: chrono::Utc::now().to_rfc3339(),
+                totp_secret: None,
+                totp_enabled: false,
+                email_2fa_enabled: false,
             };
 
             {
@@ -178,6 +181,79 @@ cfg_if! {
 
         pub async fn get_pending_registrations() -> Vec<PendingRegistration> {
             pending_registrations().lock().await.clone()
+        }
+
+        /// Generate a new TOTP secret and provisioning URI for Google Authenticator.
+        pub fn generate_totp_secret(username: &str, issuer: &str) -> Result<(String, String), String> {
+            use totp_rs::{TOTP, Secret, Algorithm};
+            let secret = Secret::generate_secret();
+            let secret_bytes = secret.to_bytes().map_err(|e| e.to_string())?;
+            let totp = TOTP::new(
+                Algorithm::SHA1,
+                6,
+                1,
+                30,
+                secret_bytes,
+                Some(issuer.to_string()),
+                username.to_string(),
+            ).map_err(|e| e.to_string())?;
+            let secret_base32 = totp.get_secret_base32();
+            let uri = totp.get_url();
+            Ok((secret_base32, uri))
+        }
+
+        /// Verify a TOTP code against a base32 secret.
+        pub fn verify_totp_code(secret_base32: &str, code: &str) -> bool {
+            use totp_rs::{TOTP, Secret, Algorithm};
+            let secret = match Secret::Encoded(secret_base32.to_string()).to_bytes() {
+                Ok(s) => s,
+                Err(_) => return false,
+            };
+            let totp = match TOTP::new(Algorithm::SHA1, 6, 1, 30, secret, None, "".to_string()) {
+                Ok(t) => t,
+                Err(_) => return false,
+            };
+            totp.check_current(code).unwrap_or(false)
+        }
+
+        /// Generate a 6-digit email 2FA code.
+        pub fn generate_email_2fa_code() -> String {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            format!("{:06}", rng.gen_range(0..1_000_000u32))
+        }
+
+        /// Enqueue a 2FA email with a 6-digit code.
+        pub async fn enqueue_2fa_email(email: String, username: String, code: String) {
+            let subject = format!("Farley - Your sign-in code for '{}'", username);
+            let body = format!(
+                "Your Farley sign-in code is: {}\n\nThis code is valid for 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\n- Farley Team",
+                code
+            );
+            let email = ValidationEmail {
+                to: email,
+                username,
+                validation_token: format!("2fa_{}_{}", code, chrono::Utc::now().timestamp()),
+                subject,
+                body,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            };
+            enqueue_email(email).await;
+        }
+
+        /// Find a validated user by username.
+        pub async fn get_validated_user(username: &str) -> Option<ValidatedUser> {
+            validated_users().lock().await.iter().find(|u| u.username == username).cloned()
+        }
+
+        /// Update a validated user's 2FA settings.
+        pub async fn update_user_2fa(user: ValidatedUser) -> Result<(), String> {
+            let mut validated = validated_users().lock().await;
+            let pos = validated.iter().position(|u| u.username == user.username)
+                .ok_or("User not found")?;
+            validated[pos] = user;
+            save_to_file(VALIDATED_USERS_FILE, &validated);
+            Ok(())
         }
     }
 }
@@ -249,6 +325,9 @@ pub struct ValidatedUser {
     pub display_name: String,
     pub email: String,
     pub validated_at: String,
+    pub totp_secret: Option<String>,
+    pub totp_enabled: bool,
+    pub email_2fa_enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -288,4 +367,76 @@ pub struct LoginResponse {
     pub message: String,
     pub display_name: Option<String>,
     pub email: Option<String>,
+    pub requires_totp: bool,
+    pub requires_email_2fa: bool,
+    pub totp_uri: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyTotpRequest {
+    pub username: String,
+    pub code: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyTotpResponse {
+    pub success: bool,
+    pub message: String,
+    pub display_name: Option<String>,
+    pub email: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyEmail2faRequest {
+    pub username: String,
+    pub code: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyEmail2faResponse {
+    pub success: bool,
+    pub message: String,
+    pub display_name: Option<String>,
+    pub email: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EnableTotpRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EnableTotpResponse {
+    pub success: bool,
+    pub message: String,
+    pub secret: Option<String>,
+    pub uri: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConfirmTotpRequest {
+    pub username: String,
+    pub code: String,
+    pub secret: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConfirmTotpResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToggleEmail2faRequest {
+    pub username: String,
+    pub password: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ToggleEmail2faResponse {
+    pub success: bool,
+    pub message: String,
+    pub enabled: bool,
 }

@@ -5,6 +5,101 @@ use chrono::Utc;
 use leptos::prelude::*;
 use uuid::Uuid;
 
+#[derive(Clone, Debug)]
+struct Card {
+    id: Uuid,
+    label: String,
+    last4: String,
+}
+
+#[derive(Clone, Debug)]
+struct Wallet {
+    id: Uuid,
+    name: String,
+    wallet_type: String,
+    balance: f64,
+    currency: String,
+    cards: Vec<Card>,
+}
+
+#[derive(Clone, Debug)]
+struct Contact {
+    id: Uuid,
+    name: String,
+    account: String,
+    currency: String,
+}
+
+#[derive(Clone, Debug)]
+struct Payment {
+    _id: Uuid,
+    direction: String,
+    from_wallet_id: Uuid,
+    from_card_id: Option<Uuid>,
+    to_contact_id: Uuid,
+    amount: f64,
+    currency: String,
+    is_routine: bool,
+    interval: String,
+    is_auto: bool,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn mock_wallets() -> Vec<Wallet> {
+    vec![
+        Wallet {
+            id: Uuid::new_v4(),
+            name: "Business Bank".to_string(),
+            wallet_type: "Bank".to_string(),
+            balance: 1_250_000.0,
+            currency: "AUD".to_string(),
+            cards: vec![
+                Card { id: Uuid::new_v4(), label: "Business Debit".to_string(), last4: "4821".to_string() },
+                Card { id: Uuid::new_v4(), label: "Business Credit".to_string(), last4: "9912".to_string() },
+            ],
+        },
+        Wallet {
+            id: Uuid::new_v4(),
+            name: "Coinspot".to_string(),
+            wallet_type: "Crypto".to_string(),
+            balance: 45_000.0,
+            currency: "AUD".to_string(),
+            cards: vec![Card { id: Uuid::new_v4(), label: "Coinspot AUD".to_string(), last4: "SPOT".to_string() }],
+        },
+        Wallet {
+            id: Uuid::new_v4(),
+            name: "Coinbase".to_string(),
+            wallet_type: "Crypto".to_string(),
+            balance: 28_000.0,
+            currency: "USD".to_string(),
+            cards: vec![Card { id: Uuid::new_v4(), label: "Coinbase USD".to_string(), last4: "BASE".to_string() }],
+        },
+        Wallet {
+            id: Uuid::new_v4(),
+            name: "Cold Wallet".to_string(),
+            wallet_type: "Crypto".to_string(),
+            balance: 3.5,
+            currency: "BTC".to_string(),
+            cards: vec![Card { id: Uuid::new_v4(), label: "BTC Wallet".to_string(), last4: "BTC".to_string() }],
+        },
+    ]
+}
+
+fn mock_payees() -> Vec<Contact> {
+    vec![
+        Contact { id: Uuid::new_v4(), name: "Tech Supplies Inc".to_string(), account: "BSB 062-000 12345678".to_string(), currency: "AUD".to_string() },
+        Contact { id: Uuid::new_v4(), name: "Property Manager".to_string(), account: "BSB 032-002 98765432".to_string(), currency: "AUD".to_string() },
+        Contact { id: Uuid::new_v4(), name: "Crypto Exchange".to_string(), account: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F".to_string(), currency: "ETH".to_string() },
+    ]
+}
+
+fn mock_payers() -> Vec<Contact> {
+    vec![
+        Contact { id: Uuid::new_v4(), name: "Buyer Corp".to_string(), account: "BSB 082-001 55556666".to_string(), currency: "AUD".to_string() },
+        Contact { id: Uuid::new_v4(), name: "Tenant LLC".to_string(), account: "BSB 062-000 77778888".to_string(), currency: "AUD".to_string() },
+    ]
+}
+
 fn create_mock_transaction(
     transaction_type: TransactionType,
     amount: f64,
@@ -19,16 +114,8 @@ fn create_mock_transaction(
         amount,
         currency: Currency::USD,
         description: Some(description.to_string()),
-        from_entity: EntityReference {
-            entity_type: EntityType::Organization,
-            entity_id: Uuid::new_v4(),
-            name: from.to_string(),
-        },
-        to_entity: EntityReference {
-            entity_type: EntityType::External,
-            entity_id: Uuid::new_v4(),
-            name: to.to_string(),
-        },
+        from_entity: EntityReference { entity_type: EntityType::Organization, entity_id: Uuid::new_v4(), name: from.to_string() },
+        to_entity: EntityReference { entity_type: EntityType::External, entity_id: Uuid::new_v4(), name: to.to_string() },
         related_portfolio_id: None,
         related_asset_group_id: None,
         related_asset_id: None,
@@ -66,153 +153,406 @@ fn type_icon(transaction_type: &TransactionType) -> &'static str {
     }
 }
 
+fn currency_symbol(currency: &str) -> &str {
+    match currency {
+        "USD" => "$",
+        "AUD" => "A$",
+        "EUR" => "€",
+        "GBP" => "£",
+        "BTC" => "₿",
+        "ETH" => "Ξ",
+        _ => "$",
+    }
+}
+
+#[component]
+fn WalletSelector(
+    wallets: Vec<Wallet>,
+    selected_wallet: ReadSignal<Uuid>,
+    set_selected_wallet: WriteSignal<Uuid>,
+    selected_card: ReadSignal<Option<Uuid>>,
+    set_selected_card: WriteSignal<Option<Uuid>>,
+) -> impl IntoView {
+    view! {
+        <div class="tx-form-row">
+            <label class="tx-form-label">"From wallet"</label>
+            <select
+                class="form-select"
+                prop:value={move || selected_wallet.get().to_string()}
+                on:change=move |ev| {
+                    let v = event_target_value(&ev);
+                    if let Ok(id) = Uuid::parse_str(&v) {
+                        set_selected_wallet.set(id);
+                        set_selected_card.set(None);
+                    }
+                }
+            >
+                {wallets.clone().into_iter().map(|w| {
+                    let id = w.id.to_string();
+                    view! { <option value={id.clone()}>{format!("{} ({}{:.2} {})", w.name, currency_symbol(&w.currency), w.balance, w.currency)}</option> }
+                }).collect::<Vec<_>>()}
+            </select>
+        </div>
+        {move || {
+            let wallet = wallets.iter().find(|w| w.id == selected_wallet.get()).cloned();
+            wallet.map(|w| {
+                if w.cards.is_empty() {
+                    ().into_any()
+                } else {
+                    view! {
+                        <div class="tx-form-row">
+                            <label class="tx-form-label">"From card"</label>
+                            <select
+                                class="form-select"
+                                prop:value={move || selected_card.get().map(|id| id.to_string()).unwrap_or_default()}
+                                on:change=move |ev| {
+                                    let v = event_target_value(&ev);
+                                    set_selected_card.set(if v.is_empty() { None } else { Uuid::parse_str(&v).ok() });
+                                }
+                            >
+                                <option value="">"Default wallet balance"</option>
+                                {w.cards.into_iter().map(|c| {
+                                    let id = c.id.to_string();
+                                    view! { <option value={id.clone()}>{format!("{} ending {}", c.label, c.last4)}</option> }
+                                }).collect::<Vec<_>>()}
+                            </select>
+                        </div>
+                    }.into_any()
+                }
+            }).unwrap_or(().into_any())
+        }}
+    }
+}
+
+#[component]
+fn PaymentForm(
+    wallets: Vec<Wallet>,
+    contacts: Vec<Contact>,
+    direction: &'static str,
+    on_submit: Callback<Payment>,
+) -> impl IntoView {
+    let (from_wallet, set_from_wallet) = signal(wallets.first().map(|w| w.id).unwrap_or_else(Uuid::new_v4));
+    let (from_card, set_from_card) = signal(None::<Uuid>);
+    let (to_contact, set_to_contact) = signal(contacts.first().map(|c| c.id).unwrap_or_else(Uuid::new_v4));
+    let (amount, set_amount) = signal(String::new());
+    let (currency, set_currency) = signal("AUD".to_string());
+    let (is_routine, set_is_routine) = signal(false);
+    let (interval, set_interval) = signal("Monthly".to_string());
+    let (is_auto, set_is_auto) = signal(false);
+
+    let submit = move |_| {
+        let value: f64 = amount.get().parse().unwrap_or(0.0);
+        if value <= 0.0 { return; }
+        let payment = Payment {
+            _id: Uuid::new_v4(),
+            direction: direction.to_string(),
+            from_wallet_id: from_wallet.get(),
+            from_card_id: from_card.get(),
+            to_contact_id: to_contact.get(),
+            amount: value,
+            currency: currency.get(),
+            is_routine: is_routine.get(),
+            interval: interval.get(),
+            is_auto: is_auto.get(),
+            created_at: Utc::now(),
+        };
+        on_submit.run(payment);
+        set_amount.set(String::new());
+    };
+
+    view! {
+        <div class="tx-form">
+            <WalletSelector
+                wallets={wallets}
+                selected_wallet={from_wallet}
+                set_selected_wallet={set_from_wallet}
+                selected_card={from_card}
+                set_selected_card={set_from_card}
+            />
+            <div class="tx-form-row">
+                <label class="tx-form-label">{"To ".to_string() + if direction == "send" { "payee" } else { "payer" }}</label>
+                <select
+                    class="form-select"
+                    prop:value={move || to_contact.get().to_string()}
+                    on:change=move |ev| {
+                        let v = event_target_value(&ev);
+                        if let Ok(id) = Uuid::parse_str(&v) {
+                            set_to_contact.set(id);
+                        }
+                    }
+                >
+                    {contacts.clone().into_iter().map(|c| {
+                        let id = c.id.to_string();
+                        view! { <option value={id.clone()}>{format!("{} ({})", c.name, c.currency)}</option> }
+                    }).collect::<Vec<_>>()}
+                </select>
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Amount"</label>
+                <input
+                    class="form-input"
+                    type="number"
+                    placeholder="0.00"
+                    prop:value={move || amount.get()}
+                    on:input=move |ev| set_amount.set(event_target_value(&ev))
+                />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Currency"</label>
+                <select
+                    class="form-select"
+                    prop:value={move || currency.get()}
+                    on:change=move |ev| set_currency.set(event_target_value(&ev))
+                >
+                    <option value="AUD">"AUD (FIAT)"</option>
+                    <option value="USD">"USD (FIAT)"</option>
+                    <option value="EUR">"EUR (FIAT)"</option>
+                    <option value="BTC">"BTC (Crypto)"</option>
+                    <option value="ETH">"ETH (Crypto)"</option>
+                    <option value="USDC">"USDC (Crypto)"</option>
+                </select>
+            </div>
+            <div class="tx-form-row tx-toggle-row">
+                <label class="tx-form-label">"Payment type"</label>
+                <div class="tx-toggle">
+                    <button class="tx-toggle-btn" class:active={move || !is_routine.get()} on:click=move |_| set_is_routine.set(false)>"One-time"</button>
+                    <button class="tx-toggle-btn" class:active={move || is_routine.get()} on:click=move |_| set_is_routine.set(true)>"Routine"</button>
+                </div>
+            </div>
+            {move || if is_routine.get() {
+                view! {
+                    <div class="tx-form-row">
+                        <label class="tx-form-label">"Interval"</label>
+                        <select
+                            class="form-select"
+                            prop:value={move || interval.get()}
+                            on:change=move |ev| set_interval.set(event_target_value(&ev))
+                        >
+                            <option value="Hourly">"Hourly"</option>
+                            <option value="Daily">"Daily"</option>
+                            <option value="Weekly">"Weekly"</option>
+                            <option value="Bi-weekly">"Bi-weekly"</option>
+                            <option value="Monthly">"Monthly"</option>
+                            <option value="Quarterly">"Quarterly"</option>
+                            <option value="Annually">"Annually"</option>
+                        </select>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+            <div class="tx-form-row tx-toggle-row">
+                <label class="tx-form-label">"Conversion"</label>
+                <div class="tx-toggle">
+                    <button class="tx-toggle-btn" class:active={move || !is_auto.get()} on:click=move |_| set_is_auto.set(false)>"Manual"</button>
+                    <button class="tx-toggle-btn" class:active={move || is_auto.get()} on:click=move |_| set_is_auto.set(true)>"Automatic"</button>
+                </div>
+            </div>
+            <button class="login-btn" on:click=submit>{if direction == "send" { "Send Payment" } else { "Receive Payment" }}</button>
+        </div>
+    }
+}
+
 #[component]
 pub fn TransactionsPage() -> impl IntoView {
     let _app_store = use_app_store();
 
-    let transactions = Memo::new(move |_| {
-        vec![
-            create_mock_transaction(
-                TransactionType::Purchase,
-                125000.0,
-                "Office equipment purchase",
-                "Main Org",
-                "Tech Supplies Inc",
-                TransactionStatus::Executed,
-            ),
-            create_mock_transaction(
-                TransactionType::Sale,
-                450000.0,
-                "Property sale - downtown plaza",
-                "Real Estate Holdings",
-                "Buyer Corp",
-                TransactionStatus::Approved,
-            ),
-            create_mock_transaction(
-                TransactionType::Rent,
-                8500.0,
-                "Monthly warehouse rent",
-                "Tenant LLC",
-                "Property Manager",
-                TransactionStatus::Executed,
-            ),
-            create_mock_transaction(
-                TransactionType::Fee,
-                1200.0,
-                "Bank processing fee",
-                "Main Org",
-                "Banking Partner",
-                TransactionStatus::Executed,
-            ),
-            create_mock_transaction(
-                TransactionType::Transfer,
-                50000.0,
-                "Inter-portfolio transfer",
-                "Portfolio A",
-                "Portfolio B",
-                TransactionStatus::Pending,
-            ),
-        ]
-    });
-
+    let (active_tab, set_active_tab) = signal("history".to_string());
+    let (wallets, _set_wallets) = signal(mock_wallets());
+    let (payees, _set_payees) = signal(mock_payees());
+    let (payers, _set_payers) = signal(mock_payers());
+    let (payments, set_payments) = signal(Vec::<Payment>::new());
+    let (transactions, _set_transactions) = signal(vec![
+        create_mock_transaction(TransactionType::Purchase, 125000.0, "Office equipment purchase", "Main Org", "Tech Supplies Inc", TransactionStatus::Executed),
+        create_mock_transaction(TransactionType::Sale, 450000.0, "Property sale - downtown plaza", "Real Estate Holdings", "Buyer Corp", TransactionStatus::Approved),
+        create_mock_transaction(TransactionType::Rent, 8500.0, "Monthly warehouse rent", "Tenant LLC", "Property Manager", TransactionStatus::Executed),
+        create_mock_transaction(TransactionType::Fee, 1200.0, "Bank processing fee", "Main Org", "Banking Partner", TransactionStatus::Executed),
+        create_mock_transaction(TransactionType::Transfer, 50000.0, "Inter-portfolio transfer", "Portfolio A", "Portfolio B", TransactionStatus::Pending),
+    ]);
     let (sort_mode, set_sort_mode) = signal(SortMode::Recent);
 
-    let total_volume = move || {
-        transactions
-            .get()
-            .iter()
-            .filter(|t| t.status == TransactionStatus::Executed || t.status == TransactionStatus::Approved)
-            .map(|t| t.amount)
-            .sum::<f64>()
+    let on_send = Callback::new(move |p: Payment| {
+        set_payments.update(|list| list.push(p));
+    });
+    let on_receive = Callback::new(move |p: Payment| {
+        set_payments.update(|list| list.push(p));
+    });
+
+    let tab_btn = |label: &str, key: &str| {
+        let key = key.to_string();
+        let key_active = key.clone();
+        let key_click = key.clone();
+        let label = label.to_string();
+        view! {
+            <button
+                class="tx-tab-btn"
+                class:active={move || active_tab.get() == key_active}
+                on:click=move |_| { let key_click = key_click.clone(); set_active_tab.set(key_click) }
+            >
+                {label.clone()}
+            </button>
+        }
     };
 
     view! {
         <div class="home-screen">
             <div class="welcome-header">
                 <h1>"Transactions"</h1>
-                <p>{move || format!("Total volume: ${:.2}", total_volume())}</p>
+                <p>"Banking, wallets, crypto payments"</p>
             </div>
 
-            <div class="data-card">
-                <div class="card-header">
-                    <span class="card-title">"Transactions"</span>
-                    <select
-                        class="form-select"
-                        style="width: auto; min-width: 120px;"
-                        on:change=move |ev| {
-                            let v = event_target_value(&ev);
-                            let mode = match v.as_str() {
-                                "oldest" => SortMode::Oldest,
-                                "highest_amount" => SortMode::HighestValue,
-                                "lowest_amount" => SortMode::LowestValue,
-                                _ => SortMode::Recent,
-                            };
-                            set_sort_mode.set(mode);
-                        }
-                    >
-                        <option value="recent">"Recent"</option>
-                        <option value="oldest">"Oldest"</option>
-                        <option value="highest_amount">"Highest Amount"</option>
-                        <option value="lowest_amount">"Lowest Amount"</option>
-                    </select>
-                </div>
-                {move || {
-                    let sort = sort_mode.get();
-                    let mut items: Vec<_> = transactions.get().into_iter().collect();
-                    items.sort_by(|a, b| match sort {
-                        SortMode::Recent => b.created_at.cmp(&a.created_at),
-                        SortMode::Oldest => a.created_at.cmp(&b.created_at),
-                        SortMode::HighestValue => b.amount.partial_cmp(&a.amount).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::LowestValue => a.amount.partial_cmp(&b.amount).unwrap_or(std::cmp::Ordering::Equal),
-                        _ => b.created_at.cmp(&a.created_at),
-                    });
-                    items.into_iter().map(|transaction| {
-                            let icon = type_icon(&transaction.transaction_type);
-                            let status = status_label(&transaction.status);
-                            let amount = format!("${:.2}", transaction.amount);
-                            let description = transaction.description.unwrap_or_default();
-                            let from = transaction.from_entity.name;
-                            let to = transaction.to_entity.name;
-                            view! {
-                                <div class="list-item">
-                                    <div class="list-item-left">
-                                        <div class="list-item-title">{icon} " " {description}</div>
-                                        <div class="list-item-subtitle">{from} " → " {to}</div>
-                                    </div>
-                                    <div class="list-item-right">
-                                        <div class="list-item-value">{amount}</div>
-                                        <div class="list-item-subtitle">{status}</div>
-                                    </div>
+            <div class="tx-tabs">
+                {tab_btn("History", "history")}
+                {tab_btn("Payees", "payees")}
+                {tab_btn("Payers", "payers")}
+                {tab_btn("Wallets", "wallets")}
+                {tab_btn("Send", "send")}
+                {tab_btn("Receive", "receive")}
+            </div>
+
+            {move || match active_tab.get().as_str() {
+                "payees" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Payees"</span></div>
+                        {payees.get().into_iter().map(|c| view! {
+                            <div class="list-item">
+                                <div class="list-item-left">
+                                    <div class="list-item-title">{c.name}</div>
+                                    <div class="list-item-subtitle">{c.account}</div>
                                 </div>
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                }}
-            </div>
-
-            <div class="data-card">
-                <div class="card-header">
-                    <span class="card-title">"Transaction Summary"</span>
-                </div>
-                <div class="card-stats">
-                    <div class="stat-item">
-                        <div class="stat-value">"5"</div>
-                        <div class="stat-label">"Total"</div>
+                                <div class="list-item-right"><div class="list-item-subtitle">{c.currency}</div></div>
+                            </div>
+                        }).collect::<Vec<_>>()}
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value">"3"</div>
-                        <div class="stat-label">"Executed"</div>
+                }.into_any(),
+                "payers" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Payers"</span></div>
+                        {payers.get().into_iter().map(|c| view! {
+                            <div class="list-item">
+                                <div class="list-item-left">
+                                    <div class="list-item-title">{c.name}</div>
+                                    <div class="list-item-subtitle">{c.account}</div>
+                                </div>
+                                <div class="list-item-right"><div class="list-item-subtitle">{c.currency}</div></div>
+                            </div>
+                        }).collect::<Vec<_>>()}
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value">"1"</div>
-                        <div class="stat-label">"Pending"</div>
+                }.into_any(),
+                "wallets" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Wallets & Cards"</span></div>
+                        {wallets.get().into_iter().map(|w| view! {
+                            <div class="list-item">
+                                <div class="list-item-left">
+                                    <div class="list-item-title">{format!("{} ({})", w.name, w.wallet_type)}</div>
+                                    <div class="list-item-subtitle">{format!("{} card{}", w.cards.len(), if w.cards.len() == 1 { "" } else { "s" })}</div>
+                                </div>
+                                <div class="list-item-right">
+                                    <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&w.currency), w.balance, w.currency)}</div>
+                                </div>
+                            </div>
+                        }).collect::<Vec<_>>()}
                     </div>
-                    <div class="stat-item">
-                        <div class="stat-value">"1"</div>
-                        <div class="stat-label">"Approved"</div>
+                }.into_any(),
+                "send" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Send Payment"</span></div>
+                        <PaymentForm wallets={wallets.get()} contacts={payees.get()} direction="send" on_submit={on_send.clone()} />
                     </div>
-                </div>
-            </div>
+                }.into_any(),
+                "receive" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Receive Payment"</span></div>
+                        <PaymentForm wallets={wallets.get()} contacts={payers.get()} direction="receive" on_submit={on_receive.clone()} />
+                    </div>
+                }.into_any(),
+                _ => view! {
+                    <div class="data-card">
+                        <div class="card-header">
+                            <span class="card-title">"Transaction History"</span>
+                            <select
+                                class="form-select"
+                                style="width: auto; min-width: 120px;"
+                                on:change=move |ev| {
+                                    let v = event_target_value(&ev);
+                                    let mode = match v.as_str() {
+                                        "oldest" => SortMode::Oldest,
+                                        "highest_amount" => SortMode::HighestValue,
+                                        "lowest_amount" => SortMode::LowestValue,
+                                        _ => SortMode::Recent,
+                                    };
+                                    set_sort_mode.set(mode);
+                                }
+                            >
+                                <option value="recent">"Recent"</option>
+                                <option value="oldest">"Oldest"</option>
+                                <option value="highest_amount">"Highest Amount"</option>
+                                <option value="lowest_amount">"Lowest Amount"</option>
+                            </select>
+                        </div>
+                        {move || {
+                            let sort = sort_mode.get();
+                            let mut items = transactions.get().clone();
+                            items.sort_by(|a, b| match sort {
+                                SortMode::Recent => b.created_at.cmp(&a.created_at),
+                                SortMode::Oldest => a.created_at.cmp(&b.created_at),
+                                SortMode::HighestValue => b.amount.partial_cmp(&a.amount).unwrap_or(std::cmp::Ordering::Equal),
+                                SortMode::LowestValue => a.amount.partial_cmp(&b.amount).unwrap_or(std::cmp::Ordering::Equal),
+                                _ => b.created_at.cmp(&a.created_at),
+                            });
+                            items.into_iter().map(|t| {
+                                let icon = type_icon(&t.transaction_type);
+                                let status = status_label(&t.status);
+                                let amount = format!("${:.2}", t.amount);
+                                let desc = t.description.unwrap_or_default();
+                                view! {
+                                    <div class="list-item">
+                                        <div class="list-item-left">
+                                            <div class="list-item-title">{icon} " " {desc}</div>
+                                            <div class="list-item-subtitle">{format!("{} → {}", t.from_entity.name, t.to_entity.name)}</div>
+                                        </div>
+                                        <div class="list-item-right">
+                                            <div class="list-item-value">{amount}</div>
+                                            <div class="list-item-subtitle">{status}</div>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()
+                        }}
+                    </div>
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Recent Payments"</span></div>
+                        {move || if payments.get().is_empty() {
+                            view! { <div class="list-item"><div class="list-item-left"><div class="list-item-subtitle">"No payments yet"</div></div></div> }.into_any()
+                        } else {
+                            payments.get().into_iter().rev().take(5).map(|p| {
+                                let wallet = wallets.get().iter().find(|w| w.id == p.from_wallet_id).cloned();
+                                let contact = if p.direction == "send" {
+                                    payees.get().iter().find(|c| c.id == p.to_contact_id).cloned()
+                                } else {
+                                    payers.get().iter().find(|c| c.id == p.to_contact_id).cloned()
+                                };
+                                let wallet_name = wallet.as_ref().map(|w| w.name.clone()).unwrap_or_else(|| "Unknown".to_string());
+                                let contact_name = contact.map(|c| c.name).unwrap_or_else(|| "Unknown".to_string());
+                                let card_label = wallet.and_then(|w| p.from_card_id.and_then(|cid| w.cards.iter().find(|c| c.id == cid).map(|c| format!("{} ending {}", c.label, c.last4)))).unwrap_or_else(|| "wallet balance".to_string());
+                                let routine = if p.is_routine { "routine" } else { "one-time" };
+                                let date = p.created_at.format("%d %b %H:%M").to_string();
+                                view! {
+                                    <div class="list-item">
+                                        <div class="list-item-left">
+                                            <div class="list-item-title">{format!("{} - {}", p.direction.to_uppercase(), contact_name)}</div>
+                                            <div class="list-item-subtitle">{format!("{} via {} | {} | {} | {}", wallet_name, card_label, p.interval, routine, date)}</div>
+                                        </div>
+                                        <div class="list-item-right">
+                                            <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&p.currency), p.amount, p.currency)}</div>
+                                            <div class="list-item-subtitle">{if p.is_auto { "Auto" } else { "Manual" }}</div>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>().into_any()
+                        }}
+                    </div>
+                }.into_any(),
+            }}
         </div>
     }
 }

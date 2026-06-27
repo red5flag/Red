@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod calendar;
 pub mod email_valid;
 pub mod history;
 pub mod home;
@@ -12,6 +13,7 @@ pub mod settings;
 pub mod transactions;
 
 pub use agent::AgentPage;
+pub use calendar::CalendarPage;
 pub use email_valid::EmailValidPage;
 pub use history::HistoryPage;
 pub use home::HomePage;

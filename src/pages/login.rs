@@ -7,7 +7,9 @@ use leptos::task::spawn_local;
 
 cfg_if! {
     if #[cfg(feature = "hydrate")] {
-        use crate::api::email::{SignupResponse, LoginResponse};
+        use crate::api::email::{SignupResponse, LoginResponse,
+            VerifyTotpRequest, VerifyTotpResponse, VerifyEmail2faRequest, VerifyEmail2faResponse};
+        use web_sys::window;
     }
 }
 
@@ -20,6 +22,14 @@ pub fn LoginPage() -> impl IntoView {
     let (password, set_password) = signal(String::new());
     let (error, set_error) = signal(String::new());
     let (show_signup, set_show_signup) = signal(false);
+    let (remember_me, set_remember_me) = signal(true);
+
+    // 2FA flow signals
+    let (pending_username, set_pending_username) = signal(String::new());
+    let (_pending_password, set_pending_password) = signal(String::new());
+    let (fa_code, set_fa_code) = signal(String::new());
+    let (fa_mode, set_fa_mode) = signal::<Option<&'static str>>(None);
+    let (fa_message, set_fa_message) = signal(String::new());
 
     // Signup form signals
     let (su_username, set_su_username) = signal(String::new());
@@ -29,12 +39,70 @@ pub fn LoginPage() -> impl IntoView {
     let (su_error, set_su_error) = signal(String::new());
     let (su_success, set_su_success) = signal(String::new());
 
-    let on_login = move |_| {
+    // Save username for ease-of-entry (hydrate only)
+    let save_last_username = move |u: String| {
+        #[cfg(feature = "hydrate")]
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                let _ = storage.set_item("farley_last_username", &u);
+            }
+        }
+        let _ = u;
+    };
+
+    let load_last_username = move || {
+        #[cfg(feature = "hydrate")]
+        if let Some(window) = window() {
+            if let Ok(Some(storage)) = window.local_storage() {
+                if let Ok(Some(u)) = storage.get_item("farley_last_username") {
+                    return u;
+                }
+            }
+        }
+        String::new()
+    };
+
+    let finish_login = move |name: String, email: String, role: String| {
+        set_error.set(String::new());
+        app_store.update(|store| {
+            store.login_server_validated(&name, &email);
+            store.add_notification(
+                format!("Welcome, {}!", name),
+                crate::stores::NotificationType::Success,
+            );
+        });
+        let user_id = app_store.get().current_user.id;
+        let org_id = app_store.get().current_user.organization_id;
+        undo_store.update(|undo| {
+            undo.record_action(create_action(
+                ActionType::Login,
+                "Auth",
+                &format!("User '{}' logged in", name),
+                user_id,
+                &name,
+                &role,
+                org_id,
+                None,
+            ));
+        });
+    };
+
+    // Load saved username on mount
+    let initial_username = load_last_username();
+    if !initial_username.is_empty() {
+        set_username.set(initial_username);
+    }
+
+    let on_login = move || {
         let u = username.get();
         let p = password.get();
         if u.trim().is_empty() || p.trim().is_empty() {
             set_error.set("Username and password are required".to_string());
             return;
+        }
+
+        if remember_me.get() {
+            save_last_username(u.clone());
         }
 
         // Check if password matches locally
@@ -66,6 +134,7 @@ pub fn LoginPage() -> impl IntoView {
                         &name,
                         &role_str,
                         org_id,
+                        None,
                     ));
                 });
                 return;
@@ -81,9 +150,13 @@ pub fn LoginPage() -> impl IntoView {
         // Local validation failed or password didn't match — try server
         let u_clone = u.clone();
         let p_clone = p.clone();
-        let app_store_clone = app_store;
-        let undo_store_clone = undo_store;
+        let _app_store_clone = app_store;
         let set_error_clone = set_error;
+        let set_fa_mode_clone = set_fa_mode;
+        let set_fa_message_clone = set_fa_message;
+        let set_pending_username_clone = set_pending_username;
+        let set_pending_password_clone = set_pending_password;
+        let set_fa_code_clone = set_fa_code;
         spawn_local(async move {
             let req = LoginRequest {
                 username: u_clone.clone(),
@@ -101,37 +174,94 @@ pub fn LoginPage() -> impl IntoView {
                             if let Ok(login_resp) = r.json::<LoginResponse>().await {
                                 if login_resp.success {
                                     if let (Some(name), Some(email)) = (login_resp.display_name, login_resp.email) {
-                                        app_store_clone.update(|store| {
-                                            store.login_server_validated(&name, &email);
-                                        });
-                                        set_error_clone.set(String::new());
-                                        let user_id = app_store_clone.get().current_user.id;
-                                        let org_id = app_store_clone.get().current_user.organization_id;
-                                        undo_store_clone.update(|undo| {
-                                            undo.record_action(create_action(
-                                                ActionType::Login,
-                                                "Auth",
-                                                &format!("User '{}' logged in", name),
-                                                user_id,
-                                                &name,
-                                                "Owner",
-                                                org_id,
-                                            ));
-                                        });
+                                        finish_login(name, email, "Owner".to_string());
                                     }
+                                } else if login_resp.requires_totp || login_resp.requires_email_2fa {
+                                    set_pending_username_clone.set(u_clone.clone());
+                                    set_pending_password_clone.set(p_clone.clone());
+                                    set_fa_code_clone.set(String::new());
+                                    if login_resp.requires_totp {
+                                        set_fa_mode_clone.set(Some("totp"));
+                                        set_fa_message_clone.set("Enter the 6-digit code from Google Authenticator".to_string());
+                                    } else {
+                                        set_fa_mode_clone.set(Some("email"));
+                                        set_fa_message_clone.set("Enter the 6-digit code sent to your email".to_string());
+                                    }
+                                    set_error_clone.set(String::new());
                                 } else {
-                                    set_error_clone.set("Invalid username or password".to_string());
+                                    set_error_clone.set(login_resp.message);
                                 }
                             } else {
                                 set_error_clone.set("Failed to parse server response".to_string());
                             }
                         }
                         Err(e) => {
-                            set_error_clone.set(format!("Network error: {:?}", e));
+                            set_error_clone.set(format!("Network error: {}", e));
                         }
                     }
                 } else {
-                    let _ = (req, app_store_clone, undo_store_clone, set_error_clone);
+                    let _ = (req, _app_store_clone, set_error_clone, set_fa_mode_clone, set_fa_message_clone,
+                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone);
+                }
+            }
+        });
+    };
+
+    let on_verify_2fa = move |mode: &'static str| {
+        let u = pending_username.get();
+        let code = fa_code.get();
+        if code.trim().is_empty() {
+            set_fa_message.set(format!("Please enter the {} code", mode));
+            return;
+        }
+        let finish_login_clone = finish_login.clone();
+        let set_fa_mode_clone = set_fa_mode.clone();
+        let set_fa_message_clone = set_fa_message.clone();
+        spawn_local(async move {
+            cfg_if! {
+                if #[cfg(feature = "hydrate")] {
+                    let (resp, endpoint) = if mode == "totp" {
+                        let req = VerifyTotpRequest { username: u.clone(), code: code.clone() };
+                        (gloo_net::http::Request::post("/api/verify_totp").json(&req).unwrap().send().await, "/api/verify_totp")
+                    } else {
+                        let req = VerifyEmail2faRequest { username: u.clone(), code: code.clone() };
+                        (gloo_net::http::Request::post("/api/verify_email_2fa").json(&req).unwrap().send().await, "/api/verify_email_2fa")
+                    };
+                    let _ = endpoint;
+                    match resp {
+                        Ok(r) => {
+                            if mode == "totp" {
+                                if let Ok(v) = r.json::<VerifyTotpResponse>().await {
+                                    if v.success {
+                                        if let (Some(name), Some(email)) = (v.display_name, v.email) {
+                                            finish_login_clone(name, email, "Owner".to_string());
+                                            set_fa_mode_clone.set(None);
+                                        }
+                                    } else {
+                                        set_fa_message_clone.set(v.message);
+                                    }
+                                } else {
+                                    set_fa_message_clone.set("Failed to parse server response".to_string());
+                                }
+                            } else {
+                                if let Ok(v) = r.json::<VerifyEmail2faResponse>().await {
+                                    if v.success {
+                                        if let (Some(name), Some(email)) = (v.display_name, v.email) {
+                                            finish_login_clone(name, email, "Owner".to_string());
+                                            set_fa_mode_clone.set(None);
+                                        }
+                                    } else {
+                                        set_fa_message_clone.set(v.message);
+                                    }
+                                } else {
+                                    set_fa_message_clone.set("Failed to parse server response".to_string());
+                                }
+                            }
+                        }
+                        Err(e) => set_fa_message_clone.set(format!("Network error: {}", e)),
+                    }
+                } else {
+                    let _ = (u, code, mode, finish_login_clone, set_fa_mode_clone, set_fa_message_clone);
                 }
             }
         });
@@ -210,7 +340,7 @@ pub fn LoginPage() -> impl IntoView {
                             }
                         }
                         Err(err) => {
-                            set_err.set(format!("Network error: {:?}", err));
+                            set_err.set(format!("Network error: {}", err));
                         }
                     }
                 } else {
@@ -231,9 +361,9 @@ pub fn LoginPage() -> impl IntoView {
 
             // ── RED HEADER ──
             <div class="lp-header">
-                <div class="lp-logo">"C"</div>
+                <div class="lp-logo">"λ"</div>
                 <div class="lp-title">"LOGIN"</div>
-                <div class="lp-version">"2.1.1"</div>
+                <div class="lp-version">"0.01"</div>
             </div>
 
             // ── SAVED PROFILES ROW ──
@@ -245,7 +375,7 @@ pub fn LoginPage() -> impl IntoView {
 
             // ── USERNAME ROW ──
             <div class="lp-field-row">
-                <button class="lp-visibility-btn" title="Toggle username visibility"
+                <button class="lp-visibility-btn" tabindex="-1" title="Toggle username visibility"
                     on:click=move |_| set_show_username.update(|v| *v = !*v)>
                     {move || if show_username.get() { "◉" } else { "○" }}
                 </button>
@@ -256,7 +386,9 @@ pub fn LoginPage() -> impl IntoView {
                             type={if vis { "text" } else { "password" }}
                             class="lp-field-input"
                             placeholder="Username"
+                            prop:value=move || username.get()
                             on:input=move |ev| set_username.set(event_target_value(&ev))
+                            on:keydown=move |ev| { if ev.key() == "Enter" { on_login(); } }
                         />
                     }
                 }}
@@ -264,7 +396,7 @@ pub fn LoginPage() -> impl IntoView {
 
             // ── PASSWORD ROW ──
             <div class="lp-field-row">
-                <button class="lp-visibility-btn" title="Toggle password visibility"
+                <button class="lp-visibility-btn" tabindex="-1" title="Toggle password visibility"
                     on:click=move |_| set_show_password.update(|v| *v = !*v)>
                     {move || if show_password.get() { "◉" } else { "○" }}
                 </button>
@@ -276,9 +408,22 @@ pub fn LoginPage() -> impl IntoView {
                             class="lp-field-input"
                             placeholder="Password"
                             on:input=move |ev| set_password.set(event_target_value(&ev))
+                            on:keydown=move |ev| { if ev.key() == "Enter" { on_login(); } }
                         />
                     }
                 }}
+            </div>
+
+            // ── REMEMBER ME ──
+            <div class="lp-remember-row">
+                <label class="lp-remember-label">
+                    <input
+                        type="checkbox"
+                        checked={move || remember_me.get()}
+                        on:change=move |ev| set_remember_me.set(event_target_checked(&ev))
+                    />
+                    "Remember username for ease-of-entry"
+                </label>
             </div>
 
             // ── ERROR ──
@@ -289,12 +434,38 @@ pub fn LoginPage() -> impl IntoView {
                 }
             }}
 
+            // ── 2FA CODE ENTRY ──
+            {move || {
+                let mode = fa_mode.get();
+                if mode.is_none() { return ().into_any(); }
+                let label = if mode == Some("totp") { "Authenticator code" } else { "Email code" };
+                let msg = fa_message.get();
+                view! {
+                    <div class="lp-2fa-panel">
+                        <div class="lp-2fa-message">{msg}</div>
+                        <div class="lp-field-row">
+                            <input
+                                type="text"
+                                class="lp-field-input"
+                                placeholder={label}
+                                maxlength="6"
+                                prop:value=move || fa_code.get()
+                                on:input=move |ev| set_fa_code.set(event_target_value(&ev))
+                            />
+                        </div>
+                        <button class="lp-action-btn lp-login" on:click=move |_| on_verify_2fa(mode.unwrap_or("email"))>
+                            "VERIFY"
+                        </button>
+                    </div>
+                }.into_any()
+            }}
+
             // ── REGISTER / LOGIN BUTTONS ──
             <div class="lp-action-row">
                 <button class="lp-action-btn lp-register" on:click=move |_| set_show_signup.set(true)>
                     "REGISTER"
                 </button>
-                <button class="lp-action-btn lp-login" on:click=on_login>
+                <button class="lp-action-btn lp-login" on:click=move |_| on_login()>
                     "LOGIN"
                 </button>
             </div>
@@ -310,20 +481,33 @@ pub fn LoginPage() -> impl IntoView {
 
             // ── CHANGELOG ACCORDION ──
             <div class="lp-changelog">
-                <div class="lp-changelog-header" on:click=move |_| set_changelog_open.update(|v| *v = !*v)>
-                    <span>"CHANGELOG"</span>
-                    <span>{move || if changelog_open.get() { "▲" } else { "▼" }}</span>
+                <div class="lp-changelog-header">
+                    <a
+                        class="lp-changelog-link"
+                        href="https://github.com/red5flag/Carly"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        "CHANGELOG"
+                    </a>
+                    <span
+                        class="lp-changelog-toggle"
+                        on:click=move |_| set_changelog_open.update(|v| *v = !*v)
+                    >
+                        {move || if changelog_open.get() { "▲" } else { "▼" }}
+                    </span>
                 </div>
                 {move || if changelog_open.get() {
                     view! {
                         <div class="lp-changelog-body">
-                            <div class="lp-changelog-summary">"Brief summary of notable changes"</div>
+                            <div class="lp-changelog-summary">
+                                "Latest updates from the repository. Click CHANGELOG to view the full commit history on GitHub."
+                            </div>
                             <ul class="lp-changelog-list">
-                                <li>"Changes"</li>
-                                <li>"Changes"</li>
-                                <li>"Changes"</li>
-                                <li>"Changes"</li>
-                                <li>"Changes"</li>
+                                <li>"b697072 — Updated portfolio"</li>
+                                <li>"9507def — Update README.md"</li>
+                                <li>"ef9a2a8 — Login argon2"</li>
+                                <li>"227dc45 — first commit"</li>
                             </ul>
                         </div>
                     }.into_any()
@@ -372,7 +556,7 @@ pub fn LoginPage() -> impl IntoView {
 
                         // Password
                         <div class="lp-field-row">
-                            <button class="lp-visibility-btn" on:click=move |_| set_su_show_pass.update(|v| *v = !*v)>
+                            <button class="lp-visibility-btn" tabindex="-1" on:click=move |_| set_su_show_pass.update(|v| *v = !*v)>
                                 {move || if su_show_pass.get() { "◉" } else { "○" }}
                             </button>
                             {move || {
@@ -387,7 +571,7 @@ pub fn LoginPage() -> impl IntoView {
 
                         // Confirm password
                         <div class="lp-field-row">
-                            <button class="lp-visibility-btn" on:click=move |_| set_su_show_confirm.update(|v| *v = !*v)>
+                            <button class="lp-visibility-btn" tabindex="-1" on:click=move |_| set_su_show_confirm.update(|v| *v = !*v)>
                                 {move || if su_show_confirm.get() { "◉" } else { "○" }}
                             </button>
                             {move || {

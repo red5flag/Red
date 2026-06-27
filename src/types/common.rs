@@ -201,33 +201,51 @@ pub enum ActionType {
 // Theme/accessibility options
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Theme {
-    Default,
+    Light,
+    Dark,
     HighContrast,
+    // Major colorblindness types
     Deuteranopia, // Green-blind
     Protanopia,   // Red-blind
     Tritanopia,   // Blue-blind
+    // Anomalous trichromacy (less severe / common forms)
+    Deuteranomaly, // Green-weak (most common)
+    Protanomaly,   // Red-weak
+    Tritanomaly,   // Blue-weak
+    // Dichromacy / monochromacy
+    Achromatopsia, // Total colour blindness (grayscale)
+    Achromatomaly, // Reduced colour with blue-yellow weakness
+    // Low vision / legally blind support
+    LowVision,     // High contrast + larger UI elements
 }
 
 impl Default for Theme {
     fn default() -> Self {
-        Theme::Default
+        Theme::Light
     }
 }
 
 impl Theme {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Theme::Default => "default",
+            Theme::Light => "light",
+            Theme::Dark => "dark",
             Theme::HighContrast => "high-contrast",
             Theme::Deuteranopia => "deuteranopia",
             Theme::Protanopia => "protanopia",
             Theme::Tritanopia => "tritanopia",
+            Theme::Deuteranomaly => "deuteranomaly",
+            Theme::Protanomaly => "protanomaly",
+            Theme::Tritanomaly => "tritanomaly",
+            Theme::Achromatopsia => "achromatopsia",
+            Theme::Achromatomaly => "achromatomaly",
+            Theme::LowVision => "low-vision",
         }
     }
 }
 
 // Tab types
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TabType {
     Overview,
     Portfolios,
@@ -235,6 +253,7 @@ pub enum TabType {
     NetworkingAddMember,
     Organization,
     Reporting,
+    Calendar,
     Transactions,
     History,
     Settings,
@@ -250,6 +269,7 @@ impl TabType {
             TabType::NetworkingAddMember => "Add Team",
             TabType::Organization => "Organization",
             TabType::Reporting => "Reporting",
+            TabType::Calendar => "Calendar",
             TabType::Transactions => "Transactions",
             TabType::History => "History",
             TabType::Settings => "Settings",
@@ -278,6 +298,15 @@ pub struct UserProfile {
     pub organization_id: Option<Uuid>,
     pub settings: OrganizationSettings,
     pub created_at: DateTime<Utc>,
+}
+
+impl UserProfile {
+    pub fn can_view_all(&self) -> bool {
+        !matches!(
+            self.role,
+            UserRole::Worker | UserRole::Contractor | UserRole::Guest
+        )
+    }
 }
 
 impl Default for UserProfile {

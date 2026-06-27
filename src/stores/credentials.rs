@@ -15,6 +15,9 @@ pub struct StoredCredential {
     pub display_name: String,
     pub email: String,
     pub validated: bool,
+    pub totp_secret: Option<String>,
+    pub totp_enabled: bool,
+    pub email_2fa_enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -27,11 +30,9 @@ impl CredentialStore {
         Self::default()
     }
 
-    /// Pre-seed with default red/red credential (validated)
+    /// Initialize an empty credential store (no default users).
     pub fn with_defaults() -> Self {
-        let mut store = Self::new();
-        store.add_user("red", "red", "Red", "red@farley.app", true);
-        store
+        Self::new()
     }
 
     /// Load credentials from localStorage (hydrate only)
@@ -117,6 +118,9 @@ impl CredentialStore {
                     display_name: display_name.to_string(),
                     email: email.to_string(),
                     validated,
+                    totp_secret: None,
+                    totp_enabled: false,
+                    email_2fa_enabled: false,
                 },
             );
         }

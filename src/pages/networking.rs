@@ -47,7 +47,6 @@ pub fn NetworkingPage() -> impl IntoView {
     let (edit_mode, set_edit_mode) = signal(false);
     let (_people_open, _set_people_open) = signal(false);
     let (active_tab, set_active_tab) = signal("organizations");
-    let (member_view, set_member_view) = signal("list");
 
     // Mock transactions
     let transactions = Memo::new(move |_| {
@@ -94,7 +93,7 @@ pub fn NetworkingPage() -> impl IntoView {
         if tab == "organizations" {
             render_organizations(users).into_any()
         } else if tab == "members" {
-            render_members(users, member_view, set_member_view).into_any()
+            render_members(users).into_any()
         } else if tab == "activity" {
             render_activity().into_any()
         } else {
@@ -258,36 +257,161 @@ fn render_organizations(_users: Memo<Vec<User>>) -> impl IntoView {
     }
 }
 
-fn render_members(
-    users: Memo<Vec<User>>,
-    member_view: ReadSignal<&'static str>,
-    set_member_view: WriteSignal<&'static str>,
-) -> impl IntoView {
+fn render_members(users: Memo<Vec<User>>) -> impl IntoView {
+    let (filter_by, set_filter_by) = signal("role");
+    let (expanded_id, set_expanded_id) = signal(Option::<Uuid>::None);
+
     view! {
         <div class="net-tab-content">
-            <div class="view-toggle">
+            <div class="net-filter-bar">
+                <span class="net-filter-label">"Filter by:"</span>
                 <button
-                    class="view-btn"
-                    class:active={move || member_view.get() == "list"}
-                    on:click=move |_| set_member_view.set("list")
+                    class="net-filter-btn"
+                    class:active={move || filter_by.get() == "role"}
+                    on:click=move |_| set_filter_by.set("role")
                 >
-                    "List"
+                    "Role"
                 </button>
                 <button
-                    class="view-btn"
-                    class:active={move || member_view.get() == "grid"}
-                    on:click=move |_| set_member_view.set("grid")
+                    class="net-filter-btn"
+                    class:active={move || filter_by.get() == "user"}
+                    on:click=move |_| set_filter_by.set("user")
                 >
-                    "Grid"
+                    "User"
                 </button>
             </div>
-            <div class={move || if member_view.get() == "grid" { "net-members-grid" } else { "net-members-list" }}>
+            <div class="net-members-table">
                 {move || {
-                    users.get().into_iter().map(|user| view! {
-                        <UserCard user={user} />
-                    }).collect::<Vec<_>>()
+                    let filter = filter_by.get();
+                    let mut items = users.get();
+                    if filter == "role" {
+                        items.sort_by(|a, b| b.role.level().cmp(&a.role.level()));
+                    } else {
+                        items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+                    }
+                    items.into_iter().map(|user| {
+                        let uid = user.id;
+                        let is_expanded = expanded_id.get() == Some(uid);
+                        let on_toggle = move || {
+                            set_expanded_id.update(|v| {
+                                if *v == Some(uid) { *v = None; }
+                                else { *v = Some(uid); }
+                            });
+                        };
+                        view! {
+                            <MemberRow user={user} filter_by={filter} expanded={is_expanded} on_toggle={on_toggle} />
+                        }
+                    }).collect::<Vec<_>>().into_any()
                 }}
             </div>
+        </div>
+    }
+}
+
+#[component]
+fn MemberRow(
+    user: User,
+    filter_by: &'static str,
+    expanded: bool,
+    on_toggle: impl Fn() + 'static,
+) -> impl IntoView {
+    let initials: String = user.name
+        .split_whitespace()
+        .filter_map(|s| s.chars().next())
+        .collect::<String>()
+        .to_uppercase();
+    let role = format!("{:?}", user.role);
+    let assignment = user.assignments.first().map(|a| a.target_name.clone()).unwrap_or_else(|| "—".to_string());
+    let availability = if user.is_active { "AVA" } else { "OFF" };
+    let location = user.address.clone().unwrap_or_else(|| "—".to_string());
+    let account = user.payment_settings.account_details.clone();
+
+    let app_store = use_app_store();
+    let user_id = user.id;
+    let portfolios = move || app_store.get().portfolios.clone();
+    let toggle_portfolio_assignment = Callback::new(move |pid: Uuid| {
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                if p.assigned_users.contains(&user_id) {
+                    p.assigned_users.retain(|&id| id != user_id);
+                } else {
+                    p.assigned_users.push(user_id);
+                }
+            }
+        });
+        if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+            leptos::task::spawn_local(async move {
+                let _ = crate::server::save_portfolio(p).await;
+            });
+        }
+    });
+
+    view! {
+        <div class="net-member-row" class:expanded={expanded}>
+            <div class="net-member-header" on:click=move |_| on_toggle()>
+                <span class="net-member-arrow">{if expanded { "▼" } else { "▶" }}</span>
+                {if filter_by == "role" {
+                    view! {
+                        <span class="net-member-avatar">{initials}</span>
+                        <span class="net-member-title">{user.name.clone()}</span>
+                        <span class="net-member-role">{role.clone()}</span>
+                    }.into_any()
+                } else {
+                    view! {
+                        <span class="net-member-name">{user.name.clone()}</span>
+                        <span class="net-member-role-port">{format!("{}/{}", role, assignment)}</span>
+                    }.into_any()
+                }}
+                <button class="net-member-add" on:click=|ev| ev.stop_propagation()>"+"</button>
+            </div>
+            {if expanded {
+                view! {
+                    <div class="net-member-detail">
+                        <div class="net-member-detail-row">
+                            <span class="net-member-detail-label">"NAME"</span>
+                            <span class="net-member-detail-value">{user.name.clone()}</span>
+                        </div>
+                        <div class="net-member-detail-row">
+                            <span class="net-member-detail-label">"ROLE & AVAILABILITY"</span>
+                            <span class="net-member-detail-value">{format!("{} ({})", role, availability)}</span>
+                        </div>
+                        <div class="net-member-detail-row">
+                            <span class="net-member-detail-label">"LOCATION"</span>
+                            <span class="net-member-detail-value">{location}</span>
+                        </div>
+                        <div class="net-member-detail-row">
+                            <span class="net-member-detail-label">"ACCOUNTS"</span>
+                            <span class="net-member-detail-value">{account}</span>
+                        </div>
+                        <div class="net-member-detail-row">
+                            <span class="net-member-detail-label">"ASSIGNED PORTFOLIOS"</span>
+                            <span class="net-member-detail-value">
+                                {move || {
+                                    let ps = portfolios();
+                                    view! {
+                                        <div class="assignment-panel">
+                                            {if ps.is_empty() {
+                                                view! { <div class="assignment-empty">"No portfolios"</div> }.into_any()
+                                            } else {
+                                                ps.into_iter().map(|p| {
+                                                    let checked = p.assigned_users.contains(&user_id);
+                                                    let pid = p.id;
+                                                    view! {
+                                                        <label class="assignment-row">
+                                                            <input type="checkbox" checked=checked on:change=move |_| toggle_portfolio_assignment.run(pid) />
+                                                            <span>{p.name}</span>
+                                                        </label>
+                                                    }
+                                                }).collect::<Vec<_>>().into_any()
+                                            }}
+                                        </div>
+                                    }.into_any()
+                                }}
+                            </span>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
         </div>
     }
 }
@@ -429,41 +553,155 @@ fn UserCard(user: User) -> impl IntoView {
 pub fn AddTeamMemberPage() -> impl IntoView {
     let app_store = use_app_store();
 
+    let (search_query, set_search_query) = signal(String::new());
     let (new_name, set_new_name) = signal(String::new());
     let (new_username, set_new_username) = signal(String::new());
     let (new_email, set_new_email) = signal(String::new());
     let (new_role, set_new_role) = signal(UserRole::Worker);
 
-    let on_add_user = move |_| {
-        let name = new_name.get().trim().to_string();
-        let email = new_email.get().trim().to_string();
-        if name.is_empty() || email.is_empty() {
-            return;
-        }
-        let username = new_username.get().trim().to_string();
-        let avatar = if username.is_empty() {
-            format!("https://api.dicebear.com/7.x/avataaars/svg?seed={}", name)
-        } else {
-            format!("https://api.dicebear.com/7.x/avataaars/svg?seed={}", username)
-        };
-        let mut user = User::new(name, email, new_role.get());
-        user.username = if username.is_empty() { None } else { Some(username) };
+    let add_user = move |name: String, email: String, username: Option<String>, role: UserRole| {
+        let name = name.trim().to_string();
+        let email = email.trim().to_string();
+        if name.is_empty() || email.is_empty() { return; }
+        let username = username.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let avatar = format!("https://api.dicebear.com/7.x/avataaars/svg?seed={}", username.as_ref().unwrap_or(&name));
+        let mut user = User::new(name, email, role);
+        user.username = username;
         user.avatar_url = Some(avatar);
         let store = app_store.get();
         user.organization_id = store.current_organization_id.or(store.current_user.organization_id);
         drop(store);
         app_store.update(|s| s.add_organization_user(user));
+    };
+
+    let on_add_user = move |_| {
+        let username = new_username.get().trim().to_string();
+        add_user(new_name.get(), new_email.get(), Some(username), new_role.get());
         set_new_name.set(String::new());
         set_new_username.set(String::new());
         set_new_email.set(String::new());
         set_new_role.set(UserRole::Worker);
     };
 
+    let on_add_found = move |name: String, email: String, username: Option<String>| {
+        add_user(name, email, username, new_role.get());
+    };
+
+    let search_results = Memo::new(move |_| {
+        let query = search_query.get().trim().to_lowercase();
+        if query.len() < 2 {
+            return Vec::<User>::new();
+        }
+        let store = app_store.get();
+        let mut results: Vec<User> = Vec::new();
+        let current_org = store.current_organization_id.or(store.current_user.organization_id);
+        let existing_ids: std::collections::HashSet<Uuid> = store.organization_users.iter().map(|u| u.id).collect();
+
+        // Local users from credential store
+        for cred in store.credentials.credentials.values() {
+            let name = cred.display_name.to_lowercase();
+            let email = cred.email.to_lowercase();
+            let username = cred.username.to_lowercase();
+            if name.contains(&query) || email.contains(&query) || username.contains(&query) {
+                let mut user = User::new(cred.display_name.clone(), cred.email.clone(), UserRole::Guest);
+                user.username = Some(cred.username.clone());
+                user.avatar_url = Some(format!("https://api.dicebear.com/7.x/avataaars/svg?seed={}", cred.username));
+                user.organization_id = current_org;
+                if !existing_ids.contains(&user.id) {
+                    results.push(user);
+                }
+            }
+        }
+
+        // Server/online users already known to the app
+        for user in store.organization_users.iter() {
+            let name = user.name.to_lowercase();
+            let email = user.email.to_lowercase();
+            let username = user.username.clone().unwrap_or_default().to_lowercase();
+            if name.contains(&query) || email.contains(&query) || username.contains(&query) {
+                if !results.iter().any(|u| u.email == user.email) {
+                    results.push(user.clone());
+                }
+            }
+        }
+
+        // Mock server users representing people available on the server but not yet in the org
+        let server_pool = vec![
+            User::new("Alice Chen".to_string(), "alice@company.com".to_string(), UserRole::Manager),
+            User::new("Bob Martinez".to_string(), "bob@company.com".to_string(), UserRole::Worker),
+            User::new("Carol White".to_string(), "carol@company.com".to_string(), UserRole::Director),
+            User::new("David Kim".to_string(), "david@company.com".to_string(), UserRole::Contractor),
+        ];
+        for mut user in server_pool {
+            let name = user.name.to_lowercase();
+            let email = user.email.to_lowercase();
+            if name.contains(&query) || email.contains(&query) {
+                user.username = Some(format!("{}", user.id.to_string().split_at(8).0));
+                user.avatar_url = Some(format!("https://api.dicebear.com/7.x/avataaars/svg?seed={}", user.name));
+                user.organization_id = current_org;
+                if !existing_ids.contains(&user.id) && !results.iter().any(|u| u.email == user.email) {
+                    results.push(user);
+                }
+            }
+        }
+
+        results
+    });
+
     view! {
         <div class="home-screen">
             <div class="data-card">
                 <div class="card-header">
-                    <span class="card-title">"Add Team Member"</span>
+                    <span class="card-title">"Find Team Member"</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">"Search"</label>
+                    <input
+                        class="form-input"
+                        type="text"
+                        placeholder="Search by name, email, or username"
+                        prop:value={move || search_query.get()}
+                        on:input=move |ev| set_search_query.set(event_target_value(&ev))
+                    />
+                </div>
+                {move || {
+                    let results = search_results.get();
+                    if results.is_empty() {
+                        if search_query.get().trim().len() >= 2 {
+                            view! { <div class="list-item"><div class="list-item-left"><div class="list-item-subtitle">"No matching users found"</div></div></div> }.into_any()
+                        } else {
+                            ().into_any()
+                        }
+                    } else {
+                        view! {
+                            <div>
+                                <div class="net-filter-label">"Results from local + server"</div>
+                                {results.into_iter().map(|u| {
+                                    let name = u.name.clone();
+                                    let email = u.email.clone();
+                                    let username = u.username.clone();
+                                    let role = format!("{:?}", u.role);
+                                    view! {
+                                        <div class="list-item">
+                                            <div class="list-item-left">
+                                                <div class="list-item-title">{name.clone()}</div>
+                                                <div class="list-item-subtitle">{format!("{} • {}", email.clone(), role)}</div>
+                                            </div>
+                                            <div class="list-item-right">
+                                                <button class="net-action-btn" on:click=move |_| on_add_found(name.clone(), email.clone(), username.clone())>"Add"</button>
+                                            </div>
+                                        </div>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    }
+                }}
+            </div>
+
+            <div class="data-card">
+                <div class="card-header">
+                    <span class="card-title">"Add Manually"</span>
                 </div>
                 <div class="form-group">
                     <label class="form-label">"Name"</label>

@@ -4,7 +4,8 @@ cfg_if! {
     if #[cfg(feature = "ssr")] {
         use axum::Router;
         use farley::app::{shell, App};
-        use farley::pages::email_valid::{email_valid_page, api_signup, api_validate, api_login, api_stats};
+        use farley::pages::email_valid::{email_valid_page, api_signup, api_validate, api_login, api_stats,
+            api_verify_totp, api_verify_email_2fa, api_enable_totp, api_confirm_totp, api_toggle_email_2fa};
         use leptos::config::get_configuration;
         use leptos_axum::{generate_route_list, LeptosRoutes};
         use tracing::info;
@@ -25,6 +26,11 @@ cfg_if! {
                 .route("/api/signup", axum::routing::post(api_signup))
                 .route("/api/validate", axum::routing::post(api_validate))
                 .route("/api/login", axum::routing::post(api_login))
+                .route("/api/verify_totp", axum::routing::post(api_verify_totp))
+                .route("/api/verify_email_2fa", axum::routing::post(api_verify_email_2fa))
+                .route("/api/enable_totp", axum::routing::post(api_enable_totp))
+                .route("/api/confirm_totp", axum::routing::post(api_confirm_totp))
+                .route("/api/toggle_email_2fa", axum::routing::post(api_toggle_email_2fa))
                 .route("/api/stats", axum::routing::get(api_stats))
                 .leptos_routes(&leptos_options, routes, {
                     let leptos_options = leptos_options.clone();

@@ -1,8 +1,9 @@
-use crate::models::{Organization, Permission, Portfolio, User};
+use crate::models::{Organization, Permission, Portfolio, Transaction, User};
 use crate::stores::credentials::CredentialStore;
 use crate::types::{TabType, Theme, UserProfile, UserRole};
 use crate::utils::crypto;
 use leptos::prelude::*;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 // Main application state store
@@ -12,10 +13,14 @@ pub struct AppStore {
     pub current_user: UserProfile,
     // Currently active tab
     pub active_tab: Option<TabType>,
-    // Currently expanded tab (if any)
-    pub expanded_tab: Option<TabType>,
+    // Expanded tabs (multiple allowed)
+    pub expanded_tabs: HashSet<TabType>,
+    // Tabs that have their edit pen enabled (multi-tab edit mode)
+    pub edit_mode_tabs: HashSet<TabType>,
     // All portfolios
     pub portfolios: Vec<Portfolio>,
+    // Financial transactions for reporting
+    pub transactions: Vec<Transaction>,
     // Selected portfolio/asset IDs
     pub selected_portfolio_id: Option<Uuid>,
     pub selected_asset_group_id: Option<Uuid>,
@@ -24,6 +29,7 @@ pub struct AppStore {
     pub is_search_open: bool,
     pub search_query: String,
     pub theme: Theme,
+    pub drawer_open: bool,
     // Notifications
     pub notifications: Vec<Notification>,
     // Modal state
@@ -36,6 +42,15 @@ pub struct AppStore {
     pub networking_add_member_open: bool,
     // View mode for portfolios
     pub portfolio_view_mode: crate::types::ViewMode,
+    // Grid column count for portfolio grid view (2, 3, 4, 6, 8, 12)
+    pub portfolio_grid_columns: usize,
+    // Messenger drawer state
+    pub message_drawer_open: bool,
+    pub selected_chat_id: Option<Uuid>,
+    pub messages: Vec<crate::models::Message>,
+    pub messenger_contacts: Vec<crate::models::MessengerContact>,
+    // Calendar events (bookings, imported data)
+    pub calendar_events: Vec<crate::models::CalendarEvent>,
     // Authentication state
     pub is_authenticated: bool,
     // Organizations (multi-organization support)
@@ -99,23 +114,34 @@ impl Default for AppStore {
         #[cfg(feature = "hydrate")]
         credentials.merge_from_local_storage();
 
+        let mut expanded_tabs = HashSet::new();
+        expanded_tabs.insert(TabType::Overview);
         Self {
             current_user: UserProfile::default(),
-            active_tab: None,
-            expanded_tab: None,
+            active_tab: Some(TabType::Overview),
+            expanded_tabs,
+            edit_mode_tabs: HashSet::new(),
             portfolios: Vec::new(),
+            transactions: Vec::new(),
             selected_portfolio_id: None,
             selected_asset_group_id: None,
             selected_asset_id: None,
             is_search_open: false,
             search_query: String::new(),
             theme: Theme::default(),
+            drawer_open: true,
             notifications: Vec::new(),
             active_modal: None,
             is_loading: false,
             organization_users: Vec::new(),
             networking_add_member_open: false,
-            portfolio_view_mode: crate::types::ViewMode::List,
+            portfolio_view_mode: crate::types::ViewMode::Grid,
+            portfolio_grid_columns: 2,
+            message_drawer_open: false,
+            selected_chat_id: None,
+            messages: Vec::new(),
+            messenger_contacts: Vec::new(),
+            calendar_events: Vec::new(),
             is_authenticated: false,
             organizations: Vec::new(),
             current_organization_id: None,
@@ -127,22 +153,63 @@ impl Default for AppStore {
 
 impl AppStore {
     pub fn new() -> Self {
-        Self::default()
+        #[allow(unused_mut)]
+        let mut store = Self::default();
+        #[cfg(feature = "ssr")]
+        {
+            let db = crate::storage::message_store();
+            store.messages = db.load_all_messages();
+        }
+        store
     }
 
     // Tab management
     pub fn expand_tab(&mut self, tab: TabType) {
-        self.expanded_tab = Some(tab.clone());
+        self.expanded_tabs.insert(tab.clone());
         self.active_tab = Some(tab);
     }
 
-    pub fn collapse_tab(&mut self) {
-        self.expanded_tab = None;
+    pub fn collapse_tab(&mut self, tab: TabType) {
+        self.expanded_tabs.remove(&tab);
+        if self.active_tab.as_ref() == Some(&tab) {
+            self.active_tab = None;
+        }
+    }
+
+    pub fn collapse_all_tabs(&mut self) {
+        self.expanded_tabs.clear();
         self.active_tab = None;
     }
 
+    pub fn toggle_tab(&mut self, tab: TabType) {
+        if self.expanded_tabs.contains(&tab) {
+            self.expanded_tabs.remove(&tab);
+        } else {
+            self.expanded_tabs.insert(tab.clone());
+        }
+        self.active_tab = Some(tab);
+    }
+
     pub fn is_tab_expanded(&self, tab: &TabType) -> bool {
-        self.expanded_tab.as_ref() == Some(tab)
+        self.expanded_tabs.contains(tab)
+    }
+
+    pub fn toggle_tab_edit_mode(&mut self, tab: &TabType) -> bool {
+        if self.edit_mode_tabs.contains(tab) {
+            self.edit_mode_tabs.remove(tab);
+            false
+        } else {
+            self.edit_mode_tabs.insert(tab.clone());
+            true
+        }
+    }
+
+    pub fn is_tab_edit_mode(&self, tab: &TabType) -> bool {
+        self.edit_mode_tabs.contains(tab)
+    }
+
+    pub fn clear_tab_edit_modes(&mut self) {
+        self.edit_mode_tabs.clear();
     }
 
     // Portfolio management
@@ -163,6 +230,41 @@ impl AppStore {
             Some(self.portfolios.remove(pos))
         } else {
             None
+        }
+    }
+
+    pub fn update_document_name(&mut self, doc_id: Uuid, new_name: String) {
+        for p in self.portfolios.iter_mut() {
+            for d in &mut p.documents {
+                if d.id == doc_id {
+                    d.name = new_name.clone();
+                    return;
+                }
+            }
+            for g in &mut p.asset_groups {
+                for d in &mut g.documents {
+                    if d.id == doc_id {
+                        d.name = new_name.clone();
+                        return;
+                    }
+                }
+                for a in &mut g.assets {
+                    for d in &mut a.documents {
+                        if d.id == doc_id {
+                            d.name = new_name.clone();
+                            return;
+                        }
+                    }
+                }
+            }
+            for a in &mut p.assets {
+                for d in &mut a.documents {
+                    if d.id == doc_id {
+                        d.name = new_name.clone();
+                        return;
+                    }
+                }
+            }
         }
     }
 
@@ -215,6 +317,19 @@ impl AppStore {
         self.search_query.clear();
     }
 
+    // Left tab drawer
+    pub fn open_drawer(&mut self) {
+        self.drawer_open = true;
+    }
+
+    pub fn close_drawer(&mut self) {
+        self.drawer_open = false;
+    }
+
+    pub fn toggle_drawer(&mut self) {
+        self.drawer_open = !self.drawer_open;
+    }
+
     pub fn set_search_query(&mut self, query: String) {
         self.search_query = query;
     }
@@ -222,6 +337,163 @@ impl AppStore {
     // Theme management
     pub fn set_theme(&mut self, theme: Theme) {
         self.theme = theme;
+    }
+
+    // Portfolio grid column count
+    pub fn set_portfolio_grid_columns(&mut self, columns: usize) {
+        let allowed = [2, 3, 4, 6, 8, 12];
+        self.portfolio_grid_columns = allowed.iter().copied().find(|&c| c == columns).unwrap_or(2);
+    }
+
+    // Messenger drawer
+    pub fn toggle_message_drawer(&mut self) {
+        self.message_drawer_open = !self.message_drawer_open;
+    }
+
+    pub fn set_message_drawer(&mut self, open: bool) {
+        self.message_drawer_open = open;
+    }
+
+    pub fn set_selected_chat(&mut self, contact_id: Option<Uuid>) {
+        self.selected_chat_id = contact_id;
+    }
+
+    pub fn unread_message_count(&self) -> usize {
+        let me = self.current_user.id;
+        self.messages.iter().filter(|m| m.recipient_id == me && !m.read).count()
+    }
+
+    pub fn send_message(&mut self, recipient_id: Uuid, content: String) {
+        let sender_id = self.current_user.id;
+        let message = crate::models::Message::new(sender_id, recipient_id, content);
+        #[cfg(feature = "ssr")]
+        {
+            let store = crate::storage::message_store();
+            let _ = store.save_message(&message);
+        }
+        self.messages.push(message);
+    }
+
+    pub fn receive_message(&mut self, sender_id: Uuid, content: String) {
+        let recipient_id = self.current_user.id;
+        let message = crate::models::Message::new(sender_id, recipient_id, content);
+        #[cfg(feature = "ssr")]
+        {
+            let store = crate::storage::message_store();
+            let _ = store.save_message(&message);
+        }
+        self.messages.push(message);
+    }
+
+    pub fn mark_messages_read(&mut self, sender_id: Uuid) {
+        let me = self.current_user.id;
+        for m in self.messages.iter_mut() {
+            if m.recipient_id == me && m.sender_id == sender_id {
+                m.read = true;
+            }
+        }
+    }
+
+    pub fn add_messenger_contact(&mut self, contact: crate::models::MessengerContact) {
+        if !self.messenger_contacts.iter().any(|c| c.id == contact.id) {
+            self.messenger_contacts.push(contact);
+        }
+    }
+
+    // Calendar events
+    pub fn add_calendar_event(&mut self, event: crate::models::CalendarEvent) {
+        self.calendar_events.push(event);
+    }
+
+    pub fn clear_calendar_events(&mut self) {
+        self.calendar_events.clear();
+    }
+
+    pub fn upsert_calendar_event(&mut self, event: crate::models::CalendarEvent) {
+        self.calendar_events.retain(|e| e.id != event.id);
+        self.calendar_events.push(event.clone());
+
+        if let Some(pid) = event.related_portfolio_id {
+            if let Some(p) = self.portfolios.iter_mut().find(|p| p.id == pid) {
+                let mut found = false;
+                for e in &mut p.calendar_events {
+                    if e.id == event.id {
+                        *e = event.clone();
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    p.calendar_events.push(event.clone());
+                }
+                p.updated_at = chrono::Utc::now();
+            }
+            return;
+        }
+
+        if let Some(gid) = event.related_group_id {
+            for p in self.portfolios.iter_mut() {
+                if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                    let mut found = false;
+                    for e in &mut g.calendar_events {
+                        if e.id == event.id {
+                            *e = event.clone();
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        g.calendar_events.push(event.clone());
+                    }
+                    g.updated_at = chrono::Utc::now();
+                    p.updated_at = chrono::Utc::now();
+                    break;
+                }
+            }
+            return;
+        }
+
+        if let Some(aid) = event.related_asset_id {
+            for p in self.portfolios.iter_mut() {
+                let all_assets: Vec<&mut crate::models::Asset> = p.assets.iter_mut()
+                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                    .collect();
+                for a in all_assets {
+                    if a.id == aid {
+                        let mut found = false;
+                        for e in &mut a.calendar_events {
+                            if e.id == event.id {
+                                *e = event.clone();
+                                found = true;
+                                break;
+                            }
+                        }
+                        if !found {
+                            a.calendar_events.push(event.clone());
+                        }
+                        p.updated_at = chrono::Utc::now();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn remove_calendar_event(&mut self, event_id: Uuid) {
+        self.calendar_events.retain(|e| e.id != event_id);
+        for p in self.portfolios.iter_mut() {
+            p.calendar_events.retain(|e| e.id != event_id);
+            for g in p.asset_groups.iter_mut() {
+                g.calendar_events.retain(|e| e.id != event_id);
+                for a in g.assets.iter_mut() {
+                    a.calendar_events.retain(|e| e.id != event_id);
+                }
+            }
+            for a in p.assets.iter_mut() {
+                a.calendar_events.retain(|e| e.id != event_id);
+            }
+            p.updated_at = chrono::Utc::now();
+        }
     }
 
     // Notification management
@@ -288,10 +560,26 @@ impl AppStore {
         self.current_user.email = email.clone();
         self.current_user.role = UserRole::Owner;
 
+        // Load persisted portfolios from DB
+        #[cfg(feature = "ssr")]
+        {
+            let db = crate::storage::portfolio_store();
+            self.portfolios = db.load_all_portfolios();
+        }
+
         // Seed a default portfolio if none exist
         if self.portfolios.is_empty() {
             let owner_id = self.current_user.id;
             self.portfolios.push(seed_default_portfolio(owner_id));
+        }
+
+        // Persist all portfolios to DB
+        #[cfg(feature = "ssr")]
+        {
+            let db = crate::storage::portfolio_store();
+            for p in &self.portfolios {
+                let _ = db.save_portfolio(p);
+            }
         }
 
         // Pre-cache home page with PQC encryption
@@ -304,9 +592,6 @@ impl AppStore {
 
         let _ = crypto::cache_to_local("farley_home_cache", &home_data, &self.cache_key);
 
-        // Go to home page (expand Overview tab)
-        self.expand_tab(TabType::Overview);
-
         Ok((display_name, format!("{:?}", self.current_user.role)))
     }
 
@@ -315,6 +600,13 @@ impl AppStore {
         self.current_user.name = name;
         self.current_user.email = email;
         self.current_user.role = role;
+
+        // Load persisted portfolios from DB
+        #[cfg(feature = "ssr")]
+        {
+            let db = crate::storage::portfolio_store();
+            self.portfolios = db.load_all_portfolios();
+        }
 
         // Seed a default portfolio if none exist
         if self.portfolios.is_empty() {
@@ -326,7 +618,7 @@ impl AppStore {
     pub fn logout(&mut self) {
         self.is_authenticated = false;
         self.current_user = UserProfile::default();
-        self.collapse_tab();
+        self.collapse_all_tabs();
         self.close_search();
         self.selected_portfolio_id = None;
         self.selected_asset_group_id = None;
@@ -385,6 +677,13 @@ impl AppStore {
         self.current_user.email = email.to_string();
         self.current_user.role = UserRole::Owner;
 
+        // Load persisted portfolios from DB
+        #[cfg(feature = "ssr")]
+        {
+            let db = crate::storage::portfolio_store();
+            self.portfolios = db.load_all_portfolios();
+        }
+
         // Also mark this user as validated locally so future local logins work
         if !display_name.is_empty() {
             self.credentials.mark_validated(display_name);
@@ -398,6 +697,15 @@ impl AppStore {
             self.portfolios.push(seed_default_portfolio(owner_id));
         }
 
+        // Persist all portfolios to DB
+        #[cfg(feature = "ssr")]
+        {
+            let db = crate::storage::portfolio_store();
+            for p in &self.portfolios {
+                let _ = db.save_portfolio(p);
+            }
+        }
+
         // Pre-cache home page with PQC encryption
         let home_data = serde_json::json!({
             "user": display_name,
@@ -407,9 +715,6 @@ impl AppStore {
         }).to_string();
 
         let _ = crypto::cache_to_local("farley_home_cache", &home_data, &self.cache_key);
-
-        // Go to home page (expand Overview tab)
-        self.expand_tab(TabType::Overview);
     }
 
     // Organization management
@@ -441,7 +746,9 @@ impl AppStore {
 
     // Get location name for navbar
     pub fn get_current_location(&self) -> String {
-        if let Some(ref tab) = self.expanded_tab {
+        let tab = self.active_tab.clone()
+            .or_else(|| self.expanded_tabs.iter().next().cloned());
+        if let Some(ref tab) = tab {
             match tab {
                 TabType::Overview => "Overview".to_string(),
                 TabType::Portfolios => {
@@ -456,6 +763,7 @@ impl AppStore {
                 TabType::NetworkingAddMember => "Add Team".to_string(),
                 TabType::Organization => "Organization".to_string(),
                 TabType::Reporting => "Reporting".to_string(),
+                TabType::Calendar => "Calendar".to_string(),
                 TabType::Transactions => "Transactions".to_string(),
                 TabType::History => "History".to_string(),
                 TabType::Settings => "Settings".to_string(),
@@ -475,6 +783,7 @@ fn make_doc(name: &str, ext: &str) -> crate::models::Document {
         url: "#".to_string(),
         uploaded_at: chrono::Utc::now(),
         uploaded_by: Uuid::nil(),
+        content: None,
     }
 }
 

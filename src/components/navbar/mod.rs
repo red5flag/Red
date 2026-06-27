@@ -1,3 +1,4 @@
+use crate::components::messenger::MessageDrawer;
 use crate::components::search::SearchFilters;
 use crate::stores::{create_action, use_app_store, use_search_store, use_undo_redo_store};
 use crate::types::{ActionType, TabType};
@@ -13,10 +14,9 @@ pub fn Navbar() -> impl IntoView {
     let can_undo = move || undo_store.get().can_undo();
     let can_redo = move || undo_store.get().can_redo();
     let is_search_open = move || app_store.get().is_search_open;
-    let current_location = move || app_store.get().get_current_location();
     let profile_name = move || app_store.get().current_user.name.clone();
-    let profile_role = move || format!("{:?}", app_store.get().current_user.role);
-    let notification_count = move || app_store.get().notifications.len();
+    let message_count = move || app_store.get().unread_message_count();
+    let is_message_drawer_open = move || app_store.get().message_drawer_open;
 
     // Helper to get user info tuple
     fn user_info(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) -> (uuid::Uuid, String, String, Option<uuid::Uuid>) {
@@ -35,10 +35,11 @@ pub fn Navbar() -> impl IntoView {
             &name,
             &role,
             org,
+            None,
         );
         undo_store.update(|u| u.record_action(action));
         app_store.update(|store| {
-            store.collapse_tab();
+            store.collapse_all_tabs();
             store.close_search();
         });
     };
@@ -54,6 +55,7 @@ pub fn Navbar() -> impl IntoView {
                 &name,
                 &role,
                 org,
+                None,
             );
             undo_store.update(|u| u.record_action(action));
             tracing::info!("Redo: {:?}", redone);
@@ -71,6 +73,7 @@ pub fn Navbar() -> impl IntoView {
                 &name,
                 &role,
                 org,
+                None,
             );
             undo_store.update(|u| u.record_action(action));
             tracing::info!("Undo: {:?}", undone);
@@ -94,6 +97,7 @@ pub fn Navbar() -> impl IntoView {
                     &name,
                     &role,
                     org,
+                    None,
                 );
                 undo_store.update(|u| u.record_action(action));
             } else {
@@ -106,6 +110,7 @@ pub fn Navbar() -> impl IntoView {
                     &name,
                     &role,
                     org,
+                    None,
                 );
                 undo_store.update(|u| u.record_action(action));
             }
@@ -121,83 +126,58 @@ pub fn Navbar() -> impl IntoView {
         });
     };
 
-    let on_search_close = move |_| {
-        let (uid, name, role, org) = user_info(&app_store);
-        app_store.update(|store| {
-            store.close_search();
-        });
-        let action = create_action(
-            ActionType::Search,
-            "Search",
-            "Closed search",
-            uid,
-            &name,
-            &role,
-            org,
-        );
-        undo_store.update(|u| u.record_action(action));
+    let on_message_click = move |_| {
+        app_store.update(|store| store.toggle_message_drawer());
     };
 
-    view! {
-        // Main Navbar - Fixed at top, two rows
-        <nav class="navbar">
-            // ROW 1: buttons OR search bar when open
-            <div class="navbar-row navbar-row-1">
-                {move || if is_search_open() {
-                    view! {
-                        <div class="nav-search-bar-wrap">
-                            <input
-                                type="text"
-                                class="nav-search-bar-input"
-                                placeholder="Search..."
-                                prop:value={move || search_store.get().query}
-                                on:input=move |ev| {
-                                    let v = event_target_value(&ev);
-                                    search_store.update(|s| s.set_query(v));
-                                }
-                            />
-                            <button class="nav-search-close-btn" on:click=on_search_close>"✕"</button>
-                        </div>
-                    }.into_any()
-                } else {
-                    view! {
-                        <div class="nav-row1-left">
-                            <button class="nav-btn" on:click=on_home title="Home">"⌂"</button>
-                            <button class="nav-btn" on:click=on_redo
-                                disabled={move || !can_redo()} title="Redo">"↻"</button>
-                        </div>
-                        <div class="nav-row1-centre">
-                            <span class="nav-profile-name-top">{profile_name}</span>
-                        </div>
-                        <div class="nav-row1-right">
-                            <button class="nav-btn" on:click=on_undo
-                                disabled={move || !can_undo()} title="Undo">"↺"</button>
-                            <button class="nav-btn nav-search-btn" on:click=on_search_click title="Search">"🔍"</button>
-                        </div>
-                    }.into_any()
-                }}
-            </div>
+    let on_drawer_toggle = move |_| {
+        app_store.update(|store| store.toggle_drawer());
+    };
 
-            // ROW 2: Avatar | [centre: Location above Role] | Notifications
-            <div class="navbar-row navbar-row-2">
-                <div class="nav-avatar">"⚙"</div>
-                <div class="nav-centre">
-                    <div class="nav-centre-top">
-                        <span class="nav-location-label">{current_location}</span>
-                    </div>
-                    <div class="nav-profile-role">{profile_role}</div>
+    let on_overview_pen = move |_| {
+        app_store.update(|store| { store.toggle_tab_edit_mode(&TabType::Overview); });
+    };
+
+    let overview_edit_active = move || app_store.get().is_tab_edit_mode(&TabType::Overview);
+    let drawer_open = move || app_store.get().drawer_open;
+
+    view! {
+        // Main Navbar - Fixed at top, single row
+        <nav class="navbar">
+            // ROW 1: buttons always visible
+            <div class="navbar-row navbar-row-1">
+                <div class="nav-row1-left">
+                    <button class="nav-btn" on:click=on_drawer_toggle title="Toggle menu" class:nav-btn-active=drawer_open>"☰"</button>
+                    <button class="nav-btn" on:click=on_home title="Home">"⌂"</button>
+                    <button class="nav-btn" on:click=on_redo
+                        disabled={move || !can_redo()} title="Redo">"↻"</button>
                 </div>
-                <div class="nav-notif-wrap">
-                    <div class="nav-notif-icon">"✉"</div>
-                    {move || {
-                        let count = notification_count();
-                        if count > 0 {
-                            view! { <div class="nav-notif-badge">{count}</div> }.into_any()
-                        } else { ().into_any() }
-                    }}
+                <div class="nav-row1-centre">
+                    <span class="nav-profile-name-top">{profile_name}</span>
+                </div>
+                <div class="nav-row1-right">
+                    <button class="nav-btn" on:click=on_undo
+                        disabled={move || !can_undo()} title="Undo">"↺"</button>
+                    <button class="nav-btn" on:click=on_overview_pen
+                        class:nav-btn-active=overview_edit_active title="Edit Overview">"✎"</button>
+                    <button class="nav-btn nav-search-btn" on:click=on_search_click title="Search">"🔍"</button>
+                    <div class="nav-message-wrap" on:click=on_message_click title="Open messages">
+                        <div class="nav-message-icon">"💬"</div>
+                        {move || {
+                            let count = message_count();
+                            if count > 0 {
+                                view! { <div class="nav-message-badge">{count}</div> }.into_any()
+                            } else { ().into_any() }
+                        }}
+                    </div>
                 </div>
             </div>
         </nav>
+
+        // Message drawer overlay
+        {move || if is_message_drawer_open() {
+            view! { <MessageDrawer /> }.into_any()
+        } else { ().into_any() }}
 
         // Search panel - drops below navbar when open
         {move || if is_search_open() {
