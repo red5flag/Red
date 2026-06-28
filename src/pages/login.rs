@@ -1,5 +1,5 @@
 use cfg_if::cfg_if;
-use crate::api::email::{SignupRequest, LoginRequest};
+use crate::api::email::{SignupRequest, LoginRequest, SyncCredentialsRequest};
 use crate::stores::{create_action, use_app_store, use_undo_redo_store};
 use crate::types::ActionType;
 use leptos::prelude::*;
@@ -23,10 +23,12 @@ pub fn LoginPage() -> impl IntoView {
     let (error, set_error) = signal(String::new());
     let (show_signup, set_show_signup) = signal(false);
     let (remember_me, set_remember_me) = signal(true);
+    let (login_store_local, set_login_store_local) = signal(true);
+    let (login_store_cloud, set_login_store_cloud) = signal(false);
 
     // 2FA flow signals
     let (pending_username, set_pending_username) = signal(String::new());
-    let (_pending_password, set_pending_password) = signal(String::new());
+    let (pending_password, set_pending_password) = signal(String::new());
     let (fa_code, set_fa_code) = signal(String::new());
     let (fa_mode, set_fa_mode) = signal::<Option<&'static str>>(None);
     let (fa_message, set_fa_message) = signal(String::new());
@@ -36,6 +38,8 @@ pub fn LoginPage() -> impl IntoView {
     let (su_password, set_su_password) = signal(String::new());
     let (su_confirm, set_su_confirm) = signal(String::new());
     let (su_email, set_su_email) = signal(String::new());
+    let (su_store_local, set_su_store_local) = signal(true);
+    let (su_store_cloud, set_su_store_cloud) = signal(false);
     let (su_error, set_su_error) = signal(String::new());
     let (su_success, set_su_success) = signal(String::new());
 
@@ -60,6 +64,25 @@ pub fn LoginPage() -> impl IntoView {
             }
         }
         String::new()
+    };
+
+    let sync_credentials_to_cloud = move |username: String| {
+        let creds = app_store.get().credentials.clone();
+        spawn_local(async move {
+            let _req = SyncCredentialsRequest {
+                username: username.clone(),
+                credentials: creds,
+            };
+            cfg_if! {
+                if #[cfg(feature = "hydrate")] {
+                    let _ = gloo_net::http::Request::post("/api/credentials/sync")
+                        .json(&_req)
+                        .unwrap()
+                        .send()
+                        .await;
+                }
+            }
+        });
     };
 
     let finish_login = move |name: String, email: String, role: String| {
@@ -90,7 +113,39 @@ pub fn LoginPage() -> impl IntoView {
     // Load saved username on mount
     let initial_username = load_last_username();
     if !initial_username.is_empty() {
-        set_username.set(initial_username);
+        set_username.set(initial_username.clone());
+    }
+
+    // Try loading profiles from cloud if no local profiles exist (hydrate only)
+    cfg_if! {
+        if #[cfg(feature = "hydrate")] {
+            {
+                let app_store = app_store.clone();
+                let initial_username = initial_username.clone();
+                spawn_local(async move {
+                    if app_store.get().credentials.credentials.is_empty() && !initial_username.is_empty() {
+                        let resp = gloo_net::http::Request::get("/api/credentials/sync")
+                            .query([("username", &initial_username)])
+                            .send()
+                            .await;
+                        if let Ok(r) = resp {
+                            if let Ok(load_resp) = r.json::<crate::api::email::LoadCredentialsResponse>().await {
+                                if load_resp.success {
+                                    if let Some(creds) = load_resp.credentials {
+                                        app_store.update(|store| {
+                                            for (username, cred) in creds.credentials {
+                                                store.credentials.credentials.entry(username).or_insert(cred);
+                                            }
+                                            store.credentials.save_to_local_storage();
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }
 
     let on_login = move || {
@@ -137,6 +192,14 @@ pub fn LoginPage() -> impl IntoView {
                         None,
                     ));
                 });
+                let local = login_store_local.get();
+                let cloud = login_store_cloud.get();
+                app_store.update(|s| {
+                    s.set_storage_options(&u, local, cloud);
+                });
+                if cloud {
+                    sync_credentials_to_cloud(u.clone());
+                }
                 return;
             } else if let Some(Err(e)) = result {
                 if !e.to_lowercase().contains("not validated") {
@@ -174,7 +237,15 @@ pub fn LoginPage() -> impl IntoView {
                             if let Ok(login_resp) = r.json::<LoginResponse>().await {
                                 if login_resp.success {
                                     if let (Some(name), Some(email)) = (login_resp.display_name, login_resp.email) {
+                                        let local = login_store_local.get();
+                                        let cloud = login_store_cloud.get();
+                                        app_store.update(|store| {
+                                            store.upsert_credential_from_login(&u_clone, &p_clone, &name, &email, true, local, cloud);
+                                        });
                                         finish_login(name, email, "Owner".to_string());
+                                        if cloud {
+                                            sync_credentials_to_cloud(u_clone.clone());
+                                        }
                                     }
                                 } else if login_resp.requires_totp || login_resp.requires_email_2fa {
                                     set_pending_username_clone.set(u_clone.clone());
@@ -209,6 +280,7 @@ pub fn LoginPage() -> impl IntoView {
 
     let on_verify_2fa = move |mode: &'static str| {
         let u = pending_username.get();
+        let p = pending_password.get();
         let code = fa_code.get();
         if code.trim().is_empty() {
             set_fa_message.set(format!("Please enter the {} code", mode));
@@ -234,7 +306,15 @@ pub fn LoginPage() -> impl IntoView {
                                 if let Ok(v) = r.json::<VerifyTotpResponse>().await {
                                     if v.success {
                                         if let (Some(name), Some(email)) = (v.display_name, v.email) {
+                                            let local = login_store_local.get();
+                                            let cloud = login_store_cloud.get();
+                                            app_store.update(|store| {
+                                                store.upsert_credential_from_login(&u, &p, &name, &email, true, local, cloud);
+                                            });
                                             finish_login_clone(name, email, "Owner".to_string());
+                                            if cloud {
+                                                sync_credentials_to_cloud(u.clone());
+                                            }
                                             set_fa_mode_clone.set(None);
                                         }
                                     } else {
@@ -247,7 +327,15 @@ pub fn LoginPage() -> impl IntoView {
                                 if let Ok(v) = r.json::<VerifyEmail2faResponse>().await {
                                     if v.success {
                                         if let (Some(name), Some(email)) = (v.display_name, v.email) {
+                                            let local = login_store_local.get();
+                                            let cloud = login_store_cloud.get();
+                                            app_store.update(|store| {
+                                                store.upsert_credential_from_login(&u, &p, &name, &email, true, local, cloud);
+                                            });
                                             finish_login_clone(name, email, "Owner".to_string());
+                                            if cloud {
+                                                sync_credentials_to_cloud(u.clone());
+                                            }
                                             set_fa_mode_clone.set(None);
                                         }
                                     } else {
@@ -261,7 +349,7 @@ pub fn LoginPage() -> impl IntoView {
                         Err(e) => set_fa_message_clone.set(format!("Network error: {}", e)),
                     }
                 } else {
-                    let _ = (u, code, mode, finish_login_clone, set_fa_mode_clone, set_fa_message_clone);
+                    let _ = (u, p, code, mode, finish_login_clone, set_fa_mode_clone, set_fa_message_clone);
                 }
             }
         });
@@ -320,9 +408,11 @@ pub fn LoginPage() -> impl IntoView {
                         Ok(r) => {
                             if let Ok(signup_resp) = r.json::<SignupResponse>().await {
                                 if signup_resp.success {
-                                    // Also save credentials locally (unvalidated)
+                                    // Also save credentials with chosen storage options
+                                    let su_local = su_store_local.get();
+                                    let su_cloud = su_store_cloud.get();
                                     app_store_for_signup.update(|store| {
-                                        let _ = store.register_user(&u, &p, &email_for_msg);
+                                        let _ = store.register_user(&u, &p, &email_for_msg, su_local, su_cloud);
                                     });
                                     set_succ.set(format!(
                                         "Account created! A validation email has been sent to {}. Check /emailvalid to validate and then sign in.",
@@ -351,6 +441,51 @@ pub fn LoginPage() -> impl IntoView {
     };
 
     let (changelog_open, set_changelog_open) = signal(false);
+    #[allow(unused_variables)]
+    let (commits, set_commits) = signal(Vec::<(String, String)>::new());
+    let (commits_loading, set_commits_loading) = signal(false);
+    let (commits_fetched, set_commits_fetched) = signal(false);
+
+    let fetch_commits = move |_| {
+        if commits_fetched.get() { return; }
+        set_commits_fetched.set(true);
+        set_commits_loading.set(true);
+        cfg_if! {
+            if #[cfg(feature = "hydrate")] {
+                spawn_local(async move {
+                    let resp = gloo_net::http::Request::get("https://api.github.com/repos/red5flag/Carly/commits?per_page=10")
+                        .header("Accept", "application/vnd.github+json")
+                        .header("User-Agent", "Carly-App")
+                        .send()
+                        .await;
+                    if let Ok(r) = resp {
+                        if let Ok(text) = r.text().await {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                                if let Some(arr) = json.as_array() {
+                                    let parsed: Vec<(String, String)> = arr.iter().filter_map(|c| {
+                                        let sha = c.get("sha")?.as_str()?.chars().take(7).collect::<String>();
+                                        let msg = c.get("commit")?.get("message")?.as_str()?;
+                                        let first_line = msg.lines().next().unwrap_or(msg).to_string();
+                                        Some((sha, first_line))
+                                    }).collect();
+                                    set_commits.set(parsed);
+                                }
+                            }
+                        }
+                    }
+                    set_commits_loading.set(false);
+                });
+            }
+        }
+    };
+
+    let on_toggle_changelog = move |_| {
+        set_changelog_open.update(|v| {
+            *v = !*v;
+            if *v { fetch_commits(()); }
+        });
+    };
+    let (saved_profiles_open, set_saved_profiles_open) = signal(false);
     let (show_username, set_show_username) = signal(true);
     let (show_password, set_show_password) = signal(false);
     let (su_show_pass, set_su_show_pass) = signal(false);
@@ -367,11 +502,83 @@ pub fn LoginPage() -> impl IntoView {
             </div>
 
             // ── SAVED PROFILES ROW ──
-            <div class="lp-saved-row">
+            <div class="lp-saved-row" on:click=move |_| set_saved_profiles_open.update(|v| *v = !*v)>
                 <div class="lp-saved-icon">"⚙"</div>
                 <div class="lp-saved-label">"SAVED PROFILES"</div>
-                <div class="lp-saved-arrow">"▼"</div>
+                <div class="lp-saved-arrow">{move || if saved_profiles_open.get() { "▲" } else { "▼" }}</div>
             </div>
+            {move || if saved_profiles_open.get() {
+                let profiles = app_store.get().credentials.credentials.values().cloned().collect::<Vec<_>>();
+                if profiles.is_empty() {
+                    view! { <div class="lp-saved-empty">"No saved profiles on this device"</div> }.into_any()
+                } else {
+                    view! {
+                        <div class="lp-saved-list">
+                            {profiles.into_iter().map(|cred| {
+                                let username = cred.username.clone();
+                                let display = cred.display_name.clone();
+                                let email = cred.email.clone();
+                                let local = cred.store_local;
+                                let cloud = cred.store_cloud;
+                                let u_sel = username.clone();
+                                let u_storage_local = username.clone();
+                                let u_storage_cloud = username.clone();
+                                view! {
+                                    <div class="lp-saved-card">
+                                        <div class="lp-saved-info" on:click=move |_| { set_username.set(u_sel.clone()); set_password.set(String::new()); }>
+                                            <div class="lp-saved-name">{display}</div>
+                                            <div class="lp-saved-username">{username}</div>
+                                            <div class="lp-saved-email">{email}</div>
+                                        </div>
+                                        <div class="lp-saved-toggles">
+                                            <label class="lp-saved-toggle" class:active=local title="Local storage">
+                                                <input type="checkbox" checked=local on:change=move |ev| {
+                                                    let checked = event_target_checked(&ev);
+                                                    let username = u_storage_local.clone();
+                                                    app_store.update(|s| {
+                                                        let cloud = s.credentials.credentials.get(&username).map(|c| c.store_cloud).unwrap_or(false);
+                                                        s.set_storage_options(&username, checked, cloud);
+                                                    });
+                                                }/>
+                                                "💻"
+                                            </label>
+                                            <label class="lp-saved-toggle" class:active=cloud title="Cloud storage">
+                                                <input type="checkbox" checked=cloud on:change=move |ev| {
+                                                    let checked = event_target_checked(&ev);
+                                                    let username = u_storage_cloud.clone();
+                                                    let creds = app_store.get().credentials.clone();
+                                                    app_store.update(|s| {
+                                                        let local = s.credentials.credentials.get(&username).map(|c| c.store_local).unwrap_or(true);
+                                                        s.set_storage_options(&username, local, checked);
+                                                    });
+                                                    if checked {
+                                                        spawn_local(async move {
+                                                            let _req = crate::api::email::SyncCredentialsRequest {
+                                                                username: username.clone(),
+                                                                credentials: creds,
+                                                            };
+                                                            cfg_if! {
+                                                                if #[cfg(feature = "hydrate")] {
+                                                                    let _ = gloo_net::http::Request::post("/api/credentials/sync")
+                                                                        .json(&_req)
+                                                                        .unwrap()
+                                                                        .send()
+                                                                        .await;
+                                                                }
+                                                            }
+                                                        });
+                                                    }
+                                                }/>
+                                                "☁"
+                                            </label>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect_view()}
+                        </div>
+                    }.into_any()
+                }
+            } else { ().into_any() }}
 
             // ── USERNAME ROW ──
             <div class="lp-field-row">
@@ -385,6 +592,9 @@ pub fn LoginPage() -> impl IntoView {
                         <input
                             type={if vis { "text" } else { "password" }}
                             class="lp-field-input"
+                            name="farley-username"
+                            autocomplete="off"
+                            data-lpignore="true"
                             placeholder="Username"
                             prop:value=move || username.get()
                             on:input=move |ev| set_username.set(event_target_value(&ev))
@@ -406,6 +616,9 @@ pub fn LoginPage() -> impl IntoView {
                         <input
                             type={if vis { "text" } else { "password" }}
                             class="lp-field-input"
+                            name="farley-password"
+                            autocomplete="off"
+                            data-lpignore="true"
                             placeholder="Password"
                             on:input=move |ev| set_password.set(event_target_value(&ev))
                             on:keydown=move |ev| { if ev.key() == "Enter" { on_login(); } }
@@ -479,6 +692,27 @@ pub fn LoginPage() -> impl IntoView {
                 <button class="lp-oauth-btn">"2FA"</button>
             </div>
 
+            // ── LOGIN STORAGE OPTION ──
+            <div class="lp-storage-row">
+                <div class="lp-storage-label">"STORAGE:"</div>
+                <label class="lp-storage-option" class:active={move || login_store_local.get()}>
+                    <input
+                        type="checkbox"
+                        checked={move || login_store_local.get()}
+                        on:change=move |ev| set_login_store_local.set(event_target_checked(&ev))
+                    />
+                    "Local"
+                </label>
+                <label class="lp-storage-option" class:active={move || login_store_cloud.get()}>
+                    <input
+                        type="checkbox"
+                        checked={move || login_store_cloud.get()}
+                        on:change=move |ev| set_login_store_cloud.set(event_target_checked(&ev))
+                    />
+                    "Cloud"
+                </label>
+            </div>
+
             // ── CHANGELOG ACCORDION ──
             <div class="lp-changelog">
                 <div class="lp-changelog-header">
@@ -492,7 +726,7 @@ pub fn LoginPage() -> impl IntoView {
                     </a>
                     <span
                         class="lp-changelog-toggle"
-                        on:click=move |_| set_changelog_open.update(|v| *v = !*v)
+                        on:click=on_toggle_changelog
                     >
                         {move || if changelog_open.get() { "▲" } else { "▼" }}
                     </span>
@@ -501,14 +735,41 @@ pub fn LoginPage() -> impl IntoView {
                     view! {
                         <div class="lp-changelog-body">
                             <div class="lp-changelog-summary">
-                                "Latest updates from the repository. Click CHANGELOG to view the full commit history on GitHub."
+                                {move || if commits_loading.get() {
+                                    "Loading recent commits from GitHub…"
+                                } else {
+                                    "Latest commits from red5flag/Carly on GitHub."
+                                }}
                             </div>
                             <ul class="lp-changelog-list">
-                                <li>"b697072 — Updated portfolio"</li>
-                                <li>"9507def — Update README.md"</li>
-                                <li>"ef9a2a8 — Login argon2"</li>
-                                <li>"227dc45 — first commit"</li>
+                                {move || commits.get().iter().map(|(sha, msg)| {
+                                    view! {
+                                        <li>
+                                            <a
+                                                href={format!("https://github.com/red5flag/Carly/commit/{}", sha)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="lp-changelog-commit"
+                                            >
+                                                <span class="lp-commit-sha">{sha.clone()}</span>
+                                                <span class="lp-commit-msg">{msg.clone()}</span>
+                                            </a>
+                                        </li>
+                                    }
+                                }).collect::<Vec<_>>()}
                             </ul>
+                            {move || if commits.get().is_empty() && !commits_loading.get() {
+                                view! {
+                                    <div class="lp-changelog-empty">
+                                        "Unable to load commits. "
+                                        <a
+                                            href="https://github.com/red5flag/Carly/commits/main"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >"View on GitHub →"</a>
+                                    </div>
+                                }.into_any()
+                            } else { ().into_any() }}
                         </div>
                     }.into_any()
                 } else { ().into_any() }}
@@ -531,7 +792,7 @@ pub fn LoginPage() -> impl IntoView {
                 view! {
                     <div class="lp-screen lp-register-screen">
                         <div class="lp-header">
-                            <div class="lp-logo">"C"</div>
+                            <div class="lp-logo">"λ"</div>
                             <div class="lp-title">"REGISTER"</div>
                             <button class="lp-close-btn" on:click=move |_| set_show_signup.set(false)>"✕"</button>
                         </div>
@@ -597,6 +858,27 @@ pub fn LoginPage() -> impl IntoView {
                                 view! { <div class="lp-success">{s}</div> }.into_any()
                             }
                         }}
+
+                        // Storage option
+                        <div class="lp-storage-row">
+                            <div class="lp-storage-label">"STORAGE:"</div>
+                            <label class="lp-storage-option" class:active={move || su_store_local.get()}>
+                                <input
+                                    type="checkbox"
+                                    checked={move || su_store_local.get()}
+                                    on:change=move |ev| set_su_store_local.set(event_target_checked(&ev))
+                                />
+                                "Local"
+                            </label>
+                            <label class="lp-storage-option" class:active={move || su_store_cloud.get()}>
+                                <input
+                                    type="checkbox"
+                                    checked={move || su_store_cloud.get()}
+                                    on:change=move |ev| set_su_store_cloud.set(event_target_checked(&ev))
+                                />
+                                "Cloud"
+                            </label>
+                        </div>
 
                         // Action row
                         <div class="lp-action-row">

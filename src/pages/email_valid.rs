@@ -12,7 +12,8 @@ cfg_if! {
         use crate::api::email::{SignupRequest, SignupResponse, ValidateRequest, ValidateResponse, LoginRequest, LoginResponse,
             VerifyTotpRequest, VerifyTotpResponse, VerifyEmail2faRequest, VerifyEmail2faResponse,
             EnableTotpRequest, EnableTotpResponse, ConfirmTotpRequest, ConfirmTotpResponse,
-            ToggleEmail2faRequest, ToggleEmail2faResponse};
+            ToggleEmail2faRequest, ToggleEmail2faResponse,
+            SyncCredentialsRequest, SyncCredentialsResponse, LoadCredentialsRequest, LoadCredentialsResponse};
 
         #[derive(Deserialize)]
         pub struct EmailValidQuery {
@@ -424,6 +425,42 @@ cfg_if! {
                 "status": "ok",
                 "users": 1,
             })))
+        }
+
+        // API: POST /api/credentials/sync
+        pub async fn api_sync_credentials(
+            axum::Json(req): axum::Json<SyncCredentialsRequest>,
+        ) -> Result<AxumJson<SyncCredentialsResponse>, (StatusCode, String)> {
+            let db = crate::storage::data_store();
+            match db.save_credentials(&req.username, &req.credentials) {
+                Ok(_) => Ok(AxumJson(SyncCredentialsResponse {
+                    success: true,
+                    message: "Credentials synced to cloud".to_string(),
+                })),
+                Err(e) => Ok(AxumJson(SyncCredentialsResponse {
+                    success: false,
+                    message: format!("Failed to sync credentials: {}", e),
+                })),
+            }
+        }
+
+        // API: GET /api/credentials/sync
+        pub async fn api_load_credentials(
+            Query(req): Query<LoadCredentialsRequest>,
+        ) -> Result<AxumJson<LoadCredentialsResponse>, (StatusCode, String)> {
+            let db = crate::storage::data_store();
+            match db.load_credentials(&req.username) {
+                Some(credentials) => Ok(AxumJson(LoadCredentialsResponse {
+                    success: true,
+                    message: "Credentials loaded from cloud".to_string(),
+                    credentials: Some(credentials),
+                })),
+                None => Ok(AxumJson(LoadCredentialsResponse {
+                    success: false,
+                    message: "No cloud credentials found".to_string(),
+                    credentials: None,
+                })),
+            }
         }
     }
 }

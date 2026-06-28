@@ -54,7 +54,7 @@ pub fn App() -> impl IntoView {
         >
             <div class="app-container" data-theme={move || theme_attr.get()}>
                 // Main content area with collapsible tabs
-                <main class="main-content">
+                <main class="main-content" class:main-content-pf={move || app_store.get().active_tabs.first().map(|t| *t == crate::types::TabType::Portfolios).unwrap_or(false)}>
                     <TabsContainer />
                 </main>
 

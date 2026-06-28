@@ -1,3 +1,4 @@
+use crate::components::editable_text::EditableText;
 use crate::stores::use_app_store;
 use leptos::prelude::*;
 #[component]
@@ -5,6 +6,9 @@ pub fn OverviewPage() -> impl IntoView {
     let app_store = use_app_store();
 
     let user_name = move || app_store.get().current_user.name.clone();
+    let on_name_commit = move |name: String| {
+        app_store.update(|s| s.set_user_name(name));
+    };
     let portfolio_count = move || app_store.get().portfolios.len();
     let asset_count = move || app_store.get().portfolios.iter().map(|p| p.get_all_assets().len()).sum::<usize>();
     let org_count = move || app_store.get().organization_users.len();
@@ -53,7 +57,8 @@ pub fn OverviewPage() -> impl IntoView {
     view! {
         <div class="overview-content">
             <div class="overview-greeting">
-                {move || format!("Welcome, {}", user_name())}
+                "Welcome, "
+                <EditableText value=Signal::derive(user_name) on_commit=on_name_commit />
             </div>
 
             <div class="overview-square-grid">

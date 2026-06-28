@@ -440,3 +440,27 @@ pub struct ToggleEmail2faResponse {
     pub message: String,
     pub enabled: bool,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncCredentialsRequest {
+    pub username: String,
+    pub credentials: crate::stores::credentials::CredentialStore,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncCredentialsResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LoadCredentialsRequest {
+    pub username: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LoadCredentialsResponse {
+    pub success: bool,
+    pub message: String,
+    pub credentials: Option<crate::stores::credentials::CredentialStore>,
+}

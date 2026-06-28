@@ -23,7 +23,7 @@ pub fn PortfoliosPage() -> impl IntoView {
             .collect::<Vec<_>>()
     });
     let view_mode = move || app_store.get().portfolio_view_mode.clone();
-    let (sort_mode, set_sort_mode) = signal(SortMode::Recent);
+    let sort_mode = move || app_store.get().portfolio_sort_mode.clone();
     let selected_id = move || app_store.get().selected_portfolio_id;
     let edit_mode = use_tab_edit_mode();
     let can_edit = move || {
@@ -32,7 +32,6 @@ pub fn PortfoliosPage() -> impl IntoView {
     };
 
     // Form signals for add portfolio
-    let (show_add_portfolio, set_show_add_portfolio) = signal(false);
     let (new_name, set_new_name) = signal(String::new());
     let (new_desc, set_new_desc) = signal(String::new());
 
@@ -43,10 +42,8 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Form signals for add asset
     let (show_add_asset, set_show_add_asset) = signal(AssetTarget::default());
 
-    // Top-level add group/asset signals (from control bar)
-    let (show_top_add_group, set_show_top_add_group) = signal(false);
+    // Top-level add group/asset signals (from navbar via AppStore)
     let (top_add_group_pid, set_top_add_group_pid) = signal(Option::<Uuid>::None);
-    let (show_top_add_asset, set_show_top_add_asset) = signal(false);
     let (top_add_asset_pid, set_top_add_asset_pid) = signal(Option::<Uuid>::None);
     let (top_add_asset_gid, set_top_add_asset_gid) = signal(Option::<Uuid>::None);
 
@@ -82,7 +79,7 @@ pub fn PortfoliosPage() -> impl IntoView {
         app_store.update(|s| s.add_portfolio(p));
         set_new_name.set(String::new());
         set_new_desc.set(String::new());
-        set_show_add_portfolio.set(false);
+        app_store.update(|s| s.show_add_portfolio = false);
     };
 
     let on_delete_portfolio = move |id: Uuid| {
@@ -155,7 +152,7 @@ pub fn PortfoliosPage() -> impl IntoView {
         let pid = top_add_group_pid.get();
         if pid.is_none() { return; }
         on_add_group.run(pid.unwrap());
-        set_show_top_add_group.set(false);
+        app_store.update(|s| s.show_top_add_group = false);
         set_top_add_group_pid.set(None);
     };
 
@@ -167,7 +164,7 @@ pub fn PortfoliosPage() -> impl IntoView {
             None => AssetTarget::PortfolioDirect(pid.unwrap()),
         };
         on_add_asset.run(target);
-        set_show_top_add_asset.set(false);
+        app_store.update(|s| s.show_top_add_asset = false);
         set_top_add_asset_pid.set(None);
         set_top_add_asset_gid.set(None);
     };
@@ -225,116 +222,33 @@ pub fn PortfoliosPage() -> impl IntoView {
                 }.into_any()
             })}
 
-            // View Toggle + Sort + Add button
-            <div class="view-toggle">
-                <button
-                    class="view-btn"
-                    class:active={move || view_mode() == ViewMode::List}
-                    on:click=move |_| {
-                        app_store.update(|s| s.portfolio_view_mode = ViewMode::List);
-                    }
-                >
-                    "📋 List"
-                </button>
-                <button
-                    class="view-btn"
-                    class:active={move || view_mode() == ViewMode::Grid}
-                    on:click=move |_| {
-                        app_store.update(|s| s.portfolio_view_mode = ViewMode::Grid);
-                    }
-                >
-                    "⊞ Grid"
-                </button>
-                <select
-                    class="view-btn sort-select"
-                    prop:value={move || {
-                        if view_mode() == ViewMode::Grid {
-                            format!("grid_{}", app_store.get().portfolio_grid_columns)
-                        } else {
-                            match sort_mode.get() {
-                                SortMode::Recent => "sort_recent".to_string(),
-                                SortMode::Oldest => "sort_oldest".to_string(),
-                                SortMode::HighestValue => "sort_highest_value".to_string(),
-                                SortMode::LowestValue => "sort_lowest_value".to_string(),
-                                SortMode::HighestProfit => "sort_highest_profit".to_string(),
-                                SortMode::LowestProfit => "sort_lowest_profit".to_string(),
-                                SortMode::HighestRevenue => "sort_highest_revenue".to_string(),
-                                SortMode::LowestRevenue => "sort_lowest_revenue".to_string(),
-                                SortMode::ByOrganization => "sort_by_organization".to_string(),
+            // Grid columns selector (only visible in grid mode)
+            {move || if view_mode() == ViewMode::Grid {
+                view! {
+                    <div class="view-toggle">
+                        <select
+                            class="view-btn sort-select"
+                            prop:value={move || format!("grid_{}", app_store.get().portfolio_grid_columns)}
+                            on:change=move |ev| {
+                                let v = event_target_value(&ev);
+                                if let Ok(n) = v.strip_prefix("grid_").unwrap().parse::<usize>() {
+                                    app_store.update(|s| s.set_portfolio_grid_columns(n));
+                                }
                             }
-                        }
-                    }}
-                    on:change=move |ev| {
-                        let v = event_target_value(&ev);
-                        if v.starts_with("grid_") {
-                            if let Ok(n) = v.strip_prefix("grid_").unwrap().parse::<usize>() {
-                                app_store.update(|s| s.set_portfolio_grid_columns(n));
-                            }
-                        } else {
-                            let mode = match v.as_str() {
-                                "sort_oldest" => SortMode::Oldest,
-                                "sort_highest_value" => SortMode::HighestValue,
-                                "sort_lowest_value" => SortMode::LowestValue,
-                                "sort_highest_profit" => SortMode::HighestProfit,
-                                "sort_lowest_profit" => SortMode::LowestProfit,
-                                "sort_highest_revenue" => SortMode::HighestRevenue,
-                                "sort_lowest_revenue" => SortMode::LowestRevenue,
-                                "sort_by_organization" => SortMode::ByOrganization,
-                                _ => SortMode::Recent,
-                            };
-                            set_sort_mode.set(mode);
-                        }
-                    }
-                >
-                    <optgroup label="Sort">
-                        <option value="sort_recent">"Sort: Recent"</option>
-                        <option value="sort_oldest">"Sort: Oldest"</option>
-                        <option value="sort_highest_value">"Sort: Highest Value"</option>
-                        <option value="sort_lowest_value">"Sort: Lowest Value"</option>
-                        <option value="sort_highest_profit">"Sort: Highest Profit"</option>
-                        <option value="sort_lowest_profit">"Sort: Lowest Profit"</option>
-                        <option value="sort_highest_revenue">"Sort: Highest Revenue"</option>
-                        <option value="sort_lowest_revenue">"Sort: Lowest Revenue"</option>
-                        <option value="sort_by_organization">"Sort: By Organization"</option>
-                    </optgroup>
-                    <optgroup label="Grid">
-                        <option value="grid_2">"Grid: 2"</option>
-                        <option value="grid_3">"Grid: 3"</option>
-                        <option value="grid_4">"Grid: 4"</option>
-                        <option value="grid_6">"Grid: 6"</option>
-                        <option value="grid_8">"Grid: 8"</option>
-                        <option value="grid_12">"Grid: 12"</option>
-                    </optgroup>
-                </select>
-                {move || if can_edit() {
-                    view! {
-                        <button
-                            class="view-btn"
-                            class:active=show_add_portfolio
-                            on:click=move |_| set_show_add_portfolio.update(|v| *v = !*v)
                         >
-                            "+ Portfolio"
-                        </button>
-                        <button
-                            class="view-btn"
-                            class:active=show_top_add_group
-                            on:click=move |_| set_show_top_add_group.update(|v| *v = !*v)
-                        >
-                            "+ Group"
-                        </button>
-                        <button
-                            class="view-btn"
-                            class:active=show_top_add_asset
-                            on:click=move |_| set_show_top_add_asset.update(|v| *v = !*v)
-                        >
-                            "+ Asset"
-                        </button>
-                    }.into_any()
-                } else { ().into_any() }}
-            </div>
+                            <option value="grid_2">"Grid: 2"</option>
+                            <option value="grid_3">"Grid: 3"</option>
+                            <option value="grid_4">"Grid: 4"</option>
+                            <option value="grid_6">"Grid: 6"</option>
+                            <option value="grid_8">"Grid: 8"</option>
+                            <option value="grid_12">"Grid: 12"</option>
+                        </select>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
 
-            // Add Portfolio Form
-            {move || show_add_portfolio.get().then(|| view! {
+            // Add Portfolio Form (toggled from navbar)
+            {move || app_store.get().show_add_portfolio.then(|| view! {
                 <div class="add-form">
                     <input
                         class="login-input"
@@ -352,8 +266,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                 </div>
             })}
 
-            // Top-level Add Group Form
-            {move || show_top_add_group.get().then(|| view! {
+            // Top-level Add Group Form (toggled from navbar)
+            {move || app_store.get().show_top_add_group.then(|| view! {
                 <div class="add-form">
                     <select
                         class="login-input"
@@ -382,8 +296,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                 </div>
             })}
 
-            // Top-level Add Asset Form
-            {move || show_top_add_asset.get().then(|| view! {
+            // Top-level Add Asset Form (toggled from navbar)
+            {move || app_store.get().show_top_add_asset.then(|| view! {
                 <div class="add-form">
                     <select
                         class="login-input"
@@ -474,17 +388,6 @@ pub fn PortfoliosPage() -> impl IntoView {
             })}
 
             // Portfolios List
-            {move || if view_mode() == ViewMode::List {
-                view! {
-                    <div class="pf-table-header">
-                        <span>"H"</span>
-                        <span>"SE"</span>
-                        <span>"PROFILE"</span>
-                        <span>"U/R"</span>
-                        <span>"B"</span>
-                    </div>
-                }.into_any()
-            } else { ().into_any() }}
             <div class={move || {
                 if view_mode() == ViewMode::Grid {
                     format!("grid-view grid-cols-{}", app_store.get().portfolio_grid_columns)
@@ -492,7 +395,7 @@ pub fn PortfoliosPage() -> impl IntoView {
             }}>
                 {move || {
                     let can = can_edit();
-                    let sort = sort_mode.get();
+                    let sort = sort_mode();
                     let mut items: Vec<_> = filtered_portfolios.get().into_iter().collect();
                     items.sort_by(|a, b| match sort {
                         SortMode::Recent => b.created_at.cmp(&a.created_at),
@@ -649,14 +552,15 @@ fn AssetViewer(
             // Asset Groups section
             <div class="asset-section">
                 <div class="asset-section-title">
-                    <span>"Asset Groups"</span>
+                    <span class="asset-section-arrow"
+                        on:click=move |_| set_show_groups.update(|v| *v = !*v)
+                    >
+                        {move || if show_groups.get() { "▼" } else { "▶" }}
+                    </span>
+                    <span class="asset-section-label"
+                        on:click=move |_| set_show_groups.update(|v| *v = !*v)
+                    >"Asset Groups"</span>
                     <div class="section-title-right">
-                        <button
-                            class="toggle-btn"
-                            on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                        >
-                            {move || if show_groups.get() { "Hide" } else { "Show" }}
-                        </button>
                         {{
                             move || if show_groups.get() && view_mode_groups_title == ViewMode::Grid {
                                 view! {
@@ -747,14 +651,15 @@ fn AssetViewer(
             // Direct Assets section
             <div class="asset-section">
                 <div class="asset-section-title">
-                    <span>"Direct Assets"</span>
+                    <span class="asset-section-arrow"
+                        on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
+                    >
+                        {move || if show_direct_assets.get() { "▼" } else { "▶" }}
+                    </span>
+                    <span class="asset-section-label"
+                        on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
+                    >"Direct Assets"</span>
                     <div class="section-title-right">
-                        <button
-                            class="toggle-btn"
-                            on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                        >
-                            {move || if show_direct_assets.get() { "Hide" } else { "Show" }}
-                        </button>
                         {{
                             move || if show_direct_assets.get() && view_mode_direct_title == ViewMode::Grid {
                                 view! {
@@ -879,19 +784,17 @@ fn AssetGroupItem(
     portfolio_name: String,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let edit_mode = use_tab_edit_mode();
     let _ = view_mode;
-    let _ = can_edit;
 
     let current_user = app_store.get().current_user.clone();
     let user_id = current_user.id;
     let can_view_all = current_user.can_view_all();
     let group_visible_to_user = group.is_visible_to(user_id, can_view_all);
 
-    let is_test_portfolio = portfolio_name == "Commercial Real Estate";
-    let can_edit_here = edit_mode.get() && is_test_portfolio;
+    let can_edit_here = can_edit;
 
     let (show_doc_modal, set_show_doc_modal) = signal(false);
+    let (show_context_add, set_show_context_add) = signal(false);
     let (edit_name, set_edit_name) = signal(group.name.clone());
     let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
 
@@ -1008,10 +911,40 @@ fn AssetGroupItem(
                     {move || if can_edit_here {
                         let pid2 = pid; let gid2 = gid;
                         view! {
-                            <button class="pf-action-btn"
-                                on:click=move |ev| { ev.stop_propagation(); set_show_add_asset.set(AssetTarget::Group(pid2, gid2)); }>
-                                "+ Asset"
-                            </button>
+                            <div class="pf-context-add-wrap">
+                                <button class="pf-action-btn pf-context-add-btn"
+                                    class:active=move || show_context_add.get()
+                                    on:click=move |ev| { ev.stop_propagation(); set_show_context_add.update(|v| *v = !*v); }
+                                >"+"</button>
+                                {move || if show_context_add.get() {
+                                    view! {
+                                        <div class="pf-context-add-dropdown">
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                                set_show_add_asset.set(AssetTarget::Group(pid2, gid2));
+                                            }>"📦 Add Asset"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                                set_show_doc_modal.set(true);
+                                            }>"📄 Add Document"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                            }>"👤 Add User"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                            }>"🏢 Add Organization"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                            }>"🔑 Add Role"</button>
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }}
+                            </div>
                         }.into_any()
                     } else { ().into_any() }}
                 </div>
@@ -1124,9 +1057,8 @@ fn PortfolioListItem(
     view_mode: ViewMode,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let edit_mode = use_tab_edit_mode();
-    let _ = can_edit;
     let (show_doc_modal, set_show_doc_modal) = signal(false);
+    let (show_context_add, set_show_context_add) = signal(false);
     let (edit_name, set_edit_name) = signal(portfolio.name.clone());
     let (edit_desc, set_edit_desc) = signal(portfolio.description.clone().unwrap_or_default());
     let pid = portfolio.id;
@@ -1136,8 +1068,7 @@ fn PortfolioListItem(
     let name_for_modal = portfolio.name.clone();
     let desc = portfolio.description.clone().unwrap_or_default();
     let asset_count = portfolio.get_all_assets().len();
-    let is_test_portfolio = portfolio.name == "Commercial Real Estate";
-    let can_edit_here = edit_mode.get() && is_test_portfolio;
+    let can_edit_here = can_edit;
 
     let save_edit = move |_| {
         let n = edit_name.get();
@@ -1238,6 +1169,51 @@ fn PortfolioListItem(
                         on:click=move |_| set_show_doc_modal.set(true)>
                         {format!("📄 {}", doc_count)}
                     </button>
+                    {move || if can_edit_here {
+                        let pid_add_group = pid;
+                        let pid_add_asset = pid;
+                        view! {
+                            <div class="pf-context-add-wrap">
+                                <button class="pf-action-btn pf-context-add-btn"
+                                    class:active=move || show_context_add.get()
+                                    on:click=move |ev| { ev.stop_propagation(); set_show_context_add.update(|v| *v = !*v); }
+                                >"+"</button>
+                                {move || if show_context_add.get() {
+                                    view! {
+                                        <div class="pf-context-add-dropdown">
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                                set_show_add_group.set(Some(pid_add_group));
+                                            }>"📁 Add Group"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                                set_show_add_asset.set(AssetTarget::PortfolioDirect(pid_add_asset));
+                                            }>"📦 Add Asset"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                                set_show_doc_modal.set(true);
+                                            }>"📄 Add Document"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                            }>"👤 Add User"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                            }>"🏢 Add Organization"</button>
+                                            <button class="pf-context-add-item" on:click=move |ev| {
+                                                ev.stop_propagation();
+                                                set_show_context_add.set(false);
+                                            }>"🔑 Add Role"</button>
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }}
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
                 </div>
             </div>
 
@@ -1327,7 +1303,6 @@ fn AssetItem(
     #[prop(default = false)] can_edit: bool,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let edit_mode = use_tab_edit_mode();
     let _ = can_edit;
     let image_url = asset
         .images
@@ -1342,8 +1317,7 @@ fn AssetItem(
     let (edit_desc, set_edit_desc) = signal(asset.description.clone().unwrap_or_default());
     let (edit_loc, set_edit_loc) = signal(asset.location.clone().unwrap_or_default());
 
-    let is_test_portfolio = portfolio_name == "Commercial Real Estate";
-    let can_edit_here = edit_mode.get() && is_test_portfolio;
+    let can_edit_here = can_edit;
     // doc sort: 0 = recent, 1 = name
     let (doc_sort, set_doc_sort) = signal(0u8);
     let (detail_tab, set_detail_tab) = signal(0u8);

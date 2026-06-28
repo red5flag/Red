@@ -1,4 +1,5 @@
 use crate::models::{Message, Portfolio};
+use crate::stores::credentials::CredentialStore;
 use crate::utils::crypto;
 use dashmap::DashMap;
 use std::sync::{Arc, OnceLock};
@@ -12,6 +13,7 @@ pub struct DataStore {
     db: sled::Db,
     portfolio_cache: DashMap<Uuid, Portfolio>,
     message_cache: DashMap<Uuid, Message>,
+    credential_cache: DashMap<String, CredentialStore>,
 }
 
 static STORE: OnceLock<Arc<DataStore>> = OnceLock::new();
@@ -37,10 +39,12 @@ impl DataStore {
             db,
             portfolio_cache: DashMap::new(),
             message_cache: DashMap::new(),
+            credential_cache: DashMap::new(),
         };
 
         store.warm_portfolio_cache()?;
         store.warm_message_cache()?;
+        store.warm_credential_cache()?;
         Ok(store)
     }
 
@@ -66,6 +70,23 @@ impl DataStore {
                 if let Ok(id) = Uuid::parse_str(std::str::from_utf8(id_str).unwrap_or("")) {
                     if let Ok(m) = crypto::decompress_and_decrypt::<Message>(&v, &key) {
                         self.message_cache.insert(id, m);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn warm_credential_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let key = crypto::storage_key();
+        for item in self.db.iter() {
+            let (k, v) = item?;
+            // Credential keys are prefixed with "cred:".
+            if let Some(username_bytes) = k.strip_prefix(b"cred:") {
+                let username = std::str::from_utf8(username_bytes).unwrap_or("").to_string();
+                if !username.is_empty() {
+                    if let Ok(c) = crypto::decompress_and_decrypt::<CredentialStore>(&v, &key) {
+                        self.credential_cache.insert(username, c);
                     }
                 }
             }
@@ -120,6 +141,35 @@ impl DataStore {
         self.db.remove(key.as_bytes())?;
         self.portfolio_cache.remove(&id);
         Ok(())
+    }
+
+    // Credentials
+
+    /// Persist encrypted credentials to the local DB for cloud sync.
+    pub fn save_credentials(&self, username: &str, credentials: &CredentialStore) -> Result<(), Box<dyn std::error::Error>> {
+        let key = crypto::storage_key();
+        let id_key = format!("cred:{}", username);
+        let value = crypto::compress_and_encrypt(credentials, &key)?;
+        self.db.insert(id_key.as_bytes(), value)?;
+        self.credential_cache.insert(username.to_string(), credentials.clone());
+        Ok(())
+    }
+
+    /// Load encrypted credentials for a user (cache-first).
+    pub fn load_credentials(&self, username: &str) -> Option<CredentialStore> {
+        if let Some(c) = self.credential_cache.get(username) {
+            return Some(c.clone());
+        }
+        let key = crypto::storage_key();
+        let id_key = format!("cred:{}", username);
+        self.db
+            .get(id_key.as_bytes())
+            .ok()
+            .flatten()
+            .and_then(|v| crypto::decompress_and_decrypt::<CredentialStore>(&v, &key).ok())
+            .inspect(|c| {
+                self.credential_cache.insert(username.to_string(), c.clone());
+            })
     }
 
     // Messages

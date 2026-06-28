@@ -8,6 +8,10 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StoredCredential {
     pub username: String,
@@ -18,6 +22,10 @@ pub struct StoredCredential {
     pub totp_secret: Option<String>,
     pub totp_enabled: bool,
     pub email_2fa_enabled: bool,
+    #[serde(default = "default_true")]
+    pub store_local: bool,
+    #[serde(default)]
+    pub store_cloud: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -35,15 +43,20 @@ impl CredentialStore {
         Self::new()
     }
 
-    /// Load credentials from localStorage (hydrate only)
+    /// Load credentials from localStorage (hydrate only), decrypting with
+    /// ChaCha20-Poly1305 using the device-local PQC-capable key.
     #[cfg(feature = "hydrate")]
     pub fn load_from_local_storage() -> Self {
         use web_sys::window;
+        use crate::utils::crypto;
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(Some(json)) = storage.get_item("farley_credentials") {
-                    if let Ok(store) = serde_json::from_str::<Self>(&json) {
-                        return store;
+                if let Ok(Some(encrypted)) = storage.get_item("farley_credentials") {
+                    let key = crypto::local_storage_key();
+                    if let Ok(json) = crypto::decrypt(&encrypted, &key) {
+                        if let Ok(store) = serde_json::from_str::<Self>(&json) {
+                            return store;
+                        }
                     }
                 }
             }
@@ -51,14 +64,18 @@ impl CredentialStore {
         Self::new()
     }
 
-    /// Save credentials to localStorage (hydrate only)
+    /// Save credentials to localStorage (hydrate only), encrypted with
+    /// ChaCha20-Poly1305 using the device-local PQC-capable key.
     #[cfg(feature = "hydrate")]
     pub fn save_to_local_storage(&self) {
         use web_sys::window;
+        use crate::utils::crypto;
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
                 if let Ok(json) = serde_json::to_string(self) {
-                    let _ = storage.set_item("farley_credentials", &json);
+                    let key = crypto::local_storage_key();
+                    let encrypted = crypto::encrypt(&json, &key);
+                    let _ = storage.set_item("farley_credentials", &encrypted);
                 }
             }
         }
@@ -108,6 +125,8 @@ impl CredentialStore {
         display_name: &str,
         email: &str,
         validated: bool,
+        store_local: bool,
+        store_cloud: bool,
     ) {
         if let Ok(hash) = Self::hash_password(password) {
             self.credentials.insert(
@@ -121,6 +140,8 @@ impl CredentialStore {
                     totp_secret: None,
                     totp_enabled: false,
                     email_2fa_enabled: false,
+                    store_local,
+                    store_cloud,
                 },
             );
         }
@@ -145,6 +166,8 @@ impl CredentialStore {
         password: &str,
         display_name: &str,
         email: &str,
+        store_local: bool,
+        store_cloud: bool,
     ) -> Result<(), String> {
         if self.user_exists(username) {
             return Err(format!("Username '{}' is already taken", username));
@@ -158,7 +181,7 @@ impl CredentialStore {
         if !email.contains('@') {
             return Err("A valid email is required".to_string());
         }
-        self.add_user(username, password, display_name, email, false);
+        self.add_user(username, password, display_name, email, false, store_local, store_cloud);
         Ok(())
     }
 
@@ -180,5 +203,18 @@ impl CredentialStore {
             .get(username)
             .map(|cred| Self::verify_password(password, &cred.password_hash))
             .unwrap_or(false)
+    }
+
+    /// Set both local and cloud storage preferences for a user
+    pub fn set_storage_options(
+        &mut self,
+        username: &str,
+        store_local: bool,
+        store_cloud: bool,
+    ) {
+        if let Some(cred) = self.credentials.get_mut(username) {
+            cred.store_local = store_local;
+            cred.store_cloud = store_cloud;
+        }
     }
 }

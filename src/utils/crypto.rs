@@ -32,12 +32,21 @@ fn format_key(key: &[u8]) -> [u8; 32] {
 // ------------------------------------------------------------------
 
 const STORAGE_KEY: &[u8] = b"farley-pqc-hardened-storage-key-v1";
+const LOCAL_STORAGE_KEY: &[u8] = b"farley-pqc-hardened-local-storage-key-v1";
 
 /// Internal 32-byte key used for the on-disk RocksDB store.
 /// In a multi-tenant deployment this should be derived from the logged-in
 /// user's password/credential hash rather than a constant.
 pub fn storage_key() -> [u8; 32] {
     format_key(STORAGE_KEY)
+}
+
+/// 32-byte key used for encrypting localStorage credential store.
+/// ChaCha20-Poly1305 with a 256-bit key is considered post-quantum secure
+/// for symmetric encryption (Grover's algorithm reduces the effective key
+/// space by half, leaving 128-bit security for a 256-bit key).
+pub fn local_storage_key() -> [u8; 32] {
+    format_key(LOCAL_STORAGE_KEY)
 }
 
 /// Compress a serializable value with zstd level 3, then encrypt with

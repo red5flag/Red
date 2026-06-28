@@ -1,8 +1,9 @@
 use crate::models::{Organization, Permission, Portfolio, Transaction, User};
-use crate::stores::credentials::CredentialStore;
+use crate::stores::credentials::{CredentialStore, StoredCredential};
 use crate::types::{TabType, Theme, UserProfile, UserRole};
 use crate::utils::crypto;
 use leptos::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -11,11 +12,9 @@ use uuid::Uuid;
 pub struct AppStore {
     // Current user
     pub current_user: UserProfile,
-    // Currently active tab
-    pub active_tab: Option<TabType>,
-    // Expanded tabs (multiple allowed)
-    pub expanded_tabs: HashSet<TabType>,
-    // Tabs that have their edit pen enabled (multi-tab edit mode)
+    // Currently active tabs (single unless edit mode is on)
+    pub active_tabs: Vec<TabType>,
+    // Tabs that have their edit pen enabled (per-tab edit state)
     pub edit_mode_tabs: HashSet<TabType>,
     // All portfolios
     pub portfolios: Vec<Portfolio>,
@@ -44,6 +43,12 @@ pub struct AppStore {
     pub portfolio_view_mode: crate::types::ViewMode,
     // Grid column count for portfolio grid view (2, 3, 4, 6, 8, 12)
     pub portfolio_grid_columns: usize,
+    // Portfolio page UI toggles (controlled from navbar)
+    pub show_add_portfolio: bool,
+    pub show_top_add_group: bool,
+    pub show_top_add_asset: bool,
+    pub show_add_modal: bool,
+    pub portfolio_sort_mode: crate::types::SortMode,
     // Messenger drawer state
     pub message_drawer_open: bool,
     pub selected_chat_id: Option<Uuid>,
@@ -106,6 +111,51 @@ pub enum ModalType {
     SettingsEditor,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct TabState {
+    active_tabs: Vec<TabType>,
+    drawer_open: bool,
+    edit_mode_tabs: HashSet<TabType>,
+}
+
+#[cfg(feature = "hydrate")]
+fn load_tab_state_from_local_storage() -> Option<TabState> {
+    use web_sys::window;
+    if let Some(window) = window() {
+        if let Ok(Some(storage)) = window.local_storage() {
+            if let Ok(Some(json)) = storage.get_item("farley_tab_state") {
+                return serde_json::from_str(&json).ok();
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn load_tab_state_from_local_storage() -> Option<TabState> {
+    None
+}
+
+impl AppStore {
+    /// Persist the current tab state to localStorage (hydrate only).
+    #[cfg(feature = "hydrate")]
+    fn save_tab_state(&self) {
+        use web_sys::window;
+        let state = TabState {
+            active_tabs: self.active_tabs.clone(),
+            drawer_open: self.drawer_open,
+            edit_mode_tabs: self.edit_mode_tabs.clone(),
+        };
+        if let Ok(json) = serde_json::to_string(&state) {
+            if let Some(window) = window() {
+                if let Ok(Some(storage)) = window.local_storage() {
+                    let _ = storage.set_item("farley_tab_state", &json);
+                }
+            }
+        }
+    }
+}
+
 impl Default for AppStore {
     fn default() -> Self {
         #[allow(unused_mut)]
@@ -114,13 +164,17 @@ impl Default for AppStore {
         #[cfg(feature = "hydrate")]
         credentials.merge_from_local_storage();
 
-        let mut expanded_tabs = HashSet::new();
-        expanded_tabs.insert(TabType::Overview);
+        let tab_state = load_tab_state_from_local_storage();
+        let active_tabs = tab_state
+            .as_ref()
+            .map(|s| s.active_tabs.clone())
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| vec![TabType::Overview]);
+        let drawer_open = tab_state.as_ref().map(|s| s.drawer_open).unwrap_or(false);
         Self {
             current_user: UserProfile::default(),
-            active_tab: Some(TabType::Overview),
-            expanded_tabs,
-            edit_mode_tabs: HashSet::new(),
+            active_tabs,
+            edit_mode_tabs: tab_state.map(|s| s.edit_mode_tabs).unwrap_or_default(),
             portfolios: Vec::new(),
             transactions: Vec::new(),
             selected_portfolio_id: None,
@@ -129,14 +183,19 @@ impl Default for AppStore {
             is_search_open: false,
             search_query: String::new(),
             theme: Theme::default(),
-            drawer_open: true,
+            drawer_open,
             notifications: Vec::new(),
             active_modal: None,
             is_loading: false,
             organization_users: Vec::new(),
             networking_add_member_open: false,
-            portfolio_view_mode: crate::types::ViewMode::Grid,
+            portfolio_view_mode: crate::types::ViewMode::List,
             portfolio_grid_columns: 2,
+            show_add_portfolio: false,
+            show_top_add_group: false,
+            show_top_add_asset: false,
+            show_add_modal: false,
+            portfolio_sort_mode: crate::types::SortMode::Recent,
             message_drawer_open: false,
             selected_chat_id: None,
             messages: Vec::new(),
@@ -164,44 +223,64 @@ impl AppStore {
     }
 
     // Tab management
-    pub fn expand_tab(&mut self, tab: TabType) {
-        self.expanded_tabs.insert(tab.clone());
-        self.active_tab = Some(tab);
+    /// True if any currently active tab is in edit mode.
+    fn is_any_tab_editing(&self) -> bool {
+        self.active_tabs.iter().any(|t| self.is_tab_edit_mode(t))
     }
 
-    pub fn collapse_tab(&mut self, tab: TabType) {
-        self.expanded_tabs.remove(&tab);
-        if self.active_tab.as_ref() == Some(&tab) {
-            self.active_tab = None;
+    pub fn expand_tab(&mut self, tab: TabType) {
+        if self.is_any_tab_editing() {
+            if !self.active_tabs.contains(&tab) {
+                self.active_tabs.push(tab);
+            }
+        } else {
+            self.active_tabs = vec![tab];
         }
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
+    }
+
+    pub fn collapse_tab(&mut self, tab: &TabType) {
+        self.active_tabs.retain(|t| t != tab);
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     pub fn collapse_all_tabs(&mut self) {
-        self.expanded_tabs.clear();
-        self.active_tab = None;
+        self.active_tabs.clear();
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     pub fn toggle_tab(&mut self, tab: TabType) {
-        if self.expanded_tabs.contains(&tab) {
-            self.expanded_tabs.remove(&tab);
+        if self.is_any_tab_editing() {
+            if self.active_tabs.contains(&tab) {
+                self.active_tabs.retain(|t| t != &tab);
+            } else {
+                self.active_tabs.push(tab);
+            }
         } else {
-            self.expanded_tabs.insert(tab.clone());
+            self.active_tabs = vec![tab];
         }
-        self.active_tab = Some(tab);
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     pub fn is_tab_expanded(&self, tab: &TabType) -> bool {
-        self.expanded_tabs.contains(tab)
+        self.active_tabs.contains(tab)
     }
 
     pub fn toggle_tab_edit_mode(&mut self, tab: &TabType) -> bool {
-        if self.edit_mode_tabs.contains(tab) {
+        let result = if self.edit_mode_tabs.contains(tab) {
             self.edit_mode_tabs.remove(tab);
             false
         } else {
             self.edit_mode_tabs.insert(tab.clone());
             true
-        }
+        };
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
+        result
     }
 
     pub fn is_tab_edit_mode(&self, tab: &TabType) -> bool {
@@ -210,6 +289,8 @@ impl AppStore {
 
     pub fn clear_tab_edit_modes(&mut self) {
         self.edit_mode_tabs.clear();
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     // Portfolio management
@@ -223,6 +304,12 @@ impl AppStore {
 
     pub fn get_portfolio_mut(&mut self, id: Uuid) -> Option<&mut Portfolio> {
         self.portfolios.iter_mut().find(|p| p.id == id)
+    }
+
+    pub fn set_portfolio_name(&mut self, id: Uuid, name: String) {
+        if let Some(p) = self.get_portfolio_mut(id) {
+            p.name = name;
+        }
     }
 
     pub fn remove_portfolio(&mut self, id: Uuid) -> Option<Portfolio> {
@@ -320,14 +407,20 @@ impl AppStore {
     // Left tab drawer
     pub fn open_drawer(&mut self) {
         self.drawer_open = true;
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     pub fn close_drawer(&mut self) {
         self.drawer_open = false;
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     pub fn toggle_drawer(&mut self) {
         self.drawer_open = !self.drawer_open;
+        #[cfg(feature = "hydrate")]
+        self.save_tab_state();
     }
 
     pub fn set_search_query(&mut self, query: String) {
@@ -567,10 +660,12 @@ impl AppStore {
             self.portfolios = db.load_all_portfolios();
         }
 
-        // Seed a default portfolio if none exist
+        // Seed portfolios if none exist
         if self.portfolios.is_empty() {
             let owner_id = self.current_user.id;
             self.portfolios.push(seed_default_portfolio(owner_id));
+            self.portfolios.push(seed_portfolio_2(owner_id));
+            self.portfolios.push(seed_portfolio_3(owner_id));
         }
 
         // Persist all portfolios to DB
@@ -595,6 +690,10 @@ impl AppStore {
         Ok((display_name, format!("{:?}", self.current_user.role)))
     }
 
+    pub fn set_user_name(&mut self, name: String) {
+        self.current_user.name = name;
+    }
+
     pub fn login(&mut self, name: String, email: String, role: UserRole) {
         self.is_authenticated = true;
         self.current_user.name = name;
@@ -608,10 +707,12 @@ impl AppStore {
             self.portfolios = db.load_all_portfolios();
         }
 
-        // Seed a default portfolio if none exist
+        // Seed portfolios if none exist
         if self.portfolios.is_empty() {
             let owner_id = self.current_user.id;
             self.portfolios.push(seed_default_portfolio(owner_id));
+            self.portfolios.push(seed_portfolio_2(owner_id));
+            self.portfolios.push(seed_portfolio_3(owner_id));
         }
     }
 
@@ -634,9 +735,18 @@ impl AppStore {
         username: &str,
         password: &str,
         email: &str,
+        store_local: bool,
+        store_cloud: bool,
     ) -> Result<(), String> {
         let display_name = username;
-        let result = self.credentials.register_user(username, password, display_name, email);
+        let result = self.credentials.register_user(
+            username,
+            password,
+            display_name,
+            email,
+            store_local,
+            store_cloud,
+        );
 
         #[cfg(feature = "hydrate")]
         if result.is_ok() {
@@ -664,6 +774,63 @@ impl AppStore {
     /// Check if a user exists in local credentials
     pub fn user_exists(&self, username: &str) -> bool {
         self.credentials.user_exists(username)
+    }
+
+    /// Set local and cloud storage preferences for a local credential and persist
+    pub fn set_storage_options(
+        &mut self,
+        username: &str,
+        store_local: bool,
+        store_cloud: bool,
+    ) {
+        self.credentials
+            .set_storage_options(username, store_local, store_cloud);
+        #[cfg(feature = "hydrate")]
+        self.credentials.save_to_local_storage();
+    }
+
+    /// Save current credentials to localStorage (hydrate only)
+    #[cfg(feature = "hydrate")]
+    pub fn save_credentials_to_local_storage(&self) {
+        self.credentials.save_to_local_storage();
+    }
+
+    /// Add or update a local credential after successful login and persist it
+    pub fn upsert_credential_from_login(
+        &mut self,
+        username: &str,
+        password: &str,
+        display_name: &str,
+        email: &str,
+        validated: bool,
+        store_local: bool,
+        store_cloud: bool,
+    ) {
+        let (existing_store_local, existing_store_cloud) = self
+            .credentials
+            .credentials
+            .get(username)
+            .map(|c| (c.store_local, c.store_cloud))
+            .unwrap_or((true, false));
+        let store_local = store_local || existing_store_local;
+        let store_cloud = store_cloud || existing_store_cloud;
+        if let Ok(hash) = CredentialStore::hash_password(password) {
+            let cred = StoredCredential {
+                username: username.to_string(),
+                password_hash: hash,
+                display_name: display_name.to_string(),
+                email: email.to_string(),
+                validated,
+                totp_secret: None,
+                totp_enabled: false,
+                email_2fa_enabled: false,
+                store_local,
+                store_cloud,
+            };
+            self.credentials.credentials.insert(username.to_string(), cred);
+            #[cfg(feature = "hydrate")]
+            self.credentials.save_to_local_storage();
+        }
     }
 
     /// Login a server-validated user (from /api/login after email validation)
@@ -746,8 +913,7 @@ impl AppStore {
 
     // Get location name for navbar
     pub fn get_current_location(&self) -> String {
-        let tab = self.active_tab.clone()
-            .or_else(|| self.expanded_tabs.iter().next().cloned());
+        let tab = self.active_tabs.first().cloned();
         if let Some(ref tab) = tab {
             match tab {
                 TabType::Overview => "Overview".to_string(),
@@ -968,6 +1134,99 @@ pub fn seed_default_portfolio(owner_id: Uuid) -> Portfolio {
     group2.recalculate_values();
 
     p.asset_groups = vec![group1, group2];
+    p.recalculate_values();
+    p
+}
+
+/// Generate a simple asset with a random-ish name and value.
+fn gen_asset(idx: usize, prefix: &str, base_value: f64) -> crate::models::Asset {
+    use crate::types::AssetType;
+    let asset_types = [
+        AssetType::RealEstate,
+        AssetType::Vehicle,
+        AssetType::Equipment,
+        AssetType::Stock,
+        AssetType::Bond,
+        AssetType::Commodity,
+        AssetType::Digital,
+        AssetType::IntellectualProperty,
+    ];
+    let at = asset_types[idx % asset_types.len()].clone();
+    let purchase = base_value + (idx as f64 * 10_000.0);
+    let current = purchase * (1.0 + ((idx % 7) as f64 * 0.03));
+    let mut a = crate::models::Asset::new(format!("{} #{}", prefix, idx + 1), at, purchase);
+    a.description = Some(format!("Test asset {} for portfolio testing.", idx + 1));
+    a.location = Some(format!("Test Location {}", idx + 1));
+    a.update_value(current);
+    a
+}
+
+/// Portfolio 2: mixed assets — 3 direct + 8 assets across 2 groups
+pub fn seed_portfolio_2(owner_id: Uuid) -> Portfolio {
+    let mut p = Portfolio::new(
+        "Mixed Investments".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p.description = Some("Diverse asset collection for testing".to_string());
+    p.tags = vec!["mixed".to_string(), "test".to_string()];
+
+    // 3 direct assets
+    for i in 0..3 {
+        p.assets.push(gen_asset(i, "Direct Asset", 500_000.0));
+    }
+
+    // Group 1: 4 assets
+    let mut g1 = crate::models::AssetGroup::new("Group Alpha".to_string());
+    g1.description = Some("First test group".to_string());
+    for i in 0..4 {
+        g1.assets.push(gen_asset(i, "Alpha Asset", 300_000.0));
+    }
+    g1.recalculate_values();
+
+    // Group 2: 4 assets
+    let mut g2 = crate::models::AssetGroup::new("Group Beta".to_string());
+    g2.description = Some("Second test group".to_string());
+    for i in 0..4 {
+        g2.assets.push(gen_asset(i + 4, "Beta Asset", 250_000.0));
+    }
+    g2.recalculate_values();
+
+    p.asset_groups = vec![g1, g2];
+    p.recalculate_values();
+    p
+}
+
+/// Portfolio 3: 5 asset groups with 3, 10, 19, 37, 98 assets
+pub fn seed_portfolio_3(owner_id: Uuid) -> Portfolio {
+    let mut p = Portfolio::new(
+        "Large Scale Portfolio".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p.description = Some("Stress test portfolio with large asset groups".to_string());
+    p.tags = vec!["large-scale".to_string(), "stress-test".to_string()];
+
+    let group_specs: [(usize, &str); 5] = [
+        (3, "Mini Group"),
+        (10, "Small Group"),
+        (19, "Medium Group"),
+        (37, "Large Group"),
+        (98, "Mega Group"),
+    ];
+
+    let mut groups = Vec::new();
+    for (count, name) in group_specs {
+        let mut g = crate::models::AssetGroup::new(name.to_string());
+        g.description = Some(format!("{} with {} assets", name, count));
+        for i in 0..count {
+            g.assets.push(gen_asset(i, name, 100_000.0));
+        }
+        g.recalculate_values();
+        groups.push(g);
+    }
+
+    p.asset_groups = groups;
     p.recalculate_values();
     p
 }
