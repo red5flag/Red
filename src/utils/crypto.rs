@@ -126,12 +126,10 @@ pub fn decrypt(ciphertext: &str, key: &[u8]) -> Result<String, String> {
     String::from_utf8(plain).map_err(|e| format!("utf8 decode failed: {}", e))
 }
 
-/// Cache encrypted data to localStorage (WASM)
+/// Cache data to localStorage (WASM) - plain text for development
 #[cfg(feature = "hydrate")]
-pub fn cache_to_local(key: &str, data: &str, enc_key: &[u8]) -> Result<(), String> {
+pub fn cache_to_local(key: &str, data: &str, _enc_key: &[u8]) -> Result<(), String> {
     use web_sys::window;
-
-    let encrypted = encrypt(data, enc_key);
 
     let window = window().ok_or("No window")?;
     let storage = window
@@ -140,13 +138,13 @@ pub fn cache_to_local(key: &str, data: &str, enc_key: &[u8]) -> Result<(), Strin
         .ok_or("No localStorage")?;
 
     storage
-        .set_item(key, &encrypted)
+        .set_item(key, data)
         .map_err(|e| format!("Failed to set item: {:?}", e))
 }
 
-/// Retrieve and decrypt cached data from localStorage (WASM)
+/// Retrieve cached data from localStorage (WASM) - plain text for development
 #[cfg(feature = "hydrate")]
-pub fn get_cached(key: &str, enc_key: &[u8]) -> Result<String, String> {
+pub fn get_cached(key: &str, _enc_key: &[u8]) -> Result<String, String> {
     use web_sys::window;
 
     let window = window().ok_or("No window")?;
@@ -155,12 +153,10 @@ pub fn get_cached(key: &str, enc_key: &[u8]) -> Result<String, String> {
         .map_err(|e| format!("localStorage error: {:?}", e))?
         .ok_or("No localStorage")?;
 
-    let encrypted = storage
+    storage
         .get_item(key)
         .map_err(|e| format!("Failed to get item: {:?}", e))?
-        .ok_or("No cached data")?;
-
-    decrypt(&encrypted, enc_key)
+        .ok_or_else(|| "No cached data".to_string())
 }
 
 /// Check if cached data exists

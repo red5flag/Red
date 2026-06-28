@@ -1,6 +1,5 @@
 use crate::models::{Message, Portfolio};
 use crate::stores::credentials::CredentialStore;
-use crate::utils::crypto;
 use dashmap::DashMap;
 use std::sync::{Arc, OnceLock};
 use uuid::Uuid;
@@ -62,13 +61,12 @@ impl DataStore {
     }
 
     fn warm_message_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let key = crypto::storage_key();
         for item in self.db.iter() {
             let (k, v) = item?;
             // Message keys are prefixed with "msg:".
             if let Some(id_str) = k.strip_prefix(b"msg:") {
                 if let Ok(id) = Uuid::parse_str(std::str::from_utf8(id_str).unwrap_or("")) {
-                    if let Ok(m) = crypto::decompress_and_decrypt::<Message>(&v, &key) {
+                    if let Ok(m) = serde_json::from_slice::<Message>(&v) {
                         self.message_cache.insert(id, m);
                     }
                 }
@@ -78,14 +76,13 @@ impl DataStore {
     }
 
     fn warm_credential_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let key = crypto::storage_key();
         for item in self.db.iter() {
             let (k, v) = item?;
             // Credential keys are prefixed with "cred:".
             if let Some(username_bytes) = k.strip_prefix(b"cred:") {
                 let username = std::str::from_utf8(username_bytes).unwrap_or("").to_string();
                 if !username.is_empty() {
-                    if let Ok(c) = crypto::decompress_and_decrypt::<CredentialStore>(&v, &key) {
+                    if let Ok(c) = serde_json::from_slice::<CredentialStore>(&v) {
                         self.credential_cache.insert(username, c);
                     }
                 }
@@ -145,28 +142,26 @@ impl DataStore {
 
     // Credentials
 
-    /// Persist encrypted credentials to the local DB for cloud sync.
+    /// Persist credentials to the local DB (plain text for development).
     pub fn save_credentials(&self, username: &str, credentials: &CredentialStore) -> Result<(), Box<dyn std::error::Error>> {
-        let key = crypto::storage_key();
         let id_key = format!("cred:{}", username);
-        let value = crypto::compress_and_encrypt(credentials, &key)?;
+        let value = serde_json::to_vec(credentials)?;
         self.db.insert(id_key.as_bytes(), value)?;
         self.credential_cache.insert(username.to_string(), credentials.clone());
         Ok(())
     }
 
-    /// Load encrypted credentials for a user (cache-first).
+    /// Load credentials for a user (cache-first, plain text for development).
     pub fn load_credentials(&self, username: &str) -> Option<CredentialStore> {
         if let Some(c) = self.credential_cache.get(username) {
             return Some(c.clone());
         }
-        let key = crypto::storage_key();
         let id_key = format!("cred:{}", username);
         self.db
             .get(id_key.as_bytes())
             .ok()
             .flatten()
-            .and_then(|v| crypto::decompress_and_decrypt::<CredentialStore>(&v, &key).ok())
+            .and_then(|v| serde_json::from_slice::<CredentialStore>(&v).ok())
             .inspect(|c| {
                 self.credential_cache.insert(username.to_string(), c.clone());
             })
@@ -174,28 +169,26 @@ impl DataStore {
 
     // Messages
 
-    /// Persist a single message: compress and encrypt before writing to the local DB.
+    /// Persist a single message to the local DB (plain text for development).
     pub fn save_message(&self, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
-        let key = crypto::storage_key();
         let id_key = format!("msg:{}", message.id);
-        let value = crypto::compress_and_encrypt(message, &key)?;
+        let value = serde_json::to_vec(message)?;
         self.db.insert(id_key.as_bytes(), value)?;
         self.message_cache.insert(message.id, message.clone());
         Ok(())
     }
 
-    /// Load a single message by ID (cache-first).
+    /// Load a single message by ID (cache-first, plain text for development).
     pub fn load_message(&self, id: Uuid) -> Option<Message> {
         if let Some(m) = self.message_cache.get(&id) {
             return Some(m.clone());
         }
-        let key = crypto::storage_key();
         let id_key = format!("msg:{}", id);
         self.db
             .get(id_key.as_bytes())
             .ok()
             .flatten()
-            .and_then(|v| crypto::decompress_and_decrypt::<Message>(&v, &key).ok())
+            .and_then(|v| serde_json::from_slice::<Message>(&v).ok())
             .inspect(|m| {
                 self.message_cache.insert(m.id, m.clone());
             })

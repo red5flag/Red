@@ -485,7 +485,6 @@ pub fn LoginPage() -> impl IntoView {
             if *v { fetch_commits(()); }
         });
     };
-    let (saved_profiles_open, set_saved_profiles_open) = signal(false);
     let (show_username, set_show_username) = signal(true);
     let (show_password, set_show_password) = signal(false);
     let (su_show_pass, set_su_show_pass) = signal(false);
@@ -500,85 +499,6 @@ pub fn LoginPage() -> impl IntoView {
                 <div class="lp-title">"LOGIN"</div>
                 <div class="lp-version">"0.01"</div>
             </div>
-
-            // ── SAVED PROFILES ROW ──
-            <div class="lp-saved-row" on:click=move |_| set_saved_profiles_open.update(|v| *v = !*v)>
-                <div class="lp-saved-icon">"⚙"</div>
-                <div class="lp-saved-label">"SAVED PROFILES"</div>
-                <div class="lp-saved-arrow">{move || if saved_profiles_open.get() { "▲" } else { "▼" }}</div>
-            </div>
-            {move || if saved_profiles_open.get() {
-                let profiles = app_store.get().credentials.credentials.values().cloned().collect::<Vec<_>>();
-                if profiles.is_empty() {
-                    view! { <div class="lp-saved-empty">"No saved profiles on this device"</div> }.into_any()
-                } else {
-                    view! {
-                        <div class="lp-saved-list">
-                            {profiles.into_iter().map(|cred| {
-                                let username = cred.username.clone();
-                                let display = cred.display_name.clone();
-                                let email = cred.email.clone();
-                                let local = cred.store_local;
-                                let cloud = cred.store_cloud;
-                                let u_sel = username.clone();
-                                let u_storage_local = username.clone();
-                                let u_storage_cloud = username.clone();
-                                view! {
-                                    <div class="lp-saved-card">
-                                        <div class="lp-saved-info" on:click=move |_| { set_username.set(u_sel.clone()); set_password.set(String::new()); }>
-                                            <div class="lp-saved-name">{display}</div>
-                                            <div class="lp-saved-username">{username}</div>
-                                            <div class="lp-saved-email">{email}</div>
-                                        </div>
-                                        <div class="lp-saved-toggles">
-                                            <label class="lp-saved-toggle" class:active=local title="Local storage">
-                                                <input type="checkbox" checked=local on:change=move |ev| {
-                                                    let checked = event_target_checked(&ev);
-                                                    let username = u_storage_local.clone();
-                                                    app_store.update(|s| {
-                                                        let cloud = s.credentials.credentials.get(&username).map(|c| c.store_cloud).unwrap_or(false);
-                                                        s.set_storage_options(&username, checked, cloud);
-                                                    });
-                                                }/>
-                                                "💻"
-                                            </label>
-                                            <label class="lp-saved-toggle" class:active=cloud title="Cloud storage">
-                                                <input type="checkbox" checked=cloud on:change=move |ev| {
-                                                    let checked = event_target_checked(&ev);
-                                                    let username = u_storage_cloud.clone();
-                                                    let creds = app_store.get().credentials.clone();
-                                                    app_store.update(|s| {
-                                                        let local = s.credentials.credentials.get(&username).map(|c| c.store_local).unwrap_or(true);
-                                                        s.set_storage_options(&username, local, checked);
-                                                    });
-                                                    if checked {
-                                                        spawn_local(async move {
-                                                            let _req = crate::api::email::SyncCredentialsRequest {
-                                                                username: username.clone(),
-                                                                credentials: creds,
-                                                            };
-                                                            cfg_if! {
-                                                                if #[cfg(feature = "hydrate")] {
-                                                                    let _ = gloo_net::http::Request::post("/api/credentials/sync")
-                                                                        .json(&_req)
-                                                                        .unwrap()
-                                                                        .send()
-                                                                        .await;
-                                                                }
-                                                            }
-                                                        });
-                                                    }
-                                                }/>
-                                                "☁"
-                                            </label>
-                                        </div>
-                                    </div>
-                                }
-                            }).collect_view()}
-                        </div>
-                    }.into_any()
-                }
-            } else { ().into_any() }}
 
             // ── USERNAME ROW ──
             <div class="lp-field-row">

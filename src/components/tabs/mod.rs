@@ -1,6 +1,6 @@
 use crate::pages::{AddTeamMemberPage, AgentPage, CalendarPage, HistoryPage, NetworkingPage, OrganizationPage, OverviewPage, PortfoliosPage, ReportingPage, SettingsPage, TransactionsPage};
-use crate::stores::use_app_store;
-use crate::types::TabType;
+use crate::stores::{create_action, use_app_store, use_undo_redo_store};
+use crate::types::{ActionType, TabType};
 use leptos::prelude::*;
 
 /// Per-tab edit mode signal provided as context to child pages.
@@ -9,6 +9,51 @@ pub struct TabEditMode(pub Signal<bool>);
 
 pub fn use_tab_edit_mode() -> Signal<bool> {
     use_context::<TabEditMode>().map(|c| c.0).unwrap_or_else(|| Signal::derive(move || false))
+}
+
+fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
+    let app_store = use_app_store();
+    let undo_store = use_undo_redo_store();
+    Callback::new(move |_| {
+        let current_tab = tab_type.clone();
+        let store = app_store.get();
+        let user_id = store.current_user.id;
+        let user_name = store.current_user.name.clone();
+        let user_role = format!("{:?}", store.current_user.role);
+        let org_id = store.current_user.organization_id;
+        drop(store);
+
+        app_store.update(|store| {
+            if store.is_tab_expanded(&current_tab) {
+                let action = create_action(
+                    ActionType::View,
+                    "Tab",
+                    &format!("Closed {:?} tab", current_tab),
+                    user_id,
+                    &user_name,
+                    &user_role,
+                    org_id,
+                    None,
+                );
+                undo_store.update(|u| u.record_action(action));
+                store.collapse_tab(&current_tab);
+            } else {
+                let action = create_action(
+                    ActionType::View,
+                    "Tab",
+                    &format!("Opened {:?} tab", current_tab),
+                    user_id,
+                    &user_name,
+                    &user_role,
+                    org_id,
+                    None,
+                );
+                undo_store.update(|u| u.record_action(action));
+                store.expand_tab(current_tab);
+            }
+            store.close_tabs_drawer();
+        });
+    })
 }
 
 fn render_tab_page(tab_type: TabType) -> impl IntoView {
@@ -28,6 +73,21 @@ fn render_tab_page(tab_type: TabType) -> impl IntoView {
 }
 
 #[component]
+fn TabItem(tab_type: TabType, title: &'static str) -> impl IntoView {
+    let app_store = use_app_store();
+    let on_toggle = use_tab_toggle(tab_type.clone());
+    let tab_type_class = tab_type.clone();
+
+    view! {
+        <div class="tab-item" class:expanded=move || app_store.get().is_tab_expanded(&tab_type_class)>
+            <div class="tab-header" on:click=move |_| on_toggle.run(())>
+                <span class="tab-title">{title}</span>
+            </div>
+        </div>
+    }
+}
+
+#[component]
 fn TabContent(tab_type: TabType) -> impl IntoView {
     let app_store = use_app_store();
     let tab_type_for_edit = tab_type.clone();
@@ -42,13 +102,37 @@ fn TabContent(tab_type: TabType) -> impl IntoView {
 }
 
 #[component]
+pub fn TabList() -> impl IntoView {
+    let app_store = use_app_store();
+
+    view! {
+        <div class="tab-list">
+            <TabItem tab_type=TabType::Overview title="Overview" />
+            <TabItem tab_type=TabType::Portfolios title="Portfolios" />
+            <TabItem tab_type=TabType::Networking title="Networking" />
+            {move || if app_store.get().networking_add_member_open {
+                view! {
+                    <TabItem tab_type=TabType::NetworkingAddMember title="Add Team" />
+                }.into_any()
+            } else { ().into_any() }}
+            <TabItem tab_type=TabType::Organization title="Organization" />
+            <TabItem tab_type=TabType::Reporting title="Reporting" />
+            <TabItem tab_type=TabType::Calendar title="Calendar" />
+            <TabItem tab_type=TabType::Transactions title="Transactions" />
+            <TabItem tab_type=TabType::History title="History" />
+            <TabItem tab_type=TabType::Settings title="Settings" />
+            <TabItem tab_type=TabType::Agent title="Agent" />
+        </div>
+    }
+}
+
+#[component]
 pub fn TabsContainer() -> impl IntoView {
     let app_store = use_app_store();
 
     view! {
-        <div class="tabs-layout">
-            <TabDrawer />
-            <div class="tabs-viewport" class:drawer-open=move || app_store.get().drawer_open>
+        <div class="tabs-container">
+            <div class="tabs-viewport">
                 {move || {
                     let tabs = app_store.get().active_tabs.clone();
                     if tabs.is_empty() {
@@ -60,70 +144,6 @@ pub fn TabsContainer() -> impl IntoView {
                             .into_any()
                     }
                 }}
-            </div>
-        </div>
-    }
-}
-
-#[component]
-fn TabDrawer() -> impl IntoView {
-    let app_store = use_app_store();
-    let on_overlay_click = move |_| {
-        app_store.update(|s| s.close_drawer());
-    };
-
-    view! {
-        <>
-            <div
-                class="tab-drawer-overlay"
-                class:drawer-open=move || app_store.get().drawer_open
-                on:click=on_overlay_click
-            >
-                <div class="tab-drawer" on:click=|ev| ev.stop_propagation()>
-                    <div class="tab-drawer-header">
-                        <span class="tab-drawer-title">"MENU"</span>
-                    </div>
-                    <div class="tab-drawer-items">
-                        <TabDrawerItem tab_type=TabType::Overview title="Overview" />
-                        <TabDrawerItem tab_type=TabType::Portfolios title="Portfolios" />
-                        <TabDrawerItem tab_type=TabType::Networking title="Networking" />
-                        {move || if app_store.get().networking_add_member_open {
-                            view! {
-                                <TabDrawerItem tab_type=TabType::NetworkingAddMember title="Add Team" />
-                            }.into_any()
-                        } else { ().into_any() }}
-                        <TabDrawerItem tab_type=TabType::Organization title="Organization" />
-                        <TabDrawerItem tab_type=TabType::Reporting title="Reporting" />
-                        <TabDrawerItem tab_type=TabType::Calendar title="Calendar" />
-                        <TabDrawerItem tab_type=TabType::Transactions title="Transactions" />
-                        <TabDrawerItem tab_type=TabType::History title="History" />
-                        <TabDrawerItem tab_type=TabType::Settings title="Settings" />
-                        <TabDrawerItem tab_type=TabType::Agent title="Agent" />
-                    </div>
-                </div>
-            </div>
-        </>
-    }
-}
-
-#[component]
-fn TabDrawerItem(tab_type: TabType, title: &'static str) -> impl IntoView {
-    let app_store = use_app_store();
-    let tab_type_active = tab_type.clone();
-    let is_active = move || app_store.get().active_tabs.contains(&tab_type_active);
-    let tab_type_click = tab_type.clone();
-    let on_click = Callback::new(move |_| {
-        let tt = tab_type_click.clone();
-        app_store.update(|s| {
-            s.expand_tab(tt);
-            s.close_drawer();
-        });
-    });
-
-    view! {
-        <div class="tab-drawer-item" class:active=is_active>
-            <div class="tab-drawer-row" on:click=move |_| on_click.run(())>
-                <span class="tab-drawer-label">{title}</span>
             </div>
         </div>
     }

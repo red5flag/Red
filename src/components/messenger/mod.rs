@@ -1,6 +1,5 @@
 use crate::models::{ContactSource, MessengerContact};
 use crate::stores::use_app_store;
-use crate::utils::crypto;
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -171,7 +170,7 @@ pub fn MessageDrawer() -> impl IntoView {
                 </div>
                 <div class="messenger-drawer-footer">
                     <span class="messenger-encryption-note">
-                        {move || format!("Encrypted with {}", crypto::pqc_cipher_name())}
+                        "Plain text (development mode)"
                     </span>
                 </div>
             </div>

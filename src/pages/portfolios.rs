@@ -175,6 +175,65 @@ pub fn PortfoliosPage() -> impl IntoView {
 
     view! {
         <div class="home-screen">
+            // Portfolio controls bar (attached below navbar)
+            <div class="portfolio-controls-bar">
+                <button
+                    class="nav-portfolio-btn"
+                    class:active={move || view_mode() == ViewMode::List}
+                    on:click=move |_| app_store.update(|s| s.portfolio_view_mode = ViewMode::List)
+                >
+                    "☰ List"
+                </button>
+                <button
+                    class="nav-portfolio-btn"
+                    class:active={move || view_mode() == ViewMode::Grid}
+                    on:click=move |_| app_store.update(|s| s.portfolio_view_mode = ViewMode::Grid)
+                >
+                    "⊞ Grid"
+                </button>
+                <select
+                    class="nav-portfolio-btn nav-portfolio-sort"
+                    prop:value={move || {
+                        match app_store.get().portfolio_sort_mode {
+                            SortMode::Recent => "sort_recent",
+                            SortMode::Oldest => "sort_oldest",
+                            SortMode::HighestValue => "sort_highest_value",
+                            SortMode::LowestValue => "sort_lowest_value",
+                            SortMode::HighestProfit => "sort_highest_profit",
+                            SortMode::LowestProfit => "sort_lowest_profit",
+                            SortMode::HighestRevenue => "sort_highest_revenue",
+                            SortMode::LowestRevenue => "sort_lowest_revenue",
+                            SortMode::ByOrganization => "sort_by_organization",
+                        }.to_string()
+                    }}
+                    on:change=move |ev| {
+                        let v = event_target_value(&ev);
+                        let mode = match v.as_str() {
+                            "sort_oldest" => SortMode::Oldest,
+                            "sort_highest_value" => SortMode::HighestValue,
+                            "sort_lowest_value" => SortMode::LowestValue,
+                            "sort_highest_profit" => SortMode::HighestProfit,
+                            "sort_lowest_profit" => SortMode::LowestProfit,
+                            "sort_highest_revenue" => SortMode::HighestRevenue,
+                            "sort_lowest_revenue" => SortMode::LowestRevenue,
+                            "sort_by_organization" => SortMode::ByOrganization,
+                            _ => SortMode::Recent,
+                        };
+                        app_store.update(|s| s.portfolio_sort_mode = mode);
+                    }
+                >
+                    <option value="sort_recent">"Sort: Recent"</option>
+                    <option value="sort_oldest">"Sort: Oldest"</option>
+                    <option value="sort_highest_value">"Sort: Highest Value"</option>
+                    <option value="sort_lowest_value">"Sort: Lowest Value"</option>
+                    <option value="sort_highest_profit">"Sort: Highest Profit"</option>
+                    <option value="sort_lowest_profit">"Sort: Lowest Profit"</option>
+                    <option value="sort_highest_revenue">"Sort: Highest Revenue"</option>
+                    <option value="sort_lowest_revenue">"Sort: Lowest Revenue"</option>
+                    <option value="sort_by_organization">"Sort: By Organization"</option>
+                </select>
+            </div>
+
             // Edit portfolio assets modal
             {move || edit_portfolio_id.get().map(|pid| {
                 let pid_add_asset = pid;
@@ -231,8 +290,10 @@ pub fn PortfoliosPage() -> impl IntoView {
                             prop:value={move || format!("grid_{}", app_store.get().portfolio_grid_columns)}
                             on:change=move |ev| {
                                 let v = event_target_value(&ev);
-                                if let Ok(n) = v.strip_prefix("grid_").unwrap().parse::<usize>() {
-                                    app_store.update(|s| s.set_portfolio_grid_columns(n));
+                                if let Some(suffix) = v.strip_prefix("grid_") {
+                                    if let Ok(n) = suffix.parse::<usize>() {
+                                        app_store.update(|s| s.set_portfolio_grid_columns(n));
+                                    }
                                 }
                             }
                         >
@@ -245,7 +306,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                         </select>
                     </div>
                 }.into_any()
-            } else { ().into_any() }}
+                } else { ().into_any() }}
 
             // Add Portfolio Form (toggled from navbar)
             {move || app_store.get().show_add_portfolio.then(|| view! {
@@ -553,8 +614,8 @@ fn AssetViewer(
             <div class="asset-section">
                 <div class="asset-section-title">
                     <span class="asset-section-arrow"
-                        on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                    >
+                            on:click=move |_| set_show_groups.update(|v| *v = !*v)
+                        >
                         {move || if show_groups.get() { "▼" } else { "▶" }}
                     </span>
                     <span class="asset-section-label"
@@ -652,8 +713,8 @@ fn AssetViewer(
             <div class="asset-section">
                 <div class="asset-section-title">
                     <span class="asset-section-arrow"
-                        on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                    >
+                            on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
+                        >
                         {move || if show_direct_assets.get() { "▼" } else { "▶" }}
                     </span>
                     <span class="asset-section-label"
@@ -1561,11 +1622,7 @@ fn AssetItem(
                                                 <button class="pf-edit-save" on:click=move |_| save_edit()>"✔ Save"</button>
                                                 <button class="pf-edit-cancel" on:click=move |_| { set_detail_tab.set(0); }>"✕ Cancel"</button>
                                             </div>
-                                            {move || {
-                                                view! {
-                                                    <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
-                                                }.into_any()
-                                            }}
+                                            <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
                                         </div>
                                     </div>
                                 }.into_any(),

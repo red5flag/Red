@@ -28,7 +28,6 @@ pub struct AppStore {
     pub is_search_open: bool,
     pub search_query: String,
     pub theme: Theme,
-    pub drawer_open: bool,
     // Notifications
     pub notifications: Vec<Notification>,
     // Modal state
@@ -64,8 +63,8 @@ pub struct AppStore {
     pub current_organization_id: Option<Uuid>,
     // Credential store for password verification
     pub credentials: CredentialStore,
-    // Encryption key for caching (derived from password hash)
-    pub cache_key: Vec<u8>,
+    // Tabs drawer (left-side drawer for tab list)
+    pub tabs_drawer_open: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -143,7 +142,7 @@ impl AppStore {
         use web_sys::window;
         let state = TabState {
             active_tabs: self.active_tabs.clone(),
-            drawer_open: self.drawer_open,
+            drawer_open: self.message_drawer_open,
             edit_mode_tabs: self.edit_mode_tabs.clone(),
         };
         if let Ok(json) = serde_json::to_string(&state) {
@@ -164,17 +163,10 @@ impl Default for AppStore {
         #[cfg(feature = "hydrate")]
         credentials.merge_from_local_storage();
 
-        let tab_state = load_tab_state_from_local_storage();
-        let active_tabs = tab_state
-            .as_ref()
-            .map(|s| s.active_tabs.clone())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| vec![TabType::Overview]);
-        let drawer_open = tab_state.as_ref().map(|s| s.drawer_open).unwrap_or(false);
         Self {
             current_user: UserProfile::default(),
-            active_tabs,
-            edit_mode_tabs: tab_state.map(|s| s.edit_mode_tabs).unwrap_or_default(),
+            active_tabs: vec![TabType::Overview],
+            edit_mode_tabs: HashSet::new(),
             portfolios: Vec::new(),
             transactions: Vec::new(),
             selected_portfolio_id: None,
@@ -183,7 +175,6 @@ impl Default for AppStore {
             is_search_open: false,
             search_query: String::new(),
             theme: Theme::default(),
-            drawer_open,
             notifications: Vec::new(),
             active_modal: None,
             is_loading: false,
@@ -205,7 +196,7 @@ impl Default for AppStore {
             organizations: Vec::new(),
             current_organization_id: None,
             credentials,
-            cache_key: Vec::new(),
+            tabs_drawer_open: false,
         }
     }
 }
@@ -256,7 +247,7 @@ impl AppStore {
         if self.is_any_tab_editing() {
             if self.active_tabs.contains(&tab) {
                 self.active_tabs.retain(|t| t != &tab);
-            } else {
+        } else {
                 self.active_tabs.push(tab);
             }
         } else {
@@ -402,25 +393,6 @@ impl AppStore {
     pub fn close_search(&mut self) {
         self.is_search_open = false;
         self.search_query.clear();
-    }
-
-    // Left tab drawer
-    pub fn open_drawer(&mut self) {
-        self.drawer_open = true;
-        #[cfg(feature = "hydrate")]
-        self.save_tab_state();
-    }
-
-    pub fn close_drawer(&mut self) {
-        self.drawer_open = false;
-        #[cfg(feature = "hydrate")]
-        self.save_tab_state();
-    }
-
-    pub fn toggle_drawer(&mut self) {
-        self.drawer_open = !self.drawer_open;
-        #[cfg(feature = "hydrate")]
-        self.save_tab_state();
     }
 
     pub fn set_search_query(&mut self, query: String) {
@@ -644,21 +616,11 @@ impl AppStore {
         let display_name = cred.display_name.clone();
         let email = cred.email.clone();
 
-        // Derive encryption key from password hash
-        self.cache_key = crypto::derive_key(&cred.password_hash);
-
         // Set user profile
         self.is_authenticated = true;
         self.current_user.name = display_name.clone();
         self.current_user.email = email.clone();
         self.current_user.role = UserRole::Owner;
-
-        // Load persisted portfolios from DB
-        #[cfg(feature = "ssr")]
-        {
-            let db = crate::storage::portfolio_store();
-            self.portfolios = db.load_all_portfolios();
-        }
 
         // Seed portfolios if none exist
         if self.portfolios.is_empty() {
@@ -667,25 +629,6 @@ impl AppStore {
             self.portfolios.push(seed_portfolio_2(owner_id));
             self.portfolios.push(seed_portfolio_3(owner_id));
         }
-
-        // Persist all portfolios to DB
-        #[cfg(feature = "ssr")]
-        {
-            let db = crate::storage::portfolio_store();
-            for p in &self.portfolios {
-                let _ = db.save_portfolio(p);
-            }
-        }
-
-        // Pre-cache home page with PQC encryption
-        let home_data = serde_json::json!({
-            "user": display_name,
-            "email": email,
-            "portfolios": self.portfolios.len(),
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-        }).to_string();
-
-        let _ = crypto::cache_to_local("farley_home_cache", &home_data, &self.cache_key);
 
         Ok((display_name, format!("{:?}", self.current_user.role)))
     }
@@ -699,13 +642,6 @@ impl AppStore {
         self.current_user.name = name;
         self.current_user.email = email;
         self.current_user.role = role;
-
-        // Load persisted portfolios from DB
-        #[cfg(feature = "ssr")]
-        {
-            let db = crate::storage::portfolio_store();
-            self.portfolios = db.load_all_portfolios();
-        }
 
         // Seed portfolios if none exist
         if self.portfolios.is_empty() {
@@ -724,8 +660,8 @@ impl AppStore {
         self.selected_portfolio_id = None;
         self.selected_asset_group_id = None;
         self.selected_asset_id = None;
-        self.cache_key = Vec::new();
         self.portfolios.clear();
+        self.tabs_drawer_open = false;
         let _ = crypto::clear_cached("farley_home_cache");
     }
 
@@ -835,21 +771,11 @@ impl AppStore {
 
     /// Login a server-validated user (from /api/login after email validation)
     pub fn login_server_validated(&mut self, display_name: &str, email: &str) {
-        // Derive encryption key from display name + email as a simple key
-        self.cache_key = crypto::derive_key(&format!("{}:{}", display_name, email));
-
         // Set user profile
         self.is_authenticated = true;
         self.current_user.name = display_name.to_string();
         self.current_user.email = email.to_string();
         self.current_user.role = UserRole::Owner;
-
-        // Load persisted portfolios from DB
-        #[cfg(feature = "ssr")]
-        {
-            let db = crate::storage::portfolio_store();
-            self.portfolios = db.load_all_portfolios();
-        }
 
         // Also mark this user as validated locally so future local logins work
         if !display_name.is_empty() {
@@ -864,24 +790,15 @@ impl AppStore {
             self.portfolios.push(seed_default_portfolio(owner_id));
         }
 
-        // Persist all portfolios to DB
-        #[cfg(feature = "ssr")]
-        {
-            let db = crate::storage::portfolio_store();
-            for p in &self.portfolios {
-                let _ = db.save_portfolio(p);
-            }
-        }
+    }
 
-        // Pre-cache home page with PQC encryption
-        let home_data = serde_json::json!({
-            "user": display_name,
-            "email": email,
-            "portfolios": self.portfolios.len(),
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-        }).to_string();
+    // Tabs drawer
+    pub fn toggle_tabs_drawer(&mut self) {
+        self.tabs_drawer_open = !self.tabs_drawer_open;
+    }
 
-        let _ = crypto::cache_to_local("farley_home_cache", &home_data, &self.cache_key);
+    pub fn close_tabs_drawer(&mut self) {
+        self.tabs_drawer_open = false;
     }
 
     // Organization management

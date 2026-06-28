@@ -43,20 +43,15 @@ impl CredentialStore {
         Self::new()
     }
 
-    /// Load credentials from localStorage (hydrate only), decrypting with
-    /// ChaCha20-Poly1305 using the device-local PQC-capable key.
+    /// Load credentials from localStorage (hydrate only), plain text for development
     #[cfg(feature = "hydrate")]
     pub fn load_from_local_storage() -> Self {
         use web_sys::window;
-        use crate::utils::crypto;
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
-                if let Ok(Some(encrypted)) = storage.get_item("farley_credentials") {
-                    let key = crypto::local_storage_key();
-                    if let Ok(json) = crypto::decrypt(&encrypted, &key) {
-                        if let Ok(store) = serde_json::from_str::<Self>(&json) {
-                            return store;
-                        }
+                if let Ok(Some(json)) = storage.get_item("farley_credentials") {
+                    if let Ok(store) = serde_json::from_str::<Self>(&json) {
+                        return store;
                     }
                 }
             }
@@ -64,18 +59,14 @@ impl CredentialStore {
         Self::new()
     }
 
-    /// Save credentials to localStorage (hydrate only), encrypted with
-    /// ChaCha20-Poly1305 using the device-local PQC-capable key.
+    /// Save credentials to localStorage (hydrate only), plain text for development
     #[cfg(feature = "hydrate")]
     pub fn save_to_local_storage(&self) {
         use web_sys::window;
-        use crate::utils::crypto;
         if let Some(window) = window() {
             if let Ok(Some(storage)) = window.local_storage() {
                 if let Ok(json) = serde_json::to_string(self) {
-                    let key = crypto::local_storage_key();
-                    let encrypted = crypto::encrypt(&json, &key);
-                    let _ = storage.set_item("farley_credentials", &encrypted);
+                    let _ = storage.set_item("farley_credentials", &json);
                 }
             }
         }

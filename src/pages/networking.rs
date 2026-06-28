@@ -326,26 +326,6 @@ fn MemberRow(
     let location = user.address.clone().unwrap_or_else(|| "—".to_string());
     let account = user.payment_settings.account_details.clone();
 
-    let app_store = use_app_store();
-    let user_id = user.id;
-    let portfolios = move || app_store.get().portfolios.clone();
-    let toggle_portfolio_assignment = Callback::new(move |pid: Uuid| {
-        app_store.update(|s| {
-            if let Some(p) = s.get_portfolio_mut(pid) {
-                if p.assigned_users.contains(&user_id) {
-                    p.assigned_users.retain(|&id| id != user_id);
-                } else {
-                    p.assigned_users.push(user_id);
-                }
-            }
-        });
-        if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
-            leptos::task::spawn_local(async move {
-                let _ = crate::server::save_portfolio(p).await;
-            });
-        }
-    });
-
     view! {
         <div class="net-member-row" class:expanded={expanded}>
             <div class="net-member-header" on:click=move |_| on_toggle()>
@@ -382,32 +362,6 @@ fn MemberRow(
                         <div class="net-member-detail-row">
                             <span class="net-member-detail-label">"ACCOUNTS"</span>
                             <span class="net-member-detail-value">{account}</span>
-                        </div>
-                        <div class="net-member-detail-row">
-                            <span class="net-member-detail-label">"ASSIGNED PORTFOLIOS"</span>
-                            <span class="net-member-detail-value">
-                                {move || {
-                                    let ps = portfolios();
-                                    view! {
-                                        <div class="assignment-panel">
-                                            {if ps.is_empty() {
-                                                view! { <div class="assignment-empty">"No portfolios"</div> }.into_any()
-                                            } else {
-                                                ps.into_iter().map(|p| {
-                                                    let checked = p.assigned_users.contains(&user_id);
-                                                    let pid = p.id;
-                                                    view! {
-                                                        <label class="assignment-row">
-                                                            <input type="checkbox" checked=checked on:change=move |_| toggle_portfolio_assignment.run(pid) />
-                                                            <span>{p.name}</span>
-                                                        </label>
-                                                    }
-                                                }).collect::<Vec<_>>().into_any()
-                                            }}
-                                        </div>
-                                    }.into_any()
-                                }}
-                            </span>
                         </div>
                     </div>
                 }.into_any()
