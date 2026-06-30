@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-// User roles for organization hierarchy: Owner > Director > SeniorManager > Manager > Worker > Contractor > Guest
+// User roles for organization hierarchy: Owner > Director > SeniorManager > Manager > Worker > DocumentWorker > Contractor > Guest
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserRole {
     Owner,
@@ -10,6 +10,7 @@ pub enum UserRole {
     SeniorManager,
     Manager,
     Worker,
+    DocumentWorker,
     Contractor,
     Guest,
 }
@@ -22,6 +23,7 @@ impl UserRole {
             UserRole::SeniorManager => 4,
             UserRole::Manager => 3,
             UserRole::Worker => 2,
+            UserRole::DocumentWorker => 1,
             UserRole::Contractor => 1,
             UserRole::Guest => 0,
         }
@@ -168,6 +170,20 @@ pub enum SortMode {
     ByOrganization,
 }
 
+// Sort modes for reporting views
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ReportSortMode {
+    #[default]
+    Recent,
+    Oldest,
+    HighestValue,
+    LowestValue,
+    ByStatus,
+    ByName,
+    ByDocumentType,
+    ByCalendarDate,
+}
+
 // Search filters
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SearchFilters {
@@ -286,6 +302,7 @@ pub struct OrganizationSettings {
     pub notification_preferences: Vec<(NotificationTrigger, Vec<NotificationType>)>,
     pub theme: Theme,
     pub custom_fields: Vec<String>,
+    pub color: Option<String>,
 }
 
 // User profile

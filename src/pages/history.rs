@@ -1,4 +1,4 @@
-use crate::stores::{format_action_description, use_app_store, use_undo_redo_store, HistoryQuery};
+use crate::stores::{create_action, format_action_description, use_app_store, use_undo_redo_store, HistoryQuery};
 use crate::types::{ActionType, SortMode};
 use leptos::prelude::*;
 
@@ -32,6 +32,9 @@ pub fn HistoryPage() -> impl IntoView {
 
     let current_user_name = move || app_store.get().current_user.name.clone();
     let current_user_role = move || format!("{:?}", app_store.get().current_user.role);
+    let current_user_id = move || app_store.get().current_user.id;
+
+    let (dropdown, set_dropdown) = signal::<Option<(i32, i32, Vec<crate::models::Action>, bool)>>(None);
 
     let filtered_actions = move || {
         let mut q = HistoryQuery::default();
@@ -50,6 +53,81 @@ pub fn HistoryPage() -> impl IntoView {
 
     let action_count = move || filtered_actions().len();
     let total_count = move || undo_store.get().past.len();
+    let can_undo = move || undo_store.get().can_undo_by_user(current_user_id());
+    let can_redo = move || undo_store.get().can_redo_by_user(current_user_id());
+
+    let record_undo_redo = move |kind: ActionType, description: String| {
+        let store = app_store.get();
+        let uid = store.current_user.id;
+        let name = store.current_user.name.clone();
+        let role = format!("{:?}", store.current_user.role);
+        let org = store.current_user.organization_id;
+        drop(store);
+        let action = create_action(
+            kind,
+            "Action",
+            &description,
+            uid,
+            &name,
+            &role,
+            org,
+            None,
+        );
+        undo_store.update(|u| u.record_action(action));
+    };
+
+    let on_undo = move |_| {
+        if dropdown.get().is_some() { return; }
+        let uid = current_user_id();
+        if let Some(undone) = undo_store.get().undo_by_user(uid) {
+            record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+        }
+    };
+
+    let on_redo = move |_| {
+        if dropdown.get().is_some() { return; }
+        let uid = current_user_id();
+        if let Some(redone) = undo_store.get().redo_by_user(uid) {
+            record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
+        }
+    };
+
+    let on_undo_context = move |ev: leptos::ev::MouseEvent| {
+        ev.prevent_default();
+        let uid = current_user_id();
+        let actions = undo_store.get().undoable_by_user(uid).into_iter().cloned().collect();
+        set_dropdown.set(Some((ev.client_x(), ev.client_y(), actions, false)));
+    };
+
+    let on_redo_context = move |ev: leptos::ev::MouseEvent| {
+        ev.prevent_default();
+        let uid = current_user_id();
+        let actions = undo_store.get().redoable_by_user(uid).into_iter().cloned().collect();
+        set_dropdown.set(Some((ev.client_x(), ev.client_y(), actions, true)));
+    };
+
+    let close_dropdown = move |_| {
+        set_dropdown.set(None);
+    };
+
+    let on_dropdown_action = move |action_id: uuid::Uuid, is_redo: bool| {
+        set_dropdown.set(None);
+        if is_redo {
+            if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
+                record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
+            }
+        } else {
+            if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
+                record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+            }
+        }
+    };
+
+    let on_history_undo = move |action_id: uuid::Uuid| {
+        if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
+            record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+        }
+    };
 
     view! {
         <div class="home-screen">
@@ -78,6 +156,14 @@ pub fn HistoryPage() -> impl IntoView {
             <div class="data-card">
                 <div class="card-header">
                     <span class="card-title">"Actions"</span>
+                    <div class="history-undo-redo">
+                        <button class="history-undo-btn" on:click=on_redo
+                            on:contextmenu=on_redo_context
+                            disabled={move || !can_redo()} title="Redo (hold for list)">"↻ Redo"</button>
+                        <button class="history-undo-btn" on:click=on_undo
+                            on:contextmenu=on_undo_context
+                            disabled={move || !can_undo()} title="Undo (hold for list)">"↺ Undo"</button>
+                    </div>
                     <select
                         class="form-select"
                         style="width: auto; min-width: 120px;"
@@ -172,6 +258,8 @@ pub fn HistoryPage() -> impl IntoView {
                                             action.user_role.clone()
                                         };
                                         let why = action.reason.clone();
+                                        let action_id = action.id;
+                                        let is_current_user = action.user_id == current_user_id();
 
                                         view! {
                                             <div class="timeline-item">
@@ -190,6 +278,15 @@ pub fn HistoryPage() -> impl IntoView {
                                                                 view! { <span class="timeline-reason">{format!("Why: {}", r)}</span> }.into_any()
                                                             } else { ().into_any() }
                                                         } else { ().into_any() }}
+                                                        {if is_current_user {
+                                                            view! {
+                                                                <button class="timeline-undo-btn"
+                                                                    on:click=move |_| on_history_undo(action_id)
+                                                                    title="Undo this action">
+                                                                    "↺"
+                                                                </button>
+                                                            }.into_any()
+                                                        } else { ().into_any() }}
                                                     </div>
                                                 </div>
                                             </div>
@@ -202,6 +299,32 @@ pub fn HistoryPage() -> impl IntoView {
                     }
                 }}
             </div>
+
+            // Undo/Redo dropdown (tap-and-hold on the buttons)
+            {move || if let Some((x, y, actions, is_redo)) = dropdown.get() {
+                let title = if is_redo { "Redo" } else { "Undo" };
+                view! {
+                    <div class="nav-dropdown-overlay" on:click=close_dropdown></div>
+                    <div class="nav-dropdown-menu" style={format!("left:{}px;top:{}px;", x, y)}>
+                        <div class="nav-dropdown-title">{title}" actions"</div>
+                        {if actions.is_empty() {
+                            view! { <div class="nav-dropdown-empty">"No actions"</div> }.into_any()
+                        } else {
+                            actions.into_iter().map(|action| {
+                                let action_id = action.id;
+                                let desc = format!("{} {}", action.action_type_badge(), action.description);
+                                let is_redo = is_redo;
+                                view! {
+                                    <div class="nav-dropdown-item"
+                                        on:click=move |_| on_dropdown_action(action_id, is_redo)>
+                                        {desc}
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>().into_any()
+                        }}
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
         </div>
     }
 }

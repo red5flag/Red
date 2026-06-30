@@ -1,6 +1,6 @@
 use crate::models::{default_permissions_for_role, Payment, PaymentSettings, PaymentStatus, Permission, User, UserActivity, UserAssignment};
 use crate::stores::use_app_store;
-use crate::types::{PaymentInterval, PaymentMethod, UserRole};
+use crate::types::{PaymentInterval, PaymentMethod, TabType, UserRole};
 use chrono::Utc;
 use leptos::prelude::*;
 use uuid::Uuid;
@@ -212,6 +212,21 @@ pub fn NetworkingPage() -> impl IntoView {
 
 fn render_organizations(_users: Memo<Vec<User>>) -> impl IntoView {
     let app_store = use_app_store();
+    let (editing_org, set_editing_org) = signal(Option::<Uuid>::None);
+    let (edit_name, set_edit_name) = signal(String::new());
+
+    let save_org_name = move |id: Uuid| {
+        let name = edit_name.get();
+        if name.trim().is_empty() { return; }
+        app_store.update(|s| {
+            if let Some(org) = s.get_organization_mut(id) {
+                org.name = name;
+                org.updated_at = chrono::Utc::now();
+            }
+        });
+        set_editing_org.set(None);
+    };
+
     view! {
         <div class="net-tab-content">
             {move || {
@@ -232,15 +247,34 @@ fn render_organizations(_users: Memo<Vec<User>>) -> impl IntoView {
                     }.into_any()
                 } else {
                     orgs.into_iter().map(|org| {
+                        let oid = org.id;
+                        let is_editing = editing_org.get() == Some(oid);
                         let mut org_users: Vec<User> = all_users.iter()
                             .filter(|u| u.organization_id == Some(org.id))
                             .cloned()
                             .collect();
                         org_users.sort_by(|a, b| b.role.level().cmp(&a.role.level()));
+                        let org_color_style = org.settings.color.as_ref().map(|c| format!("border-left: 6px solid {};", c)).unwrap_or_default();
                         view! {
                             <div class="data-card">
-                                <div class="card-header">
-                                    <span class="card-title">{org.name.clone()}</span>
+                                <div class="card-header" style={org_color_style}>
+                                    {if is_editing {
+                                        view! {
+                                            <input class="pf-edit-input" type="text" prop:value=edit_name
+                                                on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                                                on:blur=move |_| save_org_name(oid)
+                                                on:keydown=move |ev| { if ev.key() == "Enter" { save_org_name(oid); } }
+                                            />
+                                        }.into_any()
+                                    } else {
+                                        let n = org.name.clone();
+                                        view! {
+                                            <span class="card-title" on:dblclick=move |_| {
+                                                set_edit_name.set(n.clone());
+                                                set_editing_org.set(Some(oid));
+                                            }>{org.name.clone()}</span>
+                                        }.into_any()
+                                    }}
                                     <span class="stat-value">{format!("{} members", org_users.len())}</span>
                                 </div>
                                 <div class="net-org-members">
@@ -258,6 +292,7 @@ fn render_organizations(_users: Memo<Vec<User>>) -> impl IntoView {
 }
 
 fn render_members(users: Memo<Vec<User>>) -> impl IntoView {
+    let app_store = use_app_store();
     let (filter_by, set_filter_by) = signal("role");
     let (expanded_id, set_expanded_id) = signal(Option::<Uuid>::None);
 
@@ -278,6 +313,13 @@ fn render_members(users: Memo<Vec<User>>) -> impl IntoView {
                     on:click=move |_| set_filter_by.set("user")
                 >
                     "User"
+                </button>
+                <button
+                    class="net-filter-btn net-filter-add"
+                    style="margin-left: auto;"
+                    on:click=move |_| app_store.update(|s| s.expand_tab(TabType::NetworkingAddMember))
+                >
+                    "+ Add User"
                 </button>
             </div>
             <div class="net-members-table">
@@ -315,7 +357,22 @@ fn MemberRow(
     expanded: bool,
     on_toggle: impl Fn() + 'static,
 ) -> impl IntoView {
-    let initials: String = user.name
+    let app_store = use_app_store();
+    let (is_editing, set_is_editing) = signal(false);
+    let (edit_name, set_edit_name) = signal(user.name.clone());
+    let user_id = user.id;
+
+    let save_name = move || {
+        let name = edit_name.get();
+        if name.trim().is_empty() { return; }
+        app_store.update(|s| {
+            let _ = s.update_user_name(user_id, name);
+        });
+        set_is_editing.set(false);
+    };
+
+    let user_name = user.name.clone();
+    let initials: String = user_name
         .split_whitespace()
         .filter_map(|s| s.chars().next())
         .collect::<String>()
@@ -330,15 +387,31 @@ fn MemberRow(
         <div class="net-member-row" class:expanded={expanded}>
             <div class="net-member-header" on:click=move |_| on_toggle()>
                 <span class="net-member-arrow">{if expanded { "▼" } else { "▶" }}</span>
-                {if filter_by == "role" {
+                {if is_editing.get() {
+                    view! {
+                        <input class="pf-edit-input" type="text" prop:value=edit_name
+                            on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                            on:blur=move |_| save_name()
+                            on:keydown=move |ev| { if ev.key() == "Enter" { save_name(); } }
+                        />
+                    }.into_any()
+                } else if filter_by == "role" {
+                    let title_name = user_name.clone();
                     view! {
                         <span class="net-member-avatar">{initials}</span>
-                        <span class="net-member-title">{user.name.clone()}</span>
+                        <span class="net-member-title" on:dblclick=move |_| {
+                            set_edit_name.set(title_name.clone());
+                            set_is_editing.set(true);
+                        }>{user_name.clone()}</span>
                         <span class="net-member-role">{role.clone()}</span>
                     }.into_any()
                 } else {
+                    let filter_name = user_name.clone();
                     view! {
-                        <span class="net-member-name">{user.name.clone()}</span>
+                        <span class="net-member-name" on:dblclick=move |_| {
+                            set_edit_name.set(filter_name.clone());
+                            set_is_editing.set(true);
+                        }>{user_name.clone()}</span>
                         <span class="net-member-role-port">{format!("{}/{}", role, assignment)}</span>
                     }.into_any()
                 }}
@@ -349,7 +422,23 @@ fn MemberRow(
                     <div class="net-member-detail">
                         <div class="net-member-detail-row">
                             <span class="net-member-detail-label">"NAME"</span>
-                            <span class="net-member-detail-value">{user.name.clone()}</span>
+                            {if is_editing.get() {
+                                view! {
+                                    <input class="pf-edit-input" type="text" prop:value=edit_name
+                                        on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                                        on:blur=move |_| save_name()
+                                        on:keydown=move |ev| { if ev.key() == "Enter" { save_name(); } }
+                                    />
+                                }.into_any()
+                            } else {
+                                let detail_name = user_name.clone();
+                                view! {
+                                    <span class="net-member-detail-value" on:dblclick=move |_| {
+                                        set_edit_name.set(detail_name.clone());
+                                        set_is_editing.set(true);
+                                    }>{user_name.clone()}</span>
+                                }.into_any()
+                            }}
                         </div>
                         <div class="net-member-detail-row">
                             <span class="net-member-detail-label">"ROLE & AVAILABILITY"</span>
@@ -700,6 +789,7 @@ pub fn AddTeamMemberPage() -> impl IntoView {
                                 "SeniorManager" => UserRole::SeniorManager,
                                 "Manager" => UserRole::Manager,
                                 "Worker" => UserRole::Worker,
+                                "DocumentWorker" => UserRole::DocumentWorker,
                                 "Contractor" => UserRole::Contractor,
                                 _ => UserRole::Guest,
                             });
@@ -710,6 +800,7 @@ pub fn AddTeamMemberPage() -> impl IntoView {
                         <option value="SeniorManager">"Senior Manager"</option>
                         <option value="Manager">"Manager"</option>
                         <option value="Worker">"Worker"</option>
+                        <option value="DocumentWorker">"Document Worker"</option>
                         <option value="Contractor">"Contractor"</option>
                         <option value="Guest">"Guest"</option>
                     </select>

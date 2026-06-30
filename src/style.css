@@ -247,6 +247,8 @@ html, body {
     --bar-h: clamp(47px, 6.5vh, 73px);
     --navbar-height: var(--bar-h);
     --footer-height: clamp(31px, 4.55vh, 47px);
+    --controls-h: var(--bar-h);
+    --pf-item-h: calc(var(--bar-h) * 0.8);
 }
 
 /* Navbar - Fixed at top, single row */
@@ -436,10 +438,20 @@ html, body {
     -webkit-appearance: none;
     appearance: none;
     cursor: pointer;
-    padding-right: 24px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='currentColor' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+    padding-right: calc(var(--controls-h) + 4px);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='currentColor' d='M2 5l6 6 6-6z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 8px center;
+    background-position: right center;
+    background-size: var(--controls-h) var(--controls-h);
+}
+
+.sort-direction-btn {
+    flex: 0 0 var(--controls-h);
+    min-width: var(--controls-h);
+    padding: 0;
+    font-size: clamp(18px, 2.5vh, 22px);
+    font-weight: 700;
+    border-left: 1px solid var(--border-color);
 }
 
 /* Navbar add dropdown (under + button) */
@@ -474,6 +486,61 @@ html, body {
     color: #fff;
 }
 
+/* Undo/redo dropdown shown after tap-and-hold on the navbar buttons */
+.nav-dropdown-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+}
+
+.nav-dropdown-menu {
+    position: fixed;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 1001;
+    min-width: 240px;
+    max-width: 360px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.nav-dropdown-title {
+    padding: 6px 12px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+}
+
+.nav-dropdown-empty {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.nav-dropdown-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s;
+}
+
+.nav-dropdown-item:hover {
+    background: var(--highlight);
+    color: #fff;
+}
+
 /* Section arrow (replaces Hide/Show toggle) */
 .asset-section-arrow {
     cursor: pointer;
@@ -481,12 +548,26 @@ html, body {
     color: var(--text-secondary);
     user-select: none;
     flex-shrink: 0;
-    padding: 0 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 4px;
 }
 
 .asset-section-label {
     cursor: pointer;
     user-select: none;
+}
+
+.asset-section-title-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    cursor: pointer;
+    min-height: 28px;
 }
 
 /* Contextual add dropdown (on portfolio/group items) */
@@ -905,6 +986,15 @@ html, body {
     font-size: 14px;
 }
 
+.pf-org-label {
+    color: #e2c608;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
 .asset-group-count {
     font-size: 11px;
     color: var(--text-secondary);
@@ -1207,6 +1297,8 @@ html, body {
 .home-screen {
     padding: 0;
     height: 100%;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     box-sizing: border-box;
 }
@@ -1435,6 +1527,22 @@ html, body {
 .pf-accordion > .asset-group > .asset-group-content {
     border-top: 1px solid var(--border-color);
     background: var(--primary-bg);
+}
+
+/* Portfolio list items: 20% shorter with square arrows */
+.pf-accordion > .asset-group > .asset-group-header {
+    min-height: var(--pf-item-h);
+    padding: 8px 16px 8px var(--pf-item-h);
+}
+.pf-accordion > .asset-group > .asset-group-header > .asset-group-arrow {
+    width: var(--pf-item-h);
+}
+.grid-view .asset-group.expanded > .asset-group-header {
+    min-height: var(--pf-item-h);
+    padding: 0 16px 0 var(--pf-item-h);
+}
+.grid-view .asset-group.expanded > .asset-group-header > .asset-group-arrow {
+    width: var(--pf-item-h);
 }
 
 /* Detail grid used by expanded rows in list and grid views */
@@ -1760,6 +1868,12 @@ html, body {
     background: var(--highlight);
     border-color: var(--highlight);
     color: var(--primary-bg);
+}
+
+.net-filter-btn.net-filter-add {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
 }
 
 .net-members-table {
@@ -2989,6 +3103,20 @@ html, body {
 
 .lp-action-btn:hover { opacity: 0.85; }
 
+/* Button press darkening effect */
+@keyframes lp-press-flash {
+    0%   { filter: brightness(0.7); }
+    100% { filter: brightness(1); }
+}
+.lp-pressed {
+    animation: lp-press-flash 0.5s ease-out;
+}
+
+/* Hide placeholder when input is focused */
+.lp-field-input:focus::placeholder {
+    color: transparent;
+}
+
 .lp-register {
     background: var(--secondary-bg);
     color: var(--text-primary);
@@ -3122,6 +3250,7 @@ html, body {
 }
 
 .lp-oauth-btn:hover { background: rgba(0,0,0,0.05); }
+.lp-oauth-btn.lp-pressed { animation: lp-press-flash 0.5s ease-out; }
 
 .lp-oauth-divider {
     width: 2px;
@@ -3245,6 +3374,7 @@ html, body {
 }
 
 .lp-footer-btn:hover { background: rgba(0,0,0,0.05); }
+.lp-footer-btn.lp-pressed { animation: lp-press-flash 0.5s ease-out; }
 
 .lp-footer-divider {
     width: 2px;
@@ -3588,6 +3718,7 @@ html, body {
     border: 2px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    height: 80vh;
     max-height: 80vh;
 }
 
@@ -3619,6 +3750,8 @@ html, body {
 }
 
 .asset-detail-body {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 12px;
 }
@@ -3700,6 +3833,14 @@ html, body {
 
 .context-menu-item:hover {
     background: var(--accent-bg);
+}
+
+.context-menu-item.danger {
+    color: var(--danger);
+}
+
+.context-menu-item.danger:hover {
+    background: rgba(220, 38, 38, 0.15);
 }
 
 /* History timeline enhancements */
@@ -3816,6 +3957,47 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.history-undo-redo {
+    display: flex;
+    gap: 8px;
+}
+
+.history-undo-btn {
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.history-undo-btn:hover:not(:disabled) {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.history-undo-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.timeline-undo-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 4px;
+    margin-left: auto;
+    transition: color 0.15s;
+}
+
+.timeline-undo-btn:hover {
+    color: var(--highlight);
 }
 
 /* List items for organization members */
@@ -4132,6 +4314,47 @@ html, body {
     display: flex;
     gap: 10px;
     margin-bottom: 12px;
+}
+
+.reporting-controls-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.reporting-sort-select {
+    height: 40px;
+    padding: 0 12px;
+    background: var(--accent-bg);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    flex: 1;
+}
+
+.reporting-sort-select:hover {
+    border-color: var(--highlight);
+}
+
+.reporting-sort-direction {
+    height: 40px;
+    width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-bg);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.reporting-sort-direction:hover {
+    border-color: var(--highlight);
 }
 
 .reporting-btn {
@@ -4612,6 +4835,47 @@ html, body {
     font-size: clamp(11px,1.8vh,13px);
     color: var(--text-secondary);
 }
+.sd-results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+.sd-result-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.sd-result-row:hover {
+    background: var(--highlight);
+    color: #fff;
+}
+.sd-result-icon {
+    font-size: 18px;
+    flex: 0 0 auto;
+}
+.sd-result-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.sd-result-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sd-result-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
 
 /* ═══════════════════════════════════════════
    TAB SELECTED/HIGHLIGHTED = RED
@@ -4661,6 +4925,7 @@ html, body {
     transition: background 0.15s;
 }
 .lp-visibility-btn:hover { background: var(--secondary-bg); }
+.lp-visibility-btn.lp-pressed { animation: lp-press-flash 0.5s ease-out; }
 .lp-field-input {
     text-transform: none !important;
 }
@@ -7129,28 +7394,38 @@ html, body {
     align-items: center;
     gap: 0;
     padding: 0;
-    height: var(--bar-h);
+    height: var(--controls-h);
     background: var(--secondary-bg);
     border-bottom: 2px solid var(--border-color);
 }
 
-.home-screen:has(.portfolio-controls-bar) {
-    padding-top: var(--bar-h);
+.home-screen-pf {
+    padding-top: var(--controls-h);
+}
+
+.home-screen-pf > .pf-accordion,
+.home-screen-pf > .grid-view {
+    margin-top: 0;
 }
 
 .portfolio-controls-bar .nav-portfolio-btn {
-    flex: 0 0 auto;
-    padding: 0 16px;
-    height: var(--bar-h);
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+    height: var(--controls-h);
     background: var(--secondary-bg);
     border: none;
     border-right: 1px solid var(--border-color);
     color: var(--text-primary);
     cursor: pointer;
-    font-size: clamp(12px, 1.8vh, 14px);
+    font-size: clamp(14px, 2vh, 16px);
     display: flex;
     align-items: center;
     justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .portfolio-controls-bar .nav-portfolio-btn.active {
@@ -7160,5 +7435,934 @@ html, body {
 
 .portfolio-controls-bar .nav-portfolio-sort {
     border-right: none;
-    padding: 0 10px;
+    padding: 0 6px;
+}
+
+/* ═══════════════════════════════════════════
+   ORGANIZATION ACCORDION
+   ═══════════════════════════════════════════ */
+.org-accordion {
+    display: flex;
+    flex-direction: column;
+    border: 2px solid var(--border-color);
+    border-top: none;
+    border-bottom: none;
+}
+
+.org-accordion-row {
+    border-bottom: 2px solid var(--border-color);
+}
+
+/* Org header — mirrors asset-group-header */
+.org-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px 0;
+    min-height: var(--bar-h);
+    cursor: pointer;
+    background: var(--secondary-bg);
+    transition: background 0.1s;
+    user-select: none;
+}
+.org-header:hover { background: var(--accent-bg); }
+
+.org-header-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--bar-h);
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.org-header-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.org-header-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.org-header-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.org-header-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.org-header-meta {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.org-meta-chip {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--depth-2-bg);
+    border: 1px solid var(--border-color);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.org-meta-value {
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.org-header-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+/* Edit form inside accordion row */
+.org-edit-form {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+}
+
+.org-color-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.org-color-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.org-color-input {
+    width: 44px;
+    height: 32px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px;
+    background: transparent;
+}
+
+.org-edit-btns {
+    display: flex;
+    gap: 8px;
+}
+
+/* Expanded org body */
+.org-body {
+    background: var(--primary-bg);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Sub-sections inside each org */
+.org-section {
+    border-bottom: 1px solid var(--border-color);
+}
+.org-section:last-child { border-bottom: none; }
+
+.org-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px 8px calc(var(--bar-h) + 10px);
+    cursor: pointer;
+    background: var(--primary-bg);
+    transition: background 0.1s;
+    user-select: none;
+    min-height: 40px;
+}
+.org-section-header:hover { background: var(--accent-bg); }
+
+.org-section-count {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--depth-2-bg);
+    border: 1px solid var(--border-color);
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 2px;
+}
+
+/* Body inside each sub-section */
+.org-section-body {
+    padding: 0;
+    border-top: 1px solid var(--border-color);
+    background: var(--accent-bg);
+}
+
+.org-empty {
+    padding: 10px 16px 10px calc(var(--bar-h) + 10px);
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+    border-top: 1px solid var(--border-color);
+}
+
+.org-empty-inline {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Portfolio rows inside org */
+.org-portfolio-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px calc(var(--bar-h) + 10px);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--accent-bg);
+    transition: background 0.1s;
+}
+.org-portfolio-row:last-child { border-bottom: none; }
+.org-portfolio-row:hover { background: var(--depth-2-bg); }
+
+.org-portfolio-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.org-portfolio-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.org-portfolio-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.org-portfolio-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.org-portfolio-meta {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* Member rows inside org */
+.org-member-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px calc(var(--bar-h) + 10px);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--accent-bg);
+}
+.org-member-row:last-child { border-bottom: none; }
+
+.org-member-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--highlight);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.org-member-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.org-member-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.org-member-email {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.org-member-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.org-role-select {
+    height: 30px;
+    font-size: 12px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 3px;
+    padding: 0 6px;
+    cursor: pointer;
+}
+
+.org-role-badge {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--depth-2-bg);
+    border: 1px solid var(--border-color);
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+/* Add member form inside section */
+.org-add-member-form {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    padding: 12px 16px 12px calc(var(--bar-h) + 10px);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Role reference rows */
+.org-role-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 16px 8px calc(var(--bar-h) + 10px);
+    border-bottom: 1px solid var(--border-color);
+}
+.org-role-row:last-child { border-bottom: none; }
+
+.org-role-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    min-width: 120px;
+    flex-shrink: 0;
+}
+
+.org-role-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Document control rows */
+.org-doc-stat-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 16px 8px calc(var(--bar-h) + 10px);
+    border-bottom: 1px solid var(--border-color);
+}
+.org-doc-stat-row:last-child { border-bottom: none; }
+
+.org-doc-stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex: 1;
+    min-width: 0;
+}
+
+.org-doc-stat-value {
+    font-size: 12px;
+    color: var(--text-primary);
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.org-doc-uploaders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+/* ── Org page: permission grid ─────────────────────────── */
+.org-perm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0;
+    padding: 8px 16px 8px calc(var(--bar-h) + 10px);
+    background: var(--depth-2-bg);
+    border-top: 1px solid var(--border-color);
+}
+
+.org-perm-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.org-perm-row input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--highlight);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.org-perm-row input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.org-perm-label {
+    font-size: 12px;
+    color: var(--text-primary);
+}
+
+/* ── Org page: compact member avatar (inside role rows) ─── */
+.org-member-avatar-sm {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 50%;
+    background: var(--highlight);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Asset item secondary text (used in org portfolio rows) */
+.asset-subtext {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.asset-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+}
+
+/* ═══════════════════════════════════════════
+   DISCORD-STYLE ORG ROLE CARDS & MEMBERS
+   ═══════════════════════════════════════════ */
+
+/* Org overview stats */
+.org-overview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--depth-1-bg);
+}
+.org-overview-row {
+    flex: 1 1 auto;
+    min-width: 120px;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 12px;
+    border-right: 1px solid var(--border-color);
+}
+.org-overview-row:last-child { border-right: none; }
+.org-overview-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.org-overview-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 2px;
+}
+
+/* Role list container */
+.org-role-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Individual role card */
+.org-role-card {
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.1s;
+}
+.org-role-card:last-child { border-bottom: none; }
+.org-role-card.expanded { background: var(--depth-1-bg); }
+
+.org-role-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    min-height: 48px;
+}
+.org-role-header:hover { background: rgba(255,255,255,0.04); }
+.org-role-arrow {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.org-role-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.org-role-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.org-role-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.org-role-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.org-role-btn {
+    min-height: 36px;
+    min-width: 44px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    border-radius: 4px;
+}
+.org-role-btn:hover { filter: brightness(1.15); }
+.org-role-btn-sm {
+    min-height: 28px;
+    min-width: 28px;
+    padding: 2px 6px;
+    font-size: 14px;
+}
+.org-role-btn-danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+.org-role-btn-danger:hover { background: var(--danger); color: #fff; }
+
+/* Role expanded content */
+.org-role-content {
+    padding: 0 12px 12px 12px;
+}
+.org-role-content.hidden { display: none; }
+
+/* Role summary */
+.org-role-summary {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 8px;
+}
+.org-role-summary-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.org-role-summary-text {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+/* Permission groups */
+.org-perm-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.org-perm-group {
+    border-bottom: 1px solid var(--border-color);
+}
+.org-perm-group:last-child { border-bottom: none; }
+
+.org-perm-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    cursor: pointer;
+    user-select: none;
+    min-height: 40px;
+}
+.org-perm-group-header:hover { background: rgba(255,255,255,0.03); }
+.org-perm-group-label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.org-perm-group-count {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--depth-2-bg);
+    padding: 2px 8px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.org-perm-group-body {
+    padding: 4px 0 8px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.org-perm-group-body.hidden { display: none; }
+
+.org-perm-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    min-height: 44px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.org-perm-toggle:hover { background: rgba(255,255,255,0.03); }
+.org-perm-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.org-perm-toggle-label {
+    font-size: 13px;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+/* Role members section */
+.org-role-members-section {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+.org-role-members-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.org-role-members-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.org-role-member-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px 4px 4px;
+    background: var(--depth-2-bg);
+    border-radius: 20px;
+    font-size: 12px;
+}
+.org-role-add-member {
+    margin-top: 4px;
+}
+.org-role-member-select {
+    max-width: 300px;
+}
+
+/* Member avatar small */
+.org-member-avatar-sm {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--highlight);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Member list */
+.org-member-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Member card */
+.org-member-card {
+    border-bottom: 1px solid var(--border-color);
+}
+.org-member-card:last-child { border-bottom: none; }
+.org-member-card.expanded { background: var(--depth-1-bg); }
+
+.org-member-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    user-select: none;
+    min-height: 48px;
+}
+.org-member-header:hover { background: rgba(255,255,255,0.04); }
+.org-member-arrow {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.org-member-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.org-member-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.org-member-meta {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.org-member-content {
+    padding: 8px 12px 12px 48px;
+}
+.org-member-content.hidden { display: none; }
+
+.org-member-roles,
+.org-member-portfolios,
+.org-member-access-summary,
+.org-member-permissions,
+.org-member-assignments {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+}
+.org-member-section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-right: 4px;
+    width: 100%;
+}
+.org-portfolio-badge {
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--depth-2-bg);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+/* Member location & contact details */
+.org-member-location {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 4px;
+}
+.org-member-detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.org-member-detail-row {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+}
+.org-member-detail-key {
+    color: var(--text-secondary);
+    min-width: 80px;
+    flex-shrink: 0;
+}
+.org-member-detail-val {
+    color: var(--text-primary);
+}
+
+/* Member permissions list */
+.org-member-perm-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.org-perm-badge {
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--depth-2-bg);
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+/* Member assignments */
+.org-member-assignment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.org-member-assignment-row {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    padding: 4px 8px;
+    background: var(--depth-2-bg);
+    border-radius: 4px;
+}
+.org-member-assignment-name {
+    color: var(--text-primary);
+    flex: 1;
+}
+.org-member-assignment-type {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+/* Portfolio card in org */
+.org-portfolio-card {
+    cursor: default;
+}
+
+/* Role editor form */
+.org-role-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.org-edit-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-top: 8px;
+}
+.org-role-edit-desc {
+    min-height: 80px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+/* Org sub-tabs (Portfolios / Roles / Members) */
+.org-sub-tabs {
+    display: flex;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--secondary-bg);
+}
+.org-sub-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 8px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.1s, border-color 0.1s;
+}
+.org-sub-tab:hover {
+    color: var(--text-primary);
+}
+.org-sub-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--highlight);
+    background: var(--depth-1-bg);
+}
+
+.org-sub-tab-content {
+    padding: 0;
+}
+.org-sub-tab-content.hidden {
+    display: none;
+}
+
+.org-sub-tab-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+.org-sub-tab-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
 }

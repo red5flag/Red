@@ -1,10 +1,17 @@
 use crate::stores::{use_app_store, use_search_store};
 use leptos::prelude::*;
+use uuid::Uuid;
 
 #[component]
 pub fn SearchFilters() -> impl IntoView {
     let app_store = use_app_store();
     let search_store = use_search_store();
+
+    // Run an initial search when the panel opens so empty query shows relevant results.
+    Effect::new(move |_| {
+        let app_snapshot = app_store.get();
+        search_store.update(|s| s.perform_search(&app_snapshot));
+    });
 
     let (adv_open, set_adv_open) = signal(false);
     let (lineage_open, set_lineage_open) = signal(false);
@@ -33,6 +40,8 @@ pub fn SearchFilters() -> impl IntoView {
                     on:input=move |ev| {
                         let v = event_target_value(&ev);
                         search_store.update(|s| s.set_query(v));
+                        let app_snapshot = app_store.get();
+                        search_store.update(|s| s.perform_search(&app_snapshot));
                     }
                 />
                 <button class="sd-search-close-btn" on:click=move |_| app_store.update(|s| s.close_search())>"✕"</button>
@@ -122,59 +131,54 @@ pub fn SearchFilters() -> impl IntoView {
                                     on:click=move |_| set_chg_redo.update(|v| *v = !*v)>"REDO"</button>
                             </div>
                         </div>
-                    </div>
-                }.into_any()} else {().into_any()}}
-            </div>
-
-            <div class="sd-section">
-                <div class="sd-section-header" on:click=move |_| set_lineage_open.update(|v| *v = !*v)>
-                    <span class="sd-section-title">"LINEAGE VIEW"</span>
-                    <span class="sd-arrow">{move || if lineage_open.get() {"▲"} else {"▼"}}</span>
-                </div>
-                {move || if lineage_open.get() { view! {
-                    <div class="sd-lineage-body">
-                        <div class="sd-lineage-cols">
-                            <div class="sd-lineage-col">
-                                <div class="sd-lineage-col-header">"STEVENSON 2"</div>
-                                <div class="sd-lineage-row-label">"DATE"</div>
-                                <div class="sd-lineage-row-label">"PORT"</div>
-                                <div class="sd-lineage-row-label">"ASSET"</div>
-                                <div class="sd-lineage-row-label">"CHANGE"</div>
-                            </div>
-                            <div class="sd-lineage-col">
-                                <div class="sd-lineage-col-header">"STEVENSON 3"</div>
-                                <div class="sd-lineage-row-label">"DATE"</div>
-                                <div class="sd-lineage-row-label">"PORT"</div>
-                                <div class="sd-lineage-row-label">"ASSET"</div>
-                                <div class="sd-lineage-row-label">"CHANGE"</div>
+                        <div class="sd-filter-row">
+                            <div class="sd-filter-label">"VIEW"</div>
+                            <div class="sd-filter-chips">
+                                <button class="sd-chip sd-chip-blue" class:sd-chip-active=move || lineage_open.get()
+                                    on:click=move |_| set_lineage_open.update(|v| *v = !*v)>"Lineage View"</button>
+                                <button class="sd-chip sd-chip-green" class:sd-chip-active=move || tree_open.get()
+                                    on:click=move |_| set_tree_open.update(|v| *v = !*v)>"Tree View"</button>
                             </div>
                         </div>
-                    </div>
-                }.into_any()} else {().into_any()}}
-            </div>
-
-            <div class="sd-section">
-                <div class="sd-section-header" on:click=move |_| set_tree_open.update(|v| *v = !*v)>
-                    <span class="sd-section-title">"TREE VIEW"</span>
-                    <span class="sd-arrow">{move || if tree_open.get() {"▲"} else {"▼"}}</span>
-                </div>
-                {move || if tree_open.get() { view! {
-                    <div class="sd-tree-body">
-                        <table class="sd-tree-table">
-                            <thead>
-                                <tr>
-                                    <th>"PAGE"</th><th>"DETAILS"</th>
-                                    <th>"TIME"</th><th>"CONFIG"</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td>"Login"</td><td>"Profile"</td><td>"—"</td><td>"—"</td></tr>
-                                <tr><td>"Home"</td><td>"Base"</td><td>"—"</td><td>"—"</td></tr>
-                                <tr><td>"Overview"</td><td>"Portfolio"</td><td>"—"</td><td>"—"</td></tr>
-                                <tr><td>"Group Chat"</td><td>"GroupChatLink"</td><td>"—"</td><td>"—"</td></tr>
-                                <tr><td>"Message"</td><td>"OpenLink"</td><td>"—"</td><td>"—"</td></tr>
-                            </tbody>
-                        </table>
+                        {move || if lineage_open.get() { view! {
+                            <div class="sd-lineage-body">
+                                <div class="sd-lineage-cols">
+                                    <div class="sd-lineage-col">
+                                        <div class="sd-lineage-col-header">"STEVENSON 2"</div>
+                                        <div class="sd-lineage-row-label">"DATE"</div>
+                                        <div class="sd-lineage-row-label">"PORT"</div>
+                                        <div class="sd-lineage-row-label">"ASSET"</div>
+                                        <div class="sd-lineage-row-label">"CHANGE"</div>
+                                    </div>
+                                    <div class="sd-lineage-col">
+                                        <div class="sd-lineage-col-header">"STEVENSON 3"</div>
+                                        <div class="sd-lineage-row-label">"DATE"</div>
+                                        <div class="sd-lineage-row-label">"PORT"</div>
+                                        <div class="sd-lineage-row-label">"ASSET"</div>
+                                        <div class="sd-lineage-row-label">"CHANGE"</div>
+                                    </div>
+                                </div>
+                            </div>
+                        }.into_any()} else {().into_any()}}
+                        {move || if tree_open.get() { view! {
+                            <div class="sd-tree-body">
+                                <table class="sd-tree-table">
+                                    <thead>
+                                        <tr>
+                                            <th>"PAGE"</th><th>"DETAILS"</th>
+                                            <th>"TIME"</th><th>"CONFIG"</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>"Login"</td><td>"Profile"</td><td>"—"</td><td>"—"</td></tr>
+                                        <tr><td>"Home"</td><td>"Base"</td><td>"—"</td><td>"—"</td></tr>
+                                        <tr><td>"Overview"</td><td>"Portfolio"</td><td>"—"</td><td>"—"</td></tr>
+                                        <tr><td>"Group Chat"</td><td>"GroupChatLink"</td><td>"—"</td><td>"—"</td></tr>
+                                        <tr><td>"Message"</td><td>"OpenLink"</td><td>"—"</td><td>"—"</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        }.into_any()} else {().into_any()}}
                     </div>
                 }.into_any()} else {().into_any()}}
             </div>
@@ -185,17 +189,110 @@ pub fn SearchFilters() -> impl IntoView {
 #[component]
 pub fn SearchResults() -> impl IntoView {
     let search_store = use_search_store();
+    let app_store = use_app_store();
     let is_loading = move || search_store.get().is_loading;
     let has_results = move || search_store.get().results.total_count > 0;
     let results_count = move || search_store.get().results.total_count;
+    let has_searched = move || search_store.get().has_searched;
+
+    let on_portfolio_click = move |id: Uuid| {
+        app_store.update(|s| {
+            s.touch_portfolio(id);
+            s.selected_portfolio_id = Some(id);
+            s.close_search();
+            s.expand_tab(crate::types::TabType::Portfolios);
+        });
+    };
+
+    let on_asset_click = move |id: Uuid| {
+        app_store.update(|s| {
+            s.touch_asset(id);
+            s.selected_asset_id = Some(id);
+            s.close_search();
+            s.expand_tab(crate::types::TabType::Portfolios);
+        });
+    };
+
+    let on_org_click = move |id: Uuid| {
+        app_store.update(|s| {
+            s.close_search();
+            s.expand_tab(crate::types::TabType::Organization);
+            let _ = id;
+        });
+    };
+
+    let on_user_click = move |_id: Uuid| {
+        app_store.update(|s| {
+            s.close_search();
+            s.expand_tab(crate::types::TabType::Networking);
+        });
+    };
+
     view! {
         <div class="sd-results">
             {move || if is_loading() {
                 view! { <div class="loading"><span class="loading-text">"Searching..."</span></div> }.into_any()
             } else if has_results() {
-                view! { <div><span class="sd-result-count">{format!("{} results", results_count())}</span></div> }.into_any()
+                let store = search_store.get();
+                view! {
+                    <div>
+                        <span class="sd-result-count">{format!("{} results", results_count())}</span>
+                        <div class="sd-results-list">
+                            {store.results.portfolios.into_iter().map(|p| {
+                                let pid = p.id;
+                                view! {
+                                    <div class="sd-result-row" on:click=move |_| on_portfolio_click(pid)>
+                                        <div class="sd-result-icon">"🏢"</div>
+                                        <div class="sd-result-info">
+                                            <div class="sd-result-name">{p.name.clone()}</div>
+                                            <div class="sd-result-meta">{format!("Portfolio — ${:.2} value", p.total_value)}</div>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                            {store.results.assets.into_iter().map(|a| {
+                                let aid = a.id;
+                                view! {
+                                    <div class="sd-result-row" on:click=move |_| on_asset_click(aid)>
+                                        <div class="sd-result-icon">"📦"</div>
+                                        <div class="sd-result-info">
+                                            <div class="sd-result-name">{a.name.clone()}</div>
+                                            <div class="sd-result-meta">{format!("Asset — {:?} — ${:.2}", a.asset_type, a.current_value)}</div>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                            {store.results.organizations.into_iter().map(|o| {
+                                let oid = o.id;
+                                view! {
+                                    <div class="sd-result-row" on:click=move |_| on_org_click(oid)>
+                                        <div class="sd-result-icon">"🏛"</div>
+                                        <div class="sd-result-info">
+                                            <div class="sd-result-name">{o.name.clone()}</div>
+                                            <div class="sd-result-meta">{format!("Organization — {} members · {} roles", o.members.len(), o.roles.len())}</div>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                            {store.results.users.into_iter().map(|u| {
+                                let uid = u.id;
+                                view! {
+                                    <div class="sd-result-row" on:click=move |_| on_user_click(uid)>
+                                        <div class="sd-result-icon">"👤"</div>
+                                        <div class="sd-result-info">
+                                            <div class="sd-result-name">{u.name.clone()}</div>
+                                            <div class="sd-result-meta">{format!("Member — {}", u.email)}</div>
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    </div>
+                }.into_any()
+            } else if has_searched() {
+                view! { <div class="empty-state"><div class="empty-icon">"🔍"</div><div class="empty-text">"No results found"</div></div> }.into_any()
             } else {
-                view! { <div class="empty-state"><div class="empty-icon">"🔍"</div><div class="empty-text">"No results"</div></div> }.into_any()
+                ().into_any()
             }}
         </div>
     }

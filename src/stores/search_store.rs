@@ -1,6 +1,9 @@
-use crate::models::{Asset, Portfolio};
+use crate::models::{Asset, Organization, Portfolio, User};
+use crate::stores::AppStore;
 use crate::types::{SearchFilters, SortMode, TabType};
+use chrono::Utc;
 use leptos::prelude::*;
+use uuid::Uuid;
 
 // Search store with Meilisearch integration
 #[derive(Clone, Debug)]
@@ -29,6 +32,8 @@ pub struct SearchStore {
     pub search_history: Vec<SearchQuery>,
     // Sort mode for search results
     pub sort_mode: SortMode,
+    // Whether the user has submitted a search query (typed at least 1 char)
+    pub has_searched: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -43,8 +48,86 @@ pub struct SearchQuery {
 pub struct SearchResults {
     pub portfolios: Vec<Portfolio>,
     pub assets: Vec<Asset>,
+    pub organizations: Vec<Organization>,
+    pub users: Vec<User>,
     pub total_count: usize,
     pub search_time_ms: u64,
+}
+
+/// A single, mixed search result row.
+#[derive(Clone, Debug)]
+pub enum SearchResultItem {
+    Portfolio(Portfolio),
+    Asset { asset: Asset, portfolio_id: Uuid, portfolio_name: String },
+    Organization(Organization),
+    User(User),
+}
+
+impl SearchResultItem {
+    pub fn name(&self) -> String {
+        match self {
+            SearchResultItem::Portfolio(p) => p.name.clone(),
+            SearchResultItem::Asset { asset, .. } => asset.name.clone(),
+            SearchResultItem::Organization(o) => o.name.clone(),
+            SearchResultItem::User(u) => u.name.clone(),
+        }
+    }
+
+    pub fn entity_type(&self) -> &'static str {
+        match self {
+            SearchResultItem::Portfolio(_) => "Portfolio",
+            SearchResultItem::Asset { .. } => "Asset",
+            SearchResultItem::Organization(_) => "Organization",
+            SearchResultItem::User(_) => "Member",
+        }
+    }
+
+    pub fn last_accessed(&self) -> chrono::DateTime<chrono::Utc> {
+        match self {
+            SearchResultItem::Portfolio(p) => p.last_accessed_at,
+            SearchResultItem::Asset { asset, .. } => asset.last_accessed_at,
+            SearchResultItem::Organization(o) => o.updated_at,
+            SearchResultItem::User(u) => u.updated_at,
+        }
+    }
+
+    pub fn updated_at(&self) -> chrono::DateTime<chrono::Utc> {
+        match self {
+            SearchResultItem::Portfolio(p) => p.updated_at,
+            SearchResultItem::Asset { asset, .. } => asset.last_accessed_at,
+            SearchResultItem::Organization(o) => o.updated_at,
+            SearchResultItem::User(u) => u.updated_at,
+        }
+    }
+
+    pub fn productivity_score(&self) -> f64 {
+        match self {
+            SearchResultItem::Portfolio(p) => {
+                let asset_count = p.get_all_assets().len() as f64;
+                p.total_value + p.revenue + asset_count * 1000.0 + p.profit_loss.max(0.0)
+            }
+            SearchResultItem::Asset { asset, .. } => {
+                asset.current_value + asset.revenue + asset.profit_loss.max(0.0)
+            }
+            SearchResultItem::Organization(o) => {
+                o.members.len() as f64 * 500.0 + o.roles.len() as f64 * 200.0
+            }
+            SearchResultItem::User(_) => 100.0,
+        }
+    }
+
+    /// Whether this item belongs to the given tab context.
+    pub fn matches_tab(&self, tab: &TabType) -> bool {
+        match (self, tab) {
+            (SearchResultItem::Portfolio(_), TabType::Portfolios) => true,
+            (SearchResultItem::Asset { .. }, TabType::Portfolios) => true,
+            (SearchResultItem::Organization(_), TabType::Organization) => true,
+            (SearchResultItem::User(_), TabType::Networking) => true,
+            (SearchResultItem::User(_), TabType::NetworkingAddMember) => true,
+            (SearchResultItem::User(_), TabType::Organization) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Default for SearchStore {
@@ -71,6 +154,7 @@ impl Default for SearchStore {
             selected_tags: Vec::new(),
             search_history: Vec::new(),
             sort_mode: SortMode::Recent,
+            has_searched: false,
         }
     }
 }
@@ -82,6 +166,7 @@ impl SearchStore {
 
     // Set search query
     pub fn set_query(&mut self, query: String) {
+        self.has_searched = !query.trim().is_empty();
         self.query = query;
         self.update_suggestions();
     }
@@ -93,6 +178,7 @@ impl SearchStore {
         self.results = SearchResults::default();
         self.selected_tags.clear();
         self.sort_mode = SortMode::Recent;
+        self.has_searched = false;
     }
 
     // Set sort mode
@@ -147,20 +233,126 @@ impl SearchStore {
             .collect();
     }
 
-    // Perform search (mock implementation - would integrate with Meilisearch)
-    pub async fn perform_search(&mut self) {
-        self.is_loading = true;
+    /// Perform search across the current AppStore data.
+    /// Prioritizes results matching the current tab context first, then includes
+    /// other results by relevance. If the query is empty, returns 10 relevant
+    /// results based on recent access, recent modification, and productivity.
+    pub fn perform_search(&mut self, app_store: &AppStore) {
+        let start = std::time::SystemTime::now();
+        let user_id = app_store.current_user.id;
+        let org_ids: std::collections::HashSet<Uuid> = app_store.organizations.iter().map(|o| o.id).collect();
+        let can_view_all = app_store.current_user.role == crate::types::UserRole::DocumentWorker
+            || app_store.current_user.role.level() >= crate::types::UserRole::Manager.level();
+        let query_lower = self.query.to_lowercase();
+        let empty_query = self.query.trim().is_empty();
+        let current_tab = self.current_tab.clone();
 
-        // Simulate search delay
-        gloo_timers::future::TimeoutFuture::new(300).await;
+        // Collect all visible items across data types.
+        let mut items: Vec<SearchResultItem> = Vec::new();
 
-        // In a real implementation, this would call Meilisearch API
-        // For now, we'll return empty results
+        // Portfolios and assets
+        for p in &app_store.portfolios {
+            let visible = can_view_all
+                || p.owner_id == user_id
+                || p.organization_id.map_or(false, |oid| org_ids.contains(&oid))
+                || p.assigned_users.contains(&user_id);
+            if !visible {
+                continue;
+            }
+
+            if empty_query || Self::portfolio_matches(p, &query_lower, &self.filters) {
+                items.push(SearchResultItem::Portfolio(p.clone()));
+            }
+
+            for asset in p.get_all_assets() {
+                let asset_visible = can_view_all
+                    || asset.organization_id.map_or(false, |oid| org_ids.contains(&oid))
+                    || asset.assigned_workers.contains(&user_id);
+                if !asset_visible {
+                    continue;
+                }
+                if empty_query || Self::asset_matches(asset, &query_lower, &self.filters) {
+                    items.push(SearchResultItem::Asset {
+                        asset: asset.clone(),
+                        portfolio_id: p.id,
+                        portfolio_name: p.name.clone(),
+                    });
+                }
+            }
+        }
+
+        // Organizations
+        for o in &app_store.organizations {
+            if empty_query || Self::org_matches(o, &query_lower) {
+                items.push(SearchResultItem::Organization(o.clone()));
+            }
+        }
+
+        // Users (organization_users)
+        for u in &app_store.organization_users {
+            if empty_query || Self::user_matches(u, &query_lower) {
+                items.push(SearchResultItem::User(u.clone()));
+            }
+        }
+
+        // Partition: tab-matching items first, then the rest.
+        let (mut tab_items, mut other_items): (Vec<_>, Vec<_>) = if let Some(ref tab) = current_tab {
+            items.into_iter().partition(|item| item.matches_tab(tab))
+        } else {
+            (Vec::new(), items)
+        };
+
+        // Sort both partitions by relevance score.
+        tab_items.sort_by(|a, b| {
+            let score_a = Self::relevance_score(a);
+            let score_b = Self::relevance_score(b);
+            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        other_items.sort_by(|a, b| {
+            let score_a = Self::relevance_score(a);
+            let score_b = Self::relevance_score(b);
+            score_b.partial_cmp(&score_a).unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // For empty query, truncate to keep results manageable.
+        if empty_query {
+            tab_items.truncate(7);
+            other_items.truncate(5);
+        } else {
+            tab_items.truncate(15);
+            other_items.truncate(10);
+        }
+
+        // Combine: tab items first, then other items.
+        let mut combined: Vec<SearchResultItem> = tab_items;
+        combined.extend(other_items);
+
+        let mut portfolios = Vec::new();
+        let mut assets = Vec::new();
+        let mut organizations = Vec::new();
+        let mut users = Vec::new();
+        for item in combined {
+            match item {
+                SearchResultItem::Portfolio(p) => portfolios.push(p),
+                SearchResultItem::Asset { asset, .. } => assets.push(asset),
+                SearchResultItem::Organization(o) => organizations.push(o),
+                SearchResultItem::User(u) => users.push(u),
+            }
+        }
+
+        let total = portfolios.len() + assets.len() + organizations.len() + users.len();
+        let elapsed = start
+            .elapsed()
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
         self.results = SearchResults {
-            portfolios: Vec::new(),
-            assets: Vec::new(),
-            total_count: 0,
-            search_time_ms: 0,
+            portfolios,
+            assets,
+            organizations,
+            users,
+            total_count: total,
+            search_time_ms: elapsed,
         };
 
         // Record search in history
@@ -175,8 +367,75 @@ impl SearchStore {
         if self.search_history.len() > 20 {
             self.search_history.remove(0);
         }
+    }
 
-        self.is_loading = false;
+    fn org_matches(o: &Organization, query: &str) -> bool {
+        o.name.to_lowercase().contains(query)
+            || o.description.as_ref().map_or(false, |d| d.to_lowercase().contains(query))
+    }
+
+    fn user_matches(u: &User, query: &str) -> bool {
+        u.name.to_lowercase().contains(query)
+            || u.email.to_lowercase().contains(query)
+    }
+
+    fn portfolio_matches(p: &Portfolio, query: &str, filters: &SearchFilters) -> bool {
+        let status_str = format!("{:?}", p.status).to_lowercase();
+        let matches_query = query.is_empty()
+            || p.name.to_lowercase().contains(query)
+            || p.description.as_ref().map_or(false, |d| d.to_lowercase().contains(query))
+            || p.tags.iter().any(|t| t.to_lowercase().contains(query))
+            || status_str.contains(query);
+
+        let matches_type = filters.asset_types.is_empty();
+        let matches_value = filters.value_range.map_or(true, |(min, max)| {
+            p.total_value >= min && p.total_value <= max
+        });
+        let matches_date = filters.date_range.map_or(true, |(from, to)| {
+            p.updated_at >= from && p.updated_at <= to
+        });
+        let matches_status = filters.status.as_ref().map_or(true, |s| {
+            status_str == s.to_lowercase()
+        });
+
+        matches_query && matches_type && matches_value && matches_date && matches_status
+    }
+
+    fn asset_matches(a: &Asset, query: &str, filters: &SearchFilters) -> bool {
+        let type_str = format!("{:?}", a.asset_type).to_lowercase();
+        let status_str = format!("{:?}", a.status).to_lowercase();
+        let matches_query = query.is_empty()
+            || a.name.to_lowercase().contains(query)
+            || a.description.as_ref().map_or(false, |d| d.to_lowercase().contains(query))
+            || a.tags.iter().any(|t| t.to_lowercase().contains(query))
+            || type_str.contains(query)
+            || a.location.as_ref().map_or(false, |l| l.to_lowercase().contains(query));
+
+        let matches_type = filters.asset_types.is_empty()
+            || filters.asset_types.contains(&a.asset_type);
+        let matches_value = filters.value_range.map_or(true, |(min, max)| {
+            a.current_value >= min && a.current_value <= max
+        });
+        let matches_date = filters.date_range.map_or(true, |(from, to)| {
+            a.last_accessed_at >= from && a.last_accessed_at <= to
+        });
+        let matches_status = filters.status.as_ref().map_or(true, |s| {
+            status_str == s.to_lowercase()
+        });
+
+        matches_query && matches_type && matches_value && matches_date && matches_status
+    }
+
+    /// Relevance score for empty-query recommendations.
+    /// Combines recent access, recent modification, and productivity.
+    fn relevance_score(item: &SearchResultItem) -> f64 {
+        let now = Utc::now();
+        let days_since_access = (now - item.last_accessed()).num_seconds().max(0) as f64 / 86400.0;
+        let days_since_update = (now - item.updated_at()).num_seconds().max(0) as f64 / 86400.0;
+        let recency_score = (1.0 / (1.0 + days_since_access)) * 100.0;
+        let modification_score = (1.0 / (1.0 + days_since_update)) * 80.0;
+        let productivity_score = item.productivity_score() / 1000.0;
+        recency_score + modification_score + productivity_score
     }
 
     // Toggle advanced search panel

@@ -102,6 +102,70 @@ impl UndoRedoStore {
         }
     }
 
+    // Check if undo is available for a specific user
+    pub fn can_undo_by_user(&self, user_id: Uuid) -> bool {
+        self.past.iter().any(|a| a.user_id == user_id)
+    }
+
+    // Check if redo is available for a specific user
+    pub fn can_redo_by_user(&self, user_id: Uuid) -> bool {
+        self.future.iter().any(|a| a.user_id == user_id)
+    }
+
+    // Undo the most recent action performed by a specific user
+    pub fn undo_by_user(&mut self, user_id: Uuid) -> Option<Action> {
+        if let Some(pos) = self.past.iter().rposition(|a| a.user_id == user_id) {
+            let action = self.past.remove(pos)?;
+            self.future.push_front(action.clone());
+            Some(action)
+        } else {
+            None
+        }
+    }
+
+    // Redo the most recent undone action performed by a specific user
+    pub fn redo_by_user(&mut self, user_id: Uuid) -> Option<Action> {
+        if let Some(pos) = self.future.iter().position(|a| a.user_id == user_id) {
+            let action = self.future.remove(pos)?;
+            self.past.push_back(action.clone());
+            Some(action)
+        } else {
+            None
+        }
+    }
+
+    // Undo a specific action by its ID (used by dropdown / history selection)
+    pub fn undo_action_by_id(&mut self, action_id: Uuid) -> Option<Action> {
+        if let Some(pos) = self.past.iter().position(|a| a.id == action_id) {
+            let action = self.past.remove(pos)?;
+            self.future.push_front(action.clone());
+            Some(action)
+        } else {
+            None
+        }
+    }
+
+    // Redo a specific action by its ID (used by dropdown / history selection)
+    pub fn redo_action_by_id(&mut self, action_id: Uuid) -> Option<Action> {
+        if let Some(pos) = self.future.iter().position(|a| a.id == action_id) {
+            let action = self.future.remove(pos)?;
+            self.past.push_back(action.clone());
+            Some(action)
+        } else {
+            None
+        }
+    }
+
+    // Get actions that the given user can currently undo, newest first
+    pub fn undoable_by_user(&self, user_id: Uuid) -> Vec<&Action> {
+        self.past.iter().filter(|a| a.user_id == user_id).rev().collect()
+    }
+
+    // Get actions that the given user can currently redo, in redo order
+    pub fn redoable_by_user(&self, user_id: Uuid) -> Vec<&Action> {
+        self.future.iter().filter(|a| a.user_id == user_id).collect()
+    }
+
     // Get the last action without removing it
     pub fn peek_last(&self) -> Option<&Action> {
         self.past.back()

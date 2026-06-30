@@ -23,12 +23,25 @@ pub fn PortfoliosPage() -> impl IntoView {
             .collect::<Vec<_>>()
     });
     let view_mode = move || app_store.get().portfolio_view_mode.clone();
-    let sort_mode = move || app_store.get().portfolio_sort_mode.clone();
     let selected_id = move || app_store.get().selected_portfolio_id;
     let edit_mode = use_tab_edit_mode();
-    let can_edit = move || {
-        let role = app_store.get().current_user.role.clone();
-        edit_mode.get() && (role == UserRole::Owner || role == UserRole::Manager)
+    let _ = edit_mode;
+    let can_edit = move |org_id: Option<Uuid>| {
+        let store = app_store.get();
+        let role = org_id
+            .map(|id| store.current_user_role_in_org(id))
+            .unwrap_or_else(|| store.current_user.role.clone());
+        role == UserRole::Owner || role == UserRole::Manager
+    };
+
+    let can_edit_documents = move |org_id: Option<Uuid>| {
+        let store = app_store.get();
+        let role = org_id
+            .map(|id| store.current_user_role_in_org(id))
+            .unwrap_or_else(|| store.current_user.role.clone());
+        let mut user = store.current_user.clone();
+        user.role = role;
+        user.can_upload_documents()
     };
 
     // Form signals for add portfolio
@@ -60,6 +73,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                 s.selected_portfolio_id = None;
             } else {
                 s.selected_portfolio_id = Some(id);
+                s.touch_portfolio(id);
             }
         });
     };
@@ -122,7 +136,8 @@ pub fn PortfoliosPage() -> impl IntoView {
             return;
         }
         let value: f64 = new_asset_value.get().parse().unwrap_or(0.0);
-        let _asset = create_mock_asset(&name, new_asset_type.get(), value, value);
+        let uploaded_by = app_store.get().current_user.id;
+        let _asset = create_mock_asset(&name, new_asset_type.get(), value, value, uploaded_by);
         app_store.update(|s| {
             match target {
                 AssetTarget::PortfolioDirect(pid) => {
@@ -174,7 +189,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     };
 
     view! {
-        <div class="home-screen">
+        <div class="home-screen home-screen-pf">
             // Portfolio controls bar (attached below navbar)
             <div class="portfolio-controls-bar">
                 <button
@@ -232,6 +247,13 @@ pub fn PortfoliosPage() -> impl IntoView {
                     <option value="sort_lowest_revenue">"Sort: Lowest Revenue"</option>
                     <option value="sort_by_organization">"Sort: By Organization"</option>
                 </select>
+                <button
+                    class="nav-portfolio-btn sort-direction-btn"
+                    title={move || if app_store.get().sort_ascending { "Ascending ↑" } else { "Descending ↓" }}
+                    on:click=move |_| app_store.update(|s| s.toggle_sort_direction())
+                >
+                    {move || if app_store.get().sort_ascending { "↑" } else { "↓" }}
+                </button>
             </div>
 
             // Edit portfolio assets modal
@@ -455,8 +477,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                 } else { "pf-accordion".to_string() }
             }}>
                 {move || {
-                    let can = can_edit();
-                    let sort = sort_mode();
+                    let store = app_store.get();
+                    let sort = if store.sort_ascending { store.reversed_sort_mode() } else { store.portfolio_sort_mode.clone() };
                     let mut items: Vec<_> = filtered_portfolios.get().into_iter().collect();
                     items.sort_by(|a, b| match sort {
                         SortMode::Recent => b.created_at.cmp(&a.created_at),
@@ -467,18 +489,22 @@ pub fn PortfoliosPage() -> impl IntoView {
                         SortMode::LowestProfit => a.profit_loss.partial_cmp(&b.profit_loss).unwrap_or(std::cmp::Ordering::Equal),
                         SortMode::HighestRevenue => b.revenue.partial_cmp(&a.revenue).unwrap_or(std::cmp::Ordering::Equal),
                         SortMode::LowestRevenue => a.revenue.partial_cmp(&b.revenue).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::ByOrganization => a.organization_id.cmp(&b.organization_id),
+                        SortMode::ByOrganization => b.organization_id.cmp(&a.organization_id),
                     });
                     items.into_iter().map(move |portfolio| {
                         let portfolio_id = portfolio.id;
+                        let org_id = portfolio.organization_id;
                         let is_expanded = selected_id() == Some(portfolio_id);
+                        let can = can_edit(org_id);
+                        let can_docs = can_edit_documents(org_id);
 
                         view! {
                             <PortfolioListItem
                                 portfolio={portfolio}
                                 can_edit={can}
+                                can_edit_documents={can_docs}
                                 expanded={is_expanded}
-                                on_toggle=move || on_toggle_view(portfolio_id)
+                                on_toggle=Callback::new(move |_| on_toggle_view(portfolio_id))
                                 on_context=move |ev: leptos::ev::MouseEvent| {
                                     ev.prevent_default();
                                     set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
@@ -507,6 +533,10 @@ pub fn PortfoliosPage() -> impl IntoView {
 
             // Context menu for portfolio press-and-hold
             {move || context_menu.get().map(|(pid, x, y)| {
+                let pid_add_group = pid;
+                let pid_add_asset = pid;
+                let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
+                let can = can_edit(org_id);
                 view! {
                     <div
                         class="context-menu-overlay"
@@ -520,20 +550,51 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 class="context-menu-item"
                                 on:click=move |_| {
                                     set_context_menu.set(None);
-                                    on_open_edit(pid);
-                                }
-                            >
-                                "Edit"
-                            </button>
-                            <button
-                                class="context-menu-item"
-                                on:click=move |_| {
-                                    set_context_menu.set(None);
                                     on_toggle_view(pid);
                                 }
                             >
                                 "Overview"
                             </button>
+                            {move || if can {
+                                view! {
+                                    <button
+                                        class="context-menu-item"
+                                        on:click=move |_| {
+                                            set_context_menu.set(None);
+                                            set_show_add_group.set(Some(pid_add_group));
+                                        }
+                                    >
+                                        "📁 Add Group"
+                                    </button>
+                                    <button
+                                        class="context-menu-item"
+                                        on:click=move |_| {
+                                            set_context_menu.set(None);
+                                            set_show_add_asset.set(AssetTarget::PortfolioDirect(pid_add_asset));
+                                        }
+                                    >
+                                        "📦 Add Asset"
+                                    </button>
+                                    <button
+                                        class="context-menu-item"
+                                        on:click=move |_| {
+                                            set_context_menu.set(None);
+                                            on_open_edit(pid_add_asset);
+                                        }
+                                    >
+                                        "📄 Edit / Add Document"
+                                    </button>
+                                    <button
+                                        class="context-menu-item"
+                                        on:click=move |_| {
+                                            set_context_menu.set(None);
+                                            on_delete_portfolio(pid_add_asset);
+                                        }
+                                    >
+                                        "🗑 Delete"
+                                    </button>
+                                }.into_any()
+                            } else { ().into_any() }}
                         </div>
                     </div>
                 }.into_any()
@@ -554,6 +615,7 @@ pub enum AssetTarget {
 fn AssetViewer(
     portfolio: Portfolio,
     can_edit: bool,
+    can_edit_documents: bool,
     view_mode: ViewMode,
     show_add_group: Option<Uuid>,
     set_show_add_group: WriteSignal<Option<Uuid>>,
@@ -611,16 +673,18 @@ fn AssetViewer(
     view! {
         <div class="asset-viewer">
             // Asset Groups section
+            {if !portfolio_groups.asset_groups.is_empty() {
+                view! {
             <div class="asset-section">
                 <div class="asset-section-title">
-                    <span class="asset-section-arrow"
-                            on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                        >
-                        {move || if show_groups.get() { "▼" } else { "▶" }}
-                    </span>
-                    <span class="asset-section-label"
+                    <div class="asset-section-title-left"
                         on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                    >"Asset Groups"</span>
+                    >
+                        <span class="asset-section-arrow">
+                            {move || if show_groups.get() { "▼" } else { "▶" }}
+                        </span>
+                        <span class="asset-section-label">"Asset Groups"</span>
+                    </div>
                     <div class="section-title-right">
                         {{
                             move || if show_groups.get() && view_mode_groups_title == ViewMode::Grid {
@@ -629,17 +693,6 @@ fn AssetViewer(
                                 }.into_any()
                             } else { ().into_any() }
                         }}
-                        {move || if can_edit {
-                            let pid2 = pid;
-                            view! {
-                                <button
-                                    class="add-btn-small"
-                                    on:click=move |_| set_show_add_group.set(Some(pid2))
-                                >
-                                    "+"
-                                </button>
-                            }.into_any()
-                        } else { ().into_any() }}
                     </div>
                 </div>
 
@@ -673,7 +726,7 @@ fn AssetViewer(
                                 let portfolio_name = portfolio_groups.name.clone();
                                 view! {
                                     <div class={group_class}>
-                                        {visible_groups.into_iter().map(move |group| {
+                                        {visible_groups.into_iter().enumerate().map(move |(idx, group)| {
                                             let gid = group.id;
                                             let pid2 = pid;
                                             let is_expanded = Memo::new(move |_| expanded_groups.get().contains(&gid));
@@ -681,6 +734,7 @@ fn AssetViewer(
                                                 <AssetGroupItem
                                                     group={group}
                                                     can_edit={can_edit}
+                                                    can_edit_documents={can_edit_documents}
                                                     pid={pid2}
                                                     gid={gid}
                                                     expanded={is_expanded}
@@ -698,6 +752,7 @@ fn AssetViewer(
                                                     on_add_asset={on_add_asset}
                                                     on_select_asset={on_select_asset}
                                                     portfolio_name={portfolio_name.clone()}
+                                                    tint_index={idx + 1}
                                                 />
                                             }
                                         }).collect::<Vec<_>>()}
@@ -708,18 +763,20 @@ fn AssetViewer(
                     }.into_any()
                 } else { ().into_any() }}
             </div>
+                }.into_any()
+            } else { ().into_any() }}
 
             // Direct Assets section
             <div class="asset-section">
                 <div class="asset-section-title">
-                    <span class="asset-section-arrow"
-                            on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                        >
-                        {move || if show_direct_assets.get() { "▼" } else { "▶" }}
-                    </span>
-                    <span class="asset-section-label"
+                    <div class="asset-section-title-left"
                         on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                    >"Direct Assets"</span>
+                    >
+                        <span class="asset-section-arrow">
+                            {move || if show_direct_assets.get() { "▼" } else { "▶" }}
+                        </span>
+                        <span class="asset-section-label">"Direct Assets"</span>
+                    </div>
                     <div class="section-title-right">
                         {{
                             move || if show_direct_assets.get() && view_mode_direct_title == ViewMode::Grid {
@@ -728,17 +785,6 @@ fn AssetViewer(
                                 }.into_any()
                             } else { ().into_any() }
                         }}
-                        {move || if can_edit {
-                            let pid2 = pid;
-                            view! {
-                                <button
-                                    class="add-btn-small"
-                                    on:click=move |_| set_show_add_asset.set(AssetTarget::PortfolioDirect(pid2))
-                                >
-                                    "+"
-                                </button>
-                            }.into_any()
-                        } else { ().into_any() }}
                     </div>
                 </div>
 
@@ -804,8 +850,8 @@ fn AssetViewer(
                                 let portfolio_name = portfolio_direct.name.clone();
                                 view! {
                                     <div class={direct_class}>
-                                        {visible_direct_assets.into_iter().map(move |asset| view! {
-                                            <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} view_mode={view_mode_clone.clone()} on_select={on_select_asset} can_edit={can_edit} />
+                                        {visible_direct_assets.into_iter().enumerate().map(move |(idx, asset)| view! {
+                                            <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} view_mode={view_mode_clone.clone()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={idx + 1} />
                                         }).collect::<Vec<_>>()}
                                     </div>
                                 }.into_any()
@@ -826,6 +872,7 @@ fn AssetViewer(
 fn AssetGroupItem(
     group: AssetGroup,
     #[prop(default = false)] can_edit: bool,
+    #[prop(default = false)] can_edit_documents: bool,
     pid: Uuid,
     gid: Uuid,
     expanded: Memo<bool>,
@@ -843,6 +890,7 @@ fn AssetGroupItem(
     on_add_asset: Callback<AssetTarget>,
     on_select_asset: Callback<Asset>,
     portfolio_name: String,
+    #[prop(default = 0)] tint_index: usize,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let _ = view_mode;
@@ -853,9 +901,10 @@ fn AssetGroupItem(
     let group_visible_to_user = group.is_visible_to(user_id, can_view_all);
 
     let can_edit_here = can_edit;
+    let can_edit_documents_here = can_edit_documents;
 
-    let (show_doc_modal, set_show_doc_modal) = signal(false);
-    let (show_context_add, set_show_context_add) = signal(false);
+    let (is_editing, set_is_editing) = signal(false);
+    let (group_context_menu, set_group_context_menu) = signal(Option::<(i32, i32)>::None);
     let (edit_name, set_edit_name) = signal(group.name.clone());
     let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
 
@@ -902,10 +951,12 @@ fn AssetGroupItem(
                 }
             }
         });
+        set_is_editing.set(false);
     };
 
     let add_group_doc = move |n: String| {
         if n.trim().is_empty() { return; }
+        let uploaded_by = app_store.get().current_user.id;
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
             name: n.clone(),
@@ -913,7 +964,7 @@ fn AssetGroupItem(
             content: None,
             url: "#".to_string(),
             uploaded_at: chrono::Utc::now(),
-            uploaded_by: Uuid::nil(),
+            uploaded_by,
         };
         app_store.update(|s| {
             if let Some(p) = s.get_portfolio_mut(pid) {
@@ -924,10 +975,21 @@ fn AssetGroupItem(
         });
     };
 
+    let group_tint_style = format!("background: rgba(255,255,255,{});", (tint_index as f64 * 0.1).min(0.9));
+
     view! {
-        <div class="asset-group" class:expanded={move || expanded.get()}>
+        <div class="asset-group" class:expanded={move || expanded.get()} style={group_tint_style.clone()}
+            on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                if can_edit_here {
+                    ev.prevent_default();
+                    set_group_context_menu.set(Some((ev.client_x(), ev.client_y())));
+                }
+            }
+        >
             <div class="asset-group-header"
-                on:click=move |_| if !can_edit_here { on_toggle.run(gid) }>
+                on:click=move |_| if !is_editing.get() { on_toggle.run(gid) }
+                on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_is_editing.set(true); } }
+            >
                 <span class="asset-group-arrow">
                     {move || if expanded.get() { "▲" } else { "▼" }}
                 </span>
@@ -936,7 +998,7 @@ fn AssetGroupItem(
                     {let asset_count = group.assets.len();
                     let g_name_header = g_name.clone();
                     let g_desc_header = g_desc.clone();
-                    move || if can_edit_here {
+                    move || if is_editing.get() && can_edit_here {
                         view! {
                             <div class="asset-group-edit-form">
                                 <input class="pf-edit-input" placeholder="Group name"
@@ -965,62 +1027,22 @@ fn AssetGroupItem(
                 // Action buttons
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
                     <button class="pf-action-btn"
-                        class:active=move || show_doc_modal.get()
-                        on:click=move |_| set_show_doc_modal.set(true)>
+                        class:active=move || app_store.get().is_doc_modal_open(gid)
+                        on:click=move |_| app_store.update(|s| s.toggle_doc_modal(gid))>
                         {format!("📄 {}", doc_count)}
                     </button>
-                    {move || if can_edit_here {
-                        let pid2 = pid; let gid2 = gid;
-                        view! {
-                            <div class="pf-context-add-wrap">
-                                <button class="pf-action-btn pf-context-add-btn"
-                                    class:active=move || show_context_add.get()
-                                    on:click=move |ev| { ev.stop_propagation(); set_show_context_add.update(|v| *v = !*v); }
-                                >"+"</button>
-                                {move || if show_context_add.get() {
-                                    view! {
-                                        <div class="pf-context-add-dropdown">
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                                set_show_add_asset.set(AssetTarget::Group(pid2, gid2));
-                                            }>"📦 Add Asset"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                                set_show_doc_modal.set(true);
-                                            }>"📄 Add Document"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                            }>"👤 Add User"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                            }>"🏢 Add Organization"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                            }>"🔑 Add Role"</button>
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }}
-                            </div>
-                        }.into_any()
-                    } else { ().into_any() }}
                 </div>
             </div>
             // Docs modal for group
-            {move || if show_doc_modal.get() {
-                let docs_snap = docs.clone();
+            {move || if app_store.get().is_doc_modal_open(gid) {
                 let modal_title = g_name_for_modal.clone();
-                let add_cb = if can_edit_here { Some(Callback::new(move |n: String| add_group_doc(n))) } else { None };
+                let add_cb = if can_edit_documents_here { Some(Callback::new(move |n: String| add_group_doc(n))) } else { None };
                 view! {
                     <DocModal
-                        docs={docs_snap}
+                        entity_id={gid}
                         title={modal_title}
-                        on_close=move || set_show_doc_modal.set(false)
-                        can_edit={can_edit_here}
+                        on_close=move || app_store.update(|s| s.close_doc_modal(gid))
+                        can_edit={can_edit_documents_here}
                         on_add={add_cb}
                     />
                 }.into_any()
@@ -1078,16 +1100,46 @@ fn AssetGroupItem(
                     };
                     view! {
                         <div class={class_str}>
-                            {group_assets.into_iter().map({
+                            {group_assets.into_iter().enumerate().map({
                                 let view_mode = view_mode.clone();
-                                move |asset| view! {
-                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} />
+                                move |(idx, asset)| view! {
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} />
                                 }
                             }).collect::<Vec<_>>()}
                         </div>
                     }
                 }}
             </div>
+
+            // Context menu for group press-and-hold
+            {move || group_context_menu.get().map(|(x, y)| {
+                let pid2 = pid;
+                let gid2 = gid;
+                view! {
+                    <div class="context-menu-overlay" on:click=move |_| set_group_context_menu.set(None)>
+                        <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_show_add_asset.set(AssetTarget::Group(pid2, gid2));
+                                }
+                            >"📦 Add Asset"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    app_store.update(|s| s.open_doc_modal(gid));
+                                }
+                            >"📄 Add Document"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_is_editing.set(true);
+                                }
+                            >"✏️ Rename"</button>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
         </div>
     }
 }
@@ -1097,8 +1149,9 @@ fn AssetGroupItem(
 fn PortfolioListItem(
     portfolio: crate::models::Portfolio,
     #[prop(default = false)] can_edit: bool,
+    #[prop(default = false)] can_edit_documents: bool,
     expanded: bool,
-    on_toggle: impl Fn() + 'static,
+    on_toggle: Callback<()>,
     on_context: impl Fn(leptos::ev::MouseEvent) + 'static,
     // AssetViewer props forwarded for expanded content
     show_add_group: Option<Uuid>,
@@ -1118,20 +1171,26 @@ fn PortfolioListItem(
     view_mode: ViewMode,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let (show_doc_modal, set_show_doc_modal) = signal(false);
-    let (show_context_add, set_show_context_add) = signal(false);
+    let (is_editing_name, set_is_editing_name) = signal(false);
+    let (is_editing_desc, set_is_editing_desc) = signal(false);
+    let (is_editing_org, set_is_editing_org) = signal(false);
     let (edit_name, set_edit_name) = signal(portfolio.name.clone());
     let (edit_desc, set_edit_desc) = signal(portfolio.description.clone().unwrap_or_default());
     let pid = portfolio.id;
     let doc_count = portfolio.documents.len();
-    let docs = portfolio.documents.clone();
     let name = portfolio.name.clone();
     let name_for_modal = portfolio.name.clone();
     let desc = portfolio.description.clone().unwrap_or_default();
     let asset_count = portfolio.get_all_assets().len();
     let can_edit_here = can_edit;
+    let can_edit_documents_here = can_edit_documents;
+    let org_name = portfolio.organization_id.and_then(|oid| {
+        app_store.get().organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone())
+    });
+    let current_org_id = portfolio.organization_id;
+    let orgs = app_store.get().organizations.clone();
 
-    let save_edit = move |_| {
+    let save_edit = move |_: leptos::ev::FocusEvent| {
         let n = edit_name.get();
         let d = edit_desc.get();
         if n.trim().is_empty() { return; }
@@ -1142,17 +1201,51 @@ fn PortfolioListItem(
                 p.updated_at = chrono::Utc::now();
             }
         });
+        set_is_editing_name.set(false);
+        set_is_editing_desc.set(false);
+    };
+
+    let save_edit_now = move || {
+        let n = edit_name.get();
+        let d = edit_desc.get();
+        if n.trim().is_empty() { return; }
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                p.name = n.clone();
+                p.description = if d.trim().is_empty() { None } else { Some(d.clone()) };
+                p.updated_at = chrono::Utc::now();
+            }
+        });
+        set_is_editing_name.set(false);
+        set_is_editing_desc.set(false);
+    };
+
+    let save_org_edit = move |ev: leptos::ev::Event| {
+        let v = event_target_value(&ev);
+        let new_org_id = if v == "none" {
+            None
+        } else {
+            Uuid::parse_str(&v).ok()
+        };
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                p.organization_id = new_org_id;
+                p.updated_at = chrono::Utc::now();
+            }
+        });
+        set_is_editing_org.set(false);
     };
 
     let add_doc = move |n: String| {
         if n.trim().is_empty() { return; }
+        let uploaded_by = app_store.get().current_user.id;
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
             name: n.clone(),
             file_type: "pdf".to_string(),
             url: "#".to_string(),
             uploaded_at: chrono::Utc::now(),
-            uploaded_by: Uuid::nil(),
+            uploaded_by,
             content: None,
         };
         app_store.update(|s| {
@@ -1188,7 +1281,12 @@ fn PortfolioListItem(
         <div class="asset-group" class:expanded={expanded} on:contextmenu=on_context>
             // Header row — same structure as asset-group-header
             <div class="asset-group-header"
-                on:click=move |_| if !can_edit_here { on_toggle() }>
+                on:click=move |_| {
+                    if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
+                        on_toggle.run(());
+                    }
+                }
+            >
                 <span class="asset-group-arrow">
                     {if expanded { "▲" } else { "▼" }}
                 </span>
@@ -1196,105 +1294,112 @@ fn PortfolioListItem(
                 <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
                     {let name_header = name.clone();
                     let desc_header = desc.clone();
-                    move || if can_edit_here {
-                        view! {
-                            <div class="asset-group-edit-form">
+                    move || {
+                        let mut parts: Vec<leptos::prelude::AnyView> = Vec::new();
+                        // Organization label / editor
+                        if can_edit_here {
+                            if is_editing_org.get() {
+                                parts.push(view! {
+                                    <select class="pf-edit-input pf-org-select"
+                                        prop:value={move || current_org_id.map(|id| id.to_string()).unwrap_or_else(|| "none".to_string())}
+                                        on:change=save_org_edit
+                                        on:blur=move |_| set_is_editing_org.set(false)
+                                    >
+                                        <option value="none">"No Organization"</option>
+                                        {orgs.iter().map(|o| {
+                                            let oid = o.id.to_string();
+                                            let oname = o.name.clone();
+                                            view! {
+                                                <option value={oid.clone()}>{oname}</option>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </select>
+                                }.into_any());
+                            } else if let Some(on) = &org_name {
+                                parts.push(view! {
+                                    <div class="pf-org-label"
+                                        on:dblclick=move |ev| { ev.stop_propagation(); set_is_editing_org.set(true); }
+                                    >{on.clone()}</div>
+                                }.into_any());
+                            }
+                        } else if let Some(on) = &org_name {
+                            parts.push(view! { <div class="pf-org-label">{on.clone()}</div> }.into_any());
+                        }
+                        // Name
+                        if is_editing_name.get() && can_edit_here {
+                            parts.push(view! {
                                 <input class="pf-edit-input" placeholder="Portfolio name"
                                     prop:value=move || edit_name.get()
                                     on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                    on:blur=save_edit />
+                                    on:blur=save_edit
+                                    on:keydown=move |ev| { if ev.key() == "Enter" { save_edit_now(); } }
+                                />
+                            }.into_any());
+                        } else {
+                            let set_editing = set_is_editing_name;
+                            parts.push(view! {
+                                <div class="asset-group-name"
+                                    on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_editing.set(true); } }
+                                >{name_header.clone()}</div>
+                            }.into_any());
+                        }
+                        // Description
+                        if is_editing_desc.get() && can_edit_here {
+                            parts.push(view! {
                                 <input class="pf-edit-input" placeholder="Description"
                                     prop:value=move || edit_desc.get()
                                     on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
-                                    on:blur=save_edit />
+                                    on:blur=save_edit
+                                    on:keydown=move |ev| { if ev.key() == "Enter" { save_edit_now(); } }
+                                />
+                            }.into_any());
+                        } else if !desc_header.is_empty() {
+                            let set_editing = set_is_editing_desc;
+                            parts.push(view! {
+                                <div class="asset-group-desc"
+                                    on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_editing.set(true); } }
+                                >{desc_header.clone()}</div>
+                            }.into_any());
+                        }
+                        // Asset count — double-click to expand
+                        parts.push(view! {
+                            <div class="asset-group-count"
+                                on:dblclick=move |ev| { ev.stop_propagation(); on_toggle.run(()); }
+                            >
+                                {format!("{} asset{}", asset_count, if asset_count == 1 { "" } else { "s" })}
                             </div>
-                        }.into_any()
-                    } else {
-                        view! {
-                            <div>
-                                <div class="asset-group-name">{name_header.clone()}</div>
-                                {if !desc_header.is_empty() {
-                                    view! { <div class="asset-group-desc">{desc_header.clone()}</div> }.into_any()
-                                } else { ().into_any() }}
-                                <div class="asset-group-count">
-                                    {format!("{} asset{}", asset_count, if asset_count == 1 { "" } else { "s" })}
-                                </div>
-                            </div>
-                        }.into_any()
+                        }.into_any());
+                        parts.collect_view().into_any()
                     }}
                 </div>
-                // Action strip
+                // Action strip — double-click on docs opens doc modal
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
                     <button class="pf-action-btn"
-                        class:active=move || show_doc_modal.get()
-                        on:click=move |_| set_show_doc_modal.set(true)>
+                        class:active=move || app_store.get().is_doc_modal_open(pid)
+                        on:click=move |_| app_store.update(|s| s.toggle_doc_modal(pid))
+                        on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); app_store.update(|s| s.open_doc_modal(pid)); } }
+                    >
                         {format!("📄 {}", doc_count)}
                     </button>
-                    {move || if can_edit_here {
-                        let pid_add_group = pid;
-                        let pid_add_asset = pid;
-                        view! {
-                            <div class="pf-context-add-wrap">
-                                <button class="pf-action-btn pf-context-add-btn"
-                                    class:active=move || show_context_add.get()
-                                    on:click=move |ev| { ev.stop_propagation(); set_show_context_add.update(|v| *v = !*v); }
-                                >"+"</button>
-                                {move || if show_context_add.get() {
-                                    view! {
-                                        <div class="pf-context-add-dropdown">
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                                set_show_add_group.set(Some(pid_add_group));
-                                            }>"📁 Add Group"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                                set_show_add_asset.set(AssetTarget::PortfolioDirect(pid_add_asset));
-                                            }>"📦 Add Asset"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                                set_show_doc_modal.set(true);
-                                            }>"📄 Add Document"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                            }>"👤 Add User"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                            }>"🏢 Add Organization"</button>
-                                            <button class="pf-context-add-item" on:click=move |ev| {
-                                                ev.stop_propagation();
-                                                set_show_context_add.set(false);
-                                            }>"🔑 Add Role"</button>
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }}
-                            </div>
-                        }.into_any()
-                    } else { ().into_any() }}
                 </div>
             </div>
 
             // Docs modal for portfolio
-            {move || if show_doc_modal.get() {
-                let docs_snap = docs.clone();
+            {move || if app_store.get().is_doc_modal_open(pid) {
                 let modal_title = name_for_modal.clone();
-                let add_cb = if can_edit_here { Some(Callback::new(move |n: String| add_doc(n))) } else { None };
+                let add_cb = if can_edit_documents_here { Some(Callback::new(move |n: String| add_doc(n))) } else { None };
                 view! {
                     <DocModal
-                        docs={docs_snap}
+                        entity_id={pid}
                         title={modal_title}
-                        on_close=move || set_show_doc_modal.set(false)
-                        can_edit={can_edit_here}
+                        on_close=move || app_store.update(|s| s.close_doc_modal(pid))
+                        can_edit={can_edit_documents_here}
                         on_add={add_cb}
                     />
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if can_edit_here {
+            {move || if is_editing_org.get() && can_edit_here {
                 let users = org_users();
                 let assigned = assigned_users.clone();
                 view! {
@@ -1307,6 +1412,7 @@ fn PortfolioListItem(
                 <AssetViewer
                     portfolio={portfolio_for_viewer}
                     can_edit={can_edit_here}
+                    can_edit_documents={can_edit_documents_here}
                     view_mode={view_mode}
                     show_add_group={show_add_group}
                     set_show_add_group={set_show_add_group}
@@ -1351,7 +1457,6 @@ struct AssetDetailSnapshot {
     a_type: String,
     a_addr: String,
     asset_name_for_modal: String,
-    docs: Vec<Document>,
 }
 
 #[component]
@@ -1362,9 +1467,10 @@ fn AssetItem(
     view_mode: ViewMode,
     on_select: Callback<Asset>,
     #[prop(default = false)] can_edit: bool,
+    #[prop(default = false)] can_edit_documents: bool,
+    #[prop(default = 0)] tint_index: usize,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let _ = can_edit;
     let image_url = asset
         .images
         .first()
@@ -1372,13 +1478,13 @@ fn AssetItem(
         .unwrap_or_else(|| asset_placeholder_url(&asset.asset_type, &asset.name));
 
     let (expanded_detail, set_expanded_detail) = signal(false);
-    let (show_doc_modal, set_show_doc_modal) = signal(false);
     let (_editing, set_editing) = signal(false);
     let (edit_name, set_edit_name) = signal(asset.name.clone());
     let (edit_desc, set_edit_desc) = signal(asset.description.clone().unwrap_or_default());
     let (edit_loc, set_edit_loc) = signal(asset.location.clone().unwrap_or_default());
 
     let can_edit_here = can_edit;
+    let can_edit_documents_here = can_edit_documents;
     // doc sort: 0 = recent, 1 = name
     let (doc_sort, set_doc_sort) = signal(0u8);
     let (detail_tab, set_detail_tab) = signal(0u8);
@@ -1407,7 +1513,6 @@ fn AssetItem(
         a_type: a_type.clone(),
         a_addr: a_addr.clone(),
         asset_name_for_modal: asset_name_for_modal.clone(),
-        docs: docs.clone(),
     });
 
     let save_edit = move || {
@@ -1435,13 +1540,14 @@ fn AssetItem(
 
     let add_doc = move |n: String| {
         if n.trim().is_empty() { return; }
+        let uploaded_by = app_store.get().current_user.id;
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
             name: n.clone(),
             file_type: "pdf".to_string(),
             url: "#".to_string(),
             uploaded_at: chrono::Utc::now(),
-            uploaded_by: Uuid::nil(),
+            uploaded_by,
             content: None,
         };
         app_store.update(|s| {
@@ -1458,7 +1564,7 @@ fn AssetItem(
             }
         });
     };
-    let add_cb = if can_edit { Some(Callback::new(add_doc)) } else { None };
+    let add_cb = if can_edit_documents_here { Some(Callback::new(add_doc)) } else { None };
 
     let asset_id_for_assign = asset_id;
     let portfolio_id_for_assign = portfolio_id;
@@ -1500,18 +1606,20 @@ fn AssetItem(
     };
     let get_org_users = move || app_store.get().organization_users.clone();
 
+    let tint_style = format!("background: rgba(255,255,255,{});", (tint_index as f64 * 0.1).min(0.9));
+
     if view_mode == ViewMode::Grid {
         let asset_for_click = asset.clone();
         let short_name = shorthand_name(&a_name);
         view! {
-            <div class="asset-grid-card" on:click=move |_| on_select.run(asset_for_click.clone())>
+            <div class="asset-grid-card" style={tint_style.clone()} on:click=move |_| on_select.run(asset_for_click.clone())>
                 <img class="asset-grid-image" src={image_url.clone()} alt={a_name.clone()} />
                 <div class="asset-grid-name">{short_name}</div>
             </div>
         }.into_any()
     } else {
     view! {
-        <div class="ai-item" class:ai-item-expanded={move || expanded_detail.get()}>
+        <div class="ai-item" class:ai-item-expanded={move || expanded_detail.get()} style={tint_style.clone()}>
             <div class="ai-list-card" on:click=move |_| {
                 if !can_edit_here && detail_tab.get() != 1 { set_expanded_detail.update(|v| *v = !*v); }
             }>
@@ -1547,7 +1655,7 @@ fn AssetItem(
                         {let doc_count = docs.len();
                         view! {
                             <button class="ai-list-docs-btn"
-                                on:click=move |_| set_show_doc_modal.set(true)>
+                                on:click=move |_| app_store.update(|s| s.toggle_doc_modal(asset_id))>
                                 {if doc_count == 0 {
                                     "📄 Add document".to_string()
                                 } else {
@@ -1562,16 +1670,15 @@ fn AssetItem(
                 </div>
             </div>
 
-            {move || if show_doc_modal.get() {
+            {move || if app_store.get().is_doc_modal_open(asset_id) {
                 let mt = asset_name_for_modal.clone();
                 let ac = add_cb.clone();
-                let docs_snap = docs.clone();
                 view! {
                     <DocModal
-                        docs={docs_snap}
+                        entity_id={asset_id}
                         title={mt}
-                        on_close=move || set_show_doc_modal.set(false)
-                        can_edit={can_edit_here}
+                        on_close=move || app_store.update(|s| s.close_doc_modal(asset_id))
+                        can_edit={can_edit_documents_here}
                         on_add={ac}
                     />
                 }.into_any()
@@ -1629,6 +1736,7 @@ fn AssetItem(
                                 _ => view! {
                                     <AssetDetailViewTab
                                         detail=detail
+                                        asset_id={asset_id}
                                         a_purchase_val=a_purchase_val
                                         a_current_val=a_current_val
                                         a_pl=a_pl
@@ -1637,9 +1745,8 @@ fn AssetItem(
                                         a_pl_cls=a_pl_cls
                                         doc_sort=doc_sort
                                         set_doc_sort=set_doc_sort
-                                        show_doc_modal=show_doc_modal
-                                        set_show_doc_modal=set_show_doc_modal
-                                        can_edit=can_edit_here
+                                        can_edit={can_edit_here}
+                                        can_edit_documents={can_edit_documents_here}
                                         add_cb=add_cb
                                     />
                                 }.into_any(),
@@ -1656,6 +1763,7 @@ fn AssetItem(
 #[component]
 fn AssetDetailViewTab(
     detail: StoredValue<AssetDetailSnapshot>,
+    asset_id: Uuid,
     a_purchase_val: f64,
     a_current_val: f64,
     a_pl: f64,
@@ -1664,13 +1772,22 @@ fn AssetDetailViewTab(
     a_pl_cls: &'static str,
     doc_sort: ReadSignal<u8>,
     set_doc_sort: WriteSignal<u8>,
-    show_doc_modal: ReadSignal<bool>,
-    set_show_doc_modal: WriteSignal<bool>,
     can_edit: bool,
+    can_edit_documents: bool,
     add_cb: Option<Callback<String>>,
 ) -> impl IntoView {
+    let app_store = use_app_store();
     let _ = (a_purchase_val, a_pl, a_pl_pct, a_revenue, a_pl_cls);
     let modal_title = detail.get_value().asset_name_for_modal.clone();
+
+    // Reactive document list for this asset read directly from the store.
+    let asset_docs = Memo::new(move |_| {
+        app_store.get().portfolios.iter()
+            .flat_map(|p| p.assets.iter().chain(p.asset_groups.iter().flat_map(|g| g.assets.iter())))
+            .find(|a| a.id == asset_id)
+            .map(|a| a.documents.clone())
+            .unwrap_or_default()
+    });
 
     view! {
         <div class="ai-view-tab">
@@ -1707,10 +1824,10 @@ fn AssetDetailViewTab(
                             on:click=move |_| set_doc_sort.set(1)>
                             "Name"
                         </button>
-                        {if can_edit {
+                        {if can_edit_documents {
                             view! {
                                 <button class="ai-docs-sort-btn ai-docs-add-btn"
-                                    on:click=move |_| set_show_doc_modal.set(true)>
+                                    on:click=move |_| app_store.update(|s| s.toggle_doc_modal(asset_id))>
                                     "+ Add"
                                 </button>
                             }.into_any()
@@ -1718,7 +1835,7 @@ fn AssetDetailViewTab(
                     </div>
                 </div>
                 {move || {
-                    let mut sorted_docs = detail.get_value().docs.clone();
+                    let mut sorted_docs = asset_docs.get();
                     if doc_sort.get() == 1 {
                         sorted_docs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
                     }
@@ -1763,15 +1880,15 @@ fn AssetDetailViewTab(
             </div>
         </div>
 
-        {move || if show_doc_modal.get() {
+        {move || if app_store.get().is_doc_modal_open(asset_id) {
             let mt = modal_title.clone();
             let ac = add_cb.clone();
             view! {
                 <DocModal
-                    docs={detail.get_value().docs.clone()}
+                    entity_id={asset_id}
                     title={mt}
-                    on_close=move || set_show_doc_modal.set(false)
-                    can_edit={can_edit}
+                    on_close=move || app_store.update(|s| s.close_doc_modal(asset_id))
+                    can_edit={can_edit_documents}
                     on_add={ac}
                 />
             }.into_any()
@@ -1843,7 +1960,7 @@ fn AssetDetailView(asset: Asset, on_close: Callback<()>) -> impl IntoView {
 }
 
 // Helper functions to create mock data
-fn create_mock_asset(name: &str, asset_type: AssetType, purchase: f64, current: f64) -> Asset {
+fn create_mock_asset(name: &str, asset_type: AssetType, purchase: f64, current: f64, uploaded_by: Uuid) -> Asset {
     let id = Uuid::new_v4();
     let image_url = asset_placeholder_url(&asset_type, name);
     let docs = vec![
@@ -1864,7 +1981,7 @@ fn create_mock_asset(name: &str, asset_type: AssetType, purchase: f64, current: 
         content: None,
         url: "#".to_string(),
         uploaded_at: chrono::Utc::now(),
-        uploaded_by: Uuid::nil(),
+        uploaded_by,
     })
     .collect();
     Asset {
@@ -1880,6 +1997,7 @@ fn create_mock_asset(name: &str, asset_type: AssetType, purchase: f64, current: 
         profit_loss_percent: ((current - purchase) / purchase) * 100.0,
         revenue: 0.0,
         purchase_date: chrono::Utc::now(),
+        last_accessed_at: chrono::Utc::now(),
         images: vec![image_url],
         documents: docs,
         tags: vec![],
@@ -2076,7 +2194,7 @@ Key points:
 /// Tabs are pinned at the top; the list is always accessible via the "List" tab.
 #[component]
 pub fn DocModal(
-    docs: Vec<Document>,
+    entity_id: Uuid,
     title: String,
     on_close: impl Fn() + 'static,
     can_edit: bool,
@@ -2088,8 +2206,34 @@ pub fn DocModal(
     let (active_tab, set_active_tab) = signal::<u32>(0); // 0 = list view
     let (next_id, set_next_id) = signal(1u32);
     let (new_doc_name, set_new_doc_name) = signal(String::new());
-    let docs_sig = StoredValue::new(docs);
     let title_stored = StoredValue::new(title);
+
+    // Reactive document list read directly from the store so additions show immediately.
+    let docs = Memo::new(move |_| {
+        let store = app_store.get();
+        let mut docs = Vec::new();
+        for p in &store.portfolios {
+            if p.id == entity_id {
+                docs.extend(p.documents.clone());
+            }
+            for g in &p.asset_groups {
+                if g.id == entity_id {
+                    docs.extend(g.documents.clone());
+                }
+                for a in &g.assets {
+                    if a.id == entity_id {
+                        docs.extend(a.documents.clone());
+                    }
+                }
+            }
+            for a in &p.assets {
+                if a.id == entity_id {
+                    docs.extend(a.documents.clone());
+                }
+            }
+        }
+        docs
+    });
     let on_close = std::rc::Rc::new(on_close);
     let on_close2 = on_close.clone();
 
@@ -2157,9 +2301,11 @@ pub fn DocModal(
                     view! {
                         <div class="doc-modal-body">
                             <div class="doc-modal-list">
-                                {docs_sig.get_value().into_iter().map(|doc| {
+                                {docs.get().into_iter().map(|doc| {
                                     let icon = document_icon(&doc.file_type);
                                     let ft   = doc.file_type.to_uppercase();
+                                    let current_user = app_store.get().current_user.clone();
+                                    let can_edit_doc = can_edit && current_user.can_edit_document(&doc);
                                     let doc_for_open = doc.clone();
                                     let doc_for_tap = doc.clone();
                                     let doc_id = doc.id;
@@ -2169,9 +2315,9 @@ pub fn DocModal(
                                         <div class="doc-modal-row">
                                             <span class="doc-modal-icon">{icon}</span>
                                             <div class="doc-modal-info"
-                                                class:doc-modal-info-tap=can_edit
+                                                class:doc-modal-info-tap=can_edit_doc
                                                 on:click=move |ev: leptos::ev::MouseEvent| {
-                                                    if can_edit && !editing_name.get() {
+                                                    if can_edit_doc && !editing_name.get() {
                                                         ev.stop_propagation();
                                                         open_doc_tab(doc_for_tap.clone());
                                                     }
@@ -2199,7 +2345,7 @@ pub fn DocModal(
                                                     }.into_any()
                                                 }}
                                             </div>
-                                            {move || if can_edit && !editing_name.get() {
+                                            {move || if can_edit_doc && !editing_name.get() {
                                                 view! {
                                                     <button class="doc-modal-edit-btn"
                                                         on:click=move |_| set_editing_name.set(true)>
@@ -2274,14 +2420,46 @@ pub fn DocumentViewer(
     let doc_name  = StoredValue::new(doc.name.clone());
     let doc_id = doc.id;
 
+    let current_user = app_store.get().current_user.clone();
+    let effective_can_edit = can_edit && current_user.can_edit_document(&doc);
+
     // viewer state
     let (zoom, set_zoom)         = signal(100u32);       // percent
-    let (edit_mode, set_edit_mode) = signal(can_edit);
+    let (edit_mode, set_edit_mode) = signal(effective_can_edit);
     let (content, set_content)   = signal(initial_content);
     let (why, set_why)           = signal(String::new());
     // image popup: Some((x_px, y_px))
     let (img_popup, set_img_popup) = signal::<Option<(i32, i32)>>(None);
-    let (link_val, set_link_val) = signal(String::new());
+    let (link_val, set_link_val) = signal(doc.url.clone());
+
+    let apply_image_url = move || {
+        let url = link_val.get().trim().to_string();
+        if !url.is_empty() {
+            app_store.update(|s| {
+                for p in s.portfolios.iter_mut() {
+                    for d in &mut p.documents {
+                        if d.id == doc_id { d.url = url.clone(); }
+                    }
+                    for g in &mut p.asset_groups {
+                        for d in &mut g.documents {
+                            if d.id == doc_id { d.url = url.clone(); }
+                        }
+                        for a in &mut g.assets {
+                            for d in &mut a.documents {
+                                if d.id == doc_id { d.url = url.clone(); }
+                            }
+                        }
+                    }
+                    for a in &mut p.assets {
+                        for d in &mut a.documents {
+                            if d.id == doc_id { d.url = url.clone(); }
+                        }
+                    }
+                }
+            });
+        }
+        set_img_popup.set(None);
+    };
 
     let on_close = std::rc::Rc::new(on_close);
     let on_close_toolbar = on_close.clone();
@@ -2356,8 +2534,8 @@ pub fn DocumentViewer(
                     </button>
                 </div>
 
-                // Edit toggle (only when can_edit)
-                {if can_edit {
+                // Edit toggle (only when effective_can_edit)
+                {if effective_can_edit {
                     view! {
                         <button class="dv-toolbar-btn dv-edit-toggle"
                             class:dv-edit-active=move || edit_mode.get()
@@ -2381,10 +2559,10 @@ pub fn DocumentViewer(
             <div
                 class={move || if is_sheet { "docviewer-body docviewer-sheet".to_string() } else { "docviewer-body".to_string() }}
                 style=move || format!("font-size: {}%;", zoom.get())
-                on:click=move |_| { if img_popup.get().is_some() { set_img_popup.set(None); } }
+                on:click=move |_| { if img_popup.get().is_some() { apply_image_url(); } }
             >
                 // Image area (shown for image-type docs or as a doc header image)
-                {if can_edit {
+                {if effective_can_edit {
                     view! {
                         <div class="dv-image-row">
                             <div
@@ -2393,6 +2571,7 @@ pub fn DocumentViewer(
                                 on:click=move |ev: leptos::ev::MouseEvent| {
                                     if edit_mode.get() {
                                         ev.stop_propagation();
+                                        set_link_val.set(doc.url.clone());
                                         set_img_popup.set(Some((ev.client_x(), ev.client_y())));
                                     }
                                 }
@@ -2429,10 +2608,6 @@ pub fn DocumentViewer(
                                     on:input=move |ev| set_link_val.set(event_target_value(&ev))
                                     on:click=|ev| ev.stop_propagation()
                                 />
-                                <button class="dv-img-link-ok"
-                                    on:click=move |_| { set_img_popup.set(None); }>
-                                    "OK"
-                                </button>
                             </div>
                         </div>
                     }.into_any()

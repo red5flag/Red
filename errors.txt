@@ -1,152 +1,72 @@
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
 warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
 warning: struct `TabState` is never constructed
 warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
 warning: struct `TabState` is never constructed
 warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 2 warnings
-error[E0599]: no method named `toggle_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0609]: no field `home_drawer_open` on type `app_store::AppStore`
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `toggle_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0609]: no field `home_drawer_open` on type `app_store::AppStore`
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0609]: no field `home_drawer_open` on type `&mut app_store::AppStore`
-error[E0609]: no field `home_drawer_open` on type `&mut app_store::AppStore`
-error: could not compile `farley` (lib) due to 5 previous errors
-error: could not compile `farley` (lib) due to 5 previous errors
-error[E0599]: no method named `toggle_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0609]: no field `home_drawer_open` on type `app_store::AppStore`
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `toggle_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0609]: no field `home_drawer_open` on type `app_store::AppStore`
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error: could not compile `farley` (lib) due to 4 previous errors
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0432]: unresolved import `crate::components::tabs::TabList`
-error[E0432]: unresolved import `crate::components::tabs::TabList`
-error[E0425]: cannot find function `is_home_drawer_open` in this scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0425]: cannot find function `is_home_drawer_open` in this scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error[E0599]: no method named `close_home_drawer` found for mutable reference `&mut app_store::AppStore` in the current scope
-error: could not compile `farley` (lib) due to 4 previous errors
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0432]: unresolved import `crate::components::tabs::TabList`
-error[E0432]: unresolved import `crate::components::tabs::TabList`
-error: could not compile `farley` (lib) due to 1 previous error
-error: could not compile `farley` (lib) due to 1 previous error
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
 warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
+warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
 error[E0282]: type annotations needed
-error: could not compile `farley` (lib) due to 1 previous error
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
 error[E0282]: type annotations needed
-error: could not compile `farley` (lib) due to 1 previous error
-warning: unused variable: `can_edit_portfolio`
-warning: function `load_tab_state_from_local_storage` is never used
-warning: unused variable: `can_edit_portfolio`
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: function `load_tab_state_from_local_storage` is never used
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
 warning: `farley` (lib) generated 2 warnings
-warning: `farley` (lib) generated 1 warning
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 2 warnings
-warning: `farley` (lib) generated 1 warning
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 2 warnings
-warning: unused import: `SortMode`
-warning: unused import: `SortMode`
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
 error[E0282]: type annotations needed
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
 error[E0282]: type annotations needed
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
-warning: unused imports: `SortMode` and `ViewMode`
-warning: unused imports: `SortMode` and `ViewMode`
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: function `load_tab_state_from_local_storage` is never used
+warning: unused variable: `oid`
+warning: unused variable: `set_show_add_group`
 warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0425]: cannot find function `camscan_view` in this scope
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0282]: type annotations needed
+warning: unused variable: `set_show_add_group`
 warning: `farley` (lib) generated 1 warning
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
+error: could not compile `farley` (lib) due to 14 previous errors; 1 warning emitted
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0425]: cannot find function `camscan_view` in this scope
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::OrgRole`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0063]: missing field `documents` in initializer of `user::User`
+error[E0282]: type annotations needed
+warning: unused variable: `set_show_add_group`
 warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
-warning: function `load_tab_state_from_local_storage` is never used
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 1 warning
-warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 14 previous errors; 1 warning emitted

@@ -4,6 +4,7 @@ use crate::stores::{create_action, use_app_store, use_undo_redo_store};
 use crate::types::ActionType;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use std::time::Duration;
 
 cfg_if! {
     if #[cfg(feature = "hydrate")] {
@@ -490,6 +491,17 @@ pub fn LoginPage() -> impl IntoView {
     let (su_show_pass, set_su_show_pass) = signal(false);
     let (su_show_confirm, set_su_show_confirm) = signal(false);
 
+    // Button press flash effect: stores a unique key per press to retrigger animation
+    let (pressed_btn, set_pressed_btn) = signal(Option::<&'static str>::None);
+    let flash_press = move |key: &'static str| {
+        set_pressed_btn.set(Some(key));
+        set_timeout(move || {
+            if pressed_btn.get() == Some(key) {
+                set_pressed_btn.set(None);
+            }
+        }, Duration::from_millis(500));
+    };
+
     view! {
         <div class="lp-screen">
 
@@ -503,7 +515,8 @@ pub fn LoginPage() -> impl IntoView {
             // ── USERNAME ROW ──
             <div class="lp-field-row">
                 <button class="lp-visibility-btn" tabindex="-1" title="Toggle username visibility"
-                    on:click=move |_| set_show_username.update(|v| *v = !*v)>
+                    class:lp-pressed={move || pressed_btn.get() == Some("vis-user")}
+                    on:click=move |_| { flash_press("vis-user"); set_show_username.update(|v| *v = !*v); }>
                     {move || if show_username.get() { "◉" } else { "○" }}
                 </button>
                 {move || {
@@ -527,7 +540,8 @@ pub fn LoginPage() -> impl IntoView {
             // ── PASSWORD ROW ──
             <div class="lp-field-row">
                 <button class="lp-visibility-btn" tabindex="-1" title="Toggle password visibility"
-                    on:click=move |_| set_show_password.update(|v| *v = !*v)>
+                    class:lp-pressed={move || pressed_btn.get() == Some("vis-pass")}
+                    on:click=move |_| { flash_press("vis-pass"); set_show_password.update(|v| *v = !*v); }>
                     {move || if show_password.get() { "◉" } else { "○" }}
                 </button>
                 {move || {
@@ -586,7 +600,9 @@ pub fn LoginPage() -> impl IntoView {
                                 on:input=move |ev| set_fa_code.set(event_target_value(&ev))
                             />
                         </div>
-                        <button class="lp-action-btn lp-login" on:click=move |_| on_verify_2fa(mode.unwrap_or("email"))>
+                        <button class="lp-action-btn lp-login" 
+                            class:lp-pressed={move || pressed_btn.get() == Some("2fa-verify")}
+                            on:click=move |_| { flash_press("2fa-verify"); on_verify_2fa(mode.unwrap_or("email")); }>
                             "VERIFY"
                         </button>
                     </div>
@@ -595,21 +611,31 @@ pub fn LoginPage() -> impl IntoView {
 
             // ── REGISTER / LOGIN BUTTONS ──
             <div class="lp-action-row">
-                <button class="lp-action-btn lp-register" on:click=move |_| set_show_signup.set(true)>
+                <button class="lp-action-btn lp-register"
+                    class:lp-pressed={move || pressed_btn.get() == Some("register")}
+                    on:click=move |_| { flash_press("register"); set_show_signup.set(true); }>
                     "REGISTER"
                 </button>
-                <button class="lp-action-btn lp-login" on:click=move |_| on_login()>
+                <button class="lp-action-btn lp-login"
+                    class:lp-pressed={move || pressed_btn.get() == Some("login")}
+                    on:click=move |_| { flash_press("login"); on_login(); }>
                     "LOGIN"
                 </button>
             </div>
 
             // ── OAUTH / 2FA ROW ──
             <div class="lp-oauth-row">
-                <button class="lp-oauth-btn">"GMAIL"</button>
+                <button class="lp-oauth-btn"
+                    class:lp-pressed={move || pressed_btn.get() == Some("oauth-gmail")}
+                    on:click=move |_| flash_press("oauth-gmail")>"GMAIL"</button>
                 <div class="lp-oauth-divider" />
-                <button class="lp-oauth-btn">"LINKEDIN"</button>
+                <button class="lp-oauth-btn"
+                    class:lp-pressed={move || pressed_btn.get() == Some("oauth-linkedin")}
+                    on:click=move |_| flash_press("oauth-linkedin")>"LINKEDIN"</button>
                 <div class="lp-oauth-divider" />
-                <button class="lp-oauth-btn">"2FA"</button>
+                <button class="lp-oauth-btn"
+                    class:lp-pressed={move || pressed_btn.get() == Some("oauth-2fa")}
+                    on:click=move |_| flash_press("oauth-2fa")>"2FA"</button>
             </div>
 
             // ── LOGIN STORAGE OPTION ──
@@ -697,11 +723,17 @@ pub fn LoginPage() -> impl IntoView {
 
             // ── FOOTER ──
             <div class="lp-footer">
-                <button class="lp-footer-btn">"NEWS"</button>
+                <button class="lp-footer-btn"
+                    class:lp-pressed={move || pressed_btn.get() == Some("footer-news")}
+                    on:click=move |_| flash_press("footer-news")>"NEWS"</button>
                 <div class="lp-footer-divider" />
-                <button class="lp-footer-btn">"ABOUT"</button>
+                <button class="lp-footer-btn"
+                    class:lp-pressed={move || pressed_btn.get() == Some("footer-about")}
+                    on:click=move |_| flash_press("footer-about")>"ABOUT"</button>
                 <div class="lp-footer-divider" />
-                <button class="lp-footer-btn">"HELP"</button>
+                <button class="lp-footer-btn"
+                    class:lp-pressed={move || pressed_btn.get() == Some("footer-help")}
+                    on:click=move |_| flash_press("footer-help")>"HELP"</button>
             </div>
 
         </div>

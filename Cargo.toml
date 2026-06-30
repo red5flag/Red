@@ -33,11 +33,14 @@ leptos_meta = "0.8"
 # WASM
 cfg-if = "1.0"
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element", "HtmlElement", "Event", "EventTarget", "MouseEvent", "TouchEvent", "Touch", "TouchList", "InputEvent", "KeyboardEvent", "Storage", "Location", "History"] }
+web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element", "HtmlElement", "Event", "EventTarget", "MouseEvent", "TouchEvent", "Touch", "TouchList", "InputEvent", "KeyboardEvent", "Storage", "Location", "History", "HtmlInputElement", "File", "FileList", "FileReader", "Blob", "HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Url"] }
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 gloo-timers = { version = "0.3", features = ["futures"] }
 serde-wasm-bindgen = "0.6"
+
+# PDF generation
+printpdf = { version = "0.9", default-features = false, features = ["jpeg", "png"] }
 
 # Search - Meilisearch
 meilisearch-sdk = { version = "0.24", optional = true }
@@ -91,7 +94,7 @@ output-name = "farley"
 assets-dir = "public"
 # The IP and port where the server serves the content.
 # Use 0.0.0.0 to allow external connections, 127.0.0.1 for localhost only
-site-addr = "127.0.0.1:3000"
+site-addr = "0.0.0.0:3000"
 # The port to use for automatic reload monitoring
 reload-port = 3001
 # Features to enable for the server (bin) target

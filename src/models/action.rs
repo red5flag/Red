@@ -87,6 +87,24 @@ impl Action {
         self.tab_context = Some(tab);
         self
     }
+
+    pub fn action_type_badge(&self) -> &'static str {
+        match self.action_type {
+            ActionType::Create => "Create",
+            ActionType::Update => "Update",
+            ActionType::Delete => "Delete",
+            ActionType::View => "View",
+            ActionType::Navigate => "Navigate",
+            ActionType::Setting => "Setting",
+            ActionType::Payment => "Payment",
+            ActionType::Notification => "Notification",
+            ActionType::Search => "Search",
+            ActionType::Undo => "Undo",
+            ActionType::Redo => "Redo",
+            ActionType::Login => "Login",
+            ActionType::Logout => "Logout",
+        }
+    }
 }
 
 // Action history entry with user info

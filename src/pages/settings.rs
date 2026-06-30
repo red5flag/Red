@@ -252,6 +252,20 @@ pub fn SettingsPage() -> impl IntoView {
                             </select>
                         </div>
                     </div>
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">"Blind Mode"</div>
+                            <div class="list-item-desc">"Show explicit Add, Edit, and Remove buttons for screen readers and accessibility needs."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <input type="checkbox" prop:checked={move || app_store.get().blind_mode}
+                                on:change=move |ev| {
+                                    let checked = event_target_checked(&ev);
+                                    app_store.update(|s| s.blind_mode = checked);
+                                }
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="data-card">

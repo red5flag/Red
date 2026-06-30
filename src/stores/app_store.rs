@@ -1,6 +1,6 @@
-use crate::models::{Organization, Permission, Portfolio, Transaction, User};
+use crate::models::{Asset, Organization, Permission, Portfolio, Transaction, User};
 use crate::stores::credentials::{CredentialStore, StoredCredential};
-use crate::types::{TabType, Theme, UserProfile, UserRole};
+use crate::types::{AssetType, TabType, Theme, UserProfile, UserRole};
 use crate::utils::crypto;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -28,10 +28,13 @@ pub struct AppStore {
     pub is_search_open: bool,
     pub search_query: String,
     pub theme: Theme,
+    pub blind_mode: bool,
     // Notifications
     pub notifications: Vec<Notification>,
     // Modal state
     pub active_modal: Option<ModalType>,
+    // Open document modals (by entity id) - persisted across re-renders
+    pub open_doc_modals: HashSet<Uuid>,
     // Loading states
     pub is_loading: bool,
     // Network users (for networking tab) with role and privilege management
@@ -48,6 +51,10 @@ pub struct AppStore {
     pub show_top_add_asset: bool,
     pub show_add_modal: bool,
     pub portfolio_sort_mode: crate::types::SortMode,
+    pub sort_ascending: bool,
+    // Reporting sort state
+    pub reporting_sort_mode: crate::types::ReportSortMode,
+    pub reporting_sort_ascending: bool,
     // Messenger drawer state
     pub message_drawer_open: bool,
     pub selected_chat_id: Option<Uuid>,
@@ -175,8 +182,10 @@ impl Default for AppStore {
             is_search_open: false,
             search_query: String::new(),
             theme: Theme::default(),
+            blind_mode: false,
             notifications: Vec::new(),
             active_modal: None,
+            open_doc_modals: HashSet::new(),
             is_loading: false,
             organization_users: Vec::new(),
             networking_add_member_open: false,
@@ -186,7 +195,10 @@ impl Default for AppStore {
             show_top_add_group: false,
             show_top_add_asset: false,
             show_add_modal: false,
-            portfolio_sort_mode: crate::types::SortMode::Recent,
+            portfolio_sort_mode: crate::types::SortMode::ByOrganization,
+            sort_ascending: true,
+            reporting_sort_mode: crate::types::ReportSortMode::Recent,
+            reporting_sort_ascending: false,
             message_drawer_open: false,
             selected_chat_id: None,
             messages: Vec::new(),
@@ -211,6 +223,37 @@ impl AppStore {
             store.messages = db.load_all_messages();
         }
         store
+    }
+
+    /// Returns the current user's effective role in the given organization,
+    /// falling back to the global current role if no org-specific record exists.
+    pub fn current_user_role_in_org(&self, org_id: Uuid) -> UserRole {
+        self.organization_users
+            .iter()
+            .find(|u| u.id == self.current_user.id && u.organization_id == Some(org_id))
+            .map(|u| u.role.clone())
+            .unwrap_or_else(|| self.current_user.role.clone())
+    }
+
+    // Document modal state (persisted across re-renders)
+    pub fn is_doc_modal_open(&self, id: Uuid) -> bool {
+        self.open_doc_modals.contains(&id)
+    }
+
+    pub fn open_doc_modal(&mut self, id: Uuid) {
+        self.open_doc_modals.insert(id);
+    }
+
+    pub fn close_doc_modal(&mut self, id: Uuid) {
+        self.open_doc_modals.remove(&id);
+    }
+
+    pub fn toggle_doc_modal(&mut self, id: Uuid) {
+        if self.open_doc_modals.contains(&id) {
+            self.open_doc_modals.remove(&id);
+        } else {
+            self.open_doc_modals.insert(id);
+        }
     }
 
     // Tab management
@@ -385,6 +428,16 @@ impl AppStore {
         }
     }
 
+    pub fn update_user_name(&mut self, id: Uuid, name: String) -> Result<(), String> {
+        if let Some(user) = self.organization_users.iter_mut().find(|u| u.id == id) {
+            user.name = name;
+            user.updated_at = chrono::Utc::now();
+            Ok(())
+        } else {
+            Err("User not found".to_string())
+        }
+    }
+
     // Search functionality
     pub fn open_search(&mut self) {
         self.is_search_open = true;
@@ -397,6 +450,35 @@ impl AppStore {
 
     pub fn set_search_query(&mut self, query: String) {
         self.search_query = query;
+    }
+
+    /// Mark a portfolio as recently accessed.
+    pub fn touch_portfolio(&mut self, id: Uuid) {
+        let now = chrono::Utc::now();
+        if let Some(p) = self.get_portfolio_mut(id) {
+            p.last_accessed_at = now;
+        }
+    }
+
+    /// Mark an asset as recently accessed.
+    pub fn touch_asset(&mut self, id: Uuid) {
+        let now = chrono::Utc::now();
+        for p in self.portfolios.iter_mut() {
+            for a in p.assets.iter_mut() {
+                if a.id == id {
+                    a.last_accessed_at = now;
+                    return;
+                }
+            }
+            for g in p.asset_groups.iter_mut() {
+                for a in g.assets.iter_mut() {
+                    if a.id == id {
+                        a.last_accessed_at = now;
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     // Theme management
@@ -622,12 +704,11 @@ impl AppStore {
         self.current_user.email = email.clone();
         self.current_user.role = UserRole::Owner;
 
-        // Seed portfolios if none exist
+        // Seed demo organizations and portfolios if none exist
         if self.portfolios.is_empty() {
-            let owner_id = self.current_user.id;
-            self.portfolios.push(seed_default_portfolio(owner_id));
-            self.portfolios.push(seed_portfolio_2(owner_id));
-            self.portfolios.push(seed_portfolio_3(owner_id));
+            self.seed_red_family_data();
+            // Mixed Investments is NOT part of any organization
+            self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
 
         Ok((display_name, format!("{:?}", self.current_user.role)))
@@ -643,12 +724,11 @@ impl AppStore {
         self.current_user.email = email;
         self.current_user.role = role;
 
-        // Seed portfolios if none exist
+        // Seed demo organizations and portfolios if none exist
         if self.portfolios.is_empty() {
-            let owner_id = self.current_user.id;
-            self.portfolios.push(seed_default_portfolio(owner_id));
-            self.portfolios.push(seed_portfolio_2(owner_id));
-            self.portfolios.push(seed_portfolio_3(owner_id));
+            self.seed_red_family_data();
+            // Mixed Investments is NOT part of any organization
+            self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
     }
 
@@ -784,12 +864,53 @@ impl AppStore {
             self.credentials.save_to_local_storage();
         }
 
-        // Seed a default portfolio if none exist
+        // Seed demo organizations and portfolios if none exist
         if self.portfolios.is_empty() {
-            let owner_id = self.current_user.id;
-            self.portfolios.push(seed_default_portfolio(owner_id));
+            self.seed_red_family_data();
+            // Mixed Investments is NOT part of any organization
+            self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
 
+    }
+
+    // Sort direction
+    pub fn toggle_sort_direction(&mut self) {
+        self.sort_ascending = !self.sort_ascending;
+    }
+
+    pub fn reversed_sort_mode(&self) -> crate::types::SortMode {
+        use crate::types::SortMode;
+        match self.portfolio_sort_mode {
+            SortMode::Recent => SortMode::Oldest,
+            SortMode::Oldest => SortMode::Recent,
+            SortMode::HighestValue => SortMode::LowestValue,
+            SortMode::LowestValue => SortMode::HighestValue,
+            SortMode::HighestProfit => SortMode::LowestProfit,
+            SortMode::LowestProfit => SortMode::HighestProfit,
+            SortMode::HighestRevenue => SortMode::LowestRevenue,
+            SortMode::LowestRevenue => SortMode::HighestRevenue,
+            SortMode::ByOrganization => SortMode::ByOrganization,
+        }
+    }
+
+    // Reporting sort helpers
+    pub fn toggle_reporting_sort_direction(&mut self) {
+        self.reporting_sort_ascending = !self.reporting_sort_ascending;
+    }
+
+    pub fn effective_reporting_sort_mode(&self) -> crate::types::ReportSortMode {
+        use crate::types::ReportSortMode;
+        if self.reporting_sort_ascending {
+            match &self.reporting_sort_mode {
+                ReportSortMode::Recent => ReportSortMode::Oldest,
+                ReportSortMode::Oldest => ReportSortMode::Recent,
+                ReportSortMode::HighestValue => ReportSortMode::LowestValue,
+                ReportSortMode::LowestValue => ReportSortMode::HighestValue,
+                other => other.clone(),
+            }
+        } else {
+            self.reporting_sort_mode.clone()
+        }
     }
 
     // Tabs drawer
@@ -813,7 +934,135 @@ impl AppStore {
     pub fn switch_organization(&mut self, id: Uuid) {
         if self.organizations.iter().any(|o| o.id == id) {
             self.current_organization_id = Some(id);
+            // When Red switches orgs, update the current user's role to match
+            // the seeded Red membership for that organization.
+            if let Some(red_user) = self
+                .organization_users
+                .iter()
+                .find(|u| u.organization_id == Some(id) && u.name == self.current_user.name)
+            {
+                self.current_user.role = red_user.role.clone();
+            }
         }
+    }
+
+    /// Seed the Red family demo organizations and role-based test data.
+    fn seed_red_family_data(&mut self) {
+        let owner_id = self.current_user.id;
+        let owner_email = self.current_user.email.clone();
+
+        // RedOrg is owned by the current user (Red).
+        let red_org = Organization::new("RedOrg".to_string(), owner_id);
+        let red_org_id = red_org.id;
+
+        let mut red_corp = Organization::new("RedDirector".to_string(), owner_id);
+        let red_corp_id = red_corp.id;
+        red_corp.description = Some("Red Director - Director role testbed".to_string());
+        red_corp.settings.color = Some("#ef4444".to_string());
+
+        let mut red_comp = Organization::new("RedManager".to_string(), owner_id);
+        let red_comp_id = red_comp.id;
+        red_comp.description = Some("Red Manager - Manager role testbed".to_string());
+        red_comp.settings.color = Some("#f97316".to_string());
+
+        let mut red_co = Organization::new("RedWorker".to_string(), owner_id);
+        let red_co_id = red_co.id;
+        red_co.description = Some("Red Worker - Worker role testbed".to_string());
+        red_co.settings.color = Some("#3b82f6".to_string());
+
+        self.organizations.push(red_org);
+        self.organizations.push(red_corp);
+        self.organizations.push(red_comp);
+        self.organizations.push(red_co);
+        self.current_organization_id = Some(red_org_id);
+
+        // Red as Owner in RedOrg (same ID as current user).
+        let mut red_owner = User::new("Red".to_string(), owner_email.clone(), UserRole::Owner);
+        red_owner.id = owner_id;
+        red_owner.organization_id = Some(red_org_id);
+
+        // Red seeded into the other orgs with the requested roles.
+        let mut red_director = User::new("Red".to_string(), "red@reddirector.com".to_string(), UserRole::Director);
+        red_director.id = owner_id;
+        red_director.organization_id = Some(red_corp_id);
+
+        let mut red_manager = User::new("Red".to_string(), "red@redmanager.com".to_string(), UserRole::Manager);
+        red_manager.id = owner_id;
+        red_manager.organization_id = Some(red_comp_id);
+
+        let mut red_worker = User::new("Red".to_string(), "red@redworker.com".to_string(), UserRole::Worker);
+        red_worker.id = owner_id;
+        red_worker.organization_id = Some(red_co_id);
+
+        self.organization_users.push(red_owner);
+        self.organization_users.push(red_director);
+        self.organization_users.push(red_manager);
+        self.organization_users.push(red_worker);
+
+        // Add Red to every organization's member list.
+        for org in &mut self.organizations {
+            org.add_member(owner_id);
+        }
+
+        // One portfolio + one asset for each organization to test role access.
+        self.portfolios.push(Self::seed_org_portfolio(red_org_id, owner_id, "RedOrg Portfolio", "RedOrg HQ Asset"));
+        self.portfolios.push(Self::seed_org_portfolio(red_corp_id, owner_id, "RedDirector Portfolio", "RedDirector Fleet Asset"));
+        self.portfolios.push(Self::seed_org_portfolio(red_comp_id, owner_id, "RedManager Portfolio", "RedManager Equipment Asset"));
+        self.portfolios.push(Self::seed_org_portfolio(red_co_id, owner_id, "RedWorker Portfolio", "RedWorker Equipment Asset"));
+
+        self.seed_notred_data();
+
+        // Start Red as Owner of RedOrg; role updates when switching organizations.
+        self.current_user.role = UserRole::Owner;
+    }
+
+    fn seed_org_portfolio(org_id: Uuid, owner_id: Uuid, name: &str, asset_name: &str) -> Portfolio {
+        let mut p = Portfolio::new(name.to_string(), owner_id, crate::types::Currency::USD);
+        p.organization_id = Some(org_id);
+        p.description = Some(format!("{} - role testing portfolio", name));
+        let mut asset = Asset::new(asset_name.to_string(), AssetType::Equipment, 10000.0);
+        asset.organization_id = Some(org_id);
+        p.assets.push(asset);
+        p.recalculate_values();
+        p
+    }
+
+    /// Seed a separate organization where the current user is a Guest.
+    /// Used to test that a guest cannot edit organization, portfolio, asset, or document info.
+    fn seed_notred_data(&mut self) {
+        let guest_id = self.current_user.id;
+        let guest_name = self.current_user.name.clone();
+        let guest_email = self.current_user.email.clone();
+
+        let notred_owner = Uuid::new_v4();
+        let mut notred = Organization::new("NotRed".to_string(), notred_owner);
+        let notred_id = notred.id;
+        notred.description = Some("NotRed - Guest role testbed".to_string());
+        notred.settings.color = Some("#10b981".to_string());
+        notred.add_member(guest_id);
+        self.organizations.push(notred);
+
+        // Current user as a Guest in NotRed.
+        let mut notred_guest = User::new(guest_name, guest_email, UserRole::Guest);
+        notred_guest.id = guest_id;
+        notred_guest.organization_id = Some(notred_id);
+        self.organization_users.push(notred_guest);
+
+        // Portfolio assigned to the guest so it is visible to them, but owned by the org owner.
+        let mut p = Portfolio::new("NotRed Portfolio".to_string(), notred_owner, crate::types::Currency::USD);
+        p.organization_id = Some(notred_id);
+        p.description = Some("NotRed portfolio - Guest view-only testbed".to_string());
+        p.assigned_users.push(guest_id);
+
+        let mut asset = Asset::new("NotRed Office Equipment".to_string(), AssetType::Equipment, 5000.0);
+        asset.organization_id = Some(notred_id);
+        asset.assigned_workers.push(guest_id);
+        // Pre-existing documents the guest can read but cannot edit (nil owner = legacy shared).
+        asset.documents.push(make_doc("NotRed Welcome", "pdf"));
+        asset.documents.push(make_doc("NotRed Policy", "pdf"));
+        p.assets.push(asset);
+        p.recalculate_values();
+        self.portfolios.push(p);
     }
 
     pub fn get_organization_mut(&mut self, id: Uuid) -> Option<&mut Organization> {
@@ -826,6 +1075,98 @@ impl AppStore {
         } else {
             None
         }
+    }
+
+    // ── Discord-style role management ──────────────────────────────────
+
+    pub fn add_role_to_org(&mut self, org_id: Uuid, role: crate::models::OrgRole) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            org.roles.push(role);
+            org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn update_org_role(&mut self, org_id: Uuid, role_id: Uuid, name: String, description: String, color: Option<String>, rank: u32, scope: crate::models::RoleScope) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {
+                role.name = name;
+                role.description = description;
+                role.color = color;
+                role.rank = rank;
+                role.scope = scope;
+            }
+            org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn delete_org_role(&mut self, org_id: Uuid, role_id: Uuid) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            org.roles.retain(|r| r.id != role_id || r.is_system);
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn reorder_org_role(&mut self, org_id: Uuid, role_id: Uuid, new_rank: u32) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {
+                role.rank = new_rank;
+            }
+            org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn toggle_role_permission(&mut self, org_id: Uuid, role_id: Uuid, perm: crate::models::Perm) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {
+                if role.permissions.contains(&perm) {
+                    role.permissions.retain(|p| p != &perm);
+                } else {
+                    role.permissions.push(perm);
+                }
+            }
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn assign_member_to_role(&mut self, org_id: Uuid, role_id: Uuid, user_id: Uuid) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {
+                if !role.member_ids.contains(&user_id) {
+                    role.member_ids.push(user_id);
+                }
+            }
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn remove_member_from_role(&mut self, org_id: Uuid, role_id: Uuid, user_id: Uuid) {
+        if let Some(org) = self.get_organization_mut(org_id) {
+            if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {
+                role.member_ids.retain(|&id| id != user_id);
+            }
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn duplicate_org_role(&mut self, org_id: Uuid, role_id: Uuid) -> Option<Uuid> {
+        let new_id = Uuid::new_v4();
+        if let Some(org) = self.get_organization_mut(org_id) {
+            if let Some(role) = org.roles.iter().find(|r| r.id == role_id).cloned() {
+                let mut new_role = role;
+                new_role.id = new_id;
+                new_role.name = format!("{} (Copy)", new_role.name);
+                new_role.is_system = false;
+                new_role.member_ids = Vec::new();
+                org.roles.push(new_role);
+                org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+                org.updated_at = chrono::Utc::now();
+                return Some(new_id);
+            }
+        }
+        None
     }
 
     // Get location name for navbar
@@ -1074,6 +1415,11 @@ fn gen_asset(idx: usize, prefix: &str, base_value: f64) -> crate::models::Asset 
     let mut a = crate::models::Asset::new(format!("{} #{}", prefix, idx + 1), at, purchase);
     a.description = Some(format!("Test asset {} for portfolio testing.", idx + 1));
     a.location = Some(format!("Test Location {}", idx + 1));
+    a.documents = vec![
+        make_doc(&format!("{} #{} Title Deed", prefix, idx + 1), "pdf"),
+        make_doc(&format!("{} #{} Valuation", prefix, idx + 1), "xlsx"),
+        make_doc(&format!("{} #{} Inspection", prefix, idx + 1), "pdf"),
+    ];
     a.update_value(current);
     a
 }
@@ -1087,6 +1433,11 @@ pub fn seed_portfolio_2(owner_id: Uuid) -> Portfolio {
     );
     p.description = Some("Diverse asset collection for testing".to_string());
     p.tags = vec!["mixed".to_string(), "test".to_string()];
+    p.documents = vec![
+        make_doc("Portfolio Summary", "pdf"),
+        make_doc("Asset Allocation Report", "xlsx"),
+        make_doc("Investment Policy Statement", "docx"),
+    ];
 
     // 3 direct assets
     for i in 0..3 {
@@ -1096,6 +1447,10 @@ pub fn seed_portfolio_2(owner_id: Uuid) -> Portfolio {
     // Group 1: 4 assets
     let mut g1 = crate::models::AssetGroup::new("Group Alpha".to_string());
     g1.description = Some("First test group".to_string());
+    g1.documents = vec![
+        make_doc("Group Alpha Overview", "pdf"),
+        make_doc("Alpha Performance Report", "xlsx"),
+    ];
     for i in 0..4 {
         g1.assets.push(gen_asset(i, "Alpha Asset", 300_000.0));
     }
@@ -1104,6 +1459,10 @@ pub fn seed_portfolio_2(owner_id: Uuid) -> Portfolio {
     // Group 2: 4 assets
     let mut g2 = crate::models::AssetGroup::new("Group Beta".to_string());
     g2.description = Some("Second test group".to_string());
+    g2.documents = vec![
+        make_doc("Group Beta Overview", "pdf"),
+        make_doc("Beta Performance Report", "xlsx"),
+    ];
     for i in 0..4 {
         g2.assets.push(gen_asset(i + 4, "Beta Asset", 250_000.0));
     }
@@ -1123,6 +1482,12 @@ pub fn seed_portfolio_3(owner_id: Uuid) -> Portfolio {
     );
     p.description = Some("Stress test portfolio with large asset groups".to_string());
     p.tags = vec!["large-scale".to_string(), "stress-test".to_string()];
+    p.documents = vec![
+        make_doc("Portfolio Master Plan", "pdf"),
+        make_doc("Risk Assessment Report", "pdf"),
+        make_doc("Quarterly Performance Summary", "xlsx"),
+        make_doc("Compliance Certificate", "docx"),
+    ];
 
     let group_specs: [(usize, &str); 5] = [
         (3, "Mini Group"),
@@ -1136,6 +1501,10 @@ pub fn seed_portfolio_3(owner_id: Uuid) -> Portfolio {
     for (count, name) in group_specs {
         let mut g = crate::models::AssetGroup::new(name.to_string());
         g.description = Some(format!("{} with {} assets", name, count));
+        g.documents = vec![
+            make_doc(&format!("{} Overview", name), "pdf"),
+            make_doc(&format!("{} Asset Register", name), "xlsx"),
+        ];
         for i in 0..count {
             g.assets.push(gen_asset(i, name, 100_000.0));
         }
