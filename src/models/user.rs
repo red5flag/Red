@@ -856,6 +856,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
             scope: RoleScope::EntireOrganization,
             permissions: Perm::all(),
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
         OrgRole {
@@ -869,6 +870,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 Perm::TransferOwnership | Perm::DeleteOrganization
             )).collect(),
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
         OrgRole {
@@ -893,6 +895,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 Perm::ViewOwnActivityHistory, Perm::ViewPortfolioHistory, Perm::ViewAssetHistory,
             ],
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
         OrgRole {
@@ -917,6 +920,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 Perm::ViewOwnActivityHistory, Perm::ViewDocumentHistory,
             ],
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
         OrgRole {
@@ -937,6 +941,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 Perm::ViewOwnActivityHistory, Perm::ViewTransactionHistoryLog,
             ],
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
         OrgRole {
@@ -958,6 +963,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 Perm::ViewOwnActivityHistory,
             ],
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
         OrgRole {
@@ -976,6 +982,7 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 Perm::ViewDocumentHistory, Perm::ViewTransactionHistoryLog,
             ],
             member_ids: Vec::new(),
+            documents: Vec::new(),
             is_system: true,
         },
     ]

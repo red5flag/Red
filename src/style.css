@@ -208,18 +208,19 @@
 
 html, body {
     width: 100%;
-    height: 100%;
+    min-height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     background: var(--primary-bg);
     color: var(--text-primary);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
     width: 100%;
-    height: 100%;
+    min-height: 100%;
 }
 
 /* Square Design System - No rounded corners */
@@ -230,13 +231,13 @@ html, body {
 /* Mobile Container */
 .app-container {
     width: 100%;
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     position: relative;
     background: var(--primary-bg);
     color: var(--text-primary);
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* ── Shared bar height token ─────────────────────────────────────────────────
@@ -712,9 +713,8 @@ html, body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     padding-top: var(--navbar-height);
-    padding-bottom: var(--footer-height);
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
 }
@@ -722,12 +722,11 @@ html, body {
 /* Tab navigation - fixed viewport layout */
 .tabs-container {
     width: 100%;
-    height: 100%;
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
 }
 
 .tabs-header {
@@ -746,7 +745,7 @@ html, body {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     position: relative;
 }
 
@@ -771,8 +770,7 @@ html, body {
     padding: 0;
     display: flex;
     flex-direction: column;
-    overflow-y: hidden;
-    overflow-x: hidden;
+    overflow: visible;
     border-right: 1px solid var(--border-color);
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
@@ -1296,10 +1294,7 @@ html, body {
 /* Home screen with all tabs closed */
 .home-screen {
     padding: 0;
-    height: 100%;
     flex: 1;
-    min-height: 0;
-    overflow-y: auto;
     box-sizing: border-box;
 }
 
@@ -3098,14 +3093,14 @@ html, body {
     letter-spacing: 2px;
     cursor: pointer;
     text-transform: uppercase;
-    transition: opacity 0.15s;
+    transition: filter 0.1s;
 }
 
-.lp-action-btn:hover { opacity: 0.85; }
+.lp-action-btn:hover { filter: brightness(1.3); }
 
-/* Button press darkening effect */
+/* Button press whitening effect */
 @keyframes lp-press-flash {
-    0%   { filter: brightness(0.7); }
+    0%   { filter: brightness(1.3); }
     100% { filter: brightness(1); }
 }
 .lp-pressed {
@@ -3126,6 +3121,11 @@ html, body {
 .lp-login {
     background: var(--secondary-bg);
     color: var(--text-primary);
+}
+
+.lp-login.lp-login-grey {
+    filter: brightness(1.3);
+    transition: filter 0.1s;
 }
 
 /* Remember username row */
@@ -3249,7 +3249,7 @@ html, body {
     transition: background 0.15s;
 }
 
-.lp-oauth-btn:hover { background: rgba(0,0,0,0.05); }
+.lp-oauth-btn:hover { filter: brightness(1.3); }
 .lp-oauth-btn.lp-pressed { animation: lp-press-flash 0.5s ease-out; }
 
 .lp-oauth-divider {
@@ -3373,7 +3373,7 @@ html, body {
     transition: background 0.15s;
 }
 
-.lp-footer-btn:hover { background: rgba(0,0,0,0.05); }
+.lp-footer-btn:hover { filter: brightness(1.3); }
 .lp-footer-btn.lp-pressed { animation: lp-press-flash 0.5s ease-out; }
 
 .lp-footer-divider {
@@ -3576,10 +3576,7 @@ html, body {
 
 /* Footer */
 .app-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    flex-shrink: 0;
     height: var(--footer-height);
     background: var(--secondary-bg);
     border-top: 2px solid var(--border-color);
@@ -4234,8 +4231,6 @@ html, body {
     padding: 24px;
     max-width: 1200px;
     margin: 0 auto;
-    height: 100%;
-    overflow-y: auto;
     box-sizing: border-box;
 }
 
@@ -4492,6 +4487,109 @@ html, body {
     text-align: center;
     color: var(--text-secondary);
     font-size: 14px;
+}
+
+/* ═══════════════════════════════════════════
+   CAMSCAN (photo-to-PDF conversion)
+   ═══════════════════════════════════════════ */
+.camscan-section {
+    gap: 16px;
+}
+
+.camscan-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 520px;
+}
+
+.camscan-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.camscan-field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.camscan-input,
+.camscan-select {
+    height: 40px;
+    padding: 0 12px;
+    background: var(--secondary-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.camscan-input:focus,
+.camscan-select:focus {
+    border-color: var(--highlight);
+}
+
+.camscan-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.camscan-file-input {
+    padding: 8px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.camscan-file-input::-webkit-file-upload-button {
+    height: 36px;
+    padding: 0 16px;
+    margin-right: 10px;
+    background: var(--accent-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.camscan-file-input::-webkit-file-upload-button:hover {
+    border-color: var(--highlight);
+    background: var(--highlight);
+    color: #fff;
+}
+
+.camscan-convert-btn {
+    height: 44px;
+    padding: 0 24px;
+    background: var(--highlight);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.camscan-convert-btn:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.camscan-convert-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.camscan-status {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    min-height: 20px;
 }
 
 /* ═══════════════════════════════════════════
@@ -4924,7 +5022,7 @@ html, body {
     flex-shrink: 0;
     transition: background 0.15s;
 }
-.lp-visibility-btn:hover { background: var(--secondary-bg); }
+.lp-visibility-btn:hover { filter: brightness(1.3); }
 .lp-visibility-btn.lp-pressed { animation: lp-press-flash 0.5s ease-out; }
 .lp-field-input {
     text-transform: none !important;
@@ -4986,9 +5084,6 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 2vh;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
     box-sizing: border-box;
 }
 
@@ -6323,8 +6418,6 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 2vh;
-    height: 100%;
-    overflow-y: auto;
     box-sizing: border-box;
 }
 

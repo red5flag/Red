@@ -493,6 +493,7 @@ pub fn LoginPage() -> impl IntoView {
 
     // Button press flash effect: stores a unique key per press to retrigger animation
     let (pressed_btn, set_pressed_btn) = signal(Option::<&'static str>::None);
+    let (login_pressed, set_login_pressed) = signal(false);
     let flash_press = move |key: &'static str| {
         set_pressed_btn.set(Some(key));
         set_timeout(move || {
@@ -617,8 +618,13 @@ pub fn LoginPage() -> impl IntoView {
                     "REGISTER"
                 </button>
                 <button class="lp-action-btn lp-login"
-                    class:lp-pressed={move || pressed_btn.get() == Some("login")}
-                    on:click=move |_| { flash_press("login"); on_login(); }>
+                    class:lp-login-grey={move || login_pressed.get()}
+                    on:click=move |_| {
+                        set_login_pressed.set(true);
+                        set_timeout(move || set_login_pressed.set(false), Duration::from_millis(100));
+                        flash_press("login");
+                        on_login();
+                    }>
                     "LOGIN"
                 </button>
             </div>

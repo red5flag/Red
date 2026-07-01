@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod calendar;
+pub mod camscan;
 pub mod email_valid;
 pub mod history;
 pub mod home;

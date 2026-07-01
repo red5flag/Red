@@ -14,6 +14,7 @@ pub fn use_tab_edit_mode() -> Signal<bool> {
 fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
     let app_store = use_app_store();
     let undo_store = use_undo_redo_store();
+    let tab_type_for_scroll = tab_type.clone();
     Callback::new(move |_| {
         let current_tab = tab_type.clone();
         let store = app_store.get();
@@ -21,39 +22,51 @@ fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
         let user_name = store.current_user.name.clone();
         let user_role = format!("{:?}", store.current_user.role);
         let org_id = store.current_user.organization_id;
+        let already_expanded = store.is_tab_expanded(&current_tab);
         drop(store);
 
-        app_store.update(|store| {
-            if store.is_tab_expanded(&current_tab) {
-                let action = create_action(
-                    ActionType::View,
-                    "Tab",
-                    &format!("Closed {:?} tab", current_tab),
-                    user_id,
-                    &user_name,
-                    &user_role,
-                    org_id,
-                    None,
-                );
-                undo_store.update(|u| u.record_action(action));
-                store.collapse_tab(&current_tab);
-            } else {
-                let action = create_action(
-                    ActionType::View,
-                    "Tab",
-                    &format!("Opened {:?} tab", current_tab),
-                    user_id,
-                    &user_name,
-                    &user_role,
-                    org_id,
-                    None,
-                );
-                undo_store.update(|u| u.record_action(action));
-                store.expand_tab(current_tab);
+        if already_expanded {
+            let tab_id = format!("tab-content-{:?}", tab_type_for_scroll).to_lowercase();
+            if let Some(window) = web_sys::window() {
+                if let Some(document) = window.document() {
+                    if let Some(el) = document.get_element_by_id(&tab_id) {
+                        scroll_el_and_children_to_top(&el);
+                    }
+                }
             }
+            app_store.update(|store| store.close_tabs_drawer());
+            return;
+        }
+
+        app_store.update(|store| {
+            let action = create_action(
+                ActionType::View,
+                "Tab",
+                &format!("Opened {:?} tab", current_tab),
+                user_id,
+                &user_name,
+                &user_role,
+                org_id,
+                None,
+            );
+            undo_store.update(|u| u.record_action(action));
+            store.expand_tab(current_tab);
             store.close_tabs_drawer();
         });
     })
+}
+
+fn scroll_el_and_children_to_top(el: &web_sys::Element) {
+    use wasm_bindgen::JsCast;
+    if let Ok(node) = el.clone().dyn_into::<web_sys::HtmlElement>() {
+        node.set_scroll_top(0);
+    }
+    let children = el.children();
+    for i in 0..children.length() {
+        if let Some(child) = children.item(i) {
+            scroll_el_and_children_to_top(&child);
+        }
+    }
 }
 
 fn render_tab_page(tab_type: TabType) -> impl IntoView {
@@ -94,8 +107,10 @@ fn TabContent(tab_type: TabType) -> impl IntoView {
     let edit_mode = Signal::derive(move || app_store.get().is_tab_edit_mode(&tab_type_for_edit));
     provide_context(TabEditMode(edit_mode));
 
+    let tab_id = format!("tab-content-{:?}", tab_type).to_lowercase();
+
     view! {
-        <div class="tab-content" on:click=|ev| ev.stop_propagation()>
+        <div class="tab-content" id=tab_id on:click=|ev| ev.stop_propagation()>
             {render_tab_page(tab_type)}
         </div>
     }

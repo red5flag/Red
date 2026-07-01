@@ -1,72 +1,9 @@
 warning: unused variable: `oid`
 warning: unused variable: `set_show_add_group`
 warning: function `load_tab_state_from_local_storage` is never used
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
 warning: unused variable: `oid`
 warning: unused variable: `set_show_add_group`
 warning: struct `TabState` is never constructed
 warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
 warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
-warning: unused variable: `oid`
-warning: unused variable: `set_show_add_group`
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: unused variable: `oid`
-warning: unused variable: `set_show_add_group`
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
-warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
-error[E0282]: type annotations needed
-warning: unused variable: `oid`
-warning: unused variable: `set_show_add_group`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
-error[E0282]: type annotations needed
-warning: unused variable: `oid`
-warning: unused variable: `set_show_add_group`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
-error[E0282]: type annotations needed
-warning: unused variable: `oid`
-warning: unused variable: `set_show_add_group`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
-error[E0282]: type annotations needed
-warning: unused variable: `oid`
-warning: unused variable: `set_show_add_group`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0425]: cannot find function `camscan_view` in this scope
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0282]: type annotations needed
-warning: unused variable: `set_show_add_group`
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 14 previous errors; 1 warning emitted
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0425]: cannot find function `camscan_view` in this scope
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::OrgRole`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0063]: missing field `documents` in initializer of `user::User`
-error[E0282]: type annotations needed
-warning: unused variable: `set_show_add_group`
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 14 previous errors; 1 warning emitted

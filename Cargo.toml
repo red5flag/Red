@@ -33,6 +33,7 @@ leptos_meta = "0.8"
 # WASM
 cfg-if = "1.0"
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element", "HtmlElement", "Event", "EventTarget", "MouseEvent", "TouchEvent", "Touch", "TouchList", "InputEvent", "KeyboardEvent", "Storage", "Location", "History", "HtmlInputElement", "File", "FileList", "FileReader", "Blob", "HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Url"] }
 js-sys = "0.3"
 console_error_panic_hook = "0.1"

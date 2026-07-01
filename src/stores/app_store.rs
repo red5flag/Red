@@ -711,6 +711,9 @@ impl AppStore {
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
 
+        // Navigate to Overview after login
+        self.expand_tab(TabType::Overview);
+
         Ok((display_name, format!("{:?}", self.current_user.role)))
     }
 
@@ -730,6 +733,9 @@ impl AppStore {
             // Mixed Investments is NOT part of any organization
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
+
+        // Navigate to Overview after login
+        self.expand_tab(TabType::Overview);
     }
 
     pub fn logout(&mut self) {
@@ -871,6 +877,8 @@ impl AppStore {
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
 
+        // Navigate to Overview after login
+        self.expand_tab(TabType::Overview);
     }
 
     // Sort direction

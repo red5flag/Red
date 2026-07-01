@@ -25,7 +25,7 @@ fn permission_label(p: &Permission) -> &'static str {
         Permission::ExportData => "Export data",
         Permission::ImportData => "Import data",
         Permission::EditDocuments => "Edit documents",
-        Permission::Custom(s) => return std::borrow::Cow::Owned(format!("Custom: {}", s)).leak(),
+        Permission::Custom(s) => return Box::leak(format!("Custom: {}", s).into_boxed_str()),
     }
 }
 
@@ -138,8 +138,10 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_desc, set_edit_desc) = signal(String::new());
     let (edit_color, set_edit_color) = signal(String::new());
 
-    // Context menu
+    // Context menu for organizations: (x, y, org_id)
     let (context_menu, set_context_menu) = signal(Option::<(i32, i32, Uuid)>::None);
+    // Context menu for roles: (x, y, org_id, role_id)
+    let (role_context_menu, set_role_context_menu) = signal(Option::<(i32, i32, Uuid, Uuid)>::None);
 
     let on_add_org = move |_| {
         let name = new_org_name.get();
@@ -207,6 +209,7 @@ pub fn OrganizationPage() -> impl IntoView {
     };
 
     let close_context_menu = move || set_context_menu.set(None);
+    let close_role_context_menu = move || set_role_context_menu.set(None);
 
     let on_start_role_edit = move |oid: Uuid, role: &OrgRole| {
         set_edit_role_name.set(role.name.clone());
@@ -344,12 +347,6 @@ pub fn OrganizationPage() -> impl IntoView {
 
                             view! {
                                 <div class="asset-group" class:expanded=is_exp
-                                    on:contextmenu=move |ev: leptos::ev::MouseEvent| {
-                                        if can && !blind {
-                                            ev.prevent_default();
-                                            set_context_menu.set(Some((ev.client_x(), ev.client_y(), oid)));
-                                        }
-                                    }
                                 >
                                     // Header
                                     <div class="asset-group-header" style={color_style}
@@ -389,7 +386,15 @@ pub fn OrganizationPage() -> impl IntoView {
                                                 }.into_any()
                                             } else {
                                                 view! {
-                                                    <div>
+                                                    <div
+                                                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                                                            if can && !blind {
+                                                                ev.prevent_default();
+                                                                ev.stop_propagation();
+                                                                set_context_menu.set(Some((ev.client_x(), ev.client_y(), oid)));
+                                                            }
+                                                        }
+                                                    >
                                                         <div class="asset-group-name">{org.name.clone()}</div>
                                                         {org.description.as_ref().map(|d| view! {
                                                             <div class="asset-group-desc">{d.clone()}</div>
@@ -564,7 +569,15 @@ pub fn OrganizationPage() -> impl IntoView {
                                                                     <span class="org-role-arrow">
                                                                         {move || if role_exp() { "\u{25B2}" } else { "\u{25BC}" }}
                                                                     </span>
-                                                                    <div class="org-role-info">
+                                                                    <div class="org-role-info"
+                                                                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                                                                            if can {
+                                                                                ev.prevent_default();
+                                                                                ev.stop_propagation();
+                                                                                set_role_context_menu.set(Some((ev.client_x(), ev.client_y(), oid, rid)));
+                                                                            }
+                                                                        }
+                                                                    >
                                                                         <div class="org-role-name">{role_name_for_dup.clone()}</div>
                                                                         <div class="org-role-meta">
                                                                             {format!("Rank {} \u{00B7} {} \u{00B7} {} members",
@@ -588,6 +601,7 @@ pub fn OrganizationPage() -> impl IntoView {
                                                                                             scope: edit_scope.clone(),
                                                                                             permissions: edit_perms.clone(),
                                                                                             member_ids: edit_members.clone(),
+                                                                                            documents: Vec::new(),
                                                                                             is_system,
                                                                                         });
                                                                                     }>
@@ -1047,7 +1061,7 @@ pub fn OrganizationPage() -> impl IntoView {
                 }.into_any()
             })}
 
-            // Context menu
+            // Context menu for organizations
             {move || context_menu.get().map(|(x, y, id)| {
                 let org = app_store.get().organizations.iter().find(|o| o.id == id).cloned();
                 org.map(|o| {
@@ -1094,6 +1108,69 @@ pub fn OrganizationPage() -> impl IntoView {
                                     }>
                                     "\u{1F5D1} Delete Organization"
                                 </button>
+                            </div>
+                        </div>
+                    }.into_any()
+                }).unwrap_or(().into_any())
+            })}
+
+            // Context menu for roles
+            {move || role_context_menu.get().map(|(x, y, oid, rid)| {
+                let role = app_store.get().organizations.iter()
+                    .find(|o| o.id == oid)
+                    .and_then(|o| o.roles.iter().find(|r| r.id == rid))
+                    .cloned();
+                role.map(|r| {
+                    let r_name = r.name.clone();
+                    let r_desc = r.description.clone();
+                    let r_color = r.color.clone();
+                    let r_rank = r.rank;
+                    let r_scope = r.scope.clone();
+                    let r_perms = r.permissions.clone();
+                    let r_members = r.member_ids.clone();
+                    let r_is_system = r.is_system;
+                    view! {
+                        <div class="context-menu-overlay" on:click=move |_| close_role_context_menu()>
+                            <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                                <button class="context-menu-item"
+                                    on:click=move |_| {
+                                        close_role_context_menu();
+                                        on_start_role_edit(oid, &OrgRole {
+                                            id: rid,
+                                            name: r_name.clone(),
+                                            rank: r_rank,
+                                            color: r_color.clone(),
+                                            description: r_desc.clone(),
+                                            scope: r_scope.clone(),
+                                            permissions: r_perms.clone(),
+                                            member_ids: r_members.clone(),
+                                            documents: Vec::new(),
+                                            is_system: r_is_system,
+                                        });
+                                    }>"\u{270E} Edit Role"</button>
+                                <button class="context-menu-item"
+                                    on:click=move |_| {
+                                        close_role_context_menu();
+                                        on_duplicate_role(oid, rid);
+                                    }>"\u{1F4CB} Duplicate Role"</button>
+                                <button class="context-menu-item"
+                                    on:click=move |_| {
+                                        close_role_context_menu();
+                                        set_expanded_orgs.update(|s| { s.insert(oid); });
+                                        set_org_tab(oid, "roles");
+                                        set_expanded_roles.update(|s| { s.insert((oid, rid)); });
+                                    }>"\u{25BC} Expand Role"</button>
+                                {if !r_is_system {
+                                    view! {
+                                        <button class="context-menu-item danger"
+                                            on:click=move |_| {
+                                                close_role_context_menu();
+                                                on_delete_role(oid, rid);
+                                            }>
+                                            "\u{1F5D1} Delete Role"
+                                        </button>
+                                    }.into_any()
+                                } else { ().into_any() }}
                             </div>
                         </div>
                     }.into_any()

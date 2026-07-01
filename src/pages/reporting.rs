@@ -90,11 +90,6 @@ pub fn ReportingPage() -> impl IntoView {
 
     view! {
         <div class="reporting-page">
-            <div class="reporting-header">
-                <h2 class="reporting-title">"Reporting"</h2>
-                <div class="reporting-subtitle">"Asset-linked reports: sales, purchases, bills, invoices, notices, documents, compliance, and transactions."</div>
-            </div>
-
             <div class="reporting-actions">
                 <button class="reporting-btn" on:click=seed_demo>"+ Seed Demo Sale"</button>
             </div>
@@ -170,7 +165,7 @@ pub fn ReportingPage() -> impl IntoView {
                     ReportTab::Invoices => invoices_view(&app_store).into_any(),
                     ReportTab::Notices => notices_view(&app_store).into_any(),
                     ReportTab::Documents => documents_view(&app_store).into_any(),
-                    ReportTab::CamScan => camscan_view(&app_store).into_any(),
+                    ReportTab::CamScan => view! { <crate::pages::camscan::CamScanView app_store /> }.into_any(),
                     ReportTab::Assets => assets_view(&app_store).into_any(),
                     ReportTab::Compliance => compliance_view(&app_store).into_any(),
                     ReportTab::Transactions => transactions_view(&app_store).into_any(),
