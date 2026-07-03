@@ -142,6 +142,8 @@ cfg_if! {
                 totp_secret: None,
                 totp_enabled: false,
                 email_2fa_enabled: false,
+                phone_number: None,
+                phone_2fa_enabled: false,
             };
 
             {
@@ -255,6 +257,31 @@ cfg_if! {
             save_to_file(VALIDATED_USERS_FILE, &validated);
             Ok(())
         }
+
+        /// Generate a 6-digit SMS 2FA code.
+        pub fn generate_phone_2fa_code() -> String {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            format!("{:06}", rng.gen_range(0..1_000_000u32))
+        }
+
+        /// Enqueue a simulated phone/SMS 2FA email (stored as email since no SMS gateway is integrated).
+        pub async fn enqueue_phone_2fa_email(email: String, username: String, phone: String, code: String) {
+            let subject = format!("Farley - Phone verification code for '{}'", username);
+            let body = format!(
+                "Your Farley phone 2FA sign-in code is: {}\n\nThis code was sent to: {}\n\nValid for 10 minutes.\n\n- Farley Team",
+                code, phone
+            );
+            let email = ValidationEmail {
+                to: email,
+                username,
+                validation_token: format!("phone2fa_{}_{}", code, chrono::Utc::now().timestamp()),
+                subject,
+                body,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            };
+            enqueue_email(email).await;
+        }
     }
 }
 
@@ -328,6 +355,10 @@ pub struct ValidatedUser {
     pub totp_secret: Option<String>,
     pub totp_enabled: bool,
     pub email_2fa_enabled: bool,
+    #[serde(default)]
+    pub phone_number: Option<String>,
+    #[serde(default)]
+    pub phone_2fa_enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -369,6 +400,8 @@ pub struct LoginResponse {
     pub email: Option<String>,
     pub requires_totp: bool,
     pub requires_email_2fa: bool,
+    #[serde(default)]
+    pub requires_phone_2fa: bool,
     pub totp_uri: Option<String>,
 }
 
@@ -439,6 +472,35 @@ pub struct ToggleEmail2faResponse {
     pub success: bool,
     pub message: String,
     pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TogglePhone2faRequest {
+    pub username: String,
+    pub password: String,
+    pub enabled: bool,
+    pub phone_number: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TogglePhone2faResponse {
+    pub success: bool,
+    pub message: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyPhone2faRequest {
+    pub username: String,
+    pub code: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct VerifyPhone2faResponse {
+    pub success: bool,
+    pub message: String,
+    pub display_name: Option<String>,
+    pub email: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

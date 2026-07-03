@@ -31,29 +31,13 @@ pub fn Navbar() -> impl IntoView {
     }
 
     // Handlers
-    let on_home = move |_| {
-        let (uid, name, role, org) = user_info(&app_store);
-        let action = create_action(
-            ActionType::Navigate,
-            "App",
-            "Returned home",
-            uid,
-            &name,
-            &role,
-            org,
-            None,
-        );
-        undo_store.update(|u| u.record_action(action));
-        app_store.update(|store| {
-            store.collapse_all_tabs();
-            store.expand_tab(TabType::Overview);
-            store.close_search();
-            store.close_tabs_drawer();
-        });
-    };
-
     let on_tabs_drawer = move |_| {
-        app_store.update(|store| store.toggle_tabs_drawer());
+        app_store.update(|store| {
+            store.toggle_tabs_drawer();
+            if store.tabs_drawer_open {
+                store.close_notifications_drawer();
+            }
+        });
     };
 
     let record_undo_redo = move |kind: ActionType, description: String| {
@@ -173,7 +157,18 @@ pub fn Navbar() -> impl IntoView {
         app_store.update(|store| store.toggle_message_drawer());
     };
 
+    let on_notifications_click = move |_| {
+        app_store.update(|store| {
+            store.toggle_notifications_drawer();
+            if store.notifications_drawer_open {
+                store.close_tabs_drawer();
+            }
+        });
+    };
+
     let is_tabs_drawer_open = move || app_store.get().tabs_drawer_open;
+    let is_notifications_drawer_open = move || app_store.get().notifications_drawer_open;
+    let notification_count = move || app_store.get().notifications.iter().filter(|n| n.target_tab.is_some()).count();
 
     view! {
         // Main Navbar - Fixed at top, single row
@@ -182,7 +177,7 @@ pub fn Navbar() -> impl IntoView {
             <div class="navbar-row navbar-row-1">
                 <div class="nav-row1-left">
                     <button class="nav-btn" on:click=on_tabs_drawer title="Tabs">"☰"</button>
-                    <button class="nav-btn" on:click=on_home title="Home">"⌂"</button>
+                    <button class="nav-btn nav-search-btn" on:click=on_search_click title="Search">"🔍"</button>
                     <button class="nav-btn" on:click=on_redo
                         on:contextmenu=on_redo_context
                         disabled={move || !can_redo()} title="Redo (hold for list)">"↻"</button>
@@ -194,11 +189,19 @@ pub fn Navbar() -> impl IntoView {
                     <button class="nav-btn" on:click=on_undo
                         on:contextmenu=on_undo_context
                         disabled={move || !can_undo()} title="Undo (hold for list)">"↺"</button>
-                    <button class="nav-btn nav-search-btn" on:click=on_search_click title="Search">"🔍"</button>
                     <div class="nav-message-wrap" on:click=on_message_click title="Open messages">
                         <div class="nav-message-icon">"💬"</div>
                         {move || {
                             let count = message_count();
+                            if count > 0 {
+                                view! { <div class="nav-message-badge">{count}</div> }.into_any()
+                            } else { ().into_any() }
+                        }}
+                    </div>
+                    <div class="nav-message-wrap" on:click=on_notifications_click title="Notifications">
+                        <div class="nav-message-icon">"🔔"</div>
+                        {move || {
+                            let count = notification_count();
                             if count > 0 {
                                 view! { <div class="nav-message-badge">{count}</div> }.into_any()
                             } else { ().into_any() }
@@ -222,6 +225,118 @@ pub fn Navbar() -> impl IntoView {
         // Message drawer overlay
         {move || if is_message_drawer_open() {
             view! { <MessageDrawer /> }.into_any()
+        } else { ().into_any() }}
+
+        // Notifications drawer (right-side panel)
+        {move || if is_notifications_drawer_open() {
+            let on_close_notif = move |_| app_store.update(|s| s.close_notifications_drawer());
+            view! {
+                <div class="notif-drawer-overlay" on:click=on_close_notif>
+                    <div class="notif-drawer" on:click=|ev| ev.stop_propagation()>
+                        <div class="notif-drawer-header">
+                            <span class="notif-drawer-title">"Notifications"</span>
+                            <button class="notif-drawer-close" on:click=on_close_notif>"✕"</button>
+                        </div>
+                        <div class="notif-drawer-body">
+                            {move || {
+                                let notifs = app_store.get().notifications.clone()
+                                    .into_iter()
+                                    .filter(|n| n.target_tab.is_some())
+                                    .collect::<Vec<_>>();
+                                if notifs.is_empty() {
+                                    view! {
+                                        <div class="notif-empty">
+                                            <div class="notif-empty-icon">"🔕"</div>
+                                            <div class="notif-empty-text">"No notifications"</div>
+                                        </div>
+                                    }.into_any()
+                                } else {
+                                    notifs.into_iter().rev().map(|n| {
+                                        let nid = n.id;
+                                        let icon = match n.notification_type {
+                                            crate::stores::NotificationType::Success => "✅",
+                                            crate::stores::NotificationType::Error => "❌",
+                                            crate::stores::NotificationType::Warning => "⚠️",
+                                            crate::stores::NotificationType::Info => "ℹ️",
+                                        };
+                                        let from = n.from_user.unwrap_or_else(|| "System".to_string());
+                                        let time = format!("{}", n.timestamp.format("%b %d, %H:%M"));
+                                        let msg = n.message.clone();
+                                        let target = n.target_tab.clone();
+                                        let target_for_map = target.clone();
+                                        let has_target = target.is_some();
+                                        let linked_doc = n.linked_doc_id;
+                                        let content_preview = n.content_preview.clone();
+                                        let has_linked_origin = n.linked_portfolio_id.is_some() || n.linked_doc_id.is_some();
+                                        let on_notif_click = {
+                                            let app_store = app_store;
+                                            move |_| {
+                                                if has_linked_origin {
+                                                    app_store.update(|s| s.navigate_to_notification(nid));
+                                                } else if let Some(tab) = target.clone() {
+                                                    app_store.update(|s| {
+                                                        s.expand_tab(tab);
+                                                        s.close_notifications_drawer();
+                                                    });
+                                                }
+                                            }
+                                        };
+                                        let on_go_to_content = {
+                                            let app_store = app_store;
+                                            move |ev: leptos::ev::MouseEvent| {
+                                                ev.stop_propagation();
+                                                if has_linked_origin {
+                                                    app_store.update(|s| s.navigate_to_notification(nid));
+                                                }
+                                            }
+                                        };
+                                        view! {
+                                            <div class="notif-item"
+                                                class:clickable={has_target}
+                                                on:click=on_notif_click>
+                                                <div class="notif-item-icon">{icon}</div>
+                                                <div class="notif-item-content">
+                                                    <div class="notif-item-msg">{msg}</div>
+                                                    <div class="notif-item-meta">
+                                                        <span class="notif-item-from">{from}</span>
+                                                        <span class="notif-item-time">{time}</span>
+                                                    </div>
+                                                    {target_for_map.map(|t| view! {
+                                                        <div class="notif-item-tab">
+                                                            {format!("→ {} (click to open)", t.as_str())}
+                                                        </div>
+                                                    })}
+                                                    {linked_doc.map(|_| view! {
+                                                        <div class="notif-item-doc-badge">"📄 Linked document"</div>
+                                                    })}
+                                                    {content_preview.map(|preview| view! {
+                                                        <div class="notif-item-preview">
+                                                            <div class="notif-item-preview-label">"Notes:"</div>
+                                                            <pre class="notif-item-preview-text">{preview}</pre>
+                                                        </div>
+                                                    })}
+                                                    {if has_linked_origin {
+                                                        view! {
+                                                            <button class="notif-item-go-btn" on:click=on_go_to_content>
+                                                                "→ Go to content"
+                                                            </button>
+                                                        }.into_any()
+                                                    } else { ().into_any() }}
+                                                </div>
+                                                <button class="notif-item-dismiss"
+                                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                                        ev.stop_propagation();
+                                                        app_store.update(|s| s.remove_notification(nid));
+                                                    }>"✕"</button>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>().into_any()
+                                }
+                            }}
+                        </div>
+                    </div>
+                </div>
+            }.into_any()
         } else { ().into_any() }}
 
         // Search panel - drops below navbar when open

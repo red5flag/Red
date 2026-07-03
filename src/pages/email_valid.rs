@@ -13,6 +13,8 @@ cfg_if! {
             VerifyTotpRequest, VerifyTotpResponse, VerifyEmail2faRequest, VerifyEmail2faResponse,
             EnableTotpRequest, EnableTotpResponse, ConfirmTotpRequest, ConfirmTotpResponse,
             ToggleEmail2faRequest, ToggleEmail2faResponse,
+            TogglePhone2faRequest, TogglePhone2faResponse,
+            VerifyPhone2faRequest, VerifyPhone2faResponse,
             SyncCredentialsRequest, SyncCredentialsResponse, LoadCredentialsRequest, LoadCredentialsResponse};
 
         #[derive(Deserialize)]
@@ -225,21 +227,29 @@ cfg_if! {
                 Some(user) => {
                     let requires_totp = user.totp_enabled;
                     let requires_email_2fa = user.email_2fa_enabled;
+                    let requires_phone_2fa = user.phone_2fa_enabled;
                     if requires_email_2fa {
                         let code = email::generate_email_2fa_code();
                         email::enqueue_2fa_email(user.email.clone(), user.username.clone(), code).await;
                     }
+                    if requires_phone_2fa {
+                        let code = email::generate_phone_2fa_code();
+                        let phone = user.phone_number.clone().unwrap_or_default();
+                        email::enqueue_phone_2fa_email(user.email.clone(), user.username.clone(), phone, code).await;
+                    }
+                    let needs_2fa = requires_totp || requires_email_2fa || requires_phone_2fa;
                     Ok(AxumJson(LoginResponse {
-                        success: !requires_totp && !requires_email_2fa,
-                        message: if requires_totp || requires_email_2fa {
+                        success: !needs_2fa,
+                        message: if needs_2fa {
                             "Two-factor authentication required".to_string()
                         } else {
                             "Login successful".to_string()
                         },
-                        display_name: if requires_totp || requires_email_2fa { None } else { Some(user.display_name) },
-                        email: if requires_totp || requires_email_2fa { None } else { Some(user.email) },
+                        display_name: if needs_2fa { None } else { Some(user.display_name) },
+                        email: if needs_2fa { None } else { Some(user.email) },
                         requires_totp,
                         requires_email_2fa,
+                        requires_phone_2fa,
                         totp_uri: None,
                     }))
                 }
@@ -250,6 +260,7 @@ cfg_if! {
                     email: None,
                     requires_totp: false,
                     requires_email_2fa: false,
+                    requires_phone_2fa: false,
                     totp_uri: None,
                 })),
             }
@@ -416,6 +427,74 @@ cfg_if! {
                     message: "Invalid username or password".to_string(),
                     enabled: false,
                 })),
+            }
+        }
+
+        // API: POST /api/toggle_phone_2fa
+        pub async fn api_toggle_phone_2fa(
+            axum::Json(req): axum::Json<TogglePhone2faRequest>,
+        ) -> Result<AxumJson<TogglePhone2faResponse>, (StatusCode, String)> {
+            match email::check_validated_user(&req.username, &req.password).await {
+                Some(mut user) => {
+                    user.phone_2fa_enabled = req.enabled;
+                    if req.enabled && !req.phone_number.trim().is_empty() {
+                        user.phone_number = Some(req.phone_number.clone());
+                    }
+                    if !req.enabled {
+                        user.phone_number = None;
+                    }
+                    match email::update_user_2fa(user).await {
+                        Ok(_) => Ok(AxumJson(TogglePhone2faResponse {
+                            success: true,
+                            message: format!("Phone 2FA {}", if req.enabled { "enabled" } else { "disabled" }),
+                            enabled: req.enabled,
+                        })),
+                        Err(e) => Ok(AxumJson(TogglePhone2faResponse {
+                            success: false,
+                            message: e,
+                            enabled: !req.enabled,
+                        })),
+                    }
+                }
+                None => Ok(AxumJson(TogglePhone2faResponse {
+                    success: false,
+                    message: "Invalid username or password".to_string(),
+                    enabled: false,
+                })),
+            }
+        }
+
+        // API: POST /api/verify_phone_2fa
+        pub async fn api_verify_phone_2fa(
+            axum::Json(req): axum::Json<VerifyPhone2faRequest>,
+        ) -> Result<AxumJson<VerifyPhone2faResponse>, (StatusCode, String)> {
+            let emails = email::get_pending_emails().await;
+            let valid = emails.iter().any(|e| {
+                e.username == req.username && e.validation_token.starts_with("phone2fa_") && e.body.contains(&req.code)
+            });
+            if valid {
+                if let Some(user) = email::get_validated_user(&req.username).await {
+                    Ok(AxumJson(VerifyPhone2faResponse {
+                        success: true,
+                        message: "Phone 2FA verified".to_string(),
+                        display_name: Some(user.display_name),
+                        email: Some(user.email),
+                    }))
+                } else {
+                    Ok(AxumJson(VerifyPhone2faResponse {
+                        success: false,
+                        message: "User not found".to_string(),
+                        display_name: None,
+                        email: None,
+                    }))
+                }
+            } else {
+                Ok(AxumJson(VerifyPhone2faResponse {
+                    success: false,
+                    message: "Invalid phone 2FA code".to_string(),
+                    display_name: None,
+                    email: None,
+                }))
             }
         }
 

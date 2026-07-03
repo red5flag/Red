@@ -1,10 +1,16 @@
 use crate::components::tabs::use_tab_edit_mode;
-use crate::models::{Asset, AssetGroup, AssetStatus, Document, Portfolio};
+use crate::models::{Asset, AssetGroup, AssetStatus, Document, EntityNotificationSetting, Portfolio};
 use crate::stores::{create_action, use_app_store, use_undo_redo_store};
-use crate::types::{ActionType, AssetType, SortMode, UserRole, ViewMode};
+use crate::types::{ActionType, AssetType, NotificationTrigger, NotificationType, SortMode, UserRole, ViewMode};
 use leptos::prelude::*;
 use std::collections::HashSet;
 use uuid::Uuid;
+
+#[derive(Clone, PartialEq)]
+pub enum NotifTarget {
+    Portfolio(Uuid),
+    Group(Uuid, Uuid),
+}
 
 #[component]
 pub fn PortfoliosPage() -> impl IntoView {
@@ -66,6 +72,35 @@ pub fn PortfoliosPage() -> impl IntoView {
     let (new_asset_name, set_new_asset_name) = signal(String::new());
     let (new_asset_type, set_new_asset_type) = signal(AssetType::RealEstate);
     let (new_asset_value, set_new_asset_value) = signal(String::new());
+
+    // Notification quick settings popover state
+    let (notif_qs_target, set_notif_qs_target) = signal(Option::<(NotifTarget, String)>::None);
+
+    // Consume pending navigation from notification clicks — expand portfolio and open doc modal
+    Effect::new(move |_| {
+        if let Some(nav) = app_store.get().pending_nav_target {
+            let pid = nav.portfolio_id;
+            let doc_id = nav.doc_id;
+            let gid = nav.group_id;
+            let aid = nav.asset_id;
+            app_store.update(|s| {
+                s.selected_portfolio_id = Some(pid);
+                s.touch_portfolio(pid);
+                // Open doc modal for the entity that contains the document
+                if let Some(did) = doc_id {
+                    // Determine which entity to open the modal for
+                    if let Some(aid) = aid {
+                        s.open_doc_modal(aid);
+                    } else if let Some(gid) = gid {
+                        s.open_doc_modal(gid);
+                    } else {
+                        s.open_doc_modal(pid);
+                    }
+                }
+                s.pending_nav_target = None;
+            });
+        }
+    });
 
     let on_toggle_view = move |id: Uuid| {
         app_store.update(|s| {
@@ -239,13 +274,13 @@ pub fn PortfoliosPage() -> impl IntoView {
                 >
                     <option value="sort_recent">"Sort: Recent"</option>
                     <option value="sort_oldest">"Sort: Oldest"</option>
-                    <option value="sort_highest_value">"Sort: Highest Value"</option>
-                    <option value="sort_lowest_value">"Sort: Lowest Value"</option>
-                    <option value="sort_highest_profit">"Sort: Highest Profit"</option>
-                    <option value="sort_lowest_profit">"Sort: Lowest Profit"</option>
-                    <option value="sort_highest_revenue">"Sort: Highest Revenue"</option>
-                    <option value="sort_lowest_revenue">"Sort: Lowest Revenue"</option>
-                    <option value="sort_by_organization">"Sort: By Organization"</option>
+                    <option value="sort_highest_value">"Sort: High Val"</option>
+                    <option value="sort_lowest_value">"Sort: Low Val"</option>
+                    <option value="sort_highest_profit">"Sort: High P&L"</option>
+                    <option value="sort_lowest_profit">"Sort: Low P&L"</option>
+                    <option value="sort_highest_revenue">"Sort: High Rev"</option>
+                    <option value="sort_lowest_revenue">"Sort: Low Rev"</option>
+                    <option value="sort_by_organization">"Sort: Org"</option>
                 </select>
                 <button
                     class="nav-portfolio-btn sort-direction-btn"
@@ -509,6 +544,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     ev.prevent_default();
                                     set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
                                 }
+                                on_open_notif_qs={Callback::new(move |(target, name)| set_notif_qs_target.set(Some((target, name))))}
                                 show_add_group={show_add_group.get()}
                                 set_show_add_group={set_show_add_group}
                                 _new_group_name={new_group_name}
@@ -599,7 +635,48 @@ pub fn PortfoliosPage() -> impl IntoView {
                     </div>
                 }.into_any()
             })}
+
+            // Notification quick settings popover
+            {move || notif_qs_target.get().map(|(target, name)| {
+                view! {
+                    <NotificationQuickSettings
+                        target={target}
+                        entity_name={name}
+                        on_close=move || set_notif_qs_target.set(None)
+                    />
+                }.into_any()
+            })}
         </div>
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AssetSortMode {
+    Recent,
+    NameAsc,
+    NameDesc,
+    ValueHigh,
+    ValueLow,
+}
+
+fn sort_assets(mut assets: Vec<Asset>, mode: AssetSortMode) -> Vec<Asset> {
+    match mode {
+        AssetSortMode::Recent => assets.sort_by(|a, b| b.last_accessed_at.cmp(&a.last_accessed_at)),
+        AssetSortMode::NameAsc => assets.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        AssetSortMode::NameDesc => assets.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase())),
+        AssetSortMode::ValueHigh => assets.sort_by(|a, b| b.current_value.partial_cmp(&a.current_value).unwrap_or(std::cmp::Ordering::Equal)),
+        AssetSortMode::ValueLow => assets.sort_by(|a, b| a.current_value.partial_cmp(&b.current_value).unwrap_or(std::cmp::Ordering::Equal)),
+    }
+    assets
+}
+
+fn sort_mode_label(m: AssetSortMode) -> &'static str {
+    match m {
+        AssetSortMode::Recent => "Recent",
+        AssetSortMode::NameAsc => "Name A→Z",
+        AssetSortMode::NameDesc => "Name Z→A",
+        AssetSortMode::ValueHigh => "High Value",
+        AssetSortMode::ValueLow => "Low Value",
     }
 }
 
@@ -631,6 +708,7 @@ fn AssetViewer(
     new_asset_value: ReadSignal<String>,
     set_new_asset_value: WriteSignal<String>,
     on_add_asset: Callback<AssetTarget>,
+    on_open_notif_qs: Callback<(NotifTarget, String)>,
 ) -> impl IntoView {
     let pid = portfolio.id;
     let app_store_inner = use_app_store();
@@ -648,11 +726,25 @@ fn AssetViewer(
         });
     });
 
+    // Auto-expand a group when notification navigation requests it
+    Effect::new(move |_| {
+        if let Some(gid) = app_store_inner.get().pending_group_expand {
+            set_expanded_groups.update(|set| { set.insert(gid); });
+            app_store_inner.update(|s| s.pending_group_expand = None);
+        }
+    });
+
     let (show_groups, set_show_groups) = signal(true);
     let (show_direct_assets, set_show_direct_assets) = signal(true);
 
     let (grid_columns, _set_grid_columns) = signal(3usize);
     let (selected_asset, set_selected_asset) = signal::<Option<Asset>>(None);
+
+    // Asset sort state for grid view sections
+    let (group_sort_open, set_group_sort_open) = signal(false);
+    let (group_sort_mode, set_group_sort_mode) = signal(AssetSortMode::Recent);
+    let (direct_sort_open, set_direct_sort_open) = signal(false);
+    let (direct_sort_mode, set_direct_sort_mode) = signal(AssetSortMode::Recent);
 
     let on_select_asset = Callback::new(move |asset: Asset| {
         set_selected_asset.set(Some(asset));
@@ -687,10 +779,9 @@ fn AssetViewer(
                     </div>
                     <div class="section-title-right">
                         {{
+                            let view_mode_groups_title = view_mode_groups_title.clone();
                             move || if show_groups.get() && view_mode_groups_title == ViewMode::Grid {
-                                view! {
-                                    <button class="sort-btn">"Sort ↕"</button>
-                                }.into_any()
+                                ().into_any()
                             } else { ().into_any() }
                         }}
                     </div>
@@ -698,8 +789,48 @@ fn AssetViewer(
 
                 {move || if show_groups.get() {
                     let visible_groups: Vec<_> = portfolio_groups.asset_groups.clone().into_iter().filter(|g| portfolio_visible_to_user || g.is_visible_to(user_id, can_view_all)).collect();
+                    let vmg = view_mode_groups_content.clone();
                     view! {
                         <div>
+                            // Sort dropdown inside content area (grid mode only)
+                            {let vg_for_sort = visible_groups.clone();
+                            move || {
+                                if vmg == ViewMode::Grid && !vg_for_sort.is_empty() {
+                                    view! {
+                                        <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                            <button class="sort-btn"
+                                                on:click=move |_| set_group_sort_open.update(|v| *v = !*v)
+                                            >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
+                                            {move || if group_sort_open.get() {
+                                                view! {
+                                                    <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                        {[
+                                                            AssetSortMode::Recent,
+                                                            AssetSortMode::NameAsc,
+                                                            AssetSortMode::NameDesc,
+                                                            AssetSortMode::ValueHigh,
+                                                            AssetSortMode::ValueLow,
+                                                        ].iter().map(|&m| {
+                                                            let set_m = set_group_sort_mode;
+                                                            let close = set_group_sort_open;
+                                                            view! {
+                                                                <button class="sort-dropdown-item"
+                                                                    class:active={move || group_sort_mode.get() == m}
+                                                                    on:click=move |_| {
+                                                                        set_m.set(m);
+                                                                        close.set(false);
+                                                                    }
+                                                                >{sort_mode_label(m)}</button>
+                                                            }
+                                                        }).collect::<Vec<_>>()}
+                                                    </div>
+                                                }.into_any()
+                                            } else { ().into_any() }}
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }
+                            }}
+
                             {move || show_add_group.map(|gp| {
                                 if gp == pid {
                                     view! {
@@ -753,6 +884,7 @@ fn AssetViewer(
                                                     on_select_asset={on_select_asset}
                                                     portfolio_name={portfolio_name.clone()}
                                                     tint_index={idx + 1}
+                                                    on_open_notif_qs={on_open_notif_qs.clone()}
                                                 />
                                             }
                                         }).collect::<Vec<_>>()}
@@ -779,10 +911,9 @@ fn AssetViewer(
                     </div>
                     <div class="section-title-right">
                         {{
+                            let view_mode_direct_title = view_mode_direct_title.clone();
                             move || if show_direct_assets.get() && view_mode_direct_title == ViewMode::Grid {
-                                view! {
-                                    <button class="sort-btn">"Sort ↕"</button>
-                                }.into_any()
+                                ().into_any()
                             } else { ().into_any() }
                         }}
                     </div>
@@ -790,8 +921,49 @@ fn AssetViewer(
 
                 {move || if show_direct_assets.get() {
                     let visible_direct_assets: Vec<_> = portfolio_direct.assets.clone().into_iter().filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
+                    let visible_direct_assets = sort_assets(visible_direct_assets, direct_sort_mode.get());
+                    let vmd = view_mode_direct_content.clone();
                     view! {
                         <div>
+                            // Sort dropdown inside content area (grid mode only)
+                            {let vda_for_sort = visible_direct_assets.clone();
+                            move || {
+                                if vmd == ViewMode::Grid && !vda_for_sort.is_empty() {
+                                    view! {
+                                        <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                            <button class="sort-btn"
+                                                on:click=move |_| set_direct_sort_open.update(|v| *v = !*v)
+                                            >{format!("Sort: {} ↕", sort_mode_label(direct_sort_mode.get()))}</button>
+                                            {move || if direct_sort_open.get() {
+                                                view! {
+                                                    <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                        {[
+                                                            AssetSortMode::Recent,
+                                                            AssetSortMode::NameAsc,
+                                                            AssetSortMode::NameDesc,
+                                                            AssetSortMode::ValueHigh,
+                                                            AssetSortMode::ValueLow,
+                                                        ].iter().map(|&m| {
+                                                            let set_m = set_direct_sort_mode;
+                                                            let close = set_direct_sort_open;
+                                                            view! {
+                                                                <button class="sort-dropdown-item"
+                                                                    class:active={move || direct_sort_mode.get() == m}
+                                                                    on:click=move |_| {
+                                                                        set_m.set(m);
+                                                                        close.set(false);
+                                                                    }
+                                                                >{sort_mode_label(m)}</button>
+                                                            }
+                                                        }).collect::<Vec<_>>()}
+                                                    </div>
+                                                }.into_any()
+                                            } else { ().into_any() }}
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }
+                            }}
+
                             {move || {
                                 if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
                                     view! {
@@ -799,6 +971,7 @@ fn AssetViewer(
                                             <input class="login-input" type="text" placeholder="Asset name"
                                                 on:input=move |ev| set_new_asset_name.set(event_target_value(&ev)) />
                                             <select class="login-input"
+                                                prop:value={move || format!("{:?}", new_asset_type.get())}
                                                 on:change=move |ev| {
                                                     let v = event_target_value(&ev);
                                                     let t = match v.as_str() {
@@ -851,7 +1024,7 @@ fn AssetViewer(
                                 view! {
                                     <div class={direct_class}>
                                         {visible_direct_assets.into_iter().enumerate().map(move |(idx, asset)| view! {
-                                            <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} view_mode={view_mode_clone.clone()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={idx + 1} />
+                                            <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_clone.clone()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={idx + 1} />
                                         }).collect::<Vec<_>>()}
                                     </div>
                                 }.into_any()
@@ -891,6 +1064,7 @@ fn AssetGroupItem(
     on_select_asset: Callback<Asset>,
     portfolio_name: String,
     #[prop(default = 0)] tint_index: usize,
+    on_open_notif_qs: Callback<(NotifTarget, String)>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let _ = view_mode;
@@ -1026,6 +1200,25 @@ fn AssetGroupItem(
                 </div>
                 // Action buttons
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
+                    {move || {
+                        let count = app_store.get().doc_notifications_for_group(pid, gid);
+                        let gname = g_name.clone();
+                        view! {
+                            <span class="pf-notif-badge pf-notif-badge-clickable"
+                                title="Notification settings"
+                                on:click=move |ev| {
+                                    ev.stop_propagation();
+                                    on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname.clone()));
+                                }>
+                                "🔔"
+                                {move || if count > 0 {
+                                    Some(view! { <span class="pf-notif-count">{count}</span> })
+                                } else {
+                                    None
+                                }}
+                            </span>
+                        }.into_any()
+                    }}
                     <button class="pf-action-btn"
                         class:active=move || app_store.get().is_doc_modal_open(gid)
                         on:click=move |_| app_store.update(|s| s.toggle_doc_modal(gid))>
@@ -1044,6 +1237,8 @@ fn AssetGroupItem(
                         on_close=move || app_store.update(|s| s.close_doc_modal(gid))
                         can_edit={can_edit_documents_here}
                         on_add={add_cb}
+                        portfolio_id={Some(pid)}
+                        group_id={Some(gid)}
                     />
                 }.into_any()
             } else { ().into_any() }}
@@ -1055,6 +1250,7 @@ fn AssetGroupItem(
                             <input class="login-input" type="text" placeholder="Asset name"
                                 on:input=move |ev| set_new_asset_name.set(event_target_value(&ev)) />
                             <select class="login-input"
+                                prop:value={move || format!("{:?}", _new_asset_type.get())}
                                 on:change=move |ev| {
                                     let v = event_target_value(&ev);
                                     let t = match v.as_str() {
@@ -1103,7 +1299,7 @@ fn AssetGroupItem(
                             {group_assets.into_iter().enumerate().map({
                                 let view_mode = view_mode.clone();
                                 move |(idx, asset)| view! {
-                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} />
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={Some(gid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} />
                                 }
                             }).collect::<Vec<_>>()}
                         </div>
@@ -1153,6 +1349,7 @@ fn PortfolioListItem(
     expanded: bool,
     on_toggle: Callback<()>,
     on_context: impl Fn(leptos::ev::MouseEvent) + 'static,
+    on_open_notif_qs: Callback<(NotifTarget, String)>,
     // AssetViewer props forwarded for expanded content
     show_add_group: Option<Uuid>,
     set_show_add_group: WriteSignal<Option<Uuid>>,
@@ -1186,6 +1383,10 @@ fn PortfolioListItem(
     let can_edit_documents_here = can_edit_documents;
     let org_name = portfolio.organization_id.and_then(|oid| {
         app_store.get().organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone())
+    });
+    let org_color = portfolio.organization_id.and_then(|oid| {
+        app_store.get().organizations.iter().find(|o| o.id == oid)
+            .and_then(|o| o.settings.color.clone())
     });
     let current_org_id = portfolio.organization_id;
     let orgs = app_store.get().organizations.clone();
@@ -1249,9 +1450,7 @@ fn PortfolioListItem(
             content: None,
         };
         app_store.update(|s| {
-            if let Some(p) = s.get_portfolio_mut(pid) {
-                p.documents.push(doc);
-            }
+            s.add_document_to_portfolio(pid, doc);
         });
     };
 
@@ -1374,6 +1573,25 @@ fn PortfolioListItem(
                 </div>
                 // Action strip — double-click on docs opens doc modal
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
+                    {move || {
+                        let count = app_store.get().doc_notifications_for_portfolio(pid);
+                        let pname = name.clone();
+                        view! {
+                            <span class="pf-notif-badge pf-notif-badge-clickable"
+                                title="Notification settings"
+                                on:click=move |ev| {
+                                    ev.stop_propagation();
+                                    on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname.clone()));
+                                }>
+                                "🔔"
+                                {move || if count > 0 {
+                                    Some(view! { <span class="pf-notif-count">{count}</span> })
+                                } else {
+                                    None
+                                }}
+                            </span>
+                        }.into_any()
+                    }}
                     <button class="pf-action-btn"
                         class:active=move || app_store.get().is_doc_modal_open(pid)
                         on:click=move |_| app_store.update(|s| s.toggle_doc_modal(pid))
@@ -1395,6 +1613,7 @@ fn PortfolioListItem(
                         on_close=move || app_store.update(|s| s.close_doc_modal(pid))
                         can_edit={can_edit_documents_here}
                         on_add={add_cb}
+                        portfolio_id={Some(pid)}
                     />
                 }.into_any()
             } else { ().into_any() }}
@@ -1428,6 +1647,7 @@ fn PortfolioListItem(
                     new_asset_value={new_asset_value}
                     set_new_asset_value={set_new_asset_value}
                     on_add_asset={on_add_asset}
+                    on_open_notif_qs={on_open_notif_qs.clone()}
                 />
             </div>
         </div>
@@ -1464,6 +1684,7 @@ fn AssetItem(
     asset: Asset,
     portfolio_name: String,
     #[prop(default = None)] portfolio_id: Option<Uuid>,
+    #[prop(default = None)] group_id: Option<Uuid>,
     view_mode: ViewMode,
     on_select: Callback<Asset>,
     #[prop(default = false)] can_edit: bool,
@@ -1493,12 +1714,24 @@ fn AssetItem(
     let pname = portfolio_name.clone();
     let docs = asset.documents.clone();
     let _doc_count = docs.len();
+
+    // Reactive document list for this asset (read from store so it updates on add)
+    let asset_docs_reactive = Memo::new(move |_| {
+        app_store.get().portfolios.iter()
+            .flat_map(|p| p.assets.iter().chain(p.asset_groups.iter().flat_map(|g| g.assets.iter())))
+            .find(|a| a.id == asset_id)
+            .map(|a| a.documents.clone())
+            .unwrap_or_default()
+    });
     let a_name = asset.name.clone();
     let a_addr = asset.location.clone().unwrap_or_default();
+    let a_name_grid = a_name.clone();
+    let a_addr_grid = a_addr.clone();
     let asset_name_for_modal = asset.name.clone();
     let (_asset_name_signal, _set_asset_name) = signal(a_name.clone());
     // snapshot values for the detail panel
     let a_type     = format!("{:?}", asset.asset_type);
+    let a_type_grid = a_type.clone();
     let _a_desc     = asset.description.clone().unwrap_or_else(|| "—".to_string());
     let _a_status   = format!("{:?}", asset.status);
     let a_purchase_val = asset.purchase_value;
@@ -1620,11 +1853,9 @@ fn AssetItem(
     } else {
     view! {
         <div class="ai-item" class:ai-item-expanded={move || expanded_detail.get()} style={tint_style.clone()}>
-            <div class="ai-list-card" on:click=move |_| {
-                if !can_edit_here && detail_tab.get() != 1 { set_expanded_detail.update(|v| *v = !*v); }
-            }>
+            <div class="ai-list-card">
                 <img class="ai-list-image" src={image_url.clone()} alt={a_name.clone()} />
-                <div class="ai-list-body" on:click=|ev| ev.stop_propagation()>
+                <div class="ai-list-body">
                     <div class="ai-list-portfolio">{pname.clone()}</div>
                     {move || if can_edit_here {
                         view! {
@@ -1646,27 +1877,123 @@ fn AssetItem(
                     } else {
                         view! {
                             <div>
-                                <div class="ai-list-name">{a_name.clone()}</div>
+                                <div class="ai-list-name">
+                                    {a_name.clone()}
+                                    {move || {
+                                        let count = app_store.get().doc_notifications_for_asset(asset_id);
+                                        if count > 0 {
+                                            view! {
+                                                <span class="pf-notif-badge pf-notif-badge-inline" title={format!("{} document notification{}", count, if count == 1 { "" } else { "s" })}>
+                                                    "🔔"
+                                                    <span class="pf-notif-count">{count}</span>
+                                                </span>
+                                            }.into_any()
+                                        } else { ().into_any() }
+                                    }}
+                                </div>
                                 <div class="ai-list-addr">{a_addr.clone()}</div>
                             </div>
                         }.into_any()
                     }}
+                    // Detail grid inline (always visible)
+                    <div class="pf-detail-grid pf-detail-grid-inline">
+                        <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"NAME"</span>
+                            <span class="pf-detail-value">{a_name_grid.clone()}</span>
+                        </div>
+                        <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"TYPE & BUILD"</span>
+                            <span class="pf-detail-value">{a_type_grid.clone()}</span>
+                        </div>
+                        <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"ADDRESS"</span>
+                            <span class="pf-detail-value">{a_addr_grid.clone()}</span>
+                        </div>
+                        <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"PRICE"</span>
+                            <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
+                        </div>
+                    </div>
+                    // Horizontal document slider
+                    <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
+                        {move || {
+                            let asset_docs = asset_docs_reactive.get();
+                            if asset_docs.is_empty() {
+                                ().into_any()
+                            } else {
+                                asset_docs.into_iter().map(|doc| {
+                                    let icon = document_icon(&doc.file_type);
+                                    let ft = doc.file_type.to_uppercase();
+                                    let dname = doc.name.clone();
+                                    let short_name = if dname.len() > 18 {
+                                        format!("{}...", &dname[..15])
+                                    } else {
+                                        dname.clone()
+                                    };
+                                    let doc_for_view = doc.clone();
+                                    let doc_id_for_notif = doc.id;
+                                    let (viewing, set_viewing) = signal(false);
+                                    view! {
+                                        <div class="ai-doc-slider-item" on:click=move |_| set_viewing.set(true)>
+                                            <div class="ai-doc-slider-thumb">{icon}</div>
+                                            <div class="ai-doc-slider-name">{short_name}</div>
+                                            <div class="ai-doc-slider-type">{ft.clone()}</div>
+                                            {move || {
+                                                let ncount = app_store.get().notifications_for_doc(doc_id_for_notif);
+                                                if ncount > 0 {
+                                                    view! {
+                                                        <span class="pf-notif-badge pf-notif-badge-inline" title={format!("{} notification{}", ncount, if ncount == 1 { "" } else { "s" })}>
+                                                            "🔔"
+                                                            <span class="pf-notif-count">{ncount}</span>
+                                                        </span>
+                                                    }.into_any()
+                                                } else { ().into_any() }
+                                                }}
+                                        </div>
+                                        {move || if viewing.get() {
+                                            let d = doc_for_view.clone();
+                                            view! {
+                                                <div class="doc-modal-overlay" on:click=move |_| set_viewing.set(false)>
+                                                    <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                                                        <DocumentViewer
+                                                            doc={d.clone()}
+                                                            on_close=move || set_viewing.set(false)
+                                                            can_edit={can_edit_documents_here}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        } else { ().into_any() }}
+                                    }
+                                }).collect::<Vec<_>>().into_any()
+                            }
+                        }}
+                    </div>
                     <div class="ai-list-docs" on:click=|ev| ev.stop_propagation()>
-                        {let doc_count = docs.len();
-                        view! {
-                            <button class="ai-list-docs-btn"
-                                on:click=move |_| app_store.update(|s| s.toggle_doc_modal(asset_id))>
-                                {if doc_count == 0 {
-                                    "📄 Add document".to_string()
-                                } else {
-                                    format!("📄 {} document{}", doc_count, if doc_count == 1 { "" } else { "s" })
-                                }}
-                            </button>
-                        }.into_any()}
+                        {move || {
+                            let doc_count = asset_docs_reactive.get().len();
+                            view! {
+                                <button class="ai-list-docs-btn"
+                                    on:click=move |_| app_store.update(|s| s.toggle_doc_modal(asset_id))>
+                                    {if doc_count == 0 {
+                                        "📄 Add document".to_string()
+                                    } else {
+                                        format!("📄 {} document{}", doc_count, if doc_count == 1 { "" } else { "s" })
+                                    }}
+                                </button>
+                            }.into_any()
+                        }}
                     </div>
                 </div>
-                <div class="ai-list-actions" on:click=|ev| ev.stop_propagation()>
-                    <span class="ai-list-arrow">{move || if expanded_detail.get() { "▲" } else { "▼" }}</span>
+                <div class="ai-list-actions" on:click=move |ev| {
+                    ev.stop_propagation();
+                    if can_edit_here { set_expanded_detail.update(|v| *v = !*v); }
+                }>
+                    {if can_edit_here {
+                        view! {
+                            <span class="ai-list-arrow">{move || if expanded_detail.get() { "▲" } else { "▼" }}</span>
+                        }.into_any()
+                    } else { ().into_any() }}
                 </div>
             </div>
 
@@ -1680,77 +2007,38 @@ fn AssetItem(
                         on_close=move || app_store.update(|s| s.close_doc_modal(asset_id))
                         can_edit={can_edit_documents_here}
                         on_add={ac}
+                        portfolio_id={portfolio_id}
+                        group_id={group_id}
+                        asset_id={Some(asset_id)}
                     />
                 }.into_any()
             } else { ().into_any() }}
 
             {move || {
-                if expanded_detail.get() {
+                if expanded_detail.get() && can_edit_here {
                     view! {
                         <div class="ai-detail-panel" on:click=|ev| ev.stop_propagation()>
-                            <div class="ai-detail-tabs">
-                                <button
-                                    class="ai-detail-tab"
-                                    class:active={move || detail_tab.get() == 0}
-                                    on:click=move |_| set_detail_tab.set(0)
-                                >
-                                    "View"
-                                </button>
-                                {if can_edit_here {
-                                    view! {
-                                        <button
-                                            class="ai-detail-tab"
-                                            class:active={move || detail_tab.get() == 1}
-                                            on:click=move |_| set_detail_tab.set(1)
-                                        >
-                                            "Edit"
-                                        </button>
-                                    }.into_any()
-                                } else { ().into_any() }}
-                            </div>
-
-                            {move || match detail_tab.get() {
-                                1 => view! {
-                                    <div class="ai-edit-tab">
-                                        <div class="asset-edit-form">
-                                            <label class="ai-edit-label">"Name"</label>
-                                            <input class="pf-edit-input" placeholder="Name"
-                                                prop:value={move || edit_name.get()}
-                                                on:input=move |ev| set_edit_name.set(event_target_value(&ev)) />
-                                            <label class="ai-edit-label">"Description"</label>
-                                            <input class="pf-edit-input" placeholder="Description"
-                                                prop:value={move || edit_desc.get()}
-                                                on:input=move |ev| set_edit_desc.set(event_target_value(&ev)) />
-                                            <label class="ai-edit-label">"Location / Address"</label>
-                                            <input class="pf-edit-input" placeholder="Location / Address"
-                                                prop:value={move || edit_loc.get()}
-                                                on:input=move |ev| set_edit_loc.set(event_target_value(&ev)) />
-                                            <div class="asset-edit-actions">
-                                                <button class="pf-edit-save" on:click=move |_| save_edit()>"✔ Save"</button>
-                                                <button class="pf-edit-cancel" on:click=move |_| { set_detail_tab.set(0); }>"✕ Cancel"</button>
-                                            </div>
-                                            <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
-                                        </div>
+                            <div class="ai-edit-tab">
+                                <div class="asset-edit-form">
+                                    <label class="ai-edit-label">"Name"</label>
+                                    <input class="pf-edit-input" placeholder="Name"
+                                        prop:value={move || edit_name.get()}
+                                        on:input=move |ev| set_edit_name.set(event_target_value(&ev)) />
+                                    <label class="ai-edit-label">"Description"</label>
+                                    <input class="pf-edit-input" placeholder="Description"
+                                        prop:value={move || edit_desc.get()}
+                                        on:input=move |ev| set_edit_desc.set(event_target_value(&ev)) />
+                                    <label class="ai-edit-label">"Location / Address"</label>
+                                    <input class="pf-edit-input" placeholder="Location / Address"
+                                        prop:value={move || edit_loc.get()}
+                                        on:input=move |ev| set_edit_loc.set(event_target_value(&ev)) />
+                                    <div class="asset-edit-actions">
+                                        <button class="pf-edit-save" on:click=move |_| save_edit()>"✔ Save"</button>
+                                        <button class="pf-edit-cancel" on:click=move |_| { set_expanded_detail.set(false); }>"✕ Cancel"</button>
                                     </div>
-                                }.into_any(),
-                                _ => view! {
-                                    <AssetDetailViewTab
-                                        detail=detail
-                                        asset_id={asset_id}
-                                        a_purchase_val=a_purchase_val
-                                        a_current_val=a_current_val
-                                        a_pl=a_pl
-                                        a_pl_pct=a_pl_pct
-                                        a_revenue=a_revenue
-                                        a_pl_cls=a_pl_cls
-                                        doc_sort=doc_sort
-                                        set_doc_sort=set_doc_sort
-                                        can_edit={can_edit_here}
-                                        can_edit_documents={can_edit_documents_here}
-                                        add_cb=add_cb
-                                    />
-                                }.into_any(),
-                            }}
+                                    <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
+                                </div>
+                            </div>
                         </div>
                     }.into_any()
                 } else { ().into_any() }
@@ -1775,6 +2063,8 @@ fn AssetDetailViewTab(
     can_edit: bool,
     can_edit_documents: bool,
     add_cb: Option<Callback<String>>,
+    #[prop(default = None)] portfolio_id: Option<Uuid>,
+    #[prop(default = None)] group_id: Option<Uuid>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let _ = (a_purchase_val, a_pl, a_pl_pct, a_revenue, a_pl_cls);
@@ -1890,6 +2180,9 @@ fn AssetDetailViewTab(
                     on_close=move || app_store.update(|s| s.close_doc_modal(asset_id))
                     can_edit={can_edit_documents}
                     on_add={ac}
+                    portfolio_id={portfolio_id}
+                    group_id={group_id}
+                    asset_id={Some(asset_id)}
                 />
             }.into_any()
         } else { ().into_any() }}
@@ -2077,6 +2370,7 @@ fn create_mock_asset_group(name: &str, assets: Vec<Asset>) -> AssetGroup {
         documents: vec![],
         calendar_events: vec![],
         assigned_users: vec![],
+        notification_settings: vec![],
     };
     group.recalculate_values();
     group
@@ -2199,6 +2493,9 @@ pub fn DocModal(
     on_close: impl Fn() + 'static,
     can_edit: bool,
     on_add: Option<Callback<String>>,
+    #[prop(default = None)] portfolio_id: Option<Uuid>,
+    #[prop(default = None)] group_id: Option<Uuid>,
+    #[prop(default = None)] asset_id: Option<Uuid>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     // open_tabs: vec of (tab_id, Document); tab_id=0 is reserved for the list tab
@@ -2313,7 +2610,9 @@ pub fn DocModal(
                                     let (edit_name, set_edit_name) = signal(doc.name.clone());
                                     view! {
                                         <div class="doc-modal-row">
-                                            <span class="doc-modal-icon">{icon}</span>
+                                            <div class="doc-modal-icon-wrap">
+                                                <span class="doc-modal-icon">{icon}</span>
+                                            </div>
                                             <div class="doc-modal-info"
                                                 class:doc-modal-info-tap=can_edit_doc
                                                 on:click=move |ev: leptos::ev::MouseEvent| {
@@ -2353,6 +2652,44 @@ pub fn DocModal(
                                                     </button>
                                                 }.into_any()
                                             } else { ().into_any() }}
+                                            {move || {
+                                                let notifs = app_store.get().notifications_list_for_doc(doc_id);
+                                                if notifs.is_empty() {
+                                                    ().into_any()
+                                                } else {
+                                                    let n = notifs[0].clone();
+                                                    let nid = n.id;
+                                                    let from_user = n.from_user.clone().unwrap_or_else(|| "System".to_string());
+                                                    let preview = n.content_preview.clone();
+                                                    // Truncate note to less than a sentence (~60 chars)
+                                                    let short_note = preview.as_ref().map(|p| {
+                                                        let truncated = if p.len() > 60 {
+                                                            // Find a good break point
+                                                            let slice = &p[..60];
+                                                            if let Some(idx) = slice.rfind(|c: char| c == ' ' || c == ',' || c == '.') {
+                                                                &p[..idx]
+                                                            } else {
+                                                                slice
+                                                            }
+                                                        } else {
+                                                            p.as_str()
+                                                        };
+                                                        format!("— {}", truncated)
+                                                    }).unwrap_or_default();
+                                                    view! {
+                                                        <span class="doc-notif-label">
+                                                            "Linked (Document) by " <strong>{from_user}</strong> " " {short_note}
+                                                        </span>
+                                                        <button class="doc-notif-view-btn"
+                                                            on:click=move |ev: leptos::ev::MouseEvent| {
+                                                                ev.stop_propagation();
+                                                                app_store.update(|s| s.navigate_to_notification(nid));
+                                                            }>
+                                                            "View Content"
+                                                        </button>
+                                                    }.into_any()
+                                                }
+                                            }}
                                             <button class="doc-modal-open-btn"
                                                 on:click=move |_| open_doc_tab(doc_for_open.clone())>
                                                 "Open"
@@ -2395,6 +2732,9 @@ pub fn DocModal(
                                 doc={doc}
                                 on_close=move || close_tab(tid)
                                 can_edit={can_edit}
+                                portfolio_id={portfolio_id}
+                                group_id={group_id}
+                                asset_id={asset_id}
                             />
                         })
                     }).collect::<Vec<_>>()
@@ -2410,6 +2750,9 @@ pub fn DocumentViewer(
     doc: Document,
     on_close: impl Fn() + 'static,
     #[prop(default = false)] can_edit: bool,
+    #[prop(default = None)] portfolio_id: Option<Uuid>,
+    #[prop(default = None)] group_id: Option<Uuid>,
+    #[prop(default = None)] asset_id: Option<Uuid>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let undo_store = use_undo_redo_store();
@@ -2428,6 +2771,7 @@ pub fn DocumentViewer(
     let (edit_mode, set_edit_mode) = signal(effective_can_edit);
     let (content, set_content)   = signal(initial_content);
     let (why, set_why)           = signal(String::new());
+    let (notes, set_notes)       = signal(String::new());
     // image popup: Some((x_px, y_px))
     let (img_popup, set_img_popup) = signal::<Option<(i32, i32)>>(None);
     let (link_val, set_link_val) = signal(doc.url.clone());
@@ -2467,7 +2811,12 @@ pub fn DocumentViewer(
     let save_doc = move || {
         let new_content = content.get();
         let reason = why.get();
+        let notes_text = notes.get();
         let reason_for_action = if reason.trim().is_empty() { None } else { Some(reason.clone()) };
+        let doc_name_val = doc_name.get_value();
+        let pid = portfolio_id;
+        let gid = group_id;
+        let aid = asset_id;
         app_store.update(|s| {
             for p in s.portfolios.iter_mut() {
                 for d in &mut p.documents {
@@ -2489,6 +2838,17 @@ pub fn DocumentViewer(
                     }
                 }
             }
+            // Send notification with notes and @username parsing
+            let updater_name = s.current_user.name.clone();
+            s.add_document_update_with_notes(
+                doc_id,
+                &doc_name_val,
+                &notes_text,
+                &updater_name,
+                pid,
+                gid,
+                aid,
+            );
         });
         let (uid, name, role, org) = {
             let s = app_store.get();
@@ -2507,6 +2867,7 @@ pub fn DocumentViewer(
             ));
         });
         set_edit_mode.set(false);
+        set_notes.set(String::new());
     };
 
     view! {
@@ -2630,12 +2991,414 @@ pub fn DocumentViewer(
                                 on:input=move |ev| set_why.set(event_target_value(&ev))
                             />
                         </div>
+                        <div class="dv-why-row">
+                            <label class="dv-why-label">"Notes — tag people with @username to notify them"</label>
+                            <textarea
+                                class="dv-why-input dv-notes-input"
+                                placeholder="Add notes for reviewers. Use @username to tag people (e.g. @red please review section 3)…"
+                                prop:value=move || notes.get()
+                                on:input=move |ev| set_notes.set(event_target_value(&ev))
+                            />
+                        </div>
                     }.into_any()
                 } else {
                     view! {
                         <pre class="docviewer-content">{move || content.get()}</pre>
                     }.into_any()
                 }}
+            </div>
+        </div>
+    }
+}
+
+fn trigger_label(t: &NotificationTrigger) -> String {
+    match t {
+        NotificationTrigger::PriceChange { percentage } => format!("Price change > {}%", percentage),
+        NotificationTrigger::Sale => "Sale".to_string(),
+        NotificationTrigger::Auction => "Auction".to_string(),
+        NotificationTrigger::Rent => "Rent".to_string(),
+        NotificationTrigger::Unrent => "Unrent".to_string(),
+        NotificationTrigger::NoSales { days } => format!("No sales for {} days", days),
+        NotificationTrigger::Custom(s) => s.clone(),
+    }
+}
+
+fn trigger_short(t: &NotificationTrigger) -> &'static str {
+    match t {
+        NotificationTrigger::PriceChange { .. } => "Price Change",
+        NotificationTrigger::Sale => "Sale",
+        NotificationTrigger::Auction => "Auction",
+        NotificationTrigger::Rent => "Rent",
+        NotificationTrigger::Unrent => "Unrent",
+        NotificationTrigger::NoSales { .. } => "No Sales",
+        NotificationTrigger::Custom(_) => "Custom",
+    }
+}
+
+fn notif_type_label(t: &NotificationType) -> &'static str {
+    match t {
+        NotificationType::Push => "Push",
+        NotificationType::Email => "Email",
+        NotificationType::Sms => "SMS",
+        NotificationType::InApp => "In-App",
+    }
+}
+
+fn role_label(r: &UserRole) -> &'static str {
+    match r {
+        UserRole::Owner => "Owner",
+        UserRole::Director => "Director",
+        UserRole::SeniorManager => "Senior Manager",
+        UserRole::Manager => "Manager",
+        UserRole::Worker => "Worker",
+        UserRole::DocumentWorker => "Document Worker",
+        UserRole::Contractor => "Contractor",
+        UserRole::Guest => "Guest",
+    }
+}
+
+/// Quick notification settings popover for a portfolio or group.
+/// Opens when the 🔔 badge is clicked.
+#[component]
+fn NotificationQuickSettings(
+    target: NotifTarget,
+    entity_name: String,
+    on_close: impl Fn() + 'static,
+) -> impl IntoView {
+    let app_store = use_app_store();
+    let on_close = std::rc::Rc::new(on_close);
+    let on_close2 = on_close.clone();
+
+    let can_manage_recipients = app_store.get().can_manage_notification_recipients();
+    let org_users = app_store.get().organization_users.clone();
+
+    let target_for_settings = target.clone();
+    let settings = Memo::new(move |_| {
+        match &target_for_settings {
+            NotifTarget::Portfolio(pid) => app_store.get().portfolio_notification_settings(*pid),
+            NotifTarget::Group(pid, gid) => app_store.get().group_notification_settings(*pid, *gid),
+        }
+    });
+
+    let (selected_trigger, set_selected_trigger) = signal(NotificationTrigger::Sale);
+    let (new_condition, set_new_condition) = signal(String::new());
+
+    let target_for_add = target.clone();
+    let add_setting = move |_| {
+        let mut setting = EntityNotificationSetting::new(selected_trigger.get());
+        if !new_condition.get().trim().is_empty() {
+            setting.condition = Some(new_condition.get().trim().to_string());
+        }
+        match &target_for_add {
+            NotifTarget::Portfolio(pid) => {
+                app_store.update(|s| s.add_portfolio_notification_setting(*pid, setting));
+            }
+            NotifTarget::Group(pid, gid) => {
+                app_store.update(|s| s.add_group_notification_setting(*pid, *gid, setting));
+            }
+        }
+        set_new_condition.set(String::new());
+    };
+
+    let target_for_recipients_section = target.clone();
+    let org_users_for_recipients = org_users.clone();
+
+    let all_triggers = vec![
+        NotificationTrigger::Sale,
+        NotificationTrigger::Auction,
+        NotificationTrigger::Rent,
+        NotificationTrigger::Unrent,
+        NotificationTrigger::PriceChange { percentage: 10.0 },
+        NotificationTrigger::NoSales { days: 30 },
+        NotificationTrigger::Custom("Document Added".to_string()),
+        NotificationTrigger::Custom("Document Updated".to_string()),
+    ];
+
+    let all_notif_types = vec![
+        NotificationType::InApp,
+        NotificationType::Push,
+        NotificationType::Email,
+        NotificationType::Sms,
+    ];
+
+    let all_roles = vec![
+        UserRole::Owner,
+        UserRole::Director,
+        UserRole::SeniorManager,
+        UserRole::Manager,
+        UserRole::Worker,
+        UserRole::DocumentWorker,
+    ];
+
+    view! {
+        <div class="notif-qs-overlay" on:click=move |_| on_close2()>
+            <div class="notif-qs-popover" on:click=|ev| ev.stop_propagation()>
+                <div class="notif-qs-header">
+                    <span class="notif-qs-title">"🔔 Notification Settings"</span>
+                    <span class="notif-qs-entity">{entity_name.clone()}</span>
+                    <button class="notif-qs-close" on:click=move |_| on_close()>"✕"</button>
+                </div>
+
+                // Existing settings
+                <div class="notif-qs-section">
+                    <div class="notif-qs-section-label">"Current Rules"</div>
+                    {move || {
+                        let items = settings.get();
+                        if items.is_empty() {
+                            view! {
+                                <div class="notif-qs-empty">"No notification rules yet. Add one below."</div>
+                            }.into_any()
+                        } else {
+                            items.into_iter().map(|s| {
+                                let sid = s.id;
+                                let sid_toggle = sid;
+                                let sid_remove = sid;
+                                let s_enabled = s.enabled;
+                                let s_label = trigger_label(&s.trigger);
+                                let s_types = s.notification_types.clone();
+                                let s_recipients = s.recipients.clone();
+                                let s_roles = s.recipient_roles.clone();
+                                let s_condition = s.condition.clone();
+                                let target_toggle = target.clone();
+                                let target_remove = target.clone();
+
+                                let all_nt = all_notif_types.clone();
+                                let target_for_nt = target.clone();
+                                let sid_for_nt = sid;
+
+                                view! {
+                                    <div class="notif-qs-rule" class:disabled={!s_enabled}>
+                                        <div class="notif-qs-rule-top">
+                                            <label class="notif-qs-toggle">
+                                                <input type="checkbox" checked=s_enabled
+                                                    on:change=move |_| {
+                                                        match &target_toggle {
+                                                            NotifTarget::Portfolio(pid) => app_store.update(|s| s.toggle_portfolio_notification_setting(*pid, sid_toggle)),
+                                                            NotifTarget::Group(pid, gid) => app_store.update(|s| s.toggle_group_notification_setting(*pid, *gid, sid_toggle)),
+                                                        }
+                                                    } />
+                                                <span class="notif-qs-rule-name">{s_label}</span>
+                                            </label>
+                                            <button class="notif-qs-rule-remove"
+                                                on:click=move |_| {
+                                                    match &target_remove {
+                                                        NotifTarget::Portfolio(pid) => app_store.update(|s| s.remove_portfolio_notification_setting(*pid, sid_remove)),
+                                                        NotifTarget::Group(pid, gid) => app_store.update(|s| s.remove_group_notification_setting(*pid, *gid, sid_remove)),
+                                                    }
+                                                }>"🗑"</button>
+                                        </div>
+                                        // Notification type badges
+                                        <div class="notif-qs-rule-types">
+                                            {all_nt.iter().map(|nt| {
+                                                let nt_label = notif_type_label(nt);
+                                                let is_on = s_types.contains(nt);
+                                                let target_nt = target_for_nt.clone();
+                                                let sid_nt = sid_for_nt;
+                                                let nt_clone = nt.clone();
+                                                view! {
+                                                    <button class="notif-qs-type-chip"
+                                                        class:active=is_on
+                                                        on:click=move |_| {
+                                                            match &target_nt {
+                                                                NotifTarget::Portfolio(pid) => app_store.update(|s| {
+                                                                    if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                                        if let Some(st) = p.notification_settings.iter_mut().find(|st| st.id == sid_nt) {
+                                                                            if st.notification_types.contains(&nt_clone) {
+                                                                                st.notification_types.retain(|t| t != &nt_clone);
+                                                                            } else {
+                                                                                st.notification_types.push(nt_clone.clone());
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }),
+                                                                NotifTarget::Group(pid, gid) => app_store.update(|s| {
+                                                                    if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                                        if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
+                                                                            if let Some(st) = g.notification_settings.iter_mut().find(|st| st.id == sid_nt) {
+                                                                                if st.notification_types.contains(&nt_clone) {
+                                                                                    st.notification_types.retain(|t| t != &nt_clone);
+                                                                                } else {
+                                                                                    st.notification_types.push(nt_clone.clone());
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }),
+                                                            }
+                                                        }>
+                                                        {nt_label}
+                                                    </button>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                        </div>
+                                        // Recipients (if can manage)
+                                        {if can_manage_recipients {
+                                            let recipient_names: Vec<String> = s_recipients.iter().filter_map(|uid| {
+                                                org_users.iter().find(|u| u.id == *uid).map(|u| u.name.clone())
+                                            }).collect();
+                                            let role_names: Vec<&'static str> = s_roles.iter().map(role_label).collect();
+                                            let info = if recipient_names.is_empty() && role_names.is_empty() {
+                                                "Just me".to_string()
+                                            } else {
+                                                let mut parts = Vec::new();
+                                                if !recipient_names.is_empty() {
+                                                    parts.push(format!("Users: {}", recipient_names.join(", ")));
+                                                }
+                                                if !role_names.is_empty() {
+                                                    parts.push(format!("Roles: {}", role_names.join(", ")));
+                                                }
+                                                parts.join(" · ")
+                                            };
+                                            view! {
+                                                <div class="notif-qs-rule-recipients">{info}</div>
+                                            }.into_any()
+                                        } else { ().into_any() }}
+                                        // Condition
+                                        {s_condition.map(|c| view! {
+                                            <div class="notif-qs-rule-condition">"Condition: " {c}</div>
+                                        })}
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>().into_any()
+                        }
+                    }}
+                </div>
+
+                // Add new rule
+                <div class="notif-qs-section">
+                    <div class="notif-qs-section-label">"Add Notification Rule"</div>
+                    <div class="notif-qs-add-row">
+                        <select class="notif-qs-select"
+                            on:change=move |ev| {
+                                let v = event_target_value(&ev);
+                                let t = match v.as_str() {
+                                    "Sale" => NotificationTrigger::Sale,
+                                    "Auction" => NotificationTrigger::Auction,
+                                    "Rent" => NotificationTrigger::Rent,
+                                    "Unrent" => NotificationTrigger::Unrent,
+                                    "PriceChange" => NotificationTrigger::PriceChange { percentage: 10.0 },
+                                    "NoSales" => NotificationTrigger::NoSales { days: 30 },
+                                    "DocumentAdded" => NotificationTrigger::Custom("Document Added".to_string()),
+                                    "DocumentUpdated" => NotificationTrigger::Custom("Document Updated".to_string()),
+                                    _ => NotificationTrigger::Sale,
+                                };
+                                set_selected_trigger.set(t);
+                            }>
+                            {all_triggers.iter().map(|t| {
+                                let val = match t {
+                                    NotificationTrigger::Sale => "Sale",
+                                    NotificationTrigger::Auction => "Auction",
+                                    NotificationTrigger::Rent => "Rent",
+                                    NotificationTrigger::Unrent => "Unrent",
+                                    NotificationTrigger::PriceChange { .. } => "PriceChange",
+                                    NotificationTrigger::NoSales { .. } => "NoSales",
+                                    NotificationTrigger::Custom(s) if s == "Document Added" => "DocumentAdded",
+                                    NotificationTrigger::Custom(s) if s == "Document Updated" => "DocumentUpdated",
+                                    _ => "Custom",
+                                };
+                                view! {
+                                    <option value={val}>{trigger_short(t)}</option>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </select>
+                        <input class="notif-qs-input" type="text" placeholder="Condition (optional, e.g. 'Only PDF docs')"
+                            prop:value=move || new_condition.get()
+                            on:input=move |ev| set_new_condition.set(event_target_value(&ev)) />
+                        <button class="notif-qs-add-btn" on:click=add_setting>"+ Add"</button>
+                    </div>
+                </div>
+
+                // Recipient configuration (role-gated)
+                {can_manage_recipients.then(|| {
+                    let target_for_recipients = target_for_recipients_section.clone();
+                    let users_for_select = org_users_for_recipients.clone();
+                    view! {
+                        <div class="notif-qs-section">
+                            <div class="notif-qs-section-label">"Recipient Roles (applies to most recent rule)"</div>
+                            <div class="notif-qs-roles-row">
+                                {all_roles.iter().map(|r| {
+                                    let r_label = role_label(r);
+                                    let r_clone = r.clone();
+                                    let target_r = target_for_recipients.clone();
+                                    view! {
+                                        <button class="notif-qs-role-chip"
+                                            on:click=move |_| {
+                                                match &target_r {
+                                                    NotifTarget::Portfolio(pid) => app_store.update(|s| {
+                                                        if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                            if let Some(last) = p.notification_settings.last_mut() {
+                                                                if last.recipient_roles.contains(&r_clone) {
+                                                                    last.recipient_roles.retain(|r| r != &r_clone);
+                                                                } else {
+                                                                    last.recipient_roles.push(r_clone.clone());
+                                                                }
+                                                            }
+                                                        }
+                                                    }),
+                                                    NotifTarget::Group(pid, gid) => app_store.update(|s| {
+                                                        if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
+                                                                if let Some(last) = g.notification_settings.last_mut() {
+                                                                    if last.recipient_roles.contains(&r_clone) {
+                                                                        last.recipient_roles.retain(|r| r != &r_clone);
+                                                                    } else {
+                                                                        last.recipient_roles.push(r_clone.clone());
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }),
+                                                }
+                                            }>
+                                            {r_label}
+                                        </button>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                            <div class="notif-qs-section-label" style="margin-top: 8px;">"Recipient Users (applies to most recent rule)"</div>
+                            <div class="notif-qs-users-row">
+                                {users_for_select.iter().map(|u| {
+                                    let uname = u.name.clone();
+                                    let uid = u.id;
+                                    let target_u = target_for_recipients.clone();
+                                    view! {
+                                        <button class="notif-qs-user-chip"
+                                            on:click=move |_| {
+                                                match &target_u {
+                                                    NotifTarget::Portfolio(pid) => app_store.update(|s| {
+                                                        if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                            if let Some(last) = p.notification_settings.last_mut() {
+                                                                if last.recipients.contains(&uid) {
+                                                                    last.recipients.retain(|id| id != &uid);
+                                                                } else {
+                                                                    last.recipients.push(uid);
+                                                                }
+                                                            }
+                                                        }
+                                                    }),
+                                                    NotifTarget::Group(pid, gid) => app_store.update(|s| {
+                                                        if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
+                                                                if let Some(last) = g.notification_settings.last_mut() {
+                                                                    if last.recipients.contains(&uid) {
+                                                                        last.recipients.retain(|id| id != &uid);
+                                                                    } else {
+                                                                        last.recipients.push(uid);
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }),
+                                                }
+                                            }>
+                                            {uname}
+                                        </button>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        </div>
+                    }
+                })}
             </div>
         </div>
     }

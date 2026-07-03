@@ -352,15 +352,222 @@ fn PaymentForm(
 }
 
 #[component]
+fn DigitalCard(
+    wallet: Wallet,
+    card: Card,
+    on_click: impl Fn(Uuid, Uuid) + 'static,
+) -> impl IntoView {
+    let w_name = wallet.name.clone();
+    let w_type = wallet.wallet_type.clone();
+    let w_currency = wallet.currency.clone();
+    let w_balance = wallet.balance;
+    let c_label = card.label.clone();
+    let c_last4 = card.last4.clone();
+    let wid = wallet.id;
+    let cid = card.id;
+    let is_crypto = w_type == "Crypto";
+
+    view! {
+        <div class="dcard" class:dcard-crypto={is_crypto} on:click=move |_| on_click(wid, cid)>
+            <div class="dcard-top">
+                <span class="dcard-brand">{if is_crypto { "⚡" } else { "💳" }}</span>
+                <span class="dcard-type">{w_type.clone()}</span>
+            </div>
+            <div class="dcard-number">"•••• •••• •••• "{c_last4.clone()}</div>
+            <div class="dcard-bottom">
+                <div class="dcard-info">
+                    <div class="dcard-label">{c_label.clone()}</div>
+                    <div class="dcard-wallet">{w_name.clone()}</div>
+                </div>
+                <div class="dcard-balance">
+                    <div class="dcard-bal-num">{format!("{}{:.2}", currency_symbol(&w_currency), w_balance)}</div>
+                    <div class="dcard-bal-cur">{w_currency.clone()}</div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn WalletDashboard(wallets: Vec<Wallet>) -> impl IntoView {
+    let total_fiat: f64 = wallets.iter().filter(|w| w.wallet_type != "Crypto").map(|w| w.balance).sum();
+    let total_crypto: f64 = wallets.iter().filter(|w| w.wallet_type == "Crypto" && w.currency != "BTC").map(|w| w.balance).sum();
+    let btc_balance: f64 = wallets.iter().filter(|w| w.currency == "BTC").map(|w| w.balance).sum();
+
+    view! {
+        <div class="wallet-dashboard">
+            <div class="wallet-balance-bar">
+                <div class="wallet-bal-item">
+                    <div class="wallet-bal-label">"FIAT"</div>
+                    <div class="wallet-bal-value">{format!("${:.2}", total_fiat)}</div>
+                </div>
+                <div class="wallet-bal-divider"></div>
+                <div class="wallet-bal-item">
+                    <div class="wallet-bal-label">"CRYPTO"</div>
+                    <div class="wallet-bal-value">{format!("${:.2}", total_crypto)}</div>
+                </div>
+                <div class="wallet-bal-divider"></div>
+                <div class="wallet-bal-item">
+                    <div class="wallet-bal-label">"BTC"</div>
+                    <div class="wallet-bal-value">{format!("₿{:.4}", btc_balance)}</div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn CreateTransactionRecord(
+    _wallets: Vec<Wallet>,
+    on_create: Callback<Transaction>,
+) -> impl IntoView {
+    let (tx_type, set_tx_type) = signal("Transfer".to_string());
+    let (amount, set_amount) = signal(String::new());
+    let (currency, set_currency) = signal("AUD".to_string());
+    let (description, set_description) = signal(String::new());
+    let (from_name, set_from_name) = signal(String::new());
+    let (to_name, set_to_name) = signal(String::new());
+    let (status, set_status) = signal("Draft".to_string());
+
+    let submit = move |_| {
+        let value: f64 = amount.get().parse().unwrap_or(0.0);
+        if value <= 0.0 { return; }
+        let ttype = match tx_type.get().as_str() {
+            "Purchase" => TransactionType::Purchase,
+            "Sale" => TransactionType::Sale,
+            "Rent" => TransactionType::Rent,
+            "Lease" => TransactionType::Lease,
+            "Payout" => TransactionType::Payout,
+            "Dividend" => TransactionType::Dividend,
+            "Fee" => TransactionType::Fee,
+            "Tax" => TransactionType::Tax,
+            "Transfer" => TransactionType::Transfer,
+            _ => TransactionType::Adjustment,
+        };
+        let st = match status.get().as_str() {
+            "Pending" => TransactionStatus::Pending,
+            "Approved" => TransactionStatus::Approved,
+            "Executed" => TransactionStatus::Executed,
+            "Cancelled" => TransactionStatus::Cancelled,
+            _ => TransactionStatus::Draft,
+        };
+        let cur = match currency.get().as_str() {
+            "AUD" => Currency::AUD,
+            "EUR" => Currency::EUR,
+            "GBP" => Currency::GBP,
+            _ => Currency::USD,
+        };
+        let txn = Transaction {
+            id: Uuid::new_v4(),
+            transaction_type: ttype,
+            amount: value,
+            currency: cur,
+            description: if description.get().is_empty() { None } else { Some(description.get()) },
+            from_entity: EntityReference {
+                entity_type: EntityType::Organization,
+                entity_id: Uuid::new_v4(),
+                name: if from_name.get().is_empty() { "Internal".to_string() } else { from_name.get() },
+            },
+            to_entity: EntityReference {
+                entity_type: EntityType::External,
+                entity_id: Uuid::new_v4(),
+                name: if to_name.get().is_empty() { "External".to_string() } else { to_name.get() },
+            },
+            related_portfolio_id: None,
+            related_asset_group_id: None,
+            related_asset_id: None,
+            executed_by: Uuid::new_v4(),
+            status: st.clone(),
+            created_at: Utc::now(),
+            executed_at: if st == TransactionStatus::Executed { Some(Utc::now()) } else { None },
+            metadata: serde_json::json!({}),
+        };
+        on_create.run(txn);
+        set_amount.set(String::new());
+        set_description.set(String::new());
+        set_from_name.set(String::new());
+        set_to_name.set(String::new());
+    };
+
+    view! {
+        <div class="tx-form">
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Type"</label>
+                <select class="form-select" prop:value={move || tx_type.get()} on:change=move |ev| set_tx_type.set(event_target_value(&ev))>
+                    <option value="Transfer">"Transfer"</option>
+                    <option value="Purchase">"Purchase"</option>
+                    <option value="Sale">"Sale"</option>
+                    <option value="Rent">"Rent"</option>
+                    <option value="Lease">"Lease"</option>
+                    <option value="Payout">"Payout"</option>
+                    <option value="Dividend">"Dividend"</option>
+                    <option value="Fee">"Fee"</option>
+                    <option value="Tax">"Tax"</option>
+                    <option value="Adjustment">"Adjustment"</option>
+                </select>
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Amount"</label>
+                <input class="form-input" type="number" placeholder="0.00" prop:value={move || amount.get()} on:input=move |ev| set_amount.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Currency"</label>
+                <select class="form-select" prop:value={move || currency.get()} on:change=move |ev| set_currency.set(event_target_value(&ev))>
+                    <option value="AUD">"AUD"</option>
+                    <option value="USD">"USD"</option>
+                    <option value="EUR">"EUR"</option>
+                    <option value="GBP">"GBP"</option>
+                </select>
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Description"</label>
+                <input class="form-input" type="text" placeholder="Transaction description" prop:value={move || description.get()} on:input=move |ev| set_description.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"From"</label>
+                <input class="form-input" type="text" placeholder="Source entity" prop:value={move || from_name.get()} on:input=move |ev| set_from_name.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"To"</label>
+                <input class="form-input" type="text" placeholder="Destination entity" prop:value={move || to_name.get()} on:input=move |ev| set_to_name.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Status"</label>
+                <select class="form-select" prop:value={move || status.get()} on:change=move |ev| set_status.set(event_target_value(&ev))>
+                    <option value="Draft">"Draft"</option>
+                    <option value="Pending">"Pending"</option>
+                    <option value="Approved">"Approved"</option>
+                    <option value="Executed">"Executed"</option>
+                    <option value="Cancelled">"Cancelled"</option>
+                </select>
+            </div>
+            <button class="login-btn" on:click=submit>"Create Record"</button>
+        </div>
+    }
+}
+
+#[component]
+fn PrintRecordButton() -> impl IntoView {
+    let on_print = move |_| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.print();
+        }
+    };
+    view! {
+        <button class="tx-print-btn" on:click=on_print>"🖨 Print Record"</button>
+    }
+}
+
+#[component]
 pub fn TransactionsPage() -> impl IntoView {
     let _app_store = use_app_store();
 
-    let (active_tab, set_active_tab) = signal("history".to_string());
+    let (active_tab, set_active_tab) = signal("recent".to_string());
     let (wallets, _set_wallets) = signal(mock_wallets());
     let (payees, _set_payees) = signal(mock_payees());
     let (payers, _set_payers) = signal(mock_payers());
     let (payments, set_payments) = signal(Vec::<Payment>::new());
-    let (transactions, _set_transactions) = signal(vec![
+    let (transactions, set_transactions) = signal(vec![
         create_mock_transaction(TransactionType::Purchase, 125000.0, "Office equipment purchase", "Main Org", "Tech Supplies Inc", TransactionStatus::Executed),
         create_mock_transaction(TransactionType::Sale, 450000.0, "Property sale - downtown plaza", "Real Estate Holdings", "Buyer Corp", TransactionStatus::Approved),
         create_mock_transaction(TransactionType::Rent, 8500.0, "Monthly warehouse rent", "Tenant LLC", "Property Manager", TransactionStatus::Executed),
@@ -374,6 +581,9 @@ pub fn TransactionsPage() -> impl IntoView {
     });
     let on_receive = Callback::new(move |p: Payment| {
         set_payments.update(|list| list.push(p));
+    });
+    let on_create_txn = Callback::new(move |t: Transaction| {
+        set_transactions.update(|list| list.insert(0, t));
     });
 
     let tab_btn = |label: &str, key: &str| {
@@ -393,22 +603,32 @@ pub fn TransactionsPage() -> impl IntoView {
     };
 
     view! {
-        <div class="home-screen">
-            <div class="welcome-header">
-                <h1>"Transactions"</h1>
-                <p>"Banking, wallets, crypto payments"</p>
-            </div>
+        <div class="home-screen tx-page">
+            // Wallet dashboard always visible at top
+            {move || view! { <WalletDashboard wallets={wallets.get()} /> }}
 
             <div class="tx-tabs">
-                {tab_btn("History", "history")}
+                {tab_btn("Recent", "recent")}
+                {tab_btn("Send", "send")}
+                {tab_btn("Receive", "receive")}
                 {tab_btn("Payees", "payees")}
                 {tab_btn("Payers", "payers")}
                 {tab_btn("Wallets", "wallets")}
-                {tab_btn("Send", "send")}
-                {tab_btn("Receive", "receive")}
+            </div>
+
+            // Create + Print buttons always visible
+            <div class="tx-action-bar">
+                <button class="tx-action-btn" on:click=move |_| set_active_tab.set("create".to_string())>"📝 Create Record"</button>
+                <PrintRecordButton />
             </div>
 
             {move || match active_tab.get().as_str() {
+                "create" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Create Transaction Record"</span></div>
+                        <CreateTransactionRecord _wallets={wallets.get()} on_create={on_create_txn.clone()} />
+                    </div>
+                }.into_any(),
                 "payees" => view! {
                     <div class="data-card">
                         <div class="card-header"><span class="card-title">"Payees"</span></div>
@@ -438,19 +658,33 @@ pub fn TransactionsPage() -> impl IntoView {
                     </div>
                 }.into_any(),
                 "wallets" => view! {
-                    <div class="data-card">
-                        <div class="card-header"><span class="card-title">"Wallets & Cards"</span></div>
-                        {wallets.get().into_iter().map(|w| view! {
-                            <div class="list-item">
-                                <div class="list-item-left">
-                                    <div class="list-item-title">{format!("{} ({})", w.name, w.wallet_type)}</div>
-                                    <div class="list-item-subtitle">{format!("{} card{}", w.cards.len(), if w.cards.len() == 1 { "" } else { "s" })}</div>
+                    <div class="tx-wallets-section">
+                        <div class="dcard-strip">
+                            {wallets.get().into_iter().flat_map(|w| {
+                                let w2 = w.clone();
+                                w.cards.into_iter().map(move |c| {
+                                    let w3 = w2.clone();
+                                    let c2 = c.clone();
+                                    view! {
+                                        <DigitalCard wallet={w3.clone()} card={c2} on_click=move |_, _| {} />
+                                    }
+                                })
+                            }).collect::<Vec<_>>()}
+                        </div>
+                        <div class="data-card">
+                            <div class="card-header"><span class="card-title">"Wallet Details"</span></div>
+                            {wallets.get().into_iter().map(|w| view! {
+                                <div class="list-item">
+                                    <div class="list-item-left">
+                                        <div class="list-item-title">{format!("{} ({})", w.name, w.wallet_type)}</div>
+                                        <div class="list-item-subtitle">{format!("{} card{}", w.cards.len(), if w.cards.len() == 1 { "" } else { "s" })}</div>
+                                    </div>
+                                    <div class="list-item-right">
+                                        <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&w.currency), w.balance, w.currency)}</div>
+                                    </div>
                                 </div>
-                                <div class="list-item-right">
-                                    <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&w.currency), w.balance, w.currency)}</div>
-                                </div>
-                            </div>
-                        }).collect::<Vec<_>>()}
+                            }).collect::<Vec<_>>()}
+                        </div>
                     </div>
                 }.into_any(),
                 "send" => view! {
@@ -468,7 +702,7 @@ pub fn TransactionsPage() -> impl IntoView {
                 _ => view! {
                     <div class="data-card">
                         <div class="card-header">
-                            <span class="card-title">"Transaction History"</span>
+                            <span class="card-title">"Recent Transactions"</span>
                             <select
                                 class="form-select"
                                 style="width: auto; min-width: 120px;"

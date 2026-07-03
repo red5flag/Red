@@ -6,6 +6,7 @@ cfg_if! {
         use farley::app::{shell, App};
         use farley::pages::email_valid::{email_valid_page, api_signup, api_validate, api_login, api_stats,
             api_verify_totp, api_verify_email_2fa, api_enable_totp, api_confirm_totp, api_toggle_email_2fa,
+            api_toggle_phone_2fa, api_verify_phone_2fa,
             api_sync_credentials, api_load_credentials};
         use leptos::config::get_configuration;
         use leptos_axum::{generate_route_list, LeptosRoutes};
@@ -32,6 +33,8 @@ cfg_if! {
                 .route("/api/enable_totp", axum::routing::post(api_enable_totp))
                 .route("/api/confirm_totp", axum::routing::post(api_confirm_totp))
                 .route("/api/toggle_email_2fa", axum::routing::post(api_toggle_email_2fa))
+                .route("/api/toggle_phone_2fa", axum::routing::post(api_toggle_phone_2fa))
+                .route("/api/verify_phone_2fa", axum::routing::post(api_verify_phone_2fa))
                 .route("/api/credentials/sync", axum::routing::post(api_sync_credentials))
                 .route("/api/credentials/sync", axum::routing::get(api_load_credentials))
                 .route("/api/stats", axum::routing::get(api_stats))

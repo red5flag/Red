@@ -1,4 +1,4 @@
-use crate::models::{Asset, Organization, Permission, Portfolio, Transaction, User};
+use crate::models::{Asset, Organization, Permission, Portfolio, Rule, RuleHistoryEntry, Transaction, User};
 use crate::stores::credentials::{CredentialStore, StoredCredential};
 use crate::types::{AssetType, TabType, Theme, UserProfile, UserRole};
 use crate::utils::crypto;
@@ -24,6 +24,11 @@ pub struct AppStore {
     pub selected_portfolio_id: Option<Uuid>,
     pub selected_asset_group_id: Option<Uuid>,
     pub selected_asset_id: Option<Uuid>,
+    /// When set, PortfoliosPage should expand this portfolio, expand the group,
+    /// and open the doc modal for the asset/doc — used by notification click navigation.
+    pub pending_nav_target: Option<PendingNavTarget>,
+    /// When set, PortfolioListItem should expand this group (set by notification navigation).
+    pub pending_group_expand: Option<Uuid>,
     // UI state
     pub is_search_open: bool,
     pub search_query: String,
@@ -72,6 +77,13 @@ pub struct AppStore {
     pub credentials: CredentialStore,
     // Tabs drawer (left-side drawer for tab list)
     pub tabs_drawer_open: bool,
+    // Notifications drawer (right-side drawer)
+    pub notifications_drawer_open: bool,
+    // Rule engine: rules and history per organization
+    pub rules: Vec<Rule>,
+    pub rule_history: Vec<RuleHistoryEntry>,
+    // Developer mode (for testing notifications, etc.)
+    pub developer_mode: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -80,6 +92,25 @@ pub struct Notification {
     pub message: String,
     pub notification_type: NotificationType,
     pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub target_tab: Option<crate::types::TabType>,
+    pub from_user: Option<String>,
+    pub linked_doc_id: Option<Uuid>,
+    pub linked_portfolio_id: Option<Uuid>,
+    pub linked_group_id: Option<Uuid>,
+    pub linked_asset_id: Option<Uuid>,
+    /// Preview content shown when the notification is clicked (e.g. notes from document update).
+    pub content_preview: Option<String>,
+    /// Users tagged via @username in the notes — each gets a separate notification.
+    pub tagged_user_ids: Vec<Uuid>,
+}
+
+/// Navigation target for jumping to a specific portfolio/group/asset/doc from a notification click.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PendingNavTarget {
+    pub portfolio_id: Uuid,
+    pub group_id: Option<Uuid>,
+    pub asset_id: Option<Uuid>,
+    pub doc_id: Option<Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -179,6 +210,8 @@ impl Default for AppStore {
             selected_portfolio_id: None,
             selected_asset_group_id: None,
             selected_asset_id: None,
+            pending_nav_target: None,
+            pending_group_expand: None,
             is_search_open: false,
             search_query: String::new(),
             theme: Theme::default(),
@@ -209,6 +242,10 @@ impl Default for AppStore {
             current_organization_id: None,
             credentials,
             tabs_drawer_open: false,
+            notifications_drawer_open: false,
+            rules: Vec::new(),
+            rule_history: Vec::new(),
+            developer_mode: false,
         }
     }
 }
@@ -329,7 +366,16 @@ impl AppStore {
 
     // Portfolio management
     pub fn add_portfolio(&mut self, portfolio: Portfolio) {
+        let pname = portfolio.name.clone();
+        let pid = portfolio.id;
         self.portfolios.push(portfolio);
+        self.add_notification_for(
+            format!("Portfolio \"{}\" created — ready for review.", pname),
+            NotificationType::Success,
+            Some(TabType::Portfolios),
+            Some(self.current_user.name.clone()),
+        );
+        let _ = pid;
     }
 
     pub fn get_portfolio(&self, id: Uuid) -> Option<&Portfolio> {
@@ -342,8 +388,15 @@ impl AppStore {
 
     pub fn set_portfolio_name(&mut self, id: Uuid, name: String) {
         if let Some(p) = self.get_portfolio_mut(id) {
-            p.name = name;
+            p.name = name.clone();
+            p.updated_at = chrono::Utc::now();
         }
+        self.add_notification_for(
+            format!("Portfolio renamed to \"{}\" — changes pending review.", name),
+            NotificationType::Warning,
+            Some(TabType::Portfolios),
+            Some(self.current_user.name.clone()),
+        );
     }
 
     pub fn remove_portfolio(&mut self, id: Uuid) -> Option<Portfolio> {
@@ -354,38 +407,98 @@ impl AppStore {
         }
     }
 
+    pub fn add_document_to_portfolio(&mut self, portfolio_id: Uuid, doc: crate::models::Document) {
+        let dname = doc.name.clone();
+        let doc_id = doc.id;
+        let uploader = self.current_user.name.clone();
+        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
+            p.documents.push(doc);
+            p.updated_at = chrono::Utc::now();
+        }
+        self.add_document_notification(
+            doc_id,
+            &dname,
+            &uploader.clone(),
+            &format!("Document \"{}\" added to portfolio — pending review.", dname),
+            NotificationType::Info,
+            None,
+            Some(uploader),
+            Some(portfolio_id),
+            None,
+            None,
+        );
+    }
+
     pub fn update_document_name(&mut self, doc_id: Uuid, new_name: String) {
+        let mut found = false;
+        let mut origin_pid: Option<Uuid> = None;
+        let mut origin_gid: Option<Uuid> = None;
+        let mut origin_aid: Option<Uuid> = None;
         for p in self.portfolios.iter_mut() {
             for d in &mut p.documents {
                 if d.id == doc_id {
                     d.name = new_name.clone();
-                    return;
+                    p.updated_at = chrono::Utc::now();
+                    found = true;
+                    origin_pid = Some(p.id);
+                    break;
                 }
             }
+            if found { continue; }
             for g in &mut p.asset_groups {
                 for d in &mut g.documents {
                     if d.id == doc_id {
                         d.name = new_name.clone();
-                        return;
+                        p.updated_at = chrono::Utc::now();
+                        found = true;
+                        origin_pid = Some(p.id);
+                        origin_gid = Some(g.id);
+                        break;
                     }
                 }
+                if found { continue; }
                 for a in &mut g.assets {
                     for d in &mut a.documents {
                         if d.id == doc_id {
                             d.name = new_name.clone();
-                            return;
+                            p.updated_at = chrono::Utc::now();
+                            found = true;
+                            origin_pid = Some(p.id);
+                            origin_gid = Some(g.id);
+                            origin_aid = Some(a.id);
+                            break;
                         }
                     }
                 }
             }
+            if found { continue; }
             for a in &mut p.assets {
                 for d in &mut a.documents {
                     if d.id == doc_id {
                         d.name = new_name.clone();
-                        return;
+                        p.updated_at = chrono::Utc::now();
+                        found = true;
+                        origin_pid = Some(p.id);
+                        origin_aid = Some(a.id);
+                        break;
                     }
                 }
             }
+        }
+        if found {
+            let user_name = self.current_user.name.clone();
+            self.add_document_notification(
+                doc_id,
+                &new_name,
+                &user_name.clone(),
+                &format!("Document renamed to \"{}\" — review requested.", new_name),
+                NotificationType::Warning,
+                None,
+                Some(user_name),
+                origin_pid,
+                origin_gid,
+                origin_aid,
+            );
         }
     }
 
@@ -645,17 +758,405 @@ impl AppStore {
 
     // Notification management
     pub fn add_notification(&mut self, message: String, notification_type: NotificationType) {
+        self.add_notification_for(message, notification_type, None, None);
+    }
+
+    pub fn add_notification_for(
+        &mut self,
+        message: String,
+        notification_type: NotificationType,
+        target_tab: Option<crate::types::TabType>,
+        from_user: Option<String>,
+    ) {
         self.notifications.push(Notification {
             id: Uuid::new_v4(),
             message,
             notification_type,
             timestamp: chrono::Utc::now(),
+            target_tab,
+            from_user,
+            linked_doc_id: None,
+            linked_portfolio_id: None,
+            linked_group_id: None,
+            linked_asset_id: None,
+            content_preview: None,
+            tagged_user_ids: Vec::new(),
         });
 
-        // Keep only last 10 notifications
-        if self.notifications.len() > 10 {
+        // Keep only last 50 notifications
+        if self.notifications.len() > 50 {
             self.notifications.remove(0);
         }
+    }
+
+    /// Add a notification linked to a specific document, with an @user ping.
+    /// Sends notifications to both the document's portfolio tab and an optional review tab.
+    pub fn add_document_notification(
+        &mut self,
+        doc_id: Uuid,
+        doc_name: &str,
+        ping_user: &str,
+        message: &str,
+        notification_type: NotificationType,
+        review_tab: Option<crate::types::TabType>,
+        from_user: Option<String>,
+        portfolio_id: Option<Uuid>,
+        group_id: Option<Uuid>,
+        asset_id: Option<Uuid>,
+    ) {
+        let ping_msg = format!("@{} — {}", ping_user, message);
+        // Notification on the review tab (e.g. Reporting)
+        if let Some(tab) = review_tab {
+            self.notifications.push(Notification {
+                id: Uuid::new_v4(),
+                message: format!("Document \"{}\": {}", doc_name, ping_msg),
+                notification_type: notification_type.clone(),
+                timestamp: chrono::Utc::now(),
+                target_tab: Some(tab),
+                from_user: from_user.clone(),
+                linked_doc_id: Some(doc_id),
+                linked_portfolio_id: portfolio_id,
+                linked_group_id: group_id,
+                linked_asset_id: asset_id,
+                content_preview: None,
+                tagged_user_ids: Vec::new(),
+            });
+        }
+        // Notification on the Portfolios tab (where the document lives)
+        self.notifications.push(Notification {
+            id: Uuid::new_v4(),
+            message: format!("Document \"{}\": {}", doc_name, ping_msg),
+            notification_type: notification_type.clone(),
+            timestamp: chrono::Utc::now(),
+            target_tab: Some(TabType::Portfolios),
+            from_user,
+            linked_doc_id: Some(doc_id),
+            linked_portfolio_id: portfolio_id,
+            linked_group_id: group_id,
+            linked_asset_id: asset_id,
+            content_preview: None,
+            tagged_user_ids: Vec::new(),
+        });
+
+        // Keep only last 50 notifications
+        if self.notifications.len() > 50 {
+            self.notifications.remove(0);
+        }
+    }
+
+    /// Add a document update notification with notes content and @username parsing.
+    /// Each @username mention creates a separate notification for that user with the notes as content_preview.
+    pub fn add_document_update_with_notes(
+        &mut self,
+        doc_id: Uuid,
+        doc_name: &str,
+        notes: &str,
+        updater_name: &str,
+        portfolio_id: Option<Uuid>,
+        group_id: Option<Uuid>,
+        asset_id: Option<Uuid>,
+    ) {
+        // Parse @username mentions from notes
+        let tagged_users: Vec<(Uuid, String)> = {
+            let store_users = &self.organization_users;
+            let mut found = Vec::new();
+            for part in notes.split('@').skip(1) {
+                // Extract username (alphanumeric + _ until whitespace)
+                let username: String = part.chars().take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '.').collect();
+                if username.is_empty() { continue; }
+                // Match against organization users by name or username
+                if let Some(user) = store_users.iter().find(|u| {
+                    u.name == username
+                        || u.username.as_deref() == Some(&username)
+                        || u.name.to_lowercase() == username.to_lowercase()
+                }) {
+                    if !found.iter().any(|(id, _)| id == &user.id) {
+                        found.push((user.id, user.name.clone()));
+                    }
+                }
+            }
+            found
+        };
+
+        let preview = if notes.trim().is_empty() { None } else { Some(notes.to_string()) };
+        let base_msg = if notes.trim().is_empty() {
+            format!("Document \"{}\" updated by {}.", doc_name, updater_name)
+        } else {
+            format!("Document \"{}\" updated by {} — with notes.", doc_name, updater_name)
+        };
+
+        let tagged_ids: Vec<Uuid> = tagged_users.iter().map(|(id, _)| *id).collect();
+
+        // Main notification on Portfolios tab
+        self.notifications.push(Notification {
+            id: Uuid::new_v4(),
+            message: base_msg.clone(),
+            notification_type: NotificationType::Info,
+            timestamp: chrono::Utc::now(),
+            target_tab: Some(TabType::Portfolios),
+            from_user: Some(updater_name.to_string()),
+            linked_doc_id: Some(doc_id),
+            linked_portfolio_id: portfolio_id,
+            linked_group_id: group_id,
+            linked_asset_id: asset_id,
+            content_preview: preview.clone(),
+            tagged_user_ids: tagged_ids.clone(),
+        });
+
+        // Per-user tagged notifications
+        for (uid, uname) in &tagged_users {
+            let ping_msg = format!("@{} — You were tagged in document \"{}\" by {}.", uname, doc_name, updater_name);
+            self.notifications.push(Notification {
+                id: Uuid::new_v4(),
+                message: ping_msg,
+                notification_type: NotificationType::Warning,
+                timestamp: chrono::Utc::now(),
+                target_tab: Some(TabType::Portfolios),
+                from_user: Some(updater_name.to_string()),
+                linked_doc_id: Some(doc_id),
+                linked_portfolio_id: portfolio_id,
+                linked_group_id: group_id,
+                linked_asset_id: asset_id,
+                content_preview: preview.clone(),
+                tagged_user_ids: vec![*uid],
+            });
+        }
+
+        // Keep only last 50 notifications
+        if self.notifications.len() > 50 {
+            self.notifications.drain(0..(self.notifications.len().saturating_sub(50)));
+        }
+    }
+
+    pub fn notifications_for_tab(&self, tab: &crate::types::TabType) -> usize {
+        self.notifications
+            .iter()
+            .filter(|n| n.target_tab.as_ref() == Some(tab))
+            .count()
+    }
+
+    /// Navigate to the origin of a notification — expands the portfolio, group,
+    /// and opens the doc modal for the asset/document that the notification originated from.
+    pub fn navigate_to_notification(&mut self, notif_id: Uuid) {
+        if let Some(n) = self.notifications.iter().find(|n| n.id == notif_id) {
+            let tab = n.target_tab.clone();
+            if let Some(pid) = n.linked_portfolio_id.or_else(|| {
+                // Try to find the portfolio that contains the linked doc
+                n.linked_doc_id.and_then(|did| {
+                    self.portfolios.iter().find(|p| {
+                        p.documents.iter().any(|d| d.id == did)
+                            || p.asset_groups.iter().any(|g| g.documents.iter().any(|d| d.id == did))
+                            || p.assets.iter().any(|a| a.documents.iter().any(|d| d.id == did))
+                            || p.asset_groups.iter().any(|g| g.assets.iter().any(|a| a.documents.iter().any(|d| d.id == did)))
+                    }).map(|p| p.id)
+                })
+            }) {
+                self.pending_nav_target = Some(PendingNavTarget {
+                    portfolio_id: pid,
+                    group_id: n.linked_group_id,
+                    asset_id: n.linked_asset_id,
+                    doc_id: n.linked_doc_id,
+                });
+                // Auto-expand the group if the notification originated from within a group
+                if let Some(gid) = n.linked_group_id {
+                    self.pending_group_expand = Some(gid);
+                }
+                // Always switch to Portfolios tab — that's where the document lives and
+                // where the pending_nav_target Effect will open the doc modal.
+                self.expand_tab(TabType::Portfolios);
+                self.close_notifications_drawer();
+            } else if let Some(tab) = tab {
+                // No linked portfolio — just switch to the tab
+                self.expand_tab(tab);
+                self.close_notifications_drawer();
+            }
+        }
+    }
+
+    /// Count notifications linked to any document within a portfolio
+    /// (portfolio-level docs, group docs, asset docs).
+    pub fn doc_notifications_for_portfolio(&self, portfolio_id: Uuid) -> usize {
+        let doc_ids: std::collections::HashSet<Uuid> = if let Some(p) = self.portfolios.iter().find(|p| p.id == portfolio_id) {
+            let mut ids: std::collections::HashSet<Uuid> = p.documents.iter().map(|d| d.id).collect();
+            for g in &p.asset_groups {
+                for d in &g.documents { ids.insert(d.id); }
+                for a in &g.assets {
+                    for d in &a.documents { ids.insert(d.id); }
+                }
+            }
+            for a in &p.assets {
+                for d in &a.documents { ids.insert(d.id); }
+            }
+            ids
+        } else {
+            std::collections::HashSet::new()
+        };
+        self.notifications.iter()
+            .filter(|n| n.linked_doc_id.map(|id| doc_ids.contains(&id)).unwrap_or(false))
+            .count()
+    }
+
+    /// Count notifications linked to any document within an asset group.
+    pub fn doc_notifications_for_group(&self, portfolio_id: Uuid, group_id: Uuid) -> usize {
+        let doc_ids: std::collections::HashSet<Uuid> = if let Some(p) = self.portfolios.iter().find(|p| p.id == portfolio_id) {
+            if let Some(g) = p.asset_groups.iter().find(|g| g.id == group_id) {
+                let mut ids: std::collections::HashSet<Uuid> = g.documents.iter().map(|d| d.id).collect();
+                for a in &g.assets {
+                    for d in &a.documents { ids.insert(d.id); }
+                }
+                ids
+            } else { std::collections::HashSet::new() }
+        } else { std::collections::HashSet::new() };
+        self.notifications.iter()
+            .filter(|n| n.linked_doc_id.map(|id| doc_ids.contains(&id)).unwrap_or(false))
+            .count()
+    }
+
+    /// Count notifications linked to any document within an asset.
+    pub fn doc_notifications_for_asset(&self, asset_id: Uuid) -> usize {
+        let doc_ids: std::collections::HashSet<Uuid> = {
+            let mut ids = std::collections::HashSet::new();
+            for p in &self.portfolios {
+                for a in &p.assets {
+                    if a.id == asset_id {
+                        for d in &a.documents { ids.insert(d.id); }
+                    }
+                }
+                for g in &p.asset_groups {
+                    for a in &g.assets {
+                        if a.id == asset_id {
+                            for d in &a.documents { ids.insert(d.id); }
+                        }
+                    }
+                }
+            }
+            ids
+        };
+        self.notifications.iter()
+            .filter(|n| n.linked_doc_id.map(|id| doc_ids.contains(&id)).unwrap_or(false))
+            .count()
+    }
+
+    /// Count notifications linked to a specific document.
+    pub fn notifications_for_doc(&self, doc_id: Uuid) -> usize {
+        self.notifications.iter()
+            .filter(|n| n.linked_doc_id == Some(doc_id))
+            .count()
+    }
+
+    /// Get the actual notifications linked to a specific document (most recent first).
+    pub fn notifications_list_for_doc(&self, doc_id: Uuid) -> Vec<Notification> {
+        let mut notifs: Vec<Notification> = self.notifications.iter()
+            .filter(|n| n.linked_doc_id == Some(doc_id))
+            .cloned()
+            .collect();
+        notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        notifs
+    }
+
+    // ── Entity notification settings ──────────────────────────────
+
+    /// Get notification settings for a portfolio.
+    pub fn portfolio_notification_settings(&self, pid: Uuid) -> Vec<crate::models::EntityNotificationSetting> {
+        self.portfolios.iter()
+            .find(|p| p.id == pid)
+            .map(|p| p.notification_settings.clone())
+            .unwrap_or_default()
+    }
+
+    /// Get notification settings for an asset group.
+    pub fn group_notification_settings(&self, pid: Uuid, gid: Uuid) -> Vec<crate::models::EntityNotificationSetting> {
+        self.portfolios.iter()
+            .find(|p| p.id == pid)
+            .and_then(|p| p.asset_groups.iter().find(|g| g.id == gid))
+            .map(|g| g.notification_settings.clone())
+            .unwrap_or_default()
+    }
+
+    /// Add a notification setting to a portfolio.
+    pub fn add_portfolio_notification_setting(&mut self, pid: Uuid, setting: crate::models::EntityNotificationSetting) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            p.notification_settings.push(setting);
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    /// Add a notification setting to an asset group.
+    pub fn add_group_notification_setting(&mut self, pid: Uuid, gid: Uuid, setting: crate::models::EntityNotificationSetting) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                g.notification_settings.push(setting);
+                g.updated_at = chrono::Utc::now();
+            }
+        }
+    }
+
+    /// Toggle the enabled state of a notification setting on a portfolio.
+    pub fn toggle_portfolio_notification_setting(&mut self, pid: Uuid, setting_id: Uuid) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            if let Some(s) = p.notification_settings.iter_mut().find(|s| s.id == setting_id) {
+                s.enabled = !s.enabled;
+            }
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    /// Toggle the enabled state of a notification setting on a group.
+    pub fn toggle_group_notification_setting(&mut self, pid: Uuid, gid: Uuid, setting_id: Uuid) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                if let Some(s) = g.notification_settings.iter_mut().find(|s| s.id == setting_id) {
+                    s.enabled = !s.enabled;
+                }
+                g.updated_at = chrono::Utc::now();
+            }
+        }
+    }
+
+    /// Remove a notification setting from a portfolio.
+    pub fn remove_portfolio_notification_setting(&mut self, pid: Uuid, setting_id: Uuid) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            p.notification_settings.retain(|s| s.id != setting_id);
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    /// Remove a notification setting from a group.
+    pub fn remove_group_notification_setting(&mut self, pid: Uuid, gid: Uuid, setting_id: Uuid) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                g.notification_settings.retain(|s| s.id != setting_id);
+                g.updated_at = chrono::Utc::now();
+            }
+        }
+    }
+
+    /// Update a notification setting on a portfolio.
+    pub fn update_portfolio_notification_setting(&mut self, pid: Uuid, setting: crate::models::EntityNotificationSetting) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            if let Some(s) = p.notification_settings.iter_mut().find(|s| s.id == setting.id) {
+                *s = setting;
+            }
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    /// Update a notification setting on a group.
+    pub fn update_group_notification_setting(&mut self, pid: Uuid, gid: Uuid, setting: crate::models::EntityNotificationSetting) {
+        if let Some(p) = self.get_portfolio_mut(pid) {
+            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                if let Some(s) = g.notification_settings.iter_mut().find(|s| s.id == setting.id) {
+                    *s = setting;
+                }
+                g.updated_at = chrono::Utc::now();
+            }
+        }
+    }
+
+    /// Check if the current user can manage notification recipients (requires ManageUsers or ManageRoles).
+    pub fn can_manage_notification_recipients(&self) -> bool {
+        self.current_user.has_permission(crate::models::Permission::ManageUsers)
+            || self.current_user.has_permission(crate::models::Permission::ManageRoles)
     }
 
     pub fn remove_notification(&mut self, id: Uuid) {
@@ -664,6 +1165,132 @@ impl AppStore {
 
     pub fn clear_notifications(&mut self) {
         self.notifications.clear();
+    }
+
+    /// Send a test notification from a given user to test the notification system.
+    /// Only works when developer_mode is enabled.
+    pub fn send_test_notification(&mut self, from_user: &str, message: &str, target_tab: crate::types::TabType) {
+        if !self.developer_mode {
+            return;
+        }
+        self.add_notification_for(
+            message.to_string(),
+            NotificationType::Info,
+            Some(target_tab),
+            Some(from_user.to_string()),
+        );
+    }
+
+    pub fn toggle_developer_mode(&mut self) {
+        self.developer_mode = !self.developer_mode;
+    }
+
+    pub fn dev_test_message_from_bot(&mut self, content: &str) {
+        if !self.developer_mode { return; }
+        self.receive_message(Uuid::new_v4(), content.to_string());
+        self.add_notification_for(format!("New message from Bot: \"{}\"", content), NotificationType::Info, Some(TabType::Networking), Some("Bot".into()));
+    }
+
+    pub fn dev_test_add_bot_contact(&mut self) {
+        if !self.developer_mode { return; }
+        self.add_messenger_contact(crate::models::MessengerContact { id: Uuid::new_v4(), name: "Bot".into(), source: crate::models::ContactSource::Bot, phone: None, email: Some("bot@farley.test".into()), unread_count: 1 });
+    }
+
+    pub fn dev_test_add_document(&mut self, doc_name: &str, file_type: &str) -> Option<Uuid> {
+        if !self.developer_mode { return None; }
+        let doc = crate::models::Document { id: Uuid::new_v4(), name: doc_name.into(), file_type: file_type.into(), url: "#".into(), uploaded_at: chrono::Utc::now(), uploaded_by: self.current_user.id, content: None };
+        let doc_id = doc.id;
+        let mut origin_pid: Option<Uuid> = None;
+        if let Some(p) = self.portfolios.first() {
+            origin_pid = Some(p.id);
+            self.add_document_to_portfolio(p.id, doc);
+        } else {
+            // No portfolio exists — create one then add the doc
+            let mut new_p = Portfolio::new("Dev Test Portfolio".into(), self.current_user.id, crate::types::Currency::USD);
+            let pid = new_p.id;
+            origin_pid = Some(pid);
+            new_p.documents.push(doc);
+            self.add_portfolio(new_p);
+        }
+        self.add_document_notification(
+            doc_id,
+            doc_name,
+            "red",
+            &format!("Bot requested review of document \"{}\"", doc_name),
+            NotificationType::Warning,
+            Some(TabType::Reporting),
+            Some("Bot".into()),
+            origin_pid,
+            None,
+            None,
+        );
+        Some(doc_id)
+    }
+
+    pub fn dev_test_update_document(&mut self, doc_id: Uuid, new_name: &str) {
+        if !self.developer_mode { return; }
+        self.update_document_name(doc_id, new_name.into());
+        self.add_document_notification(
+            doc_id,
+            new_name,
+            "red",
+            &format!("Bot updated document for review: \"{}\"", new_name),
+            NotificationType::Warning,
+            Some(TabType::Reporting),
+            Some("Bot".into()),
+            None,
+            None,
+            None,
+        );
+    }
+
+    pub fn dev_test_add_transaction(&mut self, amount: f64, desc: &str) {
+        if !self.developer_mode { return; }
+        let from_e = crate::models::EntityReference { entity_type: crate::models::EntityType::External, entity_id: Uuid::new_v4(), name: "Bot Corp".into() };
+        let to_e = crate::models::EntityReference { entity_type: crate::models::EntityType::User, entity_id: self.current_user.id, name: self.current_user.name.clone() };
+        let mut tx = crate::models::Transaction::new(crate::types::TransactionType::Transfer, amount, crate::types::Currency::USD, from_e, to_e, self.current_user.id);
+        tx.description = Some(desc.into()); tx.status = crate::models::TransactionStatus::Pending;
+        self.transactions.push(tx);
+        self.add_notification_for(format!("Transaction: ${:.2} - {}", amount, desc), NotificationType::Info, Some(TabType::Transactions), Some("Bot".into()));
+    }
+
+    pub fn dev_test_approve_last_tx(&mut self) {
+        if !self.developer_mode { return; }
+        if let Some(tx) = self.transactions.last_mut() { tx.approve(); }
+        if let Some(tx) = self.transactions.last() { self.add_notification_for(format!("Approved: ${:.2}", tx.amount), NotificationType::Success, Some(TabType::Transactions), Some("System".into())); }
+    }
+
+    pub fn dev_test_execute_last_tx(&mut self) {
+        if !self.developer_mode { return; }
+        if let Some(tx) = self.transactions.last_mut() { if tx.status == crate::models::TransactionStatus::Approved { tx.execute(); } }
+        if let Some(tx) = self.transactions.last() { if tx.status == crate::models::TransactionStatus::Executed { self.add_notification_for(format!("Executed: ${:.2}", tx.amount), NotificationType::Success, Some(TabType::Transactions), Some("System".into())); } }
+    }
+
+    pub fn dev_test_add_calendar_event(&mut self, title: &str, days_ahead: i64) {
+        if !self.developer_mode { return; }
+        use chrono::Duration;
+        let s = chrono::Utc::now() + Duration::days(days_ahead);
+        let mut ev = crate::models::CalendarEvent::new(title.into(), s, s + Duration::hours(2));
+        ev.source = Some("DevTest".into());
+        self.add_calendar_event(ev);
+        self.add_notification_for(format!("Event: \"{}\"", title), NotificationType::Info, Some(TabType::Calendar), Some("System".into()));
+    }
+
+    pub fn dev_test_add_portfolio(&mut self, name: &str) -> Option<Uuid> {
+        if !self.developer_mode { return None; }
+        let mut p = Portfolio::new(name.into(), self.current_user.id, crate::types::Currency::USD);
+        p.description = Some("Dev test".into());
+        let pid = p.id;
+        self.add_portfolio(p);
+        self.add_notification_for(format!("Bot requested review of portfolio \"{}\"", name), NotificationType::Warning, Some(TabType::Portfolios), Some("Bot".into()));
+        Some(pid)
+    }
+
+    pub fn dev_test_add_org_user(&mut self, name: &str, role: UserRole) {
+        if !self.developer_mode { return; }
+        let role_dbg = format!("{:?}", role);
+        self.add_organization_user(User::new(name.into(), format!("{}@farley.test", name.to_lowercase()), role));
+        self.add_notification_for(format!("User: \"{}\" {}", name, role_dbg), NotificationType::Info, Some(TabType::Organization), Some("System".into()));
     }
 
     // Modal management
@@ -746,6 +1373,8 @@ impl AppStore {
         self.selected_portfolio_id = None;
         self.selected_asset_group_id = None;
         self.selected_asset_id = None;
+        self.pending_nav_target = None;
+        self.pending_group_expand = None;
         self.portfolios.clear();
         self.tabs_drawer_open = false;
         let _ = crypto::clear_cached("farley_home_cache");
@@ -930,6 +1559,110 @@ impl AppStore {
         self.tabs_drawer_open = false;
     }
 
+    // Notifications drawer
+    pub fn toggle_notifications_drawer(&mut self) {
+        self.notifications_drawer_open = !self.notifications_drawer_open;
+    }
+
+    pub fn close_notifications_drawer(&mut self) {
+        self.notifications_drawer_open = false;
+    }
+
+    // Rule engine management
+    pub fn add_rule(&mut self, rule: Rule) {
+        let entry = crate::models::RuleHistoryEntry::new(
+            rule.id,
+            rule.name.clone(),
+            "Created".to_string(),
+            rule.created_by,
+            self.current_user.name.clone(),
+            format!("Rule '{}' was created", rule.name),
+        );
+        self.rule_history.push(entry);
+        self.rules.push(rule);
+    }
+
+    pub fn update_rule(&mut self, rule: Rule, updated_by: Uuid) {
+        if let Some(existing) = self.rules.iter_mut().find(|r| r.id == rule.id) {
+            let entry = crate::models::RuleHistoryEntry::new(
+                rule.id,
+                rule.name.clone(),
+                "Updated".to_string(),
+                updated_by,
+                self.current_user.name.clone(),
+                format!("Rule '{}' was updated", rule.name),
+            );
+            self.rule_history.push(entry);
+            *existing = rule;
+            existing.updated_by = updated_by;
+            existing.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn delete_rule(&mut self, rule_id: Uuid, deleted_by: Uuid) {
+        if let Some(rule) = self.rules.iter().find(|r| r.id == rule_id) {
+            let entry = crate::models::RuleHistoryEntry::new(
+                rule_id,
+                rule.name.clone(),
+                "Deleted".to_string(),
+                deleted_by,
+                self.current_user.name.clone(),
+                format!("Rule '{}' was deleted", rule.name),
+            );
+            self.rule_history.push(entry);
+        }
+        self.rules.retain(|r| r.id != rule_id);
+    }
+
+    pub fn toggle_rule(&mut self, rule_id: Uuid, toggled_by: Uuid) {
+        if let Some(rule) = self.rules.iter_mut().find(|r| r.id == rule_id) {
+            rule.enabled = !rule.enabled;
+            let action = if rule.enabled { "Enabled" } else { "Disabled" };
+            let entry = crate::models::RuleHistoryEntry::new(
+                rule_id,
+                rule.name.clone(),
+                action.to_string(),
+                toggled_by,
+                self.current_user.name.clone(),
+                format!("Rule '{}' was {}", rule.name, action.to_lowercase()),
+            );
+            self.rule_history.push(entry);
+            rule.updated_by = toggled_by;
+            rule.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn duplicate_rule(&mut self, rule_id: Uuid, duplicated_by: Uuid) -> Option<Rule> {
+        let rule = self.rules.iter().find(|r| r.id == rule_id)?.clone();
+        let mut new_rule = rule.clone();
+        new_rule.id = Uuid::new_v4();
+        new_rule.name = format!("{} (Copy)", rule.name);
+        new_rule.enabled = false;
+        new_rule.created_by = duplicated_by;
+        new_rule.created_at = chrono::Utc::now();
+        new_rule.updated_by = duplicated_by;
+        new_rule.updated_at = chrono::Utc::now();
+        let entry = crate::models::RuleHistoryEntry::new(
+            new_rule.id,
+            new_rule.name.clone(),
+            "Duplicated".to_string(),
+            duplicated_by,
+            self.current_user.name.clone(),
+            format!("Rule '{}' was duplicated from '{}'", new_rule.name, rule.name),
+        );
+        self.rule_history.push(entry);
+        self.rules.push(new_rule.clone());
+        Some(new_rule)
+    }
+
+    pub fn rules_for_org(&self, org_id: Uuid) -> Vec<&Rule> {
+        self.rules.iter().filter(|r| r.organization_id == org_id).collect()
+    }
+
+    pub fn rule_history_for_rule(&self, rule_id: Uuid) -> Vec<&RuleHistoryEntry> {
+        self.rule_history.iter().filter(|h| h.rule_id == rule_id).collect()
+    }
+
     // Organization management
     pub fn add_organization(&mut self, org: Organization) {
         self.organizations.push(org);
@@ -1068,9 +1801,38 @@ impl AppStore {
         // Pre-existing documents the guest can read but cannot edit (nil owner = legacy shared).
         asset.documents.push(make_doc("NotRed Welcome", "pdf"));
         asset.documents.push(make_doc("NotRed Policy", "pdf"));
+
+        // Real audit document with @red ping in notes, uploaded by NotRed owner.
+        let audit_doc = crate::models::Document {
+            id: Uuid::new_v4(),
+            name: "NotRed Q3 Audit Report".to_string(),
+            file_type: "pdf".to_string(),
+            url: "#".to_string(),
+            uploaded_at: chrono::Utc::now(),
+            uploaded_by: notred_owner,
+            content: Some("@red — Please review this audit report for compliance. Notes: financial statements verified, tax filings current, 2 discrepancies flagged for follow-up. @red ping for approval.".to_string()),
+        };
+        let audit_doc_id = audit_doc.id;
+        let notred_pid = p.id;
+        let notred_aid = asset.id;
+        asset.documents.push(audit_doc);
         p.assets.push(asset);
         p.recalculate_values();
         self.portfolios.push(p);
+
+        // Linked document notifications: one on Reporting tab, one on Portfolios tab.
+        self.add_document_notification(
+            audit_doc_id,
+            "NotRed Q3 Audit Report",
+            "red",
+            "Red1 (NotRed Owner) has listed a new document and requested audit review by Red (Auditor).",
+            NotificationType::Warning,
+            Some(crate::types::TabType::Reporting),
+            Some("Red1".to_string()),
+            Some(notred_pid),
+            None,
+            Some(notred_aid),
+        );
     }
 
     pub fn get_organization_mut(&mut self, id: Uuid) -> Option<&mut Organization> {

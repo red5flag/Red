@@ -7,7 +7,9 @@ use leptos::task::spawn_local;
 #[cfg(feature = "hydrate")]
 use gloo_net::http::Request as GlooRequest;
 #[cfg(feature = "hydrate")]
-use crate::api::email::{EnableTotpRequest, EnableTotpResponse, ConfirmTotpRequest, ConfirmTotpResponse, ToggleEmail2faRequest, ToggleEmail2faResponse};
+use crate::api::email::{EnableTotpRequest, EnableTotpResponse, ConfirmTotpRequest, ConfirmTotpResponse,
+    ToggleEmail2faRequest, ToggleEmail2faResponse,
+    TogglePhone2faRequest, TogglePhone2faResponse};
 use uuid::Uuid;
 
 #[component]
@@ -25,6 +27,21 @@ pub fn SettingsPage() -> impl IntoView {
     let (setup_success, set_setup_success) = signal(String::new());
     let (setup_step, set_setup_step) = signal(0u8); // 0: credentials, 1: confirm, 2: success
     let (email_2fa_status, set_email_2fa_status) = signal(String::new());
+    let (phone_number, set_phone_number) = signal(String::new());
+    let (phone_2fa_status, set_phone_2fa_status) = signal(String::new());
+
+    // Developer mode test signals
+    let (dev_msg_content, set_dev_msg_content) = signal(String::new());
+    let (dev_doc_name, set_dev_doc_name) = signal(String::new());
+    let (dev_doc_type, set_dev_doc_type) = signal(String::new());
+    let (dev_tx_amount, set_dev_tx_amount) = signal(String::new());
+    let (dev_tx_desc, set_dev_tx_desc) = signal(String::new());
+    let (dev_cal_title, set_dev_cal_title) = signal(String::new());
+    let (dev_cal_days, set_dev_cal_days) = signal(String::new());
+    let (dev_portfolio_name, set_dev_portfolio_name) = signal(String::new());
+    let (dev_user_name, set_dev_user_name) = signal(String::new());
+    let (dev_notif_msg, set_dev_notif_msg) = signal(String::new());
+    let (dev_notif_from, set_dev_notif_from) = signal(String::new());
 
     let import_contacts = move |_| {
         let names = vec!["Alice", "Bob", "Carol", "David"];
@@ -161,6 +178,46 @@ pub fn SettingsPage() -> impl IntoView {
         });
     };
 
+    let on_toggle_phone_2fa = move |enabled: bool| {
+        set_phone_2fa_status.set(String::new());
+        let u = setup_user.get();
+        let p = setup_pass.get();
+        let phone = phone_number.get();
+        if u.trim().is_empty() || p.trim().is_empty() {
+            set_phone_2fa_status.set("Enter username and password in the credentials section above".to_string());
+            return;
+        }
+        if enabled && phone.trim().is_empty() {
+            set_phone_2fa_status.set("Enter a phone number to enable phone 2FA".to_string());
+            return;
+        }
+        let set_status = set_phone_2fa_status.clone();
+        spawn_local(async move {
+            cfg_if! {
+                if #[cfg(feature = "hydrate")] {
+                    let req = TogglePhone2faRequest { username: u, password: p, enabled, phone_number: phone };
+                    let resp = GlooRequest::post("/api/toggle_phone_2fa")
+                        .json(&req)
+                        .unwrap()
+                        .send()
+                        .await;
+                    match resp {
+                        Ok(r) => {
+                            if let Ok(v) = r.json::<TogglePhone2faResponse>().await {
+                                set_status.set(v.message);
+                            } else {
+                                set_status.set("Failed to parse server response".to_string());
+                            }
+                        }
+                        Err(e) => set_status.set(format!("Network error: {}", e))
+                    }
+                } else {
+                    let _ = (u, p, phone, enabled, set_status);
+                }
+            }
+        });
+    };
+
     let on_toggle_email_2fa = move |enabled: bool| {
         set_email_2fa_status.set(String::new());
         let u = setup_user.get();
@@ -202,6 +259,63 @@ pub fn SettingsPage() -> impl IntoView {
                 <h1>"Settings"</h1>
                 <p>"Customize your experience"</p>
             </div>
+
+            // Account section
+            <div class="data-card">
+                <div class="card-header">
+                    <span class="card-title">"Account"</span>
+                </div>
+                <div class="settings-list">
+                    <div class="account-current-user">
+                        <div class="account-avatar">{move || app_store.get().current_user.name.chars().next().unwrap_or('U')}</div>
+                        <div class="account-user-info">
+                            <div class="account-user-name">{move || app_store.get().current_user.name.clone()}</div>
+                            <div class="account-user-email">{move || app_store.get().current_user.email.clone()}</div>
+                            <div class="account-user-role">{move || format!("{:?}", app_store.get().current_user.role)}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-header" style="border-top: 2px solid var(--border-color); margin-top: 8px;">
+                    <span class="card-title">"Saved Profiles"</span>
+                </div>
+                <div class="settings-list">
+                    {move || {
+                        let creds = app_store.get().credentials.credentials.clone();
+                        let current_name = app_store.get().current_user.name.clone();
+                        if creds.is_empty() {
+                            view! {
+                                <div class="list-item">
+                                    <div class="list-item-left">
+                                        <div class="list-item-subtitle">"No saved profiles"</div>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            creds.values().map(|c| {
+                                let is_current = c.display_name == current_name;
+                                let validated_badge = if c.validated { "✓ Validated" } else { "⚠ Not validated" };
+                                view! {
+                                    <div class="list-item" class:account-profile-active={is_current}>
+                                        <div class="list-item-left">
+                                            <div class="list-item-title">{c.display_name.clone()}</div>
+                                            <div class="list-item-subtitle">{c.username.clone()} " · " {c.email.clone()}</div>
+                                            <div class="list-item-subtitle">{validated_badge}</div>
+                                        </div>
+                                        <div class="list-item-right">
+                                            {if is_current {
+                                                view! { <span class="account-current-tag">"Current"</span> }.into_any()
+                                            } else {
+                                                ().into_any()
+                                            }}
+                                        </div>
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>().into_any()
+                        }
+                    }}
+                </div>
+            </div>
+
             <div class="data-card">
                 <div class="card-header">
                     <span class="card-title">"Appearance"</span>
@@ -290,6 +404,190 @@ pub fn SettingsPage() -> impl IntoView {
                         </div>
                     </div>
                 </div>
+            </div>
+            <div class="data-card">
+                <div class="card-header">
+                    <span class="card-title">"Developer Mode"</span>
+                </div>
+                <div class="settings-list">
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">"Enable Developer Mode"</div>
+                            <div class="list-item-desc">"Toggle on to access developer tools for testing notifications and other features."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <input type="checkbox" prop:checked={move || app_store.get().developer_mode}
+                                on:change=move |ev| {
+                                    let checked = event_target_checked(&ev);
+                                    app_store.update(|s| s.developer_mode = checked);
+                                }
+                            />
+                        </div>
+                    </div>
+                </div>
+                {move || if app_store.get().developer_mode {
+                    view! {
+                        <div class="dev-test-panel">
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Notifications"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="From user"
+                                        prop:value={move || dev_notif_from.get()}
+                                        on:input=move |ev| set_dev_notif_from.set(event_target_value(&ev)) />
+                                    <input class="dev-input" type="text" placeholder="Message"
+                                        prop:value={move || dev_notif_msg.get()}
+                                        on:input=move |ev| set_dev_notif_msg.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let f=dev_notif_from.get(); let m=dev_notif_msg.get();
+                                        app_store.update(|s| s.send_test_notification(if f.is_empty(){"Bot"}else{&f}, if m.is_empty(){"Test"}else{&m}, crate::types::TabType::Portfolios));
+                                    }>"→ Portfolios"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let f=dev_notif_from.get(); let m=dev_notif_msg.get();
+                                        app_store.update(|s| s.send_test_notification(if f.is_empty(){"Bot"}else{&f}, if m.is_empty(){"Test"}else{&m}, crate::types::TabType::Transactions));
+                                    }>"→ Transactions"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let f=dev_notif_from.get(); let m=dev_notif_msg.get();
+                                        app_store.update(|s| s.send_test_notification(if f.is_empty(){"Bot"}else{&f}, if m.is_empty(){"Test"}else{&m}, crate::types::TabType::Networking));
+                                    }>"→ Networking"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let f=dev_notif_from.get(); let m=dev_notif_msg.get();
+                                        app_store.update(|s| s.send_test_notification(if f.is_empty(){"Bot"}else{&f}, if m.is_empty(){"Test"}else{&m}, crate::types::TabType::Calendar));
+                                    }>"→ Calendar"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let f=dev_notif_from.get(); let m=dev_notif_msg.get();
+                                        app_store.update(|s| s.send_test_notification(if f.is_empty(){"Bot"}else{&f}, if m.is_empty(){"Test"}else{&m}, crate::types::TabType::Organization));
+                                    }>"→ Organization"</button>
+                                    <button class="settings-action-btn dev-btn-danger" on:click=move |_| {
+                                        app_store.update(|s| s.clear_notifications());
+                                    }>"Clear All"</button>
+                                </div>
+                            </div>
+                            //DEV_INSERT
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Calendar"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="Event title"
+                                        prop:value={move || dev_cal_title.get()}
+                                        on:input=move |ev| set_dev_cal_title.set(event_target_value(&ev)) />
+                                    <input class="dev-input" type="text" placeholder="Days from now"
+                                        prop:value={move || dev_cal_days.get()}
+                                        on:input=move |ev| set_dev_cal_days.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let t=dev_cal_title.get(); let d=dev_cal_days.get();
+                                        let days: i64 = d.parse().unwrap_or(3);
+                                        app_store.update(|s| s.dev_test_add_calendar_event(if t.is_empty(){"Meeting with Bot"}else{&t}, days));
+                                    }>"Add Event"</button>
+                                </div>
+                            </div>
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Portfolios"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="Portfolio name"
+                                        prop:value={move || dev_portfolio_name.get()}
+                                        on:input=move |ev| set_dev_portfolio_name.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let n=dev_portfolio_name.get();
+                                        app_store.update(|s| { s.dev_test_add_portfolio(if n.is_empty(){"Test Portfolio"}else{&n}); });
+                                    }>"Create Portfolio"</button>
+                                </div>
+                            </div>
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Organization Users"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="User name"
+                                        prop:value={move || dev_user_name.get()}
+                                        on:input=move |ev| set_dev_user_name.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let n=dev_user_name.get();
+                                        app_store.update(|s| s.dev_test_add_org_user(if n.is_empty(){"TestUser"}else{&n}, crate::types::UserRole::Manager));
+                                    }>"Add as Manager"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let n=dev_user_name.get();
+                                        app_store.update(|s| s.dev_test_add_org_user(if n.is_empty(){"TestUser"}else{&n}, crate::types::UserRole::Worker));
+                                    }>"Add as Worker"</button>
+                                </div>
+                            </div>
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Documents"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="Document name"
+                                        prop:value={move || dev_doc_name.get()}
+                                        on:input=move |ev| set_dev_doc_name.set(event_target_value(&ev)) />
+                                    <input class="dev-input" type="text" placeholder="File type (pdf, docx)"
+                                        prop:value={move || dev_doc_type.get()}
+                                        on:input=move |ev| set_dev_doc_type.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let n=dev_doc_name.get(); let t=dev_doc_type.get();
+                                        app_store.update(|s| { s.dev_test_add_document(if n.is_empty(){"Lease Agreement"}else{&n}, if t.is_empty(){"pdf"}else{&t}); });
+                                    }>"Add Document"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let n=dev_doc_name.get(); let t=dev_doc_type.get();
+                                        let dn = if n.is_empty() {"Contract Draft"} else {&n};
+                                        app_store.update(|s| {
+                                            if let Some(id) = s.dev_test_add_document(dn, if t.is_empty(){"docx"}else{&t}) {
+                                                s.dev_test_update_document(id, &format!("{} (updated)", dn));
+                                            }
+                                        });
+                                    }>"Add + Bot Update"</button>
+                                </div>
+                            </div>
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Transactions"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="Amount (e.g. 5000)"
+                                        prop:value={move || dev_tx_amount.get()}
+                                        on:input=move |ev| set_dev_tx_amount.set(event_target_value(&ev)) />
+                                    <input class="dev-input" type="text" placeholder="Description"
+                                        prop:value={move || dev_tx_desc.get()}
+                                        on:input=move |ev| set_dev_tx_desc.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let a=dev_tx_amount.get(); let d=dev_tx_desc.get();
+                                        let amt: f64 = a.parse().unwrap_or(5000.0);
+                                        app_store.update(|s| s.dev_test_add_transaction(amt, if d.is_empty(){"Test transfer"}else{&d}));
+                                    }>"Create Pending"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        app_store.update(|s| s.dev_test_approve_last_tx());
+                                    }>"Approve Last"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        app_store.update(|s| s.dev_test_execute_last_tx());
+                                    }>"Execute Last"</button>
+                                </div>
+                            </div>
+                            <div class="dev-test-section">
+                                <div class="dev-test-section-title">"Messaging"</div>
+                                <div class="dev-test-grid">
+                                    <input class="dev-input" type="text" placeholder="Message from Bot"
+                                        prop:value={move || dev_msg_content.get()}
+                                        on:input=move |ev| set_dev_msg_content.set(event_target_value(&ev)) />
+                                </div>
+                                <div class="dev-test-grid">
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        let c=dev_msg_content.get();
+                                        app_store.update(|s| s.dev_test_message_from_bot(if c.is_empty(){"Hey Red, review the report?"}else{&c}));
+                                    }>"Receive from Bot"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        app_store.update(|s| s.dev_test_add_bot_contact());
+                                    }>"Add Bot Contact"</button>
+                                    <button class="settings-action-btn" on:click=move |_| {
+                                        app_store.update(|s| s.set_message_drawer(true));
+                                    }>"Open Messenger"</button>
+                                </div>
+                            </div>
+                        </div>
+                    }.into_any()
+                } else { ().into_any() }}
             </div>
             <div class="data-card">
                 <div class="card-header">
@@ -407,6 +705,27 @@ pub fn SettingsPage() -> impl IntoView {
                         </div>
                         {move || {
                             let status = email_2fa_status.get();
+                            if status.is_empty() { ().into_any() } else {
+                                view! { <div class="setup-status">{status}</div> }.into_any()
+                            }
+                        }}
+                    </div>
+                    <div class="list-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                        <div class="list-item-title">"Phone 2FA"</div>
+                        <div class="list-item-desc">"Send a 6-digit code to your phone number at sign-in."</div>
+                        <input
+                            class="form-input"
+                            type="tel"
+                            placeholder="Phone number (e.g. +61 400 000 000)"
+                            prop:value=move || phone_number.get()
+                            on:input=move |ev| set_phone_number.set(event_target_value(&ev))
+                        />
+                        <div class="setup-row">
+                            <button class="settings-action-btn" on:click=move |_| on_toggle_phone_2fa(true)>"Enable"</button>
+                            <button class="settings-action-btn" on:click=move |_| on_toggle_phone_2fa(false)>"Disable"</button>
+                        </div>
+                        {move || {
+                            let status = phone_2fa_status.get();
                             if status.is_empty() { ().into_any() } else {
                                 view! { <div class="setup-status">{status}</div> }.into_any()
                             }

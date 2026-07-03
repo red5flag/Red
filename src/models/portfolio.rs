@@ -1,4 +1,4 @@
-use crate::types::{AssetType, Currency, SearchFilters, ViewMode};
+use crate::types::{AssetType, Currency, NotificationTrigger, NotificationType, SearchFilters, ViewMode};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -28,6 +28,7 @@ pub struct Portfolio {
     pub documents: Vec<Document>,
     pub calendar_events: Vec<crate::models::CalendarEvent>,
     pub assigned_users: Vec<Uuid>,
+    pub notification_settings: Vec<EntityNotificationSetting>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +65,7 @@ impl Portfolio {
             documents: Vec::new(),
             calendar_events: Vec::new(),
             assigned_users: Vec::new(),
+            notification_settings: Vec::new(),
         }
     }
 
@@ -145,6 +147,7 @@ pub struct AssetGroup {
     pub documents: Vec<Document>,
     pub calendar_events: Vec<crate::models::CalendarEvent>,
     pub assigned_users: Vec<Uuid>,
+    pub notification_settings: Vec<EntityNotificationSetting>,
 }
 
 impl AssetGroup {
@@ -166,6 +169,7 @@ impl AssetGroup {
             documents: Vec::new(),
             calendar_events: Vec::new(),
             assigned_users: Vec::new(),
+            notification_settings: Vec::new(),
         }
     }
 
@@ -234,6 +238,37 @@ pub struct AssetNotificationSetting {
     pub trigger: crate::types::NotificationTrigger,
     pub enabled: bool,
     pub recipients: Vec<Uuid>,
+}
+
+/// Unified notification setting for portfolios, groups, and assets.
+/// Supports configuring triggers, delivery types, recipients (users + roles),
+/// and optional conditions — gated by the acting user's permissions.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct EntityNotificationSetting {
+    pub id: Uuid,
+    pub trigger: NotificationTrigger,
+    pub notification_types: Vec<NotificationType>,
+    pub enabled: bool,
+    /// User IDs to also notify (beyond self). Requires ManageUsers permission.
+    pub recipients: Vec<Uuid>,
+    /// Roles to notify. Requires ManageRoles permission.
+    pub recipient_roles: Vec<crate::types::UserRole>,
+    /// Optional condition description (e.g. "Only PDF documents", "Value > $10k").
+    pub condition: Option<String>,
+}
+
+impl EntityNotificationSetting {
+    pub fn new(trigger: NotificationTrigger) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            trigger,
+            notification_types: vec![NotificationType::InApp],
+            enabled: true,
+            recipients: Vec::new(),
+            recipient_roles: Vec::new(),
+            condition: None,
+        }
+    }
 }
 
 impl Asset {

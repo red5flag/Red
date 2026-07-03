@@ -1,3 +1,4 @@
+use crate::components::rule_engine::RuleEngine;
 use crate::models::{OrgRole, Organization, Perm, PermGroup, Permission, RoleScope, User};
 use crate::stores::use_app_store;
 use crate::types::UserRole;
@@ -753,6 +754,15 @@ pub fn OrganizationPage() -> impl IntoView {
                                                     </div>
                                                 }.into_any()
                                             }}
+
+                                            // Role Rules & Notifications section
+                                            {move || if get_org_tab(oid) == "roles" {
+                                                view! {
+                                                    <div class="org-rule-engine-wrap">
+                                                        <RuleEngine org_id={oid} />
+                                                    </div>
+                                                }.into_any()
+                                            } else { ().into_any() }}
                                         </div>
 
                                         // ── 3. Members tab ───────────────────────────────

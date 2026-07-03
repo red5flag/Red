@@ -62,8 +62,8 @@ pub fn MessageDrawer() -> impl IntoView {
     };
 
     let sections = [
-        ("Last Messaged", ContactSource::Imported),
-        ("Organization", ContactSource::Organization),
+        ("Inbox", ContactSource::Imported),
+        ("Direct Messages", ContactSource::Organization),
         ("Recommended", ContactSource::Recommended),
         ("Bot", ContactSource::Bot),
     ];

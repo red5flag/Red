@@ -24,10 +24,13 @@ enum ReportTab {
     Invoices,
     Notices,
     Documents,
+    Statements,
+    Summaries,
     CamScan,
     Assets,
     Compliance,
     Transactions,
+    ExportedRecords,
 }
 
 impl ReportTab {
@@ -39,10 +42,13 @@ impl ReportTab {
             ReportTab::Invoices => "Invoices",
             ReportTab::Notices => "Notices",
             ReportTab::Documents => "Documents",
+            ReportTab::Statements => "Statements",
+            ReportTab::Summaries => "Summaries",
             ReportTab::CamScan => "CamScan",
             ReportTab::Assets => "Assets",
             ReportTab::Compliance => "Compliance",
             ReportTab::Transactions => "Transactions",
+            ReportTab::ExportedRecords => "Exported Records",
         }
     }
 }
@@ -82,10 +88,13 @@ pub fn ReportingPage() -> impl IntoView {
         ReportTab::Invoices,
         ReportTab::Notices,
         ReportTab::Documents,
+        ReportTab::Statements,
+        ReportTab::Summaries,
         ReportTab::CamScan,
         ReportTab::Assets,
         ReportTab::Compliance,
         ReportTab::Transactions,
+        ReportTab::ExportedRecords,
     ];
 
     view! {
@@ -165,10 +174,13 @@ pub fn ReportingPage() -> impl IntoView {
                     ReportTab::Invoices => invoices_view(&app_store).into_any(),
                     ReportTab::Notices => notices_view(&app_store).into_any(),
                     ReportTab::Documents => documents_view(&app_store).into_any(),
+                    ReportTab::Statements => statements_view(&app_store).into_any(),
+                    ReportTab::Summaries => summaries_view(&app_store).into_any(),
                     ReportTab::CamScan => view! { <crate::pages::camscan::CamScanView app_store /> }.into_any(),
                     ReportTab::Assets => assets_view(&app_store).into_any(),
                     ReportTab::Compliance => compliance_view(&app_store).into_any(),
                     ReportTab::Transactions => transactions_view(&app_store).into_any(),
+                    ReportTab::ExportedRecords => exported_records_view(&app_store).into_any(),
                 }}
             </div>
         </div>
@@ -644,6 +656,126 @@ fn transactions_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppSto
                         }).collect::<Vec<_>>()}
                     }.into_any()
                 }}
+            </div>
+        </div>
+    }
+}
+
+fn statements_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) -> impl IntoView {
+    let store = app_store.get();
+    let sort = store.effective_reporting_sort_mode();
+    let mut items: Vec<_> = store.transactions.iter()
+        .filter(|t| matches!(t.transaction_type, crate::types::TransactionType::Sale | crate::types::TransactionType::Purchase))
+        .map(|t| (t.clone(), find_asset_name(app_store, t.related_asset_id.unwrap_or_default()), find_portfolio_name(app_store, t.related_portfolio_id.unwrap_or_default())))
+        .collect();
+    sort_transactions(&mut items, &sort);
+    let count = items.len();
+    let total: f64 = items.iter().map(|(t, _, _)| t.amount).sum();
+    view! {
+        <div class="reporting-section">
+            <div class="reporting-section-title">"Statements"</div>
+            <div class="reporting-section-meta">{format!("{} statements · Total: {}", count, fmt_dollars(total))}</div>
+            <div class="reporting-table">
+                {table_head(&["Date", "Type", "Asset", "Portfolio", "Amount", "Status"])}
+                {if items.is_empty() {
+                    view! { <div class="reporting-empty">"No statements generated."</div> }.into_any()
+                } else {
+                    view! {
+                        {items.into_iter().map(|(t, asset, portfolio)| {
+                            let date = t.created_at.format("%d %b %Y").to_string();
+                            view! {
+                                <div class="reporting-row">
+                                    <div class="reporting-td">{date}</div>
+                                    <div class="reporting-td">{format!("{:?}", t.transaction_type)}</div>
+                                    <div class="reporting-td">{asset}</div>
+                                    <div class="reporting-td">{portfolio}</div>
+                                    <div class="reporting-td">{fmt_dollars(t.amount)}</div>
+                                    <div class="reporting-td">{format!("{:?}", t.status)}</div>
+                                </div>
+                            }
+                        }).collect::<Vec<_>>()}
+                    }.into_any()
+                }}
+            </div>
+        </div>
+    }
+}
+
+fn summaries_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) -> impl IntoView {
+    let store = app_store.get();
+    let portfolios: Vec<_> = store.portfolios.iter().map(|p| {
+        let assets = p.get_all_assets();
+        let total_value: f64 = assets.iter().map(|a| a.current_value).sum();
+        let total_pl: f64 = assets.iter().map(|a| a.profit_loss).sum();
+        let doc_count: usize = assets.iter().map(|a| a.documents.len()).sum();
+        (p.name.clone(), assets.len(), doc_count, total_value, total_pl)
+    }).collect();
+    let count = portfolios.len();
+    let grand_total: f64 = portfolios.iter().map(|(_, _, _, v, _)| *v).sum();
+    let grand_pl: f64 = portfolios.iter().map(|(_, _, _, _, pl)| *pl).sum();
+    view! {
+        <div class="reporting-section">
+            <div class="reporting-section-title">"Summaries"</div>
+            <div class="reporting-section-meta">{format!("{} portfolios · Total: {} · P/L: {}", count, fmt_dollars(grand_total), fmt_dollars(grand_pl))}</div>
+            <div class="reporting-table">
+                {table_head(&["Portfolio", "Assets", "Documents", "Value", "P/L"])}
+                {if portfolios.is_empty() {
+                    view! { <div class="reporting-empty">"No portfolios to summarize."</div> }.into_any()
+                } else {
+                    view! {
+                        {portfolios.into_iter().map(|(name, assets, docs, value, pl)| {
+                            let pl_cls = if pl >= 0.0 { "positive" } else { "negative" };
+                            view! {
+                                <div class="reporting-row">
+                                    <div class="reporting-td">{name}</div>
+                                    <div class="reporting-td">{assets}</div>
+                                    <div class="reporting-td">{docs}</div>
+                                    <div class="reporting-td">{fmt_dollars(value)}</div>
+                                    <div class={format!("reporting-td {}", pl_cls)}>{fmt_dollars(pl)}</div>
+                                </div>
+                            }
+                        }).collect::<Vec<_>>()}
+                    }.into_any()
+                }}
+            </div>
+        </div>
+    }
+}
+
+fn exported_records_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) -> impl IntoView {
+    let store = app_store.get();
+    let tx_count = store.transactions.len();
+    let asset_count: usize = store.portfolios.iter().map(|p| p.get_all_assets().len()).sum();
+    let doc_count: usize = store.portfolios.iter().flat_map(|p| p.get_all_assets()).map(|a| a.documents.len()).sum();
+    view! {
+        <div class="reporting-section">
+            <div class="reporting-section-title">"Exported Records"</div>
+            <div class="reporting-section-meta">"Download or export data from the system"</div>
+            <div class="reporting-export-grid">
+                <div class="reporting-export-card">
+                    <div class="reporting-export-icon">"📊"</div>
+                    <div class="reporting-export-title">"Transactions"</div>
+                    <div class="reporting-export-count">{format!("{} records", tx_count)}</div>
+                    <button class="reporting-export-btn">"Export CSV"</button>
+                </div>
+                <div class="reporting-export-card">
+                    <div class="reporting-export-icon">"🏢"</div>
+                    <div class="reporting-export-title">"Assets"</div>
+                    <div class="reporting-export-count">{format!("{} assets", asset_count)}</div>
+                    <button class="reporting-export-btn">"Export CSV"</button>
+                </div>
+                <div class="reporting-export-card">
+                    <div class="reporting-export-icon">"📄"</div>
+                    <div class="reporting-export-title">"Documents"</div>
+                    <div class="reporting-export-count">{format!("{} documents", doc_count)}</div>
+                    <button class="reporting-export-btn">"Export CSV"</button>
+                </div>
+                <div class="reporting-export-card">
+                    <div class="reporting-export-icon">"📦"</div>
+                    <div class="reporting-export-title">"Full Backup"</div>
+                    <div class="reporting-export-count">"All data"</div>
+                    <button class="reporting-export-btn">"Export JSON"</button>
+                </div>
             </div>
         </div>
     }

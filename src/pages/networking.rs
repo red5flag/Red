@@ -1,593 +1,762 @@
-use crate::models::{default_permissions_for_role, Payment, PaymentSettings, PaymentStatus, Permission, User, UserActivity, UserAssignment};
+use crate::models::{default_permissions_for_role, PaymentSettings, User, UserActivity, UserAssignment};
 use crate::stores::use_app_store;
 use crate::types::{PaymentInterval, PaymentMethod, TabType, UserRole};
 use chrono::Utc;
 use leptos::prelude::*;
 use uuid::Uuid;
 
+#[derive(Clone, Debug, PartialEq)]
+enum NetTab {
+    Contacts,
+    ExternalOrgs,
+    Channels,
+    Partners,
+    Clients,
+    Suppliers,
+    Integrations,
+    RelationshipMap,
+    RelationshipHistory,
+}
+
+impl NetTab {
+    fn label(&self) -> &'static str {
+        match self {
+            NetTab::Contacts => "Contacts",
+            NetTab::ExternalOrgs => "External Organizations",
+            NetTab::Channels => "Channels",
+            NetTab::Partners => "Partners",
+            NetTab::Clients => "Clients",
+            NetTab::Suppliers => "Suppliers / Vendors",
+            NetTab::Integrations => "Integrations",
+            NetTab::RelationshipMap => "Relationship Map",
+            NetTab::RelationshipHistory => "Relationship History",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum RelationshipStatus {
+    Active,
+    Inactive,
+    Pending,
+    Suspended,
+    Archived,
+}
+
+impl RelationshipStatus {
+    fn label(&self) -> &'static str {
+        match self {
+            RelationshipStatus::Active => "Active",
+            RelationshipStatus::Inactive => "Inactive",
+            RelationshipStatus::Pending => "Pending",
+            RelationshipStatus::Suspended => "Suspended",
+            RelationshipStatus::Archived => "Archived",
+        }
+    }
+    fn css_class(&self) -> &'static str {
+        match self {
+            RelationshipStatus::Active => "net-status-active",
+            RelationshipStatus::Inactive => "net-status-inactive",
+            RelationshipStatus::Pending => "net-status-pending",
+            RelationshipStatus::Suspended => "net-status-suspended",
+            RelationshipStatus::Archived => "net-status-archived",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum RiskLevel { Low, Medium, High, Unknown }
+
+impl RiskLevel {
+    fn label(&self) -> &'static str {
+        match self { RiskLevel::Low => "Low", RiskLevel::Medium => "Medium", RiskLevel::High => "High", RiskLevel::Unknown => "Unknown" }
+    }
+    fn css_class(&self) -> &'static str {
+        match self { RiskLevel::Low => "net-risk-low", RiskLevel::Medium => "net-risk-medium", RiskLevel::High => "net-risk-high", RiskLevel::Unknown => "net-risk-unknown" }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Channel {
+    id: Uuid,
+    name: String,
+    channel_type: String,
+    address: Option<String>,
+    status: RelationshipStatus,
+    linked_contact: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ExternalContact {
+    id: Uuid,
+    name: String,
+    title: String,
+    company: String,
+    email: Option<String>,
+    phone: Option<String>,
+    relationship_type: String,
+    status: RelationshipStatus,
+    risk_level: RiskLevel,
+    linked_portfolios: Vec<String>,
+    linked_transactions: Vec<String>,
+    linked_reports: Vec<String>,
+    last_message: Option<String>,
+    last_transaction: Option<String>,
+    channels: Vec<String>,
+    avatar_url: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ExternalOrganization {
+    id: Uuid,
+    name: String,
+    org_type: String,
+    primary_contact: Option<String>,
+    status: RelationshipStatus,
+    risk_level: RiskLevel,
+    linked_portfolios: Vec<String>,
+    transaction_count: usize,
+    document_count: usize,
+    channels: Vec<String>,
+    avatar_url: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct Integration {
+    id: Uuid,
+    name: String,
+    integration_type: String,
+    status: RelationshipStatus,
+    last_sync: Option<String>,
+    description: String,
+}
+
+#[derive(Clone, Debug)]
+struct RelationshipEvent {
+    id: Uuid,
+    entity_name: String,
+    event_description: String,
+    timestamp: chrono::DateTime<chrono::Utc>,
+    event_type: String,
+}
+
+fn mock_contacts() -> Vec<ExternalContact> {
+    vec![
+        ExternalContact { id: Uuid::new_v4(), name: "Sarah Jones".into(), title: "Supplier Contact".into(), company: "ABC Supplies".into(), email: Some("sarah@abcsupplies.com".into()), phone: Some("+1-555-0201".into()), relationship_type: "Supplier".into(), status: RelationshipStatus::Active, risk_level: RiskLevel::Medium, linked_portfolios: vec!["Commercial Real Estate".into(), "RedOrg Large Scale".into()], linked_transactions: vec!["TX-1048".into(), "TX-1032".into()], linked_reports: vec!["June Supplier Report".into()], last_message: Some("2 days ago".into()), last_transaction: Some("Invoice 1048".into()), channels: vec!["Email".into(), "Phone".into(), "Supplier Portal".into()], avatar_url: Some("https://api.dicebear.com/7.x/avataaars/svg?seed=SarahJones".into()) },
+        ExternalContact { id: Uuid::new_v4(), name: "Mark Taylor".into(), title: "Account Manager".into(), company: "ABC Supplies".into(), email: Some("mark@abcsupplies.com".into()), phone: Some("+1-555-0202".into()), relationship_type: "Supplier".into(), status: RelationshipStatus::Active, risk_level: RiskLevel::Low, linked_portfolios: vec!["Commercial Real Estate".into()], linked_transactions: vec!["TX-1041".into()], linked_reports: vec![], last_message: Some("5 days ago".into()), last_transaction: Some("Invoice 1041".into()), channels: vec!["Email".into(), "Phone".into()], avatar_url: Some("https://api.dicebear.com/7.x/avataaars/svg?seed=MarkTaylor".into()) },
+        ExternalContact { id: Uuid::new_v4(), name: "Emma Wilson".into(), title: "Broker".into(), company: "ABC Realty".into(), email: Some("emma@abcrealty.com".into()), phone: Some("+1-555-0301".into()), relationship_type: "Partner".into(), status: RelationshipStatus::Active, risk_level: RiskLevel::Low, linked_portfolios: vec!["Commercial Real Estate".into()], linked_transactions: vec![], linked_reports: vec!["Q2 Market Analysis".into()], last_message: Some("1 week ago".into()), last_transaction: None, channels: vec!["Email".into(), "LinkedIn".into()], avatar_url: Some("https://api.dicebear.com/7.x/avataaars/svg?seed=EmmaWilson".into()) },
+        ExternalContact { id: Uuid::new_v4(), name: "David Chen".into(), title: "Client".into(), company: "Chen Investments".into(), email: Some("david@cheninv.com".into()), phone: Some("+1-555-0401".into()), relationship_type: "Client".into(), status: RelationshipStatus::Active, risk_level: RiskLevel::Low, linked_portfolios: vec!["RedOrg Large Scale".into()], linked_transactions: vec!["TX-1050".into()], linked_reports: vec!["Investment Summary".into()], last_message: Some("3 days ago".into()), last_transaction: Some("Dividend payment".into()), channels: vec!["Email".into(), "Investor Portal".into()], avatar_url: Some("https://api.dicebear.com/7.x/avataaars/svg?seed=DavidChen".into()) },
+        ExternalContact { id: Uuid::new_v4(), name: "Lisa Garcia".into(), title: "Legal Partner".into(), company: "XYZ Legal".into(), email: Some("lisa@xyzlegal.com".into()), phone: Some("+1-555-0501".into()), relationship_type: "Partner".into(), status: RelationshipStatus::Pending, risk_level: RiskLevel::Low, linked_portfolios: vec!["Commercial Real Estate".into()], linked_transactions: vec![], linked_reports: vec!["Contract Review".into()], last_message: None, last_transaction: None, channels: vec!["Email".into(), "Phone".into()], avatar_url: Some("https://api.dicebear.com/7.x/avataaars/svg?seed=LisaGarcia".into()) },
+    ]
+}
+
+fn mock_external_orgs() -> Vec<ExternalOrganization> {
+    vec![
+        ExternalOrganization { id: Uuid::new_v4(), name: "ABC Supplies".into(), org_type: "Vendor".into(), primary_contact: Some("Sarah Jones".into()), status: RelationshipStatus::Active, risk_level: RiskLevel::Medium, linked_portfolios: vec!["Commercial Real Estate".into(), "RedOrg Large Scale".into()], transaction_count: 12, document_count: 4, channels: vec!["Email".into(), "Supplier Portal".into(), "Phone".into()], avatar_url: None },
+        ExternalOrganization { id: Uuid::new_v4(), name: "ABC Realty".into(), org_type: "Partner".into(), primary_contact: Some("Emma Wilson".into()), status: RelationshipStatus::Active, risk_level: RiskLevel::Low, linked_portfolios: vec!["Commercial Real Estate".into()], transaction_count: 3, document_count: 2, channels: vec!["Email".into(), "LinkedIn".into()], avatar_url: None },
+        ExternalOrganization { id: Uuid::new_v4(), name: "Chen Investments".into(), org_type: "Client".into(), primary_contact: Some("David Chen".into()), status: RelationshipStatus::Active, risk_level: RiskLevel::Low, linked_portfolios: vec!["RedOrg Large Scale".into()], transaction_count: 8, document_count: 5, channels: vec!["Email".into(), "Investor Portal".into()], avatar_url: None },
+        ExternalOrganization { id: Uuid::new_v4(), name: "XYZ Legal".into(), org_type: "Partner".into(), primary_contact: Some("Lisa Garcia".into()), status: RelationshipStatus::Pending, risk_level: RiskLevel::Low, linked_portfolios: vec!["Commercial Real Estate".into()], transaction_count: 0, document_count: 1, channels: vec!["Email".into(), "Phone".into()], avatar_url: None },
+        ExternalOrganization { id: Uuid::new_v4(), name: "Gold Coast Maintenance Co".into(), org_type: "Vendor".into(), primary_contact: None, status: RelationshipStatus::Active, risk_level: RiskLevel::Medium, linked_portfolios: vec!["Commercial Real Estate".into()], transaction_count: 6, document_count: 3, channels: vec!["Phone".into(), "Email".into()], avatar_url: None },
+    ]
+}
+
+fn mock_channels() -> Vec<Channel> {
+    vec![
+        Channel { id: Uuid::new_v4(), name: "Email".into(), channel_type: "Communication".into(), address: Some("contact@redorg.com".into()), status: RelationshipStatus::Active, linked_contact: Some("Sarah Jones".into()) },
+        Channel { id: Uuid::new_v4(), name: "Phone".into(), channel_type: "Communication".into(), address: Some("+1-555-0100".into()), status: RelationshipStatus::Active, linked_contact: Some("Mark Taylor".into()) },
+        Channel { id: Uuid::new_v4(), name: "Supplier Portal".into(), channel_type: "Platform".into(), address: Some("portal.abcsupplies.com".into()), status: RelationshipStatus::Active, linked_contact: Some("Sarah Jones".into()) },
+        Channel { id: Uuid::new_v4(), name: "Investor Portal".into(), channel_type: "Platform".into(), address: Some("invest.redorg.com".into()), status: RelationshipStatus::Active, linked_contact: Some("David Chen".into()) },
+        Channel { id: Uuid::new_v4(), name: "LinkedIn".into(), channel_type: "Social".into(), address: None, status: RelationshipStatus::Active, linked_contact: Some("Emma Wilson".into()) },
+        Channel { id: Uuid::new_v4(), name: "Banking Channel".into(), channel_type: "Financial".into(), address: Some("ops.redorg.com".into()), status: RelationshipStatus::Active, linked_contact: None },
+        Channel { id: Uuid::new_v4(), name: "Real Estate Platform".into(), channel_type: "Platform".into(), address: Some("realestate.platform.com".into()), status: RelationshipStatus::Active, linked_contact: Some("Emma Wilson".into()) },
+        Channel { id: Uuid::new_v4(), name: "Referral Channel".into(), channel_type: "Network".into(), address: None, status: RelationshipStatus::Pending, linked_contact: None },
+    ]
+}
+
+fn mock_integrations() -> Vec<Integration> {
+    vec![
+        Integration { id: Uuid::new_v4(), name: "QuickBooks".into(), integration_type: "Accounting".into(), status: RelationshipStatus::Active, last_sync: Some("2 hours ago".into()), description: "Syncs transactions and invoices".into() },
+        Integration { id: Uuid::new_v4(), name: "DocuSign".into(), integration_type: "Document".into(), status: RelationshipStatus::Active, last_sync: Some("1 day ago".into()), description: "Electronic signatures for contracts".into() },
+        Integration { id: Uuid::new_v4(), name: "Stripe".into(), integration_type: "Payment".into(), status: RelationshipStatus::Active, last_sync: Some("5 minutes ago".into()), description: "Payment processing for client invoices".into() },
+        Integration { id: Uuid::new_v4(), name: "Google Calendar".into(), integration_type: "Calendar".into(), status: RelationshipStatus::Active, last_sync: Some("1 hour ago".into()), description: "Syncs calendar events and reminders".into() },
+        Integration { id: Uuid::new_v4(), name: "Slack".into(), integration_type: "Communication".into(), status: RelationshipStatus::Suspended, last_sync: Some("3 days ago".into()), description: "Team notifications and alerts".into() },
+    ]
+}
+
+fn mock_relationship_events() -> Vec<RelationshipEvent> {
+    let now = Utc::now();
+    vec![
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "ABC Supplies".into(), event_description: "Sarah Jones sent a message".into(), timestamp: now, event_type: "Message".into() },
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "ABC Supplies".into(), event_description: "Transaction TX-1048 was approved".into(), timestamp: now, event_type: "Transaction".into() },
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "ABC Supplies".into(), event_description: "Payee bank details were updated".into(), timestamp: now - chrono::Duration::days(1), event_type: "Banking".into() },
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "ABC Supplies".into(), event_description: "Linked to Commercial Real Estate Portfolio".into(), timestamp: now - chrono::Duration::days(1), event_type: "Portfolio".into() },
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "XYZ Legal".into(), event_description: "Supplier contract document was locked".into(), timestamp: now - chrono::Duration::days(7), event_type: "Document".into() },
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "Chen Investments".into(), event_description: "New external organization added".into(), timestamp: now - chrono::Duration::days(3), event_type: "Organization".into() },
+        RelationshipEvent { id: Uuid::new_v4(), entity_name: "Slack".into(), event_description: "Integration suspended - authentication failed".into(), timestamp: now - chrono::Duration::days(3), event_type: "Integration".into() },
+    ]
+}
+
 #[component]
 pub fn NetworkingPage() -> impl IntoView {
     let app_store = use_app_store();
+    let (active_tab, set_active_tab) = signal(NetTab::Contacts);
+    let (search_query, set_search_query) = signal(String::new());
+    let (selected_contact, set_selected_contact) = signal::<Option<ExternalContact>>(None);
+    let (selected_org, set_selected_org) = signal::<Option<ExternalOrganization>>(None);
+    let (_edit_mode, _set_edit_mode) = signal(false);
 
-    // Users come from app store, fall back to default mock users if empty, sorted by role
-    let users = Memo::new(move |_| {
-        let store = app_store.get();
-        let store_users = store.organization_users.clone();
-        let current_org = store.current_organization_id.or(store.current_user.organization_id);
-        let mut users: Vec<_> = if store_users.is_empty() {
-            default_mock_users()
-        } else {
-            store_users
-        }
-        .into_iter()
-        .filter(|u| current_org.is_none() || u.organization_id == current_org)
-        .collect();
-        users.sort_by(|a, b| b.role.level().cmp(&a.role.level()));
-        users
+    let contacts = StoredValue::new(mock_contacts());
+    let external_orgs = StoredValue::new(mock_external_orgs());
+    let channels = StoredValue::new(mock_channels());
+    let integrations = StoredValue::new(mock_integrations());
+    let events = StoredValue::new(mock_relationship_events());
+
+    let contacts_count = contacts.get_value().len();
+    let orgs_count = external_orgs.get_value().len();
+    let channels_count = channels.get_value().len();
+    let integrations_count = integrations.get_value().len();
+
+    let filtered_contacts = Memo::new(move |_| {
+        let q = search_query.get().to_lowercase();
+        contacts.get_value().iter().filter(|c| {
+            q.is_empty() || c.name.to_lowercase().contains(&q) || c.company.to_lowercase().contains(&q)
+        }).cloned().collect::<Vec<_>>()
     });
 
-    let _on_update_role = move |id: Uuid, role: UserRole| {
-        app_store.update(|s| {
-            let _ = s.update_user_role(id, role);
-        });
-    };
-
-    let _on_remove_user = move |id: Uuid| {
-        app_store.update(|s| {
-            s.remove_organization_user(id);
-        });
-    };
-
-    let _on_toggle_permission = move |id: Uuid, permission: Permission| {
-        app_store.update(|s| {
-            s.toggle_user_permission(id, permission);
-        });
-    };
-
-    let (edit_mode, set_edit_mode) = signal(false);
-    let (_people_open, _set_people_open) = signal(false);
-    let (active_tab, set_active_tab) = signal("organizations");
-
-    // Mock transactions
-    let transactions = Memo::new(move |_| {
-        vec![
-            Payment {
-                id: Uuid::new_v4(),
-                from_user_id: Uuid::new_v4(),
-                to_user_id: Uuid::new_v4(),
-                amount: 5000.0,
-                currency: crate::types::Currency::USD,
-                payment_method: PaymentMethod::BankTransfer,
-                description: Some("Monthly salary payment".to_string()),
-                related_asset_id: None,
-                related_portfolio_id: None,
-                status: PaymentStatus::Completed,
-                scheduled_date: None,
-                executed_date: Some(Utc::now()),
-                created_at: Utc::now(),
-                is_recurring: true,
-                recurrence_rule: Some("monthly".to_string()),
-            },
-            Payment {
-                id: Uuid::new_v4(),
-                from_user_id: Uuid::new_v4(),
-                to_user_id: Uuid::new_v4(),
-                amount: 2500.0,
-                currency: crate::types::Currency::USD,
-                payment_method: PaymentMethod::BankTransfer,
-                description: Some("Asset performance bonus".to_string()),
-                related_asset_id: Some(Uuid::new_v4()),
-                related_portfolio_id: None,
-                status: PaymentStatus::Pending,
-                scheduled_date: Some(Utc::now()),
-                executed_date: None,
-                created_at: Utc::now(),
-                is_recurring: false,
-                recurrence_rule: None,
-            },
-        ]
+    let filtered_orgs = Memo::new(move |_| {
+        let q = search_query.get().to_lowercase();
+        external_orgs.get_value().iter().filter(|o| {
+            q.is_empty() || o.name.to_lowercase().contains(&q) || o.org_type.to_lowercase().contains(&q)
+        }).cloned().collect::<Vec<_>>()
     });
+
+    let all_tabs = [
+        NetTab::Contacts, NetTab::ExternalOrgs, NetTab::Channels,
+        NetTab::Partners, NetTab::Clients, NetTab::Suppliers,
+        NetTab::Integrations, NetTab::RelationshipMap, NetTab::RelationshipHistory,
+    ];
 
     let render_tab_content = move || {
         let tab = active_tab.get();
-        if tab == "organizations" {
-            render_organizations(users).into_any()
-        } else if tab == "members" {
-            render_members(users).into_any()
-        } else if tab == "activity" {
-            render_activity().into_any()
-        } else {
-            render_payments(transactions).into_any()
+        match tab {
+            NetTab::Contacts => render_contacts(filtered_contacts.get(), set_selected_contact).into_any(),
+            NetTab::ExternalOrgs => render_external_orgs(filtered_orgs.get(), set_selected_org).into_any(),
+            NetTab::Channels => render_channels(&channels.get_value()).into_any(),
+            NetTab::Partners => render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Partner").into_any(),
+            NetTab::Clients => render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Client").into_any(),
+            NetTab::Suppliers => render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Supplier").into_any(),
+            NetTab::Integrations => render_integrations(&integrations.get_value()).into_any(),
+            NetTab::RelationshipMap => render_relationship_map(&contacts.get_value(), &external_orgs.get_value()).into_any(),
+            NetTab::RelationshipHistory => render_relationship_history(&events.get_value()).into_any(),
         }
     };
 
     view! {
         <div class="home-screen">
-            // Quick tabs
-            <div class="net-quick-tabs">
-                <button
-                    class="net-quick-tab"
-                    class:active={move || active_tab.get() == "organizations"}
-                    on:click=move |_| set_active_tab.set("organizations")
-                >
-                    "Organizations"
-                </button>
-                <button
-                    class="net-quick-tab"
-                    class:active={move || active_tab.get() == "members"}
-                    on:click=move |_| set_active_tab.set("members")
-                >
-                    {move || format!("Members {}", users.get().len())}
-                </button>
-                <button
-                    class="net-quick-tab"
-                    class:active={move || active_tab.get() == "activity"}
-                    on:click=move |_| set_active_tab.set("activity")
-                >
-                    "Activity"
-                </button>
-                <button
-                    class="net-quick-tab"
-                    class:active={move || active_tab.get() == "payments"}
-                    on:click=move |_| set_active_tab.set("payments")
-                >
-                    "Payments"
-                </button>
+            // Search bar
+            <div class="net-search-bar">
+                <input
+                    class="net-search-input"
+                    type="text"
+                    placeholder="Search contacts, companies, channels..."
+                    prop:value=move || search_query.get()
+                    on:input=move |ev| set_search_query.set(event_target_value(&ev))
+                />
             </div>
 
-            // Organization Stats
+            // Quick filter tabs
+            <div class="net-quick-tabs">
+                {all_tabs.iter().map(|t| {
+                    let tab = t.clone();
+                    let tab_for_click = t.clone();
+                    let label = t.label().to_string();
+                    let label_for_aria = label.clone();
+                    view! {
+                        <button
+                            class="net-quick-tab"
+                            class:active={move || active_tab.get() == tab}
+                            on:click=move |_| set_active_tab.set(tab_for_click.clone())
+                            aria-label={label_for_aria}
+                        >
+                            {label}
+                        </button>
+                    }
+                }).collect::<Vec<_>>()}
+            </div>
+
+            // Metrics bar
             <div class="org-metrics-bar">
                 <div class="org-metric">
-                    <div class="org-metric-value">{move || app_store.get().organizations.len()}</div>
+                    <div class="org-metric-value">{contacts_count}</div>
+                    <div class="org-metric-label">"Contacts"</div>
+                </div>
+                <div class="org-metric">
+                    <div class="org-metric-value">{orgs_count}</div>
                     <div class="org-metric-label">"Organizations"</div>
                 </div>
                 <div class="org-metric">
-                    <div class="org-metric-value">{move || users.get().len()}</div>
-                    <div class="org-metric-label">"Members"</div>
+                    <div class="org-metric-value">{channels_count}</div>
+                    <div class="org-metric-label">"Channels"</div>
                 </div>
                 <div class="org-metric">
-                    <div class="org-metric-value">
-                        {move || {
-                            transactions.get()
-                                .iter()
-                                .filter(|t| t.status == PaymentStatus::Pending)
-                                .count()
-                        }}
-                    </div>
-                    <div class="org-metric-label">"Pending"</div>
-                </div>
-                <div class="org-metric">
-                    <div class="org-metric-value">
-                        {move || {
-                            let total: f64 = transactions.get()
-                                .iter()
-                                .filter(|t| t.status == PaymentStatus::Completed)
-                                .map(|t| t.amount)
-                                .sum();
-                            format!("${:.0}K", total / 1000.0)
-                        }}
-                    </div>
-                    <div class="org-metric-label">"Payouts"</div>
+                    <div class="org-metric-value">{integrations_count}</div>
+                    <div class="org-metric-label">"Integrations"</div>
                 </div>
             </div>
 
-            // Edit action bar
+            // Action bar
             <div class="net-action-bar">
-                <button
-                    class="net-action-btn"
-                    class:active={move || edit_mode.get()}
-                    on:click=move |_| set_edit_mode.update(|v| *v = !*v)
-                >
-                    "Edit"
-                </button>
-                <button
-                    class="net-action-btn"
-                    on:click=move |_| app_store.update(|s| s.toggle_networking_add_member())
-                >
-                    "Add"
-                </button>
-                <button
-                    class="net-action-btn"
-                    on:click=move |_| {
-                        if let Some(first) = users.get().first() {
-                            app_store.update(|s| { let _ = s.remove_organization_user(first.id); });
-                        }
-                    }
-                >
-                    "Remove"
-                </button>
-                <button
-                    class="net-action-btn"
-                    on:click=move |_| app_store.update(|s| s.open_search())
-                >
-                    "Search"
-                </button>
+                <button class="net-action-btn" on:click=move |_| app_store.update(|s| s.toggle_networking_add_member())>"Add Contact"</button>
+                <button class="net-action-btn" on:click=move |_| app_store.update(|s| s.open_search())>"Search"</button>
+                <button class="net-action-btn" on:click=move |_| app_store.update(|s| s.set_message_drawer(true))>"Messages"</button>
             </div>
 
             // Tab content
             {render_tab_content}
-        </div>
-    }
-}
 
-fn render_organizations(_users: Memo<Vec<User>>) -> impl IntoView {
-    let app_store = use_app_store();
-    let (editing_org, set_editing_org) = signal(Option::<Uuid>::None);
-    let (edit_name, set_edit_name) = signal(String::new());
-
-    let save_org_name = move |id: Uuid| {
-        let name = edit_name.get();
-        if name.trim().is_empty() { return; }
-        app_store.update(|s| {
-            if let Some(org) = s.get_organization_mut(id) {
-                org.name = name;
-                org.updated_at = chrono::Utc::now();
-            }
-        });
-        set_editing_org.set(None);
-    };
-
-    view! {
-        <div class="net-tab-content">
-            {move || {
-                let store = app_store.get();
-                let orgs = store.organizations.clone();
-                let all_users = if store.organization_users.is_empty() {
-                    default_mock_users()
-                } else {
-                    store.organization_users.clone()
+            // Contact detail modal
+            {move || selected_contact.get().map(|c| {
+                let on_close = move |_| set_selected_contact.set(None);
+                let on_message = {
+                    let _name = c.name.clone();
+                    move |_| { app_store.update(|s| s.set_message_drawer(true)); }
                 };
-                if orgs.is_empty() {
-                    view! {
-                        <div class="data-card">
-                            <div class="empty-state">
-                                <div class="empty-text">"No organizations yet"</div>
-                            </div>
-                        </div>
-                    }.into_any()
-                } else {
-                    orgs.into_iter().map(|org| {
-                        let oid = org.id;
-                        let is_editing = editing_org.get() == Some(oid);
-                        let mut org_users: Vec<User> = all_users.iter()
-                            .filter(|u| u.organization_id == Some(org.id))
-                            .cloned()
-                            .collect();
-                        org_users.sort_by(|a, b| b.role.level().cmp(&a.role.level()));
-                        let org_color_style = org.settings.color.as_ref().map(|c| format!("border-left: 6px solid {};", c)).unwrap_or_default();
-                        view! {
-                            <div class="data-card">
-                                <div class="card-header" style={org_color_style}>
-                                    {if is_editing {
-                                        view! {
-                                            <input class="pf-edit-input" type="text" prop:value=edit_name
-                                                on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                                on:blur=move |_| save_org_name(oid)
-                                                on:keydown=move |ev| { if ev.key() == "Enter" { save_org_name(oid); } }
-                                            />
-                                        }.into_any()
-                                    } else {
-                                        let n = org.name.clone();
-                                        view! {
-                                            <span class="card-title" on:dblclick=move |_| {
-                                                set_edit_name.set(n.clone());
-                                                set_editing_org.set(Some(oid));
-                                            }>{org.name.clone()}</span>
-                                        }.into_any()
-                                    }}
-                                    <span class="stat-value">{format!("{} members", org_users.len())}</span>
-                                </div>
-                                <div class="net-org-members">
-                                    {org_users.into_iter().map(|user| view! {
-                                        <UserCard user={user} />
-                                    }).collect::<Vec<_>>()}
-                                </div>
-                            </div>
-                        }
-                    }).collect::<Vec<_>>().into_any()
-                }
-            }}
-        </div>
-    }
-}
-
-fn render_members(users: Memo<Vec<User>>) -> impl IntoView {
-    let app_store = use_app_store();
-    let (filter_by, set_filter_by) = signal("role");
-    let (expanded_id, set_expanded_id) = signal(Option::<Uuid>::None);
-
-    view! {
-        <div class="net-tab-content">
-            <div class="net-filter-bar">
-                <span class="net-filter-label">"Filter by:"</span>
-                <button
-                    class="net-filter-btn"
-                    class:active={move || filter_by.get() == "role"}
-                    on:click=move |_| set_filter_by.set("role")
-                >
-                    "Role"
-                </button>
-                <button
-                    class="net-filter-btn"
-                    class:active={move || filter_by.get() == "user"}
-                    on:click=move |_| set_filter_by.set("user")
-                >
-                    "User"
-                </button>
-                <button
-                    class="net-filter-btn net-filter-add"
-                    style="margin-left: auto;"
-                    on:click=move |_| app_store.update(|s| s.expand_tab(TabType::NetworkingAddMember))
-                >
-                    "+ Add User"
-                </button>
-            </div>
-            <div class="net-members-table">
-                {move || {
-                    let filter = filter_by.get();
-                    let mut items = users.get();
-                    if filter == "role" {
-                        items.sort_by(|a, b| b.role.level().cmp(&a.role.level()));
-                    } else {
-                        items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-                    }
-                    items.into_iter().map(|user| {
-                        let uid = user.id;
-                        let is_expanded = expanded_id.get() == Some(uid);
-                        let on_toggle = move || {
-                            set_expanded_id.update(|v| {
-                                if *v == Some(uid) { *v = None; }
-                                else { *v = Some(uid); }
-                            });
-                        };
-                        view! {
-                            <MemberRow user={user} filter_by={filter} expanded={is_expanded} on_toggle={on_toggle} />
-                        }
-                    }).collect::<Vec<_>>().into_any()
-                }}
-            </div>
-        </div>
-    }
-}
-
-#[component]
-fn MemberRow(
-    user: User,
-    filter_by: &'static str,
-    expanded: bool,
-    on_toggle: impl Fn() + 'static,
-) -> impl IntoView {
-    let app_store = use_app_store();
-    let (is_editing, set_is_editing) = signal(false);
-    let (edit_name, set_edit_name) = signal(user.name.clone());
-    let user_id = user.id;
-
-    let save_name = move || {
-        let name = edit_name.get();
-        if name.trim().is_empty() { return; }
-        app_store.update(|s| {
-            let _ = s.update_user_name(user_id, name);
-        });
-        set_is_editing.set(false);
-    };
-
-    let user_name = user.name.clone();
-    let initials: String = user_name
-        .split_whitespace()
-        .filter_map(|s| s.chars().next())
-        .collect::<String>()
-        .to_uppercase();
-    let role = format!("{:?}", user.role);
-    let assignment = user.assignments.first().map(|a| a.target_name.clone()).unwrap_or_else(|| "—".to_string());
-    let availability = if user.is_active { "AVA" } else { "OFF" };
-    let location = user.address.clone().unwrap_or_else(|| "—".to_string());
-    let account = user.payment_settings.account_details.clone();
-
-    view! {
-        <div class="net-member-row" class:expanded={expanded}>
-            <div class="net-member-header" on:click=move |_| on_toggle()>
-                <span class="net-member-arrow">{if expanded { "▼" } else { "▶" }}</span>
-                {if is_editing.get() {
-                    view! {
-                        <input class="pf-edit-input" type="text" prop:value=edit_name
-                            on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                            on:blur=move |_| save_name()
-                            on:keydown=move |ev| { if ev.key() == "Enter" { save_name(); } }
-                        />
-                    }.into_any()
-                } else if filter_by == "role" {
-                    let title_name = user_name.clone();
-                    view! {
-                        <span class="net-member-avatar">{initials}</span>
-                        <span class="net-member-title" on:dblclick=move |_| {
-                            set_edit_name.set(title_name.clone());
-                            set_is_editing.set(true);
-                        }>{user_name.clone()}</span>
-                        <span class="net-member-role">{role.clone()}</span>
-                    }.into_any()
-                } else {
-                    let filter_name = user_name.clone();
-                    view! {
-                        <span class="net-member-name" on:dblclick=move |_| {
-                            set_edit_name.set(filter_name.clone());
-                            set_is_editing.set(true);
-                        }>{user_name.clone()}</span>
-                        <span class="net-member-role-port">{format!("{}/{}", role, assignment)}</span>
-                    }.into_any()
-                }}
-                <button class="net-member-add" on:click=|ev| ev.stop_propagation()>"+"</button>
-            </div>
-            {if expanded {
                 view! {
-                    <div class="net-member-detail">
-                        <div class="net-member-detail-row">
-                            <span class="net-member-detail-label">"NAME"</span>
-                            {if is_editing.get() {
-                                view! {
-                                    <input class="pf-edit-input" type="text" prop:value=edit_name
-                                        on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                        on:blur=move |_| save_name()
-                                        on:keydown=move |ev| { if ev.key() == "Enter" { save_name(); } }
-                                    />
-                                }.into_any()
-                            } else {
-                                let detail_name = user_name.clone();
-                                view! {
-                                    <span class="net-member-detail-value" on:dblclick=move |_| {
-                                        set_edit_name.set(detail_name.clone());
-                                        set_is_editing.set(true);
-                                    }>{user_name.clone()}</span>
-                                }.into_any()
-                            }}
-                        </div>
-                        <div class="net-member-detail-row">
-                            <span class="net-member-detail-label">"ROLE & AVAILABILITY"</span>
-                            <span class="net-member-detail-value">{format!("{} ({})", role, availability)}</span>
-                        </div>
-                        <div class="net-member-detail-row">
-                            <span class="net-member-detail-label">"LOCATION"</span>
-                            <span class="net-member-detail-value">{location}</span>
-                        </div>
-                        <div class="net-member-detail-row">
-                            <span class="net-member-detail-label">"ACCOUNTS"</span>
-                            <span class="net-member-detail-value">{account}</span>
+                    <div class="net-detail-overlay" on:click=on_close>
+                        <div class="net-detail-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="net-detail-header">
+                                <img class="net-detail-avatar" src={c.avatar_url.clone().unwrap_or_default()} alt={c.name.clone()} />
+                                <div class="net-detail-title-block">
+                                    <div class="net-detail-name">{c.name.clone()}</div>
+                                    <div class="net-detail-subtitle">{format!("{} • {}", c.title, c.company)}</div>
+                                </div>
+                                <button class="net-detail-close" on:click=move |_| set_selected_contact.set(None)>"✕"</button>
+                            </div>
+                            <div class="net-detail-body">
+                                <div class="net-detail-section">
+                                    <div class="net-detail-row"><span class="net-detail-label">"Type"</span><span class="net-detail-value">{c.relationship_type.clone()}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Status"</span><span class={format!("net-detail-value {}", c.status.css_class())}>{c.status.label()}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Risk"</span><span class={format!("net-detail-value {}", c.risk_level.css_class())}>{c.risk_level.label()}</span></div>
+                                    {c.email.as_ref().map(|e| view! { <div class="net-detail-row"><span class="net-detail-label">"Email"</span><span class="net-detail-value">{e.clone()}</span></div> }.into_any()).unwrap_or_else(|| ().into_any())}
+                                    {c.phone.as_ref().map(|p| view! { <div class="net-detail-row"><span class="net-detail-label">"Phone"</span><span class="net-detail-value">{p.clone()}</span></div> }.into_any()).unwrap_or_else(|| ().into_any())}
+                                </div>
+                                <div class="net-detail-section">
+                                    <div class="net-detail-section-title">"Linked Items"</div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Portfolios"</span><span class="net-detail-value">{c.linked_portfolios.join(", ")}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Transactions"</span><span class="net-detail-value">{c.linked_transactions.join(", ")}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Reports"</span><span class="net-detail-value">{if c.linked_reports.is_empty() { "—".into() } else { c.linked_reports.join(", ") }}</span></div>
+                                </div>
+                                <div class="net-detail-section">
+                                    <div class="net-detail-section-title">"Channels"</div>
+                                    <div class="net-detail-channels">
+                                        {c.channels.iter().map(|ch| view! { <span class="net-channel-tag">{ch.clone()}</span> }).collect::<Vec<_>>()}
+                                    </div>
+                                </div>
+                                <div class="net-detail-section">
+                                    <div class="net-detail-section-title">"Recent Activity"</div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Last message"</span><span class="net-detail-value">{c.last_message.clone().unwrap_or_else(|| "—".into())}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Last transaction"</span><span class="net-detail-value">{c.last_transaction.clone().unwrap_or_else(|| "—".into())}</span></div>
+                                </div>
+                                <div class="net-detail-actions">
+                                    <button class="net-detail-btn net-detail-btn-primary" on:click=on_message>"Message"</button>
+                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Transactions))>"View Transactions"</button>
+                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Reporting))>"View Reports"</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                }.into_any()
-            } else { ().into_any() }}
+                }
+            })}
+
+            // Organization detail modal
+            {move || selected_org.get().map(|o| {
+                view! {
+                    <div class="net-detail-overlay" on:click=move |_| set_selected_org.set(None)>
+                        <div class="net-detail-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="net-detail-header">
+                                <div class="net-detail-avatar net-detail-avatar-org">{o.name.chars().next().unwrap_or('A')}</div>
+                                <div class="net-detail-title-block">
+                                    <div class="net-detail-name">{o.name.clone()}</div>
+                                    <div class="net-detail-subtitle">{o.org_type.clone()}</div>
+                                </div>
+                                <button class="net-detail-close" on:click=move |_| set_selected_org.set(None)>"✕"</button>
+                            </div>
+                            <div class="net-detail-body">
+                                <div class="net-detail-section">
+                                    <div class="net-detail-row"><span class="net-detail-label">"Type"</span><span class="net-detail-value">{o.org_type.clone()}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Status"</span><span class={format!("net-detail-value {}", o.status.css_class())}>{o.status.label()}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Risk"</span><span class={format!("net-detail-value {}", o.risk_level.css_class())}>{o.risk_level.label()}</span></div>
+                                    {o.primary_contact.as_ref().map(|p| view! { <div class="net-detail-row"><span class="net-detail-label">"Primary Contact"</span><span class="net-detail-value">{p.clone()}</span></div> }.into_any()).unwrap_or_else(|| ().into_any())}
+                                </div>
+                                <div class="net-detail-section">
+                                    <div class="net-detail-section-title">"Linked Items"</div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Portfolios"</span><span class="net-detail-value">{o.linked_portfolios.join(", ")}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Transactions"</span><span class="net-detail-value">{format!("{}", o.transaction_count)}</span></div>
+                                    <div class="net-detail-row"><span class="net-detail-label">"Documents"</span><span class="net-detail-value">{format!("{}", o.document_count)}</span></div>
+                                </div>
+                                <div class="net-detail-section">
+                                    <div class="net-detail-section-title">"Channels"</div>
+                                    <div class="net-detail-channels">
+                                        {o.channels.iter().map(|ch| view! { <span class="net-channel-tag">{ch.clone()}</span> }).collect::<Vec<_>>()}
+                                    </div>
+                                </div>
+                                <div class="net-detail-actions">
+                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Transactions))>"View Transactions"</button>
+                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Reporting))>"View Reports"</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            })}
         </div>
     }
 }
 
-fn render_activity() -> impl IntoView {
-    let app_store = use_app_store();
+fn render_contacts(
+    contacts: Vec<ExternalContact>,
+    set_selected: WriteSignal<Option<ExternalContact>>,
+) -> impl IntoView {
     view! {
         <div class="net-tab-content">
-            {move || {
-                let store = app_store.get();
-                let all_users = if store.organization_users.is_empty() {
-                    default_mock_users()
-                } else {
-                    store.organization_users.clone()
-                };
-                let activities: Vec<_> = all_users.iter()
-                    .flat_map(|u| u.activity_log.iter().map(move |a| (u.clone(), a.clone())))
-                    .collect();
-                if activities.is_empty() {
+            {if contacts.is_empty() {
+                view! {
+                    <div class="data-card">
+                        <div class="empty-state"><div class="empty-text">"No contacts found"</div></div>
+                    </div>
+                }.into_any()
+            } else {
+                contacts.into_iter().map(|c| {
+                    let c_for_click = c.clone();
+                    let c_for_msg = c.clone();
+                    let status_cls = c.status.css_class();
+                    let risk_cls = c.risk_level.css_class();
                     view! {
-                        <div class="data-card">
-                            <div class="empty-state">
-                                <div class="empty-text">"No activity yet"</div>
+                        <div class="net-relationship-card" on:click=move |_| set_selected.set(Some(c_for_click.clone()))>
+                            <img class="net-rel-avatar" src={c.avatar_url.clone().unwrap_or_default()} alt={c.name.clone()} />
+                            <div class="net-rel-body">
+                                <div class="net-rel-name">{c.name.clone()}</div>
+                                <div class="net-rel-type">{format!("{} • {}", c.title, c.company)}</div>
+                                <div class="net-rel-meta">
+                                    <span class={format!("net-rel-status {}", status_cls)}>{c.status.label()}</span>
+                                    <span class={format!("net-rel-risk {}", risk_cls)}>{format!("Risk: {}", c.risk_level.label())}</span>
+                                </div>
+                                <div class="net-rel-linked">
+                                    {format!("Portfolios: {} • Transactions: {} • Reports: {}",
+                                        c.linked_portfolios.len(), c.linked_transactions.len(), c.linked_reports.len())}
+                                </div>
+                                {c.last_message.as_ref().map(|m| view! {
+                                    <div class="net-rel-activity">{format!("Last message: {}", m)}</div>
+                                }.into_any()).unwrap_or_else(|| ().into_any())}
+                            </div>
+                            <div class="net-rel-actions" on:click=|ev| ev.stop_propagation()>
+                                <button class="net-rel-btn" on:click=move |_| {
+                                    use_app_store().update(|s| s.set_message_drawer(true));
+                                }>"Message"</button>
+                                <button class="net-rel-btn" on:click=move |_| set_selected.set(Some(c_for_msg.clone()))>"View"</button>
                             </div>
                         </div>
-                    }.into_any()
-                } else {
-                    activities.into_iter().map(|(user, activity)| {
-                        view! {
-                            <div class="list-item">
-                                <div class="list-item-left">
-                                    <div class="list-item-title">{format!("{} {}", user.name, activity.action)}</div>
-                                    <div class="list-item-subtitle">{format!("{}: {} - {}", activity.target_type, activity.target_name, activity.reason.as_deref().unwrap_or(""))}</div>
-                                </div>
-                                <div class="list-item-right">
-                                    <div class="stat-value">{activity.timestamp.format("%Y-%m-%d").to_string()}</div>
-                                </div>
-                            </div>
-                        }
-                    }).collect::<Vec<_>>().into_any()
-                }
+                    }
+                }).collect::<Vec<_>>().into_any()
             }}
         </div>
     }
 }
 
-fn render_payments(transactions: Memo<Vec<Payment>>) -> impl IntoView {
+fn render_external_orgs(
+    orgs: Vec<ExternalOrganization>,
+    set_selected: WriteSignal<Option<ExternalOrganization>>,
+) -> impl IntoView {
+    view! {
+        <div class="net-tab-content">
+            {if orgs.is_empty() {
+                view! {
+                    <div class="data-card">
+                        <div class="empty-state"><div class="empty-text">"No external organizations found"</div></div>
+                    </div>
+                }.into_any()
+            } else {
+                orgs.into_iter().map(|o| {
+                    let o_for_click = o.clone();
+                    let o_for_btn = o.clone();
+                    let status_cls = o.status.css_class();
+                    let risk_cls = o.risk_level.css_class();
+                    let initial = o.name.chars().next().unwrap_or('A');
+                    view! {
+                        <div class="net-relationship-card" on:click=move |_| set_selected.set(Some(o_for_click.clone()))>
+                            <div class="net-rel-avatar net-rel-avatar-org">{initial}</div>
+                            <div class="net-rel-body">
+                                <div class="net-rel-name">{o.name.clone()}</div>
+                                <div class="net-rel-type">{o.org_type.clone()}</div>
+                                <div class="net-rel-meta">
+                                    <span class={format!("net-rel-status {}", status_cls)}>{o.status.label()}</span>
+                                    <span class={format!("net-rel-risk {}", risk_cls)}>{format!("Risk: {}", o.risk_level.label())}</span>
+                                </div>
+                                <div class="net-rel-linked">
+                                    {format!("Portfolios: {} • Transactions: {} • Documents: {}",
+                                        o.linked_portfolios.len(), o.transaction_count, o.document_count)}
+                                </div>
+                                {o.primary_contact.as_ref().map(|p| view! {
+                                    <div class="net-rel-activity">{format!("Primary contact: {}", p)}</div>
+                                }.into_any()).unwrap_or_else(|| ().into_any())}
+                            </div>
+                            <div class="net-rel-actions" on:click=|ev| ev.stop_propagation()>
+                                <button class="net-rel-btn" on:click=move |_| set_selected.set(Some(o_for_btn.clone()))>"View"</button>
+                            </div>
+                        </div>
+                    }
+                }).collect::<Vec<_>>().into_any()
+            }}
+        </div>
+    }
+}
+
+fn render_channels(channels: &[Channel]) -> impl IntoView {
+    view! {
+        <div class="net-tab-content">
+            <div class="net-channels-grid">
+                {channels.iter().map(|ch| {
+                    let status_cls = ch.status.css_class();
+                    let icon = match ch.channel_type.as_str() {
+                        "Communication" => "📧",
+                        "Platform" => "🌐",
+                        "Social" => "👤",
+                        "Financial" => "🏦",
+                        "Network" => "🔗",
+                        _ => "📡",
+                    };
+                    view! {
+                        <div class="net-channel-card">
+                            <div class="net-channel-icon">{icon}</div>
+                            <div class="net-channel-name">{ch.name.clone()}</div>
+                            <div class="net-channel-type">{ch.channel_type.clone()}</div>
+                            {ch.address.as_ref().map(|a| view! {
+                                <div class="net-channel-addr">{a.clone()}</div>
+                            }.into_any()).unwrap_or_else(|| ().into_any())}
+                            <span class={format!("net-rel-status {}", status_cls)}>{ch.status.label()}</span>
+                            {ch.linked_contact.as_ref().map(|c| view! {
+                                <div class="net-channel-contact">{format!("Linked: {}", c)}</div>
+                            }.into_any()).unwrap_or_else(|| ().into_any())}
+                        </div>
+                    }
+                }).collect::<Vec<_>>()}
+            </div>
+        </div>
+    }
+}
+
+fn render_by_type(
+    contacts: &[ExternalContact],
+    orgs: &[ExternalOrganization],
+    rel_type: &str,
+) -> impl IntoView {
+    let filtered_contacts: Vec<_> = contacts.iter().filter(|c| c.relationship_type == rel_type).cloned().collect();
+    let filtered_orgs: Vec<_> = orgs.iter().filter(|o| {
+        let ot = o.org_type.to_lowercase();
+        match rel_type {
+            "Supplier" => ot == "vendor" || ot == "supplier",
+            "Partner" => ot == "partner",
+            "Client" => ot == "client",
+            _ => false,
+        }
+    }).cloned().collect();
+
+    view! {
+        <div class="net-tab-content">
+            {if filtered_contacts.is_empty() && filtered_orgs.is_empty() {
+                view! {
+                    <div class="data-card">
+                        <div class="empty-state"><div class="empty-text">{format!("No {} found", rel_type)}</div></div>
+                    </div>
+                }.into_any()
+            } else {
+                view! {
+                    <div>
+                        {if !filtered_orgs.is_empty() {
+                            view! {
+                                <div class="net-section-title">"Organizations"</div>
+                                <div class="net-cards-list">
+                                    {filtered_orgs.iter().map(|o| {
+                                        let status_cls = o.status.css_class();
+                                        let initial = o.name.chars().next().unwrap_or('A');
+                                        view! {
+                                            <div class="net-relationship-card">
+                                                <div class="net-rel-avatar net-rel-avatar-org">{initial}</div>
+                                                <div class="net-rel-body">
+                                                    <div class="net-rel-name">{o.name.clone()}</div>
+                                                    <div class="net-rel-type">{o.org_type.clone()}</div>
+                                                    <div class="net-rel-meta">
+                                                        <span class={format!("net-rel-status {}", status_cls)}>{o.status.label()}</span>
+                                                    </div>
+                                                    <div class="net-rel-linked">
+                                                        {format!("Portfolios: {} • Transactions: {}",
+                                                            o.linked_portfolios.len(), o.transaction_count)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                        {if !filtered_contacts.is_empty() {
+                            view! {
+                                <div class="net-section-title">"Contacts"</div>
+                                <div class="net-cards-list">
+                                    {filtered_contacts.iter().map(|c| {
+                                        let status_cls = c.status.css_class();
+                                        view! {
+                                            <div class="net-relationship-card">
+                                                <img class="net-rel-avatar" src={c.avatar_url.clone().unwrap_or_default()} alt={c.name.clone()} />
+                                                <div class="net-rel-body">
+                                                    <div class="net-rel-name">{c.name.clone()}</div>
+                                                    <div class="net-rel-type">{format!("{} • {}", c.title, c.company)}</div>
+                                                    <div class="net-rel-meta">
+                                                        <span class={format!("net-rel-status {}", status_cls)}>{c.status.label()}</span>
+                                                    </div>
+                                                    <div class="net-rel-linked">
+                                                        {format!("Portfolios: {} • Transactions: {}",
+                                                            c.linked_portfolios.len(), c.linked_transactions.len())}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
+                }.into_any()
+            }}
+        </div>
+    }
+}
+
+fn render_integrations(integrations: &[Integration]) -> impl IntoView {
+    view! {
+        <div class="net-tab-content">
+            <div class="net-cards-list">
+                {integrations.iter().map(|i| {
+                    let status_cls = i.status.css_class();
+                    let icon = match i.integration_type.as_str() {
+                        "Accounting" => "📊",
+                        "Document" => "📄",
+                        "Payment" => "💳",
+                        "Calendar" => "📅",
+                        "Communication" => "💬",
+                        _ => "⚙️",
+                    };
+                    view! {
+                        <div class="net-relationship-card">
+                            <div class="net-rel-avatar net-rel-avatar-int">{icon}</div>
+                            <div class="net-rel-body">
+                                <div class="net-rel-name">{i.name.clone()}</div>
+                                <div class="net-rel-type">{i.integration_type.clone()}</div>
+                                <div class="net-rel-meta">
+                                    <span class={format!("net-rel-status {}", status_cls)}>{i.status.label()}</span>
+                                </div>
+                                <div class="net-rel-linked">{i.description.clone()}</div>
+                                {i.last_sync.as_ref().map(|s| view! {
+                                    <div class="net-rel-activity">{format!("Last sync: {}", s)}</div>
+                                }.into_any()).unwrap_or_else(|| ().into_any())}
+                            </div>
+                        </div>
+                    }
+                }).collect::<Vec<_>>()}
+            </div>
+        </div>
+    }
+}
+
+fn render_relationship_map(
+    contacts: &[ExternalContact],
+    orgs: &[ExternalOrganization],
+) -> impl IntoView {
     view! {
         <div class="net-tab-content">
             <div class="data-card">
                 <div class="card-header">
-                    <span class="card-title">"Recent Payments"</span>
+                    <span class="card-title">"Relationship Map"</span>
                 </div>
-                <div class="data-list">
-                    {move || {
-                        transactions.get().into_iter().map(|payment| {
-                            let status_class = match payment.status {
-                                PaymentStatus::Completed => "positive",
-                                PaymentStatus::Pending => "",
-                                PaymentStatus::Failed => "negative",
-                                _ => "",
-                            };
-                            let status_icon = match payment.status {
-                                PaymentStatus::Completed => "✓",
-                                PaymentStatus::Pending => "⏳",
-                                PaymentStatus::Scheduled => "📅",
-                                PaymentStatus::Processing => "⚙️",
-                                PaymentStatus::Failed => "✗",
-                                PaymentStatus::Cancelled => "⊘",
-                            };
-                            view! {
-                                <div class="list-item">
-                                    <div class="list-item-left">
-                                        <div class="list-item-title">
-                                            {format!("{} {}", status_icon,
-                                                payment.description.as_deref().unwrap_or("Payment")
-                                            )}
-                                        </div>
-                                        <div class="list-item-subtitle">
-                                            {format!("{:?} - {:?}",
-                                                payment.payment_method,
-                                                payment.status
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div class="list-item-right">
-                                        <div class={format!("list-item-value {}", status_class)}>
-                                            {format!("${:.0}", payment.amount)}
-                                        </div>
-                                        {payment.is_recurring.then(|| {
-                                            view! {
-                                                <div style="font-size: 10px; color: var(--text-secondary);">
-                                                    "🔄 Recurring"
-                                                </div>
-                                            }
-                                        })}
-                                    </div>
+                <div class="net-rel-map">
+                    <div class="net-rel-map-center">
+                        <div class="net-rel-map-core">"RedOrg"</div>
+                    </div>
+                    {orgs.iter().map(|o| {
+                        let status_cls = o.status.css_class();
+                        view! {
+                            <div class="net-rel-map-node">
+                                <div class="net-rel-map-node-name">{o.name.clone()}</div>
+                                <div class="net-rel-map-node-type">{o.org_type.clone()}</div>
+                                <span class={format!("net-rel-status {}", status_cls)}>{o.status.label()}</span>
+                                <div class="net-rel-map-contacts">
+                                    {contacts.iter().filter(|c| c.company == o.name).map(|c| {
+                                        view! { <div class="net-rel-map-contact">{c.name.clone()}</div> }
+                                    }).collect::<Vec<_>>()}
                                 </div>
-                            }
-                        }).collect::<Vec<_>>()
-                    }}
+                            </div>
+                        }
+                    }).collect::<Vec<_>>()}
                 </div>
             </div>
         </div>
     }
 }
 
-#[component]
-fn UserCard(user: User) -> impl IntoView {
-    let avatar = user.avatar_url.clone().unwrap_or_else(|| {
-        format!("https://api.dicebear.com/7.x/avataaars/svg?seed={}", user.id)
-    });
-    let role_label = format!("{:?}", user.role);
-    let username = user.username.clone().unwrap_or_else(|| user.name.clone());
-    let assignment = user.assignments.first().cloned();
+fn render_relationship_history(events: &[RelationshipEvent]) -> impl IntoView {
+    let now = Utc::now();
+    let today: Vec<_> = events.iter().filter(|e| (now - e.timestamp).num_hours() < 24).cloned().collect();
+    let earlier: Vec<_> = events.iter().filter(|e| (now - e.timestamp).num_hours() >= 24).cloned().collect();
+
+    let render_event = |e: &RelationshipEvent| {
+        let icon = match e.event_type.as_str() {
+            "Message" => "💬",
+            "Transaction" => "💰",
+            "Banking" => "🏦",
+            "Portfolio" => "📊",
+            "Document" => "📄",
+            "Organization" => "🏢",
+            "Integration" => "⚙️",
+            _ => "📌",
+        };
+        view! {
+            <div class="net-history-item">
+                <span class="net-history-icon">{icon}</span>
+                <div class="net-history-body">
+                    <div class="net-history-desc">{e.event_description.clone()}</div>
+                    <div class="net-history-meta">
+                                        {format!("{} • {}", e.entity_name, e.timestamp.format("%d %b %Y"))}
+                    </div>
+                </div>
+            </div>
+        }
+    };
 
     view! {
-        <div class="net-user-card">
-            <img class="net-user-avatar" src={avatar} alt={user.name.clone()} />
-            <div class="net-user-info">
-                <div class="net-user-name">{user.name.clone()}</div>
-                <div class="net-user-meta">{format!("@{} • {}", username, user.email)}</div>
-                <div class="net-user-role">{role_label}</div>
-                {if let Some(a) = assignment {
-                    view! {
-                        <div class="net-user-assignment">
-                            {format!("Assigned to {}: {}", a.target_type, a.target_name)}
-                            {a.duration_days.map(|d| format!(" • {} days", d)).unwrap_or_default()}
-                            {a.reason.map(|r| format!(" • {}", r)).unwrap_or_default()}
-                        </div>
-                    }.into_any()
-                } else { ().into_any() }}
-            </div>
+        <div class="net-tab-content">
+            {if !today.is_empty() {
+                view! {
+                    <div class="net-history-section">
+                        <div class="net-history-day">"Today"</div>
+                        {today.iter().map(render_event).collect::<Vec<_>>()}
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+            {if !earlier.is_empty() {
+                view! {
+                    <div class="net-history-section">
+                        <div class="net-history-day">"Earlier"</div>
+                        {earlier.iter().map(render_event).collect::<Vec<_>>()}
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+            {if today.is_empty() && earlier.is_empty() {
+                view! {
+                    <div class="data-card">
+                        <div class="empty-state"><div class="empty-text">"No relationship history"</div></div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
         </div>
     }
 }

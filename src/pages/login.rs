@@ -9,7 +9,7 @@ use std::time::Duration;
 cfg_if! {
     if #[cfg(feature = "hydrate")] {
         use crate::api::email::{SignupResponse, LoginResponse,
-            VerifyTotpRequest, VerifyTotpResponse, VerifyEmail2faRequest, VerifyEmail2faResponse};
+            VerifyTotpRequest, VerifyEmail2faRequest, VerifyPhone2faRequest};
         use web_sys::window;
     }
 }
@@ -149,11 +149,14 @@ pub fn LoginPage() -> impl IntoView {
         }
     }
 
+    let (login_pressed, set_login_pressed) = signal(false);
     let on_login = move || {
+        set_login_pressed.set(true);
         let u = username.get();
         let p = password.get();
         if u.trim().is_empty() || p.trim().is_empty() {
             set_error.set("Username and password are required".to_string());
+            set_login_pressed.set(false);
             return;
         }
 
@@ -205,6 +208,7 @@ pub fn LoginPage() -> impl IntoView {
             } else if let Some(Err(e)) = result {
                 if !e.to_lowercase().contains("not validated") {
                     set_error.set(e);
+                    set_login_pressed.set(false);
                     return;
                 }
                 // Not validated locally — fall through to server check
@@ -216,6 +220,7 @@ pub fn LoginPage() -> impl IntoView {
         let p_clone = p.clone();
         let _app_store_clone = app_store;
         let set_error_clone = set_error;
+        let set_login_pressed_clone = set_login_pressed;
         let set_fa_mode_clone = set_fa_mode;
         let set_fa_message_clone = set_fa_message;
         let set_pending_username_clone = set_pending_username;
@@ -248,31 +253,38 @@ pub fn LoginPage() -> impl IntoView {
                                             sync_credentials_to_cloud(u_clone.clone());
                                         }
                                     }
-                                } else if login_resp.requires_totp || login_resp.requires_email_2fa {
+                                } else if login_resp.requires_totp || login_resp.requires_email_2fa || login_resp.requires_phone_2fa {
                                     set_pending_username_clone.set(u_clone.clone());
                                     set_pending_password_clone.set(p_clone.clone());
                                     set_fa_code_clone.set(String::new());
                                     if login_resp.requires_totp {
                                         set_fa_mode_clone.set(Some("totp"));
                                         set_fa_message_clone.set("Enter the 6-digit code from Google Authenticator".to_string());
+                                    } else if login_resp.requires_phone_2fa {
+                                        set_fa_mode_clone.set(Some("phone"));
+                                        set_fa_message_clone.set("Enter the 6-digit code sent to your phone via SMS".to_string());
                                     } else {
                                         set_fa_mode_clone.set(Some("email"));
                                         set_fa_message_clone.set("Enter the 6-digit code sent to your email".to_string());
                                     }
                                     set_error_clone.set(String::new());
+                                    set_login_pressed_clone.set(false);
                                 } else {
                                     set_error_clone.set(login_resp.message);
+                                    set_login_pressed_clone.set(false);
                                 }
                             } else {
                                 set_error_clone.set("Failed to parse server response".to_string());
+                                set_login_pressed_clone.set(false);
                             }
                         }
                         Err(e) => {
                             set_error_clone.set(format!("Network error: {}", e));
+                            set_login_pressed_clone.set(false);
                         }
                     }
                 } else {
-                    let _ = (req, _app_store_clone, set_error_clone, set_fa_mode_clone, set_fa_message_clone,
+                    let _ = (req, _app_store_clone, set_error_clone, set_login_pressed_clone, set_fa_mode_clone, set_fa_message_clone,
                         set_pending_username_clone, set_pending_password_clone, set_fa_code_clone);
                 }
             }
@@ -293,58 +305,46 @@ pub fn LoginPage() -> impl IntoView {
         spawn_local(async move {
             cfg_if! {
                 if #[cfg(feature = "hydrate")] {
-                    let (resp, endpoint) = if mode == "totp" {
+                    let resp = if mode == "totp" {
                         let req = VerifyTotpRequest { username: u.clone(), code: code.clone() };
-                        (gloo_net::http::Request::post("/api/verify_totp").json(&req).unwrap().send().await, "/api/verify_totp")
+                        gloo_net::http::Request::post("/api/verify_totp").json(&req).unwrap().send().await
+                    } else if mode == "phone" {
+                        let req = VerifyPhone2faRequest { username: u.clone(), code: code.clone() };
+                        gloo_net::http::Request::post("/api/verify_phone_2fa").json(&req).unwrap().send().await
                     } else {
                         let req = VerifyEmail2faRequest { username: u.clone(), code: code.clone() };
-                        (gloo_net::http::Request::post("/api/verify_email_2fa").json(&req).unwrap().send().await, "/api/verify_email_2fa")
+                        gloo_net::http::Request::post("/api/verify_email_2fa").json(&req).unwrap().send().await
                     };
-                    let _ = endpoint;
                     match resp {
                         Ok(r) => {
-                            if mode == "totp" {
-                                if let Ok(v) = r.json::<VerifyTotpResponse>().await {
-                                    if v.success {
-                                        if let (Some(name), Some(email)) = (v.display_name, v.email) {
-                                            let local = login_store_local.get();
-                                            let cloud = login_store_cloud.get();
-                                            app_store.update(|store| {
-                                                store.upsert_credential_from_login(&u, &p, &name, &email, true, local, cloud);
-                                            });
-                                            finish_login_clone(name, email, "Owner".to_string());
-                                            if cloud {
-                                                sync_credentials_to_cloud(u.clone());
-                                            }
-                                            set_fa_mode_clone.set(None);
+                            // All verify responses share the same shape; parse generically
+                            let body = r.text().await.unwrap_or_default();
+                            #[derive(serde::Deserialize)]
+                            struct GenericVerifyResponse {
+                                success: bool,
+                                message: String,
+                                display_name: Option<String>,
+                                email: Option<String>,
+                            }
+                            if let Ok(v) = serde_json::from_str::<GenericVerifyResponse>(&body) {
+                                if v.success {
+                                    if let (Some(name), Some(email)) = (v.display_name, v.email) {
+                                        let local = login_store_local.get();
+                                        let cloud = login_store_cloud.get();
+                                        app_store.update(|store| {
+                                            store.upsert_credential_from_login(&u, &p, &name, &email, true, local, cloud);
+                                        });
+                                        finish_login_clone(name, email, "Owner".to_string());
+                                        if cloud {
+                                            sync_credentials_to_cloud(u.clone());
                                         }
-                                    } else {
-                                        set_fa_message_clone.set(v.message);
+                                        set_fa_mode_clone.set(None);
                                     }
                                 } else {
-                                    set_fa_message_clone.set("Failed to parse server response".to_string());
+                                    set_fa_message_clone.set(v.message);
                                 }
                             } else {
-                                if let Ok(v) = r.json::<VerifyEmail2faResponse>().await {
-                                    if v.success {
-                                        if let (Some(name), Some(email)) = (v.display_name, v.email) {
-                                            let local = login_store_local.get();
-                                            let cloud = login_store_cloud.get();
-                                            app_store.update(|store| {
-                                                store.upsert_credential_from_login(&u, &p, &name, &email, true, local, cloud);
-                                            });
-                                            finish_login_clone(name, email, "Owner".to_string());
-                                            if cloud {
-                                                sync_credentials_to_cloud(u.clone());
-                                            }
-                                            set_fa_mode_clone.set(None);
-                                        }
-                                    } else {
-                                        set_fa_message_clone.set(v.message);
-                                    }
-                                } else {
-                                    set_fa_message_clone.set("Failed to parse server response".to_string());
-                                }
+                                set_fa_message_clone.set("Failed to parse server response".to_string());
                             }
                         }
                         Err(e) => set_fa_message_clone.set(format!("Network error: {}", e)),
@@ -493,7 +493,6 @@ pub fn LoginPage() -> impl IntoView {
 
     // Button press flash effect: stores a unique key per press to retrigger animation
     let (pressed_btn, set_pressed_btn) = signal(Option::<&'static str>::None);
-    let (login_pressed, set_login_pressed) = signal(false);
     let flash_press = move |key: &'static str| {
         set_pressed_btn.set(Some(key));
         set_timeout(move || {
@@ -586,7 +585,7 @@ pub fn LoginPage() -> impl IntoView {
             {move || {
                 let mode = fa_mode.get();
                 if mode.is_none() { return ().into_any(); }
-                let label = if mode == Some("totp") { "Authenticator code" } else { "Email code" };
+                let label = if mode == Some("totp") { "Authenticator code" } else if mode == Some("phone") { "SMS code" } else { "Email code" };
                 let msg = fa_message.get();
                 view! {
                     <div class="lp-2fa-panel">
@@ -618,14 +617,13 @@ pub fn LoginPage() -> impl IntoView {
                     "REGISTER"
                 </button>
                 <button class="lp-action-btn lp-login"
+                    class:lp-pressed={move || pressed_btn.get() == Some("login")}
                     class:lp-login-grey={move || login_pressed.get()}
                     on:click=move |_| {
-                        set_login_pressed.set(true);
-                        set_timeout(move || set_login_pressed.set(false), Duration::from_millis(100));
                         flash_press("login");
                         on_login();
                     }>
-                    "LOGIN"
+                    {move || if login_pressed.get() { "LOGGING IN…" } else { "LOGIN" }}
                 </button>
             </div>
 

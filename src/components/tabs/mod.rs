@@ -90,11 +90,20 @@ fn TabItem(tab_type: TabType, title: &'static str) -> impl IntoView {
     let app_store = use_app_store();
     let on_toggle = use_tab_toggle(tab_type.clone());
     let tab_type_class = tab_type.clone();
+    let tab_type_badge = tab_type.clone();
 
     view! {
         <div class="tab-item" class:expanded=move || app_store.get().is_tab_expanded(&tab_type_class)>
             <div class="tab-header" on:click=move |_| on_toggle.run(())>
                 <span class="tab-title">{title}</span>
+                {move || {
+                    let count = app_store.get().notifications_for_tab(&tab_type_badge);
+                    if count > 0 {
+                        view! { <span class="tab-notif-badge">{count}</span> }.into_any()
+                    } else {
+                        ().into_any()
+                    }
+                }}
             </div>
         </div>
     }
@@ -122,7 +131,17 @@ pub fn TabList() -> impl IntoView {
 
     view! {
         <div class="tab-list">
-            <TabItem tab_type=TabType::Overview title="Overview" />
+            <div class="tab-drawer-home"
+                class:active=move || app_store.get().is_tab_expanded(&TabType::Overview)
+                on:click=move |_| {
+                    let on_toggle = use_tab_toggle(TabType::Overview);
+                    on_toggle.run(());
+                }
+            >
+                <span class="tab-drawer-home-icon">"🏠"</span>
+                <span class="tab-drawer-home-label">"Overview"</span>
+            </div>
+            <div class="tab-drawer-divider"></div>
             <TabItem tab_type=TabType::Portfolios title="Portfolios" />
             <TabItem tab_type=TabType::Networking title="Networking" />
             {move || if app_store.get().networking_add_member_open {

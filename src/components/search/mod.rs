@@ -43,8 +43,17 @@ pub fn SearchFilters() -> impl IntoView {
                         let app_snapshot = app_store.get();
                         search_store.update(|s| s.perform_search(&app_snapshot));
                     }
+                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                        if ev.key() == "Enter" {
+                            let app_snapshot = app_store.get();
+                            search_store.update(|s| s.perform_search(&app_snapshot));
+                        }
+                    }
                 />
-                <button class="sd-search-close-btn" on:click=move |_| app_store.update(|s| s.close_search())>"✕"</button>
+                <button class="sd-search-close-btn sd-search-submit-btn" on:click=move |_| {
+                    let app_snapshot = app_store.get();
+                    search_store.update(|s| s.perform_search(&app_snapshot));
+                }>"⏎"</button>
             </div>
 
             {move || {
