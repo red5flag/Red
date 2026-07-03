@@ -263,7 +263,7 @@ pub fn SettingsPage() -> impl IntoView {
             // Account section
             <div class="data-card">
                 <div class="card-header">
-                    <span class="card-title">"Account"</span>
+                    <span class="card-title">"Account Settings"</span>
                 </div>
                 <div class="settings-list">
                     <div class="account-current-user">
@@ -272,6 +272,37 @@ pub fn SettingsPage() -> impl IntoView {
                             <div class="account-user-name">{move || app_store.get().current_user.name.clone()}</div>
                             <div class="account-user-email">{move || app_store.get().current_user.email.clone()}</div>
                             <div class="account-user-role">{move || format!("{:?}", app_store.get().current_user.role)}</div>
+                        </div>
+                    </div>
+                    <div class="account-details-grid">
+                        <div class="account-detail-row">
+                            <span class="account-detail-label">"Username"</span>
+                            <span class="account-detail-value">{move || app_store.get().current_user.name.clone()}</span>
+                        </div>
+                        <div class="account-detail-row">
+                            <span class="account-detail-label">"Email"</span>
+                            <span class="account-detail-value">{move || app_store.get().current_user.email.clone()}</span>
+                        </div>
+                        <div class="account-detail-row">
+                            <span class="account-detail-label">"Role"</span>
+                            <span class="account-detail-value">{move || format!("{:?}", app_store.get().current_user.role)}</span>
+                        </div>
+                        <div class="account-detail-row">
+                            <span class="account-detail-label">"Organization"</span>
+                            <span class="account-detail-value">{move || {
+                                let store = app_store.get();
+                                store.current_user.organization_id
+                                    .and_then(|oid| store.organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone()))
+                                    .unwrap_or_else(|| "None".to_string())
+                            }}</span>
+                        </div>
+                        <div class="account-detail-row">
+                            <span class="account-detail-label">"User ID"</span>
+                            <span class="account-detail-value">{move || app_store.get().current_user.id.to_string()[..8].to_string()}</span>
+                        </div>
+                        <div class="account-detail-row">
+                            <span class="account-detail-label">"Member since"</span>
+                            <span class="account-detail-value">{move || app_store.get().current_user.created_at.format("%b %d, %Y").to_string()}</span>
                         </div>
                     </div>
                 </div>

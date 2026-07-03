@@ -6,7 +6,7 @@ pub mod undo_redo;
 pub use app_store::*;
 pub use credentials::*;
 pub use search_store::*;
-pub use undo_redo::{HistoryQuery, UndoRedoStore, create_action, create_undo_redo_store, format_action_description};
+pub use undo_redo::{HistoryQuery, UndoRedoStore, apply_redo_side_effects, apply_undo_side_effects, create_action, create_undo_redo_store, format_action_description};
 
 use leptos::prelude::*;
 

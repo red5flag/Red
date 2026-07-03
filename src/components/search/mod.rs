@@ -1,17 +1,39 @@
-use crate::stores::{use_app_store, use_search_store};
+use crate::stores::{perform_meilisearch, use_app_store, use_search_store};
+use crate::types::{SearchFilters, TabType};
+use chrono::TimeZone;
 use leptos::prelude::*;
 use uuid::Uuid;
+
+fn parse_dd_mm_yyyy(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    if s.is_empty() {
+        return None;
+    }
+    let parts: Vec<&str> = s.split('/').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let day = parts[0].parse::<u32>().ok()?;
+    let month = parts[1].parse::<u32>().ok()?;
+    let year = parts[2].parse::<i32>().ok()?;
+    let naive = chrono::NaiveDate::from_ymd_opt(year, month, day)?;
+    let dt = naive.and_hms_opt(0, 0, 0)?;
+    Some(chrono::Utc.from_utc_datetime(&dt))
+}
 
 #[component]
 pub fn SearchFilters() -> impl IntoView {
     let app_store = use_app_store();
     let search_store = use_search_store();
 
-    // Run an initial search when the panel opens so empty query shows relevant results.
-    Effect::new(move |_| {
+    let run_search = move || {
         let app_snapshot = app_store.get();
-        search_store.update(|s| s.perform_search(&app_snapshot));
-    });
+        let search_store_signal = search_store;
+        leptos::task::spawn_local(async move {
+            let mut store = search_store_signal.get_untracked();
+            perform_meilisearch(&app_snapshot, &mut store).await;
+            search_store_signal.set(store);
+        });
+    };
 
     let (adv_open, set_adv_open) = signal(false);
     let (lineage_open, set_lineage_open) = signal(false);
@@ -29,6 +51,71 @@ pub fn SearchFilters() -> impl IntoView {
     let (chg_undo, set_chg_undo) = signal(false);
     let (chg_redo, set_chg_redo) = signal(false);
 
+    // Run an initial search when the panel opens, keep advanced options open by default,
+    // and sync the advanced filter chips/inputs into SearchStore.filters.
+    Effect::new(move |_| {
+        let app_snapshot = app_store.get();
+        if !app_snapshot.is_search_open {
+            return;
+        }
+
+        // Advanced search panel is open by default.
+        set_adv_open.set(true);
+
+        // Build filters from the advanced UI signals.
+        let mut filters = SearchFilters::default();
+        if prof1.get() {
+            filters.tags.push("Stevenson 2".to_string());
+        }
+        if prof2.get() {
+            filters.tags.push("Stevenson 3".to_string());
+        }
+        if asset_p.get() {
+            filters.tags.push("portfolio".to_string());
+        }
+        if asset_a.get() {
+            filters.tags.push("asset".to_string());
+        }
+        if asset_addr.get() {
+            filters.tags.push("address".to_string());
+        }
+        if chg_add.get() {
+            filters.tags.push("add".to_string());
+        }
+        if chg_rm.get() {
+            filters.tags.push("remove".to_string());
+        }
+        if chg_ch.get() {
+            filters.tags.push("change".to_string());
+        }
+        if chg_undo.get() {
+            filters.tags.push("undo".to_string());
+        }
+        if chg_redo.get() {
+            filters.tags.push("redo".to_string());
+        }
+        if let (Some(from), Some(to)) = (parse_dd_mm_yyyy(&time_from.get()), parse_dd_mm_yyyy(&time_to.get())) {
+            filters.date_range = Some((from, to));
+        }
+
+        // Set filters/context then run Meilisearch-backed search.
+        let mut store = search_store.get_untracked();
+        store.filters = filters;
+        store.set_context_tab(
+            app_snapshot
+                .active_tabs
+                .first()
+                .cloned()
+                .unwrap_or(TabType::Overview),
+        );
+
+        let app_snapshot = app_snapshot.clone();
+        leptos::task::spawn_local(async move {
+            perform_meilisearch(&app_snapshot, &mut store).await;
+            search_store.set(store);
+        });
+    });
+
     view! {
         <div class="sd-panel">
             <div class="sd-search-bar">
@@ -40,19 +127,19 @@ pub fn SearchFilters() -> impl IntoView {
                     on:input=move |ev| {
                         let v = event_target_value(&ev);
                         search_store.update(|s| s.set_query(v));
-                        let app_snapshot = app_store.get();
-                        search_store.update(|s| s.perform_search(&app_snapshot));
+                        run_search();
                     }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                         if ev.key() == "Enter" {
-                            let app_snapshot = app_store.get();
-                            search_store.update(|s| s.perform_search(&app_snapshot));
+                            run_search();
                         }
                     }
                 />
+                <button class="sd-search-close-btn" on:click=move |_| {
+                    app_store.update(|s| s.close_search());
+                }>"✕"</button>
                 <button class="sd-search-close-btn sd-search-submit-btn" on:click=move |_| {
-                    let app_snapshot = app_store.get();
-                    search_store.update(|s| s.perform_search(&app_snapshot));
+                    run_search();
                 }>"⏎"</button>
             </div>
 
@@ -86,6 +173,55 @@ pub fn SearchFilters() -> impl IntoView {
             }}
 
             <SearchResults />
+
+            // Networking sort quick options (shown when Networking tab is active)
+            {move || {
+                let is_networking = app_store.get().is_tab_expanded(&crate::types::TabType::Networking);
+                if is_networking {
+                    let sort_labels = ["Name", "Company", "Status", "Risk", "Type", "Transactions"];
+                    let current_mode = app_store.get().net_sort_mode;
+                    let current_asc = app_store.get().net_sort_ascending;
+                    view! {
+                        <div class="sd-section">
+                            <div class="sd-section-header" style="cursor: default;">
+                                <span class="sd-section-title">"SORT NETWORKING"</span>
+                                <button class="net-sort-toggle" on:click=move |_| app_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
+                                    {if current_asc { "↑ Asc" } else { "↓ Desc" }}
+                                </button>
+                            </div>
+                            <div class="sd-adv-body">
+                                <div class="sd-filter-row">
+                                    <div class="sd-filter-label">"SORT BY"</div>
+                                    <div class="sd-filter-chips">
+                                        {sort_labels.iter().enumerate().map(|(idx, label)| {
+                                            let is_active = current_mode == idx as u8;
+                                            view! {
+                                                <button class="sd-chip" class:sd-chip-active={is_active}
+                                                    on:click=move |_| {
+                                                        app_store.update(|s| {
+                                                            if s.net_sort_mode == idx as u8 {
+                                                                s.net_sort_ascending = !s.net_sort_ascending;
+                                                            } else {
+                                                                s.net_sort_mode = idx as u8;
+                                                            }
+                                                        });
+                                                    }
+                                                >
+                                                    {if is_active {
+                                                        format!("{} {}", label, if current_asc { "↑" } else { "↓" })
+                                                    } else {
+                                                        label.to_string()
+                                                    }}
+                                                </button>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }.into_any()
+                } else { ().into_any() }
+            }}
 
             <div class="sd-section">
                 <div class="sd-section-header" on:click=move |_| set_adv_open.update(|v| *v = !*v)>

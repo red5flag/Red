@@ -1,5 +1,5 @@
 use crate::models::Action;
-use crate::types::ActionType;
+use crate::types::{ActionType, TabType};
 use chrono::{DateTime, Utc};
 use leptos::prelude::*;
 use std::collections::VecDeque;
@@ -355,4 +355,34 @@ impl UndoHandlerRegistry {
             .find(|h| h.can_undo(action))
             .map(|h| h.as_ref())
     }
+}
+
+/// Apply side effects when undoing an action (e.g. navigate back to previous tab).
+/// Returns true if side effects were applied.
+pub fn apply_undo_side_effects(action: &Action, app_store: &mut crate::stores::AppStore) -> bool {
+    if action.entity_type == "Tab" {
+        if let Some(ref from) = action.navigated_from {
+            if !from.is_empty() {
+                if let Some(tab) = TabType::from_str(from) {
+                    app_store.expand_tab(tab);
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Apply side effects when redoing an action (e.g. navigate forward to the target tab).
+/// Returns true if side effects were applied.
+pub fn apply_redo_side_effects(action: &Action, app_store: &mut crate::stores::AppStore) -> bool {
+    if action.entity_type == "Tab" {
+        if let Some(ref to) = action.navigated_to {
+            if let Some(tab) = TabType::from_str(to) {
+                app_store.expand_tab(tab);
+                return true;
+            }
+        }
+    }
+    false
 }

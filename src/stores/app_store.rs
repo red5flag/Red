@@ -46,9 +46,12 @@ pub struct AppStore {
     pub organization_users: Vec<User>,
     // Whether the networking tab add-member panel is open
     pub networking_add_member_open: bool,
+    // Networking sort state (shared between page and navbar search)
+    pub net_sort_mode: u8,      // 0=Name, 1=Company, 2=Status, 3=Risk, 4=Type, 5=Transactions
+    pub net_sort_ascending: bool,
     // View mode for portfolios
     pub portfolio_view_mode: crate::types::ViewMode,
-    // Grid column count for portfolio grid view (2, 3, 4, 6, 8, 12)
+    // Grid column count for portfolio grid view (1, 2, 3, 4, 6, 8, 12)
     pub portfolio_grid_columns: usize,
     // Portfolio page UI toggles (controlled from navbar)
     pub show_add_portfolio: bool,
@@ -222,6 +225,8 @@ impl Default for AppStore {
             is_loading: false,
             organization_users: Vec::new(),
             networking_add_member_open: false,
+            net_sort_mode: 0,
+            net_sort_ascending: true,
             portfolio_view_mode: crate::types::ViewMode::List,
             portfolio_grid_columns: 2,
             show_add_portfolio: false,
@@ -407,6 +412,52 @@ impl AppStore {
         }
     }
 
+    pub fn remove_asset_group(&mut self, portfolio_id: Uuid, group_id: Uuid) -> bool {
+        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
+            let before = p.asset_groups.len();
+            p.asset_groups.retain(|g| g.id != group_id);
+            p.asset_groups.len() < before
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_asset(&mut self, portfolio_id: Uuid, asset_id: Uuid) -> bool {
+        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
+            let before = p.assets.len();
+            p.assets.retain(|a| a.id != asset_id);
+            let removed_direct = p.assets.len() < before;
+            for g in &mut p.asset_groups {
+                g.assets.retain(|a| a.id != asset_id);
+            }
+            removed_direct || p.asset_groups.iter().any(|g| g.assets.len() < g.assets.len())
+        } else {
+            false
+        }
+    }
+
+    pub fn remove_document_from_asset(&mut self, portfolio_id: Uuid, asset_id: Uuid, doc_id: Uuid) -> bool {
+        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
+            for a in &mut p.assets {
+                if a.id == asset_id {
+                    let before = a.documents.len();
+                    a.documents.retain(|d| d.id != doc_id);
+                    return a.documents.len() < before;
+                }
+            }
+            for g in &mut p.asset_groups {
+                for a in &mut g.assets {
+                    if a.id == asset_id {
+                        let before = a.documents.len();
+                        a.documents.retain(|d| d.id != doc_id);
+                        return a.documents.len() < before;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     pub fn add_document_to_portfolio(&mut self, portfolio_id: Uuid, doc: crate::models::Document) {
         let dname = doc.name.clone();
         let doc_id = doc.id;
@@ -502,6 +553,45 @@ impl AppStore {
         }
     }
 
+    pub fn update_document_file_type(&mut self, doc_id: Uuid, new_file_type: String) {
+        for p in self.portfolios.iter_mut() {
+            for d in &mut p.documents {
+                if d.id == doc_id {
+                    d.file_type = new_file_type.clone();
+                    p.updated_at = chrono::Utc::now();
+                    return;
+                }
+            }
+            for g in &mut p.asset_groups {
+                for d in &mut g.documents {
+                    if d.id == doc_id {
+                        d.file_type = new_file_type.clone();
+                        p.updated_at = chrono::Utc::now();
+                        return;
+                    }
+                }
+                for a in &mut g.assets {
+                    for d in &mut a.documents {
+                        if d.id == doc_id {
+                            d.file_type = new_file_type.clone();
+                            p.updated_at = chrono::Utc::now();
+                            return;
+                        }
+                    }
+                }
+            }
+            for a in &mut p.assets {
+                for d in &mut a.documents {
+                    if d.id == doc_id {
+                        d.file_type = new_file_type.clone();
+                        p.updated_at = chrono::Utc::now();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     // Organization user management
     pub fn add_organization_user(&mut self, user: User) {
         self.organization_users.push(user);
@@ -559,6 +649,19 @@ impl AppStore {
     pub fn close_search(&mut self) {
         self.is_search_open = false;
         self.search_query.clear();
+    }
+
+    /// Toggles search open/closed and returns the new state.
+    pub fn toggle_search(&mut self) -> bool {
+        if self.is_search_open {
+            self.close_search();
+        } else {
+            self.open_search();
+            self.close_tabs_drawer();
+            self.close_notifications_drawer();
+            self.set_message_drawer(false);
+        }
+        self.is_search_open
     }
 
     pub fn set_search_query(&mut self, query: String) {
@@ -1443,6 +1546,16 @@ impl AppStore {
     /// Save current credentials to localStorage (hydrate only)
     #[cfg(feature = "hydrate")]
     pub fn save_credentials_to_local_storage(&self) {
+        self.credentials.save_to_local_storage();
+    }
+
+    /// Save password to credential store (for "Remember Password" feature).
+    /// 2FA requirement is stubbed — for now, password is saved without 2FA.
+    pub fn save_password_to_credentials(&mut self, username: &str, password: &str) {
+        let display_name = self.current_user.name.clone();
+        let email = self.current_user.email.clone();
+        self.credentials.save_password(username, password, &display_name, &email);
+        #[cfg(feature = "hydrate")]
         self.credentials.save_to_local_storage();
     }
 

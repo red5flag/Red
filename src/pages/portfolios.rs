@@ -76,6 +76,14 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Notification quick settings popover state
     let (notif_qs_target, set_notif_qs_target) = signal(Option::<(NotifTarget, String)>::None);
 
+    // Context menu modal signals (Add Role, Add Organization)
+    let (show_pf_add_role, set_show_pf_add_role) = signal(Option::<Uuid>::None);
+    let (show_pf_add_org, set_show_pf_add_org) = signal(Option::<Uuid>::None);
+    let (pf_new_role_name, set_pf_new_role_name) = signal(String::new());
+    let (confirm_pf_remove, set_confirm_pf_remove) = signal(Option::<Uuid>::None);
+    let (pf_new_role_desc, set_pf_new_role_desc) = signal(String::new());
+    let (pf_new_org_name, set_pf_new_org_name) = signal(String::new());
+
     // Consume pending navigation from notification clicks — expand portfolio and open doc modal
     Effect::new(move |_| {
         if let Some(nav) = app_store.get().pending_nav_target {
@@ -487,6 +495,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 "Commodity" => AssetType::Commodity,
                                 "Digital" => AssetType::Digital,
                                 "IntellectualProperty" => AssetType::IntellectualProperty,
+                                "Channel" => AssetType::Channel,
                                 _ => AssetType::RealEstate,
                             };
                             set_new_asset_type.set(t);
@@ -500,6 +509,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                         <option value="Commodity">"Commodity"</option>
                         <option value="Digital">"Digital"</option>
                         <option value="IntellectualProperty">"Intellectual Property"</option>
+                        <option value="Channel">"Channel"</option>
                     </select>
                     <button class="login-btn" on:click=on_top_add_asset>"Create Asset"</button>
                 </div>
@@ -569,8 +579,10 @@ pub fn PortfoliosPage() -> impl IntoView {
 
             // Context menu for portfolio press-and-hold
             {move || context_menu.get().map(|(pid, x, y)| {
-                let pid_add_group = pid;
-                let pid_add_asset = pid;
+                let pid_doc = pid;
+                let pid_role = pid;
+                let pid_org = pid;
+                let pid_remove = pid;
                 let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
                 let can = can_edit(org_id);
                 view! {
@@ -597,37 +609,37 @@ pub fn PortfoliosPage() -> impl IntoView {
                                         class="context-menu-item"
                                         on:click=move |_| {
                                             set_context_menu.set(None);
-                                            set_show_add_group.set(Some(pid_add_group));
+                                            app_store.update(|s| s.open_doc_modal(pid_doc));
                                         }
                                     >
-                                        "📁 Add Group"
+                                        "📄 Add Document"
                                     </button>
                                     <button
                                         class="context-menu-item"
                                         on:click=move |_| {
                                             set_context_menu.set(None);
-                                            set_show_add_asset.set(AssetTarget::PortfolioDirect(pid_add_asset));
+                                            set_show_pf_add_role.set(Some(pid_role));
                                         }
                                     >
-                                        "📦 Add Asset"
+                                        "🎭 Add Role"
                                     </button>
                                     <button
                                         class="context-menu-item"
                                         on:click=move |_| {
                                             set_context_menu.set(None);
-                                            on_open_edit(pid_add_asset);
+                                            set_show_pf_add_org.set(Some(pid_org));
                                         }
                                     >
-                                        "📄 Edit / Add Document"
+                                        "🏢 Add Organization"
                                     </button>
                                     <button
                                         class="context-menu-item"
                                         on:click=move |_| {
                                             set_context_menu.set(None);
-                                            on_delete_portfolio(pid_add_asset);
+                                            set_confirm_pf_remove.set(Some(pid_remove));
                                         }
                                     >
-                                        "🗑 Delete"
+                                        "🗑 Remove"
                                     </button>
                                 }.into_any()
                             } else { ().into_any() }}
@@ -644,6 +656,115 @@ pub fn PortfoliosPage() -> impl IntoView {
                         entity_name={name}
                         on_close=move || set_notif_qs_target.set(None)
                     />
+                }.into_any()
+            })}
+
+            // Add Role modal (portfolio context menu)
+            {move || show_pf_add_role.get().map(|pid| {
+                let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_pf_add_role.set(None)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Role"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_pf_add_role.set(None)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Role name"
+                                    prop:value={move || pf_new_role_name.get()}
+                                    on:input=move |ev| set_pf_new_role_name.set(event_target_value(&ev)) />
+                                <input class="login-input" type="text" placeholder="Description"
+                                    prop:value={move || pf_new_role_desc.get()}
+                                    on:input=move |ev| set_pf_new_role_desc.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = pf_new_role_name.get();
+                                    let desc = pf_new_role_desc.get();
+                                    if !name.trim().is_empty() {
+                                        let role = crate::models::OrgRole::new(name, 0, desc, vec![]);
+                                        if let Some(oid) = org_id {
+                                            app_store.update(|s| s.add_role_to_org(oid, role));
+                                        }
+                                    }
+                                    set_pf_new_role_name.set(String::new());
+                                    set_pf_new_role_desc.set(String::new());
+                                    set_show_pf_add_role.set(None);
+                                }>"Add Role"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+
+            // Add Organization modal (portfolio context menu)
+            {move || show_pf_add_org.get().map(|pid| {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_pf_add_org.set(None)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Organization"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_pf_add_org.set(None)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Organization name"
+                                    prop:value={move || pf_new_org_name.get()}
+                                    on:input=move |ev| set_pf_new_org_name.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = pf_new_org_name.get();
+                                    if !name.trim().is_empty() {
+                                        let owner_id = app_store.get().current_user.id;
+                                        let org = crate::models::Organization::new(name, owner_id);
+                                        let oid = org.id;
+                                        app_store.update(|s| s.add_organization(org));
+                                        app_store.update(|s| {
+                                            if let Some(p) = s.get_portfolio_mut(pid) {
+                                                p.organization_id = Some(oid);
+                                            }
+                                        });
+                                    }
+                                    set_pf_new_org_name.set(String::new());
+                                    set_show_pf_add_org.set(None);
+                                }>"Add Organization"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+ 
+            // Confirm portfolio removal
+            {move || confirm_pf_remove.get().map(|pid| {
+                let pf_name = app_store.get().portfolios.iter()
+                    .find(|p| p.id == pid)
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| "this portfolio".to_string());
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_confirm_pf_remove.set(None)>
+                        <div class="doc-modal confirm-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"🗑 Confirm Removal"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_confirm_pf_remove.set(None)>"✕"</button>
+                            </div>
+                            <div class="confirm-modal-body">
+                                <p class="confirm-modal-msg">
+                                    "Are you sure you want to remove "
+                                    <strong>{pf_name.clone()}</strong>
+                                    "? This action cannot be undone."
+                                </p>
+                                <div class="confirm-modal-actions">
+                                    <button class="login-btn confirm-no"
+                                        on:click=move |_| set_confirm_pf_remove.set(None)>
+                                        "✕ No, Cancel"
+                                    </button>
+                                    <button class="login-btn sell confirm-yes"
+                                        on:click=move |_| {
+                                            set_confirm_pf_remove.set(None);
+                                            on_delete_portfolio(pid);
+                                        }>
+                                        "✔ Yes, Remove"
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 }.into_any()
             })}
         </div>
@@ -735,7 +856,6 @@ fn AssetViewer(
     });
 
     let (show_groups, set_show_groups) = signal(true);
-    let (show_direct_assets, set_show_direct_assets) = signal(true);
 
     let (grid_columns, _set_grid_columns) = signal(3usize);
     let (selected_asset, set_selected_asset) = signal::<Option<Asset>>(None);
@@ -761,6 +881,7 @@ fn AssetViewer(
     let view_mode_direct_content = view_mode.clone();
     let portfolio_groups = portfolio.clone();
     let portfolio_direct = portfolio.clone();
+    let portfolio_direct_sort = portfolio.clone();
 
     view! {
         <div class="asset-viewer">
@@ -898,71 +1019,59 @@ fn AssetViewer(
                 }.into_any()
             } else { ().into_any() }}
 
-            // Direct Assets section
+            // Direct Assets section — always visible, no dropdown toggle
             <div class="asset-section">
                 <div class="asset-section-title">
-                    <div class="asset-section-title-left"
-                        on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                    >
-                        <span class="asset-section-arrow">
-                            {move || if show_direct_assets.get() { "▼" } else { "▶" }}
-                        </span>
+                    <div class="asset-section-title-left">
                         <span class="asset-section-label">"Direct Assets"</span>
                     </div>
                     <div class="section-title-right">
-                        {{
-                            let view_mode_direct_title = view_mode_direct_title.clone();
-                            move || if show_direct_assets.get() && view_mode_direct_title == ViewMode::Grid {
-                                ().into_any()
+                        {move || {
+                            let vmd = view_mode_direct_title.clone();
+                            if vmd == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
+                                view! {
+                                    <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                        <button class="sort-btn"
+                                            on:click=move |_| set_direct_sort_open.update(|v| *v = !*v)
+                                        >{format!("Sort: {} ↕", sort_mode_label(direct_sort_mode.get()))}</button>
+                                        {move || if direct_sort_open.get() {
+                                            view! {
+                                                <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                    {[
+                                                        AssetSortMode::Recent,
+                                                        AssetSortMode::NameAsc,
+                                                        AssetSortMode::NameDesc,
+                                                        AssetSortMode::ValueHigh,
+                                                        AssetSortMode::ValueLow,
+                                                    ].iter().map(|&m| {
+                                                        let set_m = set_direct_sort_mode;
+                                                        let close = set_direct_sort_open;
+                                                        view! {
+                                                            <button class="sort-dropdown-item"
+                                                                class:active={move || direct_sort_mode.get() == m}
+                                                                on:click=move |_| {
+                                                                    set_m.set(m);
+                                                                    close.set(false);
+                                                                }
+                                                            >{sort_mode_label(m)}</button>
+                                                        }
+                                                    }).collect::<Vec<_>>()}
+                                                </div>
+                                            }.into_any()
+                                        } else { ().into_any() }}
+                                    </div>
+                                }.into_any()
                             } else { ().into_any() }
                         }}
                     </div>
                 </div>
 
-                {move || if show_direct_assets.get() {
+                {move || {
                     let visible_direct_assets: Vec<_> = portfolio_direct.assets.clone().into_iter().filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
                     let visible_direct_assets = sort_assets(visible_direct_assets, direct_sort_mode.get());
-                    let vmd = view_mode_direct_content.clone();
+                    let _vmd = view_mode_direct_content.clone();
                     view! {
                         <div>
-                            // Sort dropdown inside content area (grid mode only)
-                            {let vda_for_sort = visible_direct_assets.clone();
-                            move || {
-                                if vmd == ViewMode::Grid && !vda_for_sort.is_empty() {
-                                    view! {
-                                        <div class="sort-dropdown-wrap sort-dropdown-inline">
-                                            <button class="sort-btn"
-                                                on:click=move |_| set_direct_sort_open.update(|v| *v = !*v)
-                                            >{format!("Sort: {} ↕", sort_mode_label(direct_sort_mode.get()))}</button>
-                                            {move || if direct_sort_open.get() {
-                                                view! {
-                                                    <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                                        {[
-                                                            AssetSortMode::Recent,
-                                                            AssetSortMode::NameAsc,
-                                                            AssetSortMode::NameDesc,
-                                                            AssetSortMode::ValueHigh,
-                                                            AssetSortMode::ValueLow,
-                                                        ].iter().map(|&m| {
-                                                            let set_m = set_direct_sort_mode;
-                                                            let close = set_direct_sort_open;
-                                                            view! {
-                                                                <button class="sort-dropdown-item"
-                                                                    class:active={move || direct_sort_mode.get() == m}
-                                                                    on:click=move |_| {
-                                                                        set_m.set(m);
-                                                                        close.set(false);
-                                                                    }
-                                                                >{sort_mode_label(m)}</button>
-                                                            }
-                                                        }).collect::<Vec<_>>()}
-                                                    </div>
-                                                }.into_any()
-                                            } else { ().into_any() }}
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }
-                            }}
 
                             {move || {
                                 if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
@@ -983,6 +1092,7 @@ fn AssetViewer(
                                                         "Commodity" => AssetType::Commodity,
                                                         "Digital" => AssetType::Digital,
                                                         "IntellectualProperty" => AssetType::IntellectualProperty,
+                                                        "Channel" => AssetType::Channel,
                                                         _ => AssetType::RealEstate,
                                                     };
                                                     set_new_asset_type.set(t);
@@ -996,6 +1106,7 @@ fn AssetViewer(
                                                 <option value="Commodity">"Commodity"</option>
                                                 <option value="Digital">"Digital"</option>
                                                 <option value="IntellectualProperty">"IP"</option>
+                                                <option value="Channel">"Channel"</option>
                                             </select>
                                             <input class="login-input" type="number" placeholder="Value ($)"
                                                 on:input=move |ev| set_new_asset_value.set(event_target_value(&ev)) />
@@ -1031,7 +1142,7 @@ fn AssetViewer(
                             }}
                         </div>
                     }.into_any()
-                } else { ().into_any() }}
+                }}
             </div>
 
             {move || selected_asset.get().map(|asset| view! {
@@ -1079,12 +1190,19 @@ fn AssetGroupItem(
 
     let (is_editing, set_is_editing) = signal(false);
     let (group_context_menu, set_group_context_menu) = signal(Option::<(i32, i32)>::None);
+    let (show_group_add_role, set_show_group_add_role) = signal(false);
+    let (show_group_add_org, set_show_group_add_org) = signal(false);
+    let (confirm_group_remove, set_confirm_group_remove) = signal(false);
+    let (group_role_name, set_group_role_name) = signal(String::new());
+    let (group_role_desc, set_group_role_desc) = signal(String::new());
+    let (group_org_name, set_group_org_name) = signal(String::new());
     let (edit_name, set_edit_name) = signal(group.name.clone());
     let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
 
     let g_name = group.name.clone();
     let g_desc = group.description.clone().unwrap_or_default();
     let g_name_for_modal = group.name.clone();
+    let g_name_for_confirm = group.name.clone();
     let docs = group.documents.clone();
     let doc_count = docs.len();
     let assigned_users = group.assigned_users.clone();
@@ -1131,10 +1249,11 @@ fn AssetGroupItem(
     let add_group_doc = move |n: String| {
         if n.trim().is_empty() { return; }
         let uploaded_by = app_store.get().current_user.id;
+        let ft = detect_file_type(&n);
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
             name: n.clone(),
-            file_type: "pdf".to_string(),
+            file_type: ft,
             content: None,
             url: "#".to_string(),
             uploaded_at: chrono::Utc::now(),
@@ -1262,6 +1381,7 @@ fn AssetGroupItem(
                                         "Commodity" => AssetType::Commodity,
                                         "Digital" => AssetType::Digital,
                                         "IntellectualProperty" => AssetType::IntellectualProperty,
+                                        "Channel" => AssetType::Channel,
                                         _ => AssetType::RealEstate,
                                     };
                                     set_new_asset_type.set(t);
@@ -1275,6 +1395,7 @@ fn AssetGroupItem(
                                 <option value="Commodity">"Commodity"</option>
                                 <option value="Digital">"Digital"</option>
                                 <option value="IntellectualProperty">"IP"</option>
+                                <option value="Channel">"Channel"</option>
                             </select>
                             <input class="login-input" type="number" placeholder="Value ($)"
                                 on:input=move |ev| set_new_asset_value.set(event_target_value(&ev)) />
@@ -1317,25 +1438,142 @@ fn AssetGroupItem(
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);
-                                    set_show_add_asset.set(AssetTarget::Group(pid2, gid2));
-                                }
-                            >"📦 Add Asset"</button>
-                            <button class="context-menu-item"
-                                on:click=move |_| {
-                                    set_group_context_menu.set(None);
                                     app_store.update(|s| s.open_doc_modal(gid));
                                 }
                             >"📄 Add Document"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);
-                                    set_is_editing.set(true);
+                                    set_show_group_add_role.set(true);
                                 }
-                            >"✏️ Rename"</button>
+                            >"🎭 Add Role"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_show_group_add_org.set(true);
+                                }
+                            >"🏢 Add Organization"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_confirm_group_remove.set(true);
+                                }
+                            >"🗑 Remove"</button>
                         </div>
                     </div>
                 }.into_any()
             })}
+
+            // Add Role modal (group context menu)
+            {move || if show_group_add_role.get() {
+                let org_id = app_store.get().portfolios.iter()
+                    .find(|p| p.id == pid)
+                    .and_then(|p| p.organization_id);
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_group_add_role.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Role"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_group_add_role.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Role name"
+                                    prop:value={move || group_role_name.get()}
+                                    on:input=move |ev| set_group_role_name.set(event_target_value(&ev)) />
+                                <input class="login-input" type="text" placeholder="Description"
+                                    prop:value={move || group_role_desc.get()}
+                                    on:input=move |ev| set_group_role_desc.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = group_role_name.get();
+                                    let desc = group_role_desc.get();
+                                    if !name.trim().is_empty() {
+                                        let role = crate::models::OrgRole::new(name, 0, desc, vec![]);
+                                        if let Some(oid) = org_id {
+                                            app_store.update(|s| s.add_role_to_org(oid, role));
+                                        }
+                                    }
+                                    set_group_role_name.set(String::new());
+                                    set_group_role_desc.set(String::new());
+                                    set_show_group_add_role.set(false);
+                                }>"Add Role"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Add Organization modal (group context menu)
+            {move || if show_group_add_org.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_group_add_org.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Organization"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_group_add_org.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Organization name"
+                                    prop:value={move || group_org_name.get()}
+                                    on:input=move |ev| set_group_org_name.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = group_org_name.get();
+                                    if !name.trim().is_empty() {
+                                        let owner_id = app_store.get().current_user.id;
+                                        let org = crate::models::Organization::new(name, owner_id);
+                                        let oid = org.id;
+                                        app_store.update(|s| s.add_organization(org));
+                                        // Link group's portfolio to org if not already linked
+                                        app_store.update(|s| {
+                                            if let Some(p) = s.get_portfolio_mut(pid) {
+                                                if p.organization_id.is_none() {
+                                                    p.organization_id = Some(oid);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    set_group_org_name.set(String::new());
+                                    set_show_group_add_org.set(false);
+                                }>"Add Organization"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Confirm group removal
+            {move || if confirm_group_remove.get() {
+                let gname = g_name_for_confirm.clone();
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_confirm_group_remove.set(false)>
+                        <div class="doc-modal confirm-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"🗑 Confirm Removal"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_confirm_group_remove.set(false)>"✕"</button>
+                            </div>
+                            <div class="confirm-modal-body">
+                                <p class="confirm-modal-msg">
+                                    "Are you sure you want to remove "
+                                    <strong>{gname.clone()}</strong>
+                                    "? This action cannot be undone."
+                                </p>
+                                <div class="confirm-modal-actions">
+                                    <button class="login-btn confirm-no"
+                                        on:click=move |_| set_confirm_group_remove.set(false)>
+                                        "✕ No, Cancel"
+                                    </button>
+                                    <button class="login-btn sell confirm-yes"
+                                        on:click=move |_| {
+                                            set_confirm_group_remove.set(false);
+                                            app_store.update(|s| { s.remove_asset_group(pid, gid); });
+                                        }>
+                                        "✔ Yes, Remove"
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
         </div>
     }
 }
@@ -1440,10 +1678,11 @@ fn PortfolioListItem(
     let add_doc = move |n: String| {
         if n.trim().is_empty() { return; }
         let uploaded_by = app_store.get().current_user.id;
+        let ft = detect_file_type(&n);
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
             name: n.clone(),
-            file_type: "pdf".to_string(),
+            file_type: ft,
             url: "#".to_string(),
             uploaded_at: chrono::Utc::now(),
             uploaded_by,
@@ -1478,8 +1717,13 @@ fn PortfolioListItem(
 
     view! {
         <div class="asset-group" class:expanded={expanded} on:contextmenu=on_context>
+            // Org color strip — left-side color coding for organization identification
+            {org_color.as_ref().map(|c| view! {
+                <div class="pf-org-color-strip" style={format!("background: {}", c)}></div>
+            })}
             // Header row — same structure as asset-group-header
             <div class="asset-group-header"
+                style={org_color.as_ref().map(|c| format!("border-left: 3px solid {}", c)).unwrap_or_default()}
                 on:click=move |_| {
                     if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
                         on_toggle.run(());
@@ -1664,6 +1908,7 @@ fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
         AssetType::Commodity => "Goods",
         AssetType::Digital => "Crypto",
         AssetType::IntellectualProperty => "IP",
+        AssetType::Channel => "Channel",
         AssetType::Custom(_) => "Asset",
     };
     let seed = name.replace(' ', "+");
@@ -1700,6 +1945,24 @@ fn AssetItem(
 
     let (expanded_detail, set_expanded_detail) = signal(false);
     let (_editing, set_editing) = signal(false);
+    let (asset_context_menu, set_asset_context_menu) = signal(Option::<(i32, i32)>::None);
+    let (show_add_user, set_show_add_user) = signal(false);
+    let (show_add_role, set_show_add_role) = signal(false);
+    let (show_add_org, set_show_add_org) = signal(false);
+    let (show_add_transaction, set_show_add_transaction) = signal(false);
+    let (confirm_asset_remove, set_confirm_asset_remove) = signal(false);
+    // Form fields for add user
+    let (new_user_name, set_new_user_name) = signal(String::new());
+    let (new_user_email, set_new_user_email) = signal(String::new());
+    // Form fields for add role
+    let (new_role_name, set_new_role_name) = signal(String::new());
+    let (new_role_desc, set_new_role_desc) = signal(String::new());
+    // Form fields for add org
+    let (new_org_name, set_new_org_name) = signal(String::new());
+    // Form fields for add transaction
+    let (new_tx_amount, set_new_tx_amount) = signal(String::new());
+    let (new_tx_desc, set_new_tx_desc) = signal(String::new());
+    let (new_tx_type, set_new_tx_type) = signal(crate::types::TransactionType::Purchase);
     let (edit_name, set_edit_name) = signal(asset.name.clone());
     let (edit_desc, set_edit_desc) = signal(asset.description.clone().unwrap_or_default());
     let (edit_loc, set_edit_loc) = signal(asset.location.clone().unwrap_or_default());
@@ -1725,9 +1988,17 @@ fn AssetItem(
     });
     let a_name = asset.name.clone();
     let a_addr = asset.location.clone().unwrap_or_default();
-    let a_name_grid = a_name.clone();
     let a_addr_grid = a_addr.clone();
+    let a_name_tx = a_name.clone();
+    let a_org_id = asset.organization_id;
+    let a_org_name = move || {
+        app_store.get().organizations.iter()
+            .find(|o| Some(o.id) == a_org_id)
+            .map(|o| o.name.clone())
+            .unwrap_or_else(|| "—".to_string())
+    };
     let asset_name_for_modal = asset.name.clone();
+    let asset_name_for_confirm = asset.name.clone();
     let (_asset_name_signal, _set_asset_name) = signal(a_name.clone());
     // snapshot values for the detail panel
     let a_type     = format!("{:?}", asset.asset_type);
@@ -1774,10 +2045,11 @@ fn AssetItem(
     let add_doc = move |n: String| {
         if n.trim().is_empty() { return; }
         let uploaded_by = app_store.get().current_user.id;
+        let ft = detect_file_type(&n);
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
             name: n.clone(),
-            file_type: "pdf".to_string(),
+            file_type: ft,
             url: "#".to_string(),
             uploaded_at: chrono::Utc::now(),
             uploaded_by,
@@ -1852,7 +2124,14 @@ fn AssetItem(
         }.into_any()
     } else {
     view! {
-        <div class="ai-item" class:ai-item-expanded={move || expanded_detail.get()} style={tint_style.clone()}>
+        <div class="ai-item" class:ai-item-expanded={move || expanded_detail.get()} style={tint_style.clone()}
+            on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                if can_edit_here {
+                    ev.prevent_default();
+                    set_asset_context_menu.set(Some((ev.client_x(), ev.client_y())));
+                }
+            }
+        >
             <div class="ai-list-card">
                 <img class="ai-list-image" src={image_url.clone()} alt={a_name.clone()} />
                 <div class="ai-list-body">
@@ -1874,33 +2153,9 @@ fn AssetItem(
                                     on:blur=move |_| save_edit() />
                             </div>
                         }.into_any()
-                    } else {
-                        view! {
-                            <div>
-                                <div class="ai-list-name">
-                                    {a_name.clone()}
-                                    {move || {
-                                        let count = app_store.get().doc_notifications_for_asset(asset_id);
-                                        if count > 0 {
-                                            view! {
-                                                <span class="pf-notif-badge pf-notif-badge-inline" title={format!("{} document notification{}", count, if count == 1 { "" } else { "s" })}>
-                                                    "🔔"
-                                                    <span class="pf-notif-count">{count}</span>
-                                                </span>
-                                            }.into_any()
-                                        } else { ().into_any() }
-                                    }}
-                                </div>
-                                <div class="ai-list-addr">{a_addr.clone()}</div>
-                            </div>
-                        }.into_any()
-                    }}
+                    } else { ().into_any() }}
                     // Detail grid inline (always visible)
                     <div class="pf-detail-grid pf-detail-grid-inline">
-                        <div class="pf-detail-cell">
-                            <span class="pf-detail-label">"NAME"</span>
-                            <span class="pf-detail-value">{a_name_grid.clone()}</span>
-                        </div>
                         <div class="pf-detail-cell">
                             <span class="pf-detail-label">"TYPE & BUILD"</span>
                             <span class="pf-detail-value">{a_type_grid.clone()}</span>
@@ -1910,90 +2165,116 @@ fn AssetItem(
                             <span class="pf-detail-value">{a_addr_grid.clone()}</span>
                         </div>
                         <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"ORGANIZATION"</span>
+                            <span class="pf-detail-value">{a_org_name()}</span>
+                        </div>
+                        <div class="pf-detail-cell">
                             <span class="pf-detail-label">"PRICE"</span>
                             <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
                         </div>
                     </div>
-                    // Horizontal document slider
+                    // Horizontal document slider with + Document card
                     <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
+                        // + Document card (always first)
+                        <div class="ai-doc-slider-item ai-doc-add-card"
+                            on:click=move |_| app_store.update(|s| s.toggle_doc_modal(asset_id))>
+                            <div class="ai-doc-slider-thumb">"➕"</div>
+                            <div class="ai-doc-slider-name">"+ Document"</div>
+                            <div class="ai-doc-slider-type">"ADD"</div>
+                        </div>
                         {move || {
                             let asset_docs = asset_docs_reactive.get();
-                            if asset_docs.is_empty() {
-                                ().into_any()
-                            } else {
-                                asset_docs.into_iter().map(|doc| {
-                                    let icon = document_icon(&doc.file_type);
-                                    let ft = doc.file_type.to_uppercase();
-                                    let dname = doc.name.clone();
-                                    let short_name = if dname.len() > 18 {
-                                        format!("{}...", &dname[..15])
-                                    } else {
-                                        dname.clone()
-                                    };
-                                    let doc_for_view = doc.clone();
-                                    let doc_id_for_notif = doc.id;
-                                    let (viewing, set_viewing) = signal(false);
-                                    view! {
-                                        <div class="ai-doc-slider-item" on:click=move |_| set_viewing.set(true)>
-                                            <div class="ai-doc-slider-thumb">{icon}</div>
-                                            <div class="ai-doc-slider-name">{short_name}</div>
-                                            <div class="ai-doc-slider-type">{ft.clone()}</div>
-                                            {move || {
-                                                let ncount = app_store.get().notifications_for_doc(doc_id_for_notif);
-                                                if ncount > 0 {
-                                                    view! {
-                                                        <span class="pf-notif-badge pf-notif-badge-inline" title={format!("{} notification{}", ncount, if ncount == 1 { "" } else { "s" })}>
-                                                            "🔔"
-                                                            <span class="pf-notif-count">{ncount}</span>
-                                                        </span>
-                                                    }.into_any()
-                                                } else { ().into_any() }
-                                                }}
-                                        </div>
-                                        {move || if viewing.get() {
-                                            let d = doc_for_view.clone();
-                                            view! {
-                                                <div class="doc-modal-overlay" on:click=move |_| set_viewing.set(false)>
-                                                    <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
-                                                        <DocumentViewer
-                                                            doc={d.clone()}
-                                                            on_close=move || set_viewing.set(false)
-                                                            can_edit={can_edit_documents_here}
-                                                        />
-                                                    </div>
+                            asset_docs.into_iter().map(|doc| {
+                                let icon = document_icon(&doc.file_type);
+                                let ft = doc.file_type.to_uppercase();
+                                let dname = doc.name.clone();
+                                let short_name = if dname.len() > 18 {
+                                    format!("{}...", &dname[..15])
+                                } else {
+                                    dname.clone()
+                                };
+                                let doc_for_view = doc.clone();
+                                let doc_id = doc.id;
+                                let doc_id_for_notif = doc.id;
+                                let (doc_ctx_menu_x, set_doc_ctx_menu_x) = signal(0i32);
+                                let (doc_ctx_menu_y, set_doc_ctx_menu_y) = signal(0i32);
+                                let (show_doc_ctx_menu, set_show_doc_ctx_menu) = signal(false);
+                                let (viewing, set_viewing) = signal(false);
+                                view! {
+                                    <div class="ai-doc-slider-item"
+                                        on:click=move |_| set_viewing.set(true)
+                                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                                            ev.prevent_default();
+                                            ev.stop_propagation();
+                                            set_doc_ctx_menu_x.set(ev.client_x());
+                                            set_doc_ctx_menu_y.set(ev.client_y());
+                                            set_show_doc_ctx_menu.set(true);
+                                        }
+                                    >
+                                        <div class="ai-doc-slider-thumb">{icon}</div>
+                                        <div class="ai-doc-slider-name">{short_name}</div>
+                                        <div class="ai-doc-slider-type">{ft.clone()}</div>
+                                        {move || {
+                                            let ncount = app_store.get().notifications_for_doc(doc_id_for_notif);
+                                            if ncount > 0 {
+                                                view! {
+                                                    <span class="pf-notif-badge pf-notif-badge-inline" title={format!("{} notification{}", ncount, if ncount == 1 { "" } else { "s" })}>
+                                                        "🔔"
+                                                        <span class="pf-notif-count">{ncount}</span>
+                                                    </span>
+                                                }.into_any()
+                                            } else { ().into_any() }
+                                            }}
+                                    </div>
+                                    {move || if viewing.get() {
+                                        let d = doc_for_view.clone();
+                                        view! {
+                                            <div class="doc-modal-overlay" on:click=move |_| set_viewing.set(false)>
+                                                <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                                                    <DocumentViewer
+                                                        doc={d.clone()}
+                                                        on_close=move || set_viewing.set(false)
+                                                        can_edit={can_edit_documents_here}
+                                                    />
                                                 </div>
-                                            }.into_any()
-                                        } else { ().into_any() }}
-                                    }
-                                }).collect::<Vec<_>>().into_any()
-                            }
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }}
+                                    // Document context menu
+                                    {move || if show_doc_ctx_menu.get() {
+                                        let dx = doc_ctx_menu_x.get();
+                                        let dy = doc_ctx_menu_y.get();
+                                        view! {
+                                            <div class="context-menu-overlay" on:click=move |_| set_show_doc_ctx_menu.set(false)>
+                                                <div class="context-menu" style={format!("left: {}px; top: {}px;", dx, dy)}>
+                                                    <button class="context-menu-item"
+                                                        on:click=move |_| {
+                                                            set_show_doc_ctx_menu.set(false);
+                                                            set_show_add_role.set(true);
+                                                        }
+                                                    >"🎭 Add Role"</button>
+                                                    <button class="context-menu-item"
+                                                        on:click=move |_| {
+                                                            set_show_doc_ctx_menu.set(false);
+                                                            set_show_add_org.set(true);
+                                                        }
+                                                    >"🏢 Add Organization"</button>
+                                                    <button class="context-menu-item"
+                                                        on:click=move |_| {
+                                                            set_show_doc_ctx_menu.set(false);
+                                                            if let Some(pid) = portfolio_id {
+                                                                app_store.update(|s| { s.remove_document_from_asset(pid, asset_id, doc_id); });
+                                                            }
+                                                        }
+                                                    >"🗑 Remove"</button>
+                                                </div>
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }}
+                                }
+                            }).collect::<Vec<_>>().into_any()
                         }}
                     </div>
-                    <div class="ai-list-docs" on:click=|ev| ev.stop_propagation()>
-                        {move || {
-                            let doc_count = asset_docs_reactive.get().len();
-                            view! {
-                                <button class="ai-list-docs-btn"
-                                    on:click=move |_| app_store.update(|s| s.toggle_doc_modal(asset_id))>
-                                    {if doc_count == 0 {
-                                        "📄 Add document".to_string()
-                                    } else {
-                                        format!("📄 {} document{}", doc_count, if doc_count == 1 { "" } else { "s" })
-                                    }}
-                                </button>
-                            }.into_any()
-                        }}
-                    </div>
-                </div>
-                <div class="ai-list-actions" on:click=move |ev| {
-                    ev.stop_propagation();
-                    if can_edit_here { set_expanded_detail.update(|v| *v = !*v); }
-                }>
-                    {if can_edit_here {
-                        view! {
-                            <span class="ai-list-arrow">{move || if expanded_detail.get() { "▲" } else { "▼" }}</span>
-                        }.into_any()
-                    } else { ().into_any() }}
                 </div>
             </div>
 
@@ -2011,6 +2292,322 @@ fn AssetItem(
                         group_id={group_id}
                         asset_id={Some(asset_id)}
                     />
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Asset context menu (right-click / tap-and-hold)
+            {move || asset_context_menu.get().map(|(x, y)| {
+                view! {
+                    <div class="context-menu-overlay" on:click=move |_| set_asset_context_menu.set(None)>
+                        <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    app_store.update(|s| s.toggle_doc_modal(asset_id));
+                                }
+                            >"📄 Add Document"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    set_show_add_role.set(true);
+                                }
+                            >"🎭 Add Role"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    set_show_add_org.set(true);
+                                }
+                            >"🏢 Add Organization"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    set_confirm_asset_remove.set(true);
+                                }
+                            >"🗑 Remove"</button>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+
+            // Add User modal
+            {move || if show_add_user.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_add_user.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add User to Asset"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_add_user.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="User name"
+                                    prop:value={move || new_user_name.get()}
+                                    on:input=move |ev| set_new_user_name.set(event_target_value(&ev)) />
+                                <input class="login-input" type="email" placeholder="Email"
+                                    prop:value={move || new_user_email.get()}
+                                    on:input=move |ev| set_new_user_email.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = new_user_name.get();
+                                    let email = new_user_email.get();
+                                    if !name.trim().is_empty() {
+                                        let now = chrono::Utc::now();
+                                        let user = crate::models::User {
+                                            id: Uuid::new_v4(),
+                                            name: name.clone(),
+                                            username: None,
+                                            email,
+                                            role: crate::types::UserRole::Worker,
+                                            organization_id: None,
+                                            department: None,
+                                            phone: None,
+                                            address: None,
+                                            hire_date: None,
+                                            base_salary: None,
+                                            avatar_url: None,
+                                            payment_settings: Default::default(),
+                                            notification_preferences: vec![],
+                                            permissions: vec![],
+                                            assignments: vec![],
+                                            activity_log: vec![],
+                                            documents: vec![],
+                                            created_at: now,
+                                            updated_at: now,
+                                            last_login: None,
+                                            is_active: true,
+                                        };
+                                        let uid = user.id;
+                                        app_store.update(|s| {
+                                            s.add_organization_user(user);
+                                        });
+                                        app_store.update(|s| {
+                                            for p in s.portfolios.iter_mut() {
+                                                let all: Vec<_> = p.assets.iter_mut()
+                                                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                                                    .collect();
+                                                for a in all {
+                                                    if a.id == asset_id {
+                                                        if !a.assigned_workers.contains(&uid) {
+                                                            a.assigned_workers.push(uid);
+                                                        }
+                                                        return;
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    }
+                                    set_new_user_name.set(String::new());
+                                    set_new_user_email.set(String::new());
+                                    set_show_add_user.set(false);
+                                }>"Add User"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Add Role modal
+            {move || if show_add_role.get() {
+                let org_id = app_store.get().portfolios.iter()
+                    .find(|p| p.id == portfolio_id.unwrap_or_default())
+                    .and_then(|p| p.organization_id);
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_add_role.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Role"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_add_role.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Role name"
+                                    prop:value={move || new_role_name.get()}
+                                    on:input=move |ev| set_new_role_name.set(event_target_value(&ev)) />
+                                <input class="login-input" type="text" placeholder="Description"
+                                    prop:value={move || new_role_desc.get()}
+                                    on:input=move |ev| set_new_role_desc.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = new_role_name.get();
+                                    let desc = new_role_desc.get();
+                                    if !name.trim().is_empty() {
+                                        let role = crate::models::OrgRole::new(
+                                            name.clone(),
+                                            0,
+                                            desc,
+                                            vec![],
+                                        );
+                                        if let Some(oid) = org_id {
+                                            app_store.update(|s| s.add_role_to_org(oid, role));
+                                        }
+                                    }
+                                    set_new_role_name.set(String::new());
+                                    set_new_role_desc.set(String::new());
+                                    set_show_add_role.set(false);
+                                }>"Add Role"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Add Organization modal
+            {move || if show_add_org.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_add_org.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Organization"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_add_org.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Organization name"
+                                    prop:value={move || new_org_name.get()}
+                                    on:input=move |ev| set_new_org_name.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = new_org_name.get();
+                                    if !name.trim().is_empty() {
+                                        let owner_id = app_store.get().current_user.id;
+                                        let org = crate::models::Organization::new(name, owner_id);
+                                        let oid = org.id;
+                                        app_store.update(|s| s.add_organization(org));
+                                        // Link asset to the new organization
+                                        app_store.update(|s| {
+                                            for p in s.portfolios.iter_mut() {
+                                                let all: Vec<_> = p.assets.iter_mut()
+                                                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                                                    .collect();
+                                                for a in all {
+                                                    if a.id == asset_id {
+                                                        a.organization_id = Some(oid);
+                                                        return;
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    }
+                                    set_new_org_name.set(String::new());
+                                    set_show_add_org.set(false);
+                                }>"Add Organization"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Add Transaction modal
+            {move || if show_add_transaction.get() {
+                let asset_name = a_name_tx.clone();
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_add_transaction.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Transaction"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_show_add_transaction.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <select class="login-input"
+                                    prop:value={move || format!("{:?}", new_tx_type.get())}
+                                    on:change=move |ev| {
+                                        let v = event_target_value(&ev);
+                                        let t = match v.as_str() {
+                                            "Sale" => crate::types::TransactionType::Sale,
+                                            "Rent" => crate::types::TransactionType::Rent,
+                                            "Lease" => crate::types::TransactionType::Lease,
+                                            "Payout" => crate::types::TransactionType::Payout,
+                                            "Dividend" => crate::types::TransactionType::Dividend,
+                                            "Fee" => crate::types::TransactionType::Fee,
+                                            "Tax" => crate::types::TransactionType::Tax,
+                                            "Transfer" => crate::types::TransactionType::Transfer,
+                                            "Adjustment" => crate::types::TransactionType::Adjustment,
+                                            _ => crate::types::TransactionType::Purchase,
+                                        };
+                                        set_new_tx_type.set(t);
+                                    }
+                                >
+                                    <option value="Purchase">"Purchase"</option>
+                                    <option value="Sale">"Sale"</option>
+                                    <option value="Rent">"Rent"</option>
+                                    <option value="Lease">"Lease"</option>
+                                    <option value="Payout">"Payout"</option>
+                                    <option value="Dividend">"Dividend"</option>
+                                    <option value="Fee">"Fee"</option>
+                                    <option value="Tax">"Tax"</option>
+                                    <option value="Transfer">"Transfer"</option>
+                                    <option value="Adjustment">"Adjustment"</option>
+                                </select>
+                                <input class="login-input" type="number" placeholder="Amount ($)"
+                                    prop:value={move || new_tx_amount.get()}
+                                    on:input=move |ev| set_new_tx_amount.set(event_target_value(&ev)) />
+                                <input class="login-input" type="text" placeholder="Description"
+                                    prop:value={move || new_tx_desc.get()}
+                                    on:input=move |ev| set_new_tx_desc.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let amount = new_tx_amount.get().parse::<f64>().unwrap_or(0.0);
+                                    let desc = new_tx_desc.get();
+                                    let tx_type = new_tx_type.get();
+                                    let user_id = app_store.get().current_user.id;
+                                    let user_name = app_store.get().current_user.name.clone();
+                                    let mut tx = crate::models::Transaction::new(
+                                        tx_type,
+                                        amount,
+                                        crate::types::Currency::USD,
+                                        crate::models::EntityReference {
+                                            entity_type: crate::models::EntityType::External,
+                                            entity_id: Uuid::new_v4(),
+                                            name: asset_name.clone(),
+                                        },
+                                        crate::models::EntityReference {
+                                            entity_type: crate::models::EntityType::User,
+                                            entity_id: user_id,
+                                            name: user_name,
+                                        },
+                                        user_id,
+                                    );
+                                    tx.related_asset_id = Some(asset_id);
+                                    tx.related_portfolio_id = portfolio_id;
+                                    tx.description = if desc.trim().is_empty() { None } else { Some(desc) };
+                                    app_store.update(|s| s.transactions.push(tx));
+                                    set_new_tx_amount.set(String::new());
+                                    set_new_tx_desc.set(String::new());
+                                    set_show_add_transaction.set(false);
+                                }>"Add Transaction"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Confirm asset removal
+            {move || if confirm_asset_remove.get() {
+                let aname = asset_name_for_confirm.clone();
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_confirm_asset_remove.set(false)>
+                        <div class="doc-modal confirm-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"🗑 Confirm Removal"</span>
+                                <button class="doc-modal-close" on:click=move |_| set_confirm_asset_remove.set(false)>"✕"</button>
+                            </div>
+                            <div class="confirm-modal-body">
+                                <p class="confirm-modal-msg">
+                                    "Are you sure you want to remove "
+                                    <strong>{aname.clone()}</strong>
+                                    "? This action cannot be undone."
+                                </p>
+                                <div class="confirm-modal-actions">
+                                    <button class="login-btn confirm-no"
+                                        on:click=move |_| set_confirm_asset_remove.set(false)>
+                                        "✕ No, Cancel"
+                                    </button>
+                                    <button class="login-btn sell confirm-yes"
+                                        on:click=move |_| {
+                                            set_confirm_asset_remove.set(false);
+                                            if let Some(pid) = portfolio_id {
+                                                app_store.update(|s| { s.remove_asset(pid, asset_id); });
+                                            }
+                                        }>
+                                        "✔ Yes, Remove"
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 }.into_any()
             } else { ().into_any() }}
 
@@ -2200,6 +2797,7 @@ fn AssetDetailView(asset: Asset, on_close: Callback<()>) -> impl IntoView {
         AssetType::Commodity => "🌾",
         AssetType::Digital => "💻",
         AssetType::IntellectualProperty => "💡",
+        AssetType::Channel => "📡",
         AssetType::Custom(_) => "📦",
     };
     let pl_class = if asset.profit_loss >= 0.0 { "positive" } else { "negative" };
@@ -2307,14 +2905,36 @@ fn document_icon(file_type: &str) -> &'static str {
     match file_type.to_lowercase().as_str() {
         "pdf" => "📕",
         "doc" | "docx" => "📘",
+        "odt" => "📘",
         "xls" | "xlsx" => "📗",
         "ppt" | "pptx" => "📙",
         "txt" | "md" | "rs" | "js" | "ts" | "html" | "css" => "📄",
         "zip" | "rar" | "7z" | "tar" => "🗜️",
         "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" => "🖼️",
-        "mp4" | "mov" | "avi" | "mkv" => "🎬",
+        "mp4" | "mov" | "avi" | "mkv" | "webm" => "🎬",
         "mp3" | "wav" | "flac" => "🎵",
         _ => "📎",
+    }
+}
+
+fn detect_file_type(name: &str) -> String {
+    if let Some(idx) = name.rfind('.') {
+        let ext = &name[idx + 1..];
+        let ext_lower = ext.to_lowercase();
+        match ext_lower.as_str() {
+            "pdf" | "docx" | "doc" | "txt" | "odt" | "rtf" |
+            "xlsx" | "xls" | "csv" |
+            "pptx" | "ppt" |
+            "md" | "json" | "xml" | "html" | "css" | "js" | "ts" | "rs" | "py" | "go" |
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tiff" | "ico" |
+            "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv" |
+            "mp3" | "wav" | "flac" | "aac" | "ogg" |
+            "zip" | "rar" | "7z" | "tar" | "gz"
+            => ext_lower,
+            _ => "txt".to_string(),
+        }
+    } else {
+        "txt".to_string()
     }
 }
 
@@ -2757,11 +3377,9 @@ pub fn DocumentViewer(
     let app_store = use_app_store();
     let undo_store = use_undo_redo_store();
     let initial_content = doc.content.clone().unwrap_or_else(|| mock_doc_content(&doc.name, &doc.file_type));
-    let icon      = document_icon(&doc.file_type);
-    let ft        = doc.file_type.to_uppercase();
-    let is_sheet  = doc.file_type == "xlsx" || doc.file_type == "csv";
     let doc_name  = StoredValue::new(doc.name.clone());
     let doc_id = doc.id;
+    let doc_url = StoredValue::new(doc.url.clone());
 
     let current_user = app_store.get().current_user.clone();
     let effective_can_edit = can_edit && current_user.can_edit_document(&doc);
@@ -2775,6 +3393,20 @@ pub fn DocumentViewer(
     // image popup: Some((x_px, y_px))
     let (img_popup, set_img_popup) = signal::<Option<(i32, i32)>>(None);
     let (link_val, set_link_val) = signal(doc.url.clone());
+    let (file_type, set_file_type) = signal(doc.file_type.clone());
+    let (show_type_dropdown, set_show_type_dropdown) = signal(false);
+
+    let is_image = move || {
+        matches!(file_type.get().to_lowercase().as_str(),
+            "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg" | "bmp" | "tiff" | "ico"
+        )
+    };
+    let is_video = move || {
+        matches!(file_type.get().to_lowercase().as_str(),
+            "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv"
+        )
+    };
+    let is_sheet = move || file_type.get() == "xlsx" || file_type.get() == "csv";
 
     let apply_image_url = move || {
         let url = link_val.get().trim().to_string();
@@ -2874,9 +3506,45 @@ pub fn DocumentViewer(
         <div class="docviewer">
             // ── Sticky toolbar ────────────────────────────────────────
             <div class="docviewer-toolbar">
-                <span class="docviewer-icon">{icon}</span>
+                <span class="docviewer-icon">{move || document_icon(&file_type.get())}</span>
                 <span class="docviewer-name">{doc_name.get_value()}</span>
-                <span class="docviewer-ft">{ft}</span>
+                // Document type selector
+                <div class="dv-type-selector">
+                    <button class="docviewer-ft dv-type-btn"
+                        on:click=move |_| set_show_type_dropdown.update(|v| *v = !*v)>
+                        {move || file_type.get().to_uppercase()}
+                        <span class="dv-type-arrow">{move || if show_type_dropdown.get() { "▲" } else { "▼" }}</span>
+                    </button>
+                    {move || if show_type_dropdown.get() {
+                        let type_options = ["pdf", "docx", "txt", "odt", "rtf", "xlsx", "csv", "pptx", "md",
+                            "jpg", "jpeg", "png", "gif", "webp", "svg",
+                            "mp4", "mov", "avi", "webm",
+                            "mp3", "wav", "zip"];
+                        let current_ft = file_type.get();
+                        view! {
+                            <div class="dv-type-dropdown-overlay" on:click=move |_| set_show_type_dropdown.set(false)>
+                                <div class="dv-type-dropdown" on:click=|ev| ev.stop_propagation()>
+                                    {type_options.iter().map(|opt| {
+                                        let opt_str = opt.to_string();
+                                        let is_active = current_ft == opt_str;
+                                        let opt_for_click = opt_str.clone();
+                                        view! {
+                                            <button class="dv-type-option" class:dv-type-option-active={is_active}
+                                                on:click=move |_| {
+                                                    set_file_type.set(opt_for_click.clone());
+                                                    set_show_type_dropdown.set(false);
+                                                    app_store.update(|s| s.update_document_file_type(doc_id, opt_for_click.clone()));
+                                                }>
+                                                <span>{document_icon(opt)}</span>
+                                                <span>{opt.to_uppercase()}</span>
+                                            </button>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
+                </div>
 
                 // Zoom controls
                 <div class="dv-zoom-group">
@@ -2918,34 +3586,71 @@ pub fn DocumentViewer(
 
             // ── Document body ─────────────────────────────────────────
             <div
-                class={move || if is_sheet { "docviewer-body docviewer-sheet".to_string() } else { "docviewer-body".to_string() }}
+                class={move || if is_sheet() { "docviewer-body docviewer-sheet".to_string() } else { "docviewer-body".to_string() }}
                 style=move || format!("font-size: {}%;", zoom.get())
                 on:click=move |_| { if img_popup.get().is_some() { apply_image_url(); } }
             >
-                // Image area (shown for image-type docs or as a doc header image)
-                {if effective_can_edit {
-                    view! {
-                        <div class="dv-image-row">
-                            <div
-                                class="dv-doc-image-placeholder"
-                                class:dv-editable=move || edit_mode.get()
-                                on:click=move |ev: leptos::ev::MouseEvent| {
-                                    if edit_mode.get() {
-                                        ev.stop_propagation();
-                                        set_link_val.set(doc.url.clone());
-                                        set_img_popup.set(Some((ev.client_x(), ev.client_y())));
+                // Media rendering area (images and videos)
+                {move || {
+                    let url = link_val.get();
+                    if is_image() {
+                        if url != "#" && !url.is_empty() {
+                            view! {
+                                <div class="dv-media-area">
+                                    <img class="dv-media-img" src={url.clone()} alt={doc_name.get_value()} />
+                                </div>
+                            }.into_any()
+                        } else if effective_can_edit {
+                            view! {
+                                <div class="dv-media-placeholder dv-media-img-placeholder"
+                                    class:dv-editable=move || edit_mode.get()
+                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                        if edit_mode.get() {
+                                            ev.stop_propagation();
+                                            set_link_val.set(doc_url.get_value());
+                                            set_img_popup.set(Some((ev.client_x(), ev.client_y())));
+                                        }
                                     }
-                                }
-                            >
-                                {move || if edit_mode.get() {
-                                    view! { <span class="dv-img-hint">"🖼 Click to set image"</span> }.into_any()
-                                } else { view! { <span class="dv-img-hint dv-img-muted">"🖼"</span> }.into_any() }}
-                            </div>
-                        </div>
-                    }.into_any()
-                } else { ().into_any() }}
+                                >
+                                    {move || if edit_mode.get() {
+                                        view! { <span class="dv-img-hint">"🖼 Click to set image URL"</span> }.into_any()
+                                    } else { view! { <span class="dv-img-hint dv-img-muted">"🖼 No image set"</span> }.into_any() }}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }
+                    } else if is_video() {
+                        if url != "#" && !url.is_empty() {
+                            view! {
+                                <div class="dv-media-area">
+                                    <video class="dv-media-video" src={url.clone()} controls=true>
+                                        "Your browser does not support video playback."
+                                    </video>
+                                </div>
+                            }.into_any()
+                        } else if effective_can_edit {
+                            view! {
+                                <div class="dv-media-placeholder dv-media-video-placeholder"
+                                    class:dv-editable=move || edit_mode.get()
+                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                        if edit_mode.get() {
+                                            ev.stop_propagation();
+                                            set_link_val.set(doc_url.get_value());
+                                            set_img_popup.set(Some((ev.client_x(), ev.client_y())));
+                                        }
+                                    }
+                                >
+                                    {move || if edit_mode.get() {
+                                        view! { <span class="dv-img-hint">"🎬 Click to set video URL"</span> }.into_any()
+                                    } else { view! { <span class="dv-img-hint dv-img-muted">"🎬 No video set"</span> }.into_any() }}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }
+                    } else {
+                        ().into_any()
+                    }
+                }}
 
-                // Image option popup (appears at cursor position)
+                // Image/media URL popup (appears at cursor position)
                 {move || if let Some((cx, cy)) = img_popup.get() {
                     view! {
                         <div class="dv-img-popup"
@@ -2953,7 +3658,6 @@ pub fn DocumentViewer(
                             on:click=|ev| ev.stop_propagation()>
                             <div class="dv-img-popup-opt"
                                 on:click=move |_| {
-                                    // Simulate upload — in a real app this opens a file picker
                                     set_img_popup.set(None);
                                 }
                             >
@@ -2964,17 +3668,27 @@ pub fn DocumentViewer(
                                 <span class="dv-img-opt-icon">"🔗"</span>
                                 <input
                                     class="dv-img-link-input"
-                                    placeholder="Paste URL…"
+                                    placeholder="Paste media URL…"
                                     prop:value=move || link_val.get()
                                     on:input=move |ev| set_link_val.set(event_target_value(&ev))
                                     on:click=|ev| ev.stop_propagation()
+                                    on:keydown=move |ev| { if ev.key() == "Enter" { apply_image_url(); } }
                                 />
+                            </div>
+                            <div class="dv-img-popup-opt"
+                                on:click=move |_| {
+                                    apply_image_url();
+                                }
+                            >
+                                <span class="dv-img-opt-icon">"✔"</span>
+                                <span>"Apply URL"</span>
                             </div>
                         </div>
                     }.into_any()
                 } else { ().into_any() }}
 
                 // Text content — editable textarea in edit mode, pre otherwise
+                // (hidden for pure media types in read mode when URL is set)
                 {move || if edit_mode.get() {
                     view! {
                         <textarea

@@ -1,5 +1,5 @@
 use crate::models::{default_permissions_for_role, PaymentSettings, User, UserActivity, UserAssignment};
-use crate::stores::use_app_store;
+use crate::stores::{use_app_store, use_search_store};
 use crate::types::{PaymentInterval, PaymentMethod, TabType, UserRole};
 use chrono::Utc;
 use leptos::prelude::*;
@@ -196,14 +196,49 @@ fn mock_relationship_events() -> Vec<RelationshipEvent> {
     ]
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum NetSort {
+    Name,
+    Company,
+    Status,
+    Risk,
+    Type,
+    Transactions,
+}
+
+impl NetSort {
+    fn label(&self) -> &'static str {
+        match self {
+            NetSort::Name => "Name",
+            NetSort::Company => "Company",
+            NetSort::Status => "Status",
+            NetSort::Risk => "Risk",
+            NetSort::Type => "Type",
+            NetSort::Transactions => "Transactions",
+        }
+    }
+}
+
 #[component]
 pub fn NetworkingPage() -> impl IntoView {
     let app_store = use_app_store();
+    let search_store = use_search_store();
     let (active_tab, set_active_tab) = signal(NetTab::Contacts);
-    let (search_query, set_search_query) = signal(String::new());
     let (selected_contact, set_selected_contact) = signal::<Option<ExternalContact>>(None);
     let (selected_org, set_selected_org) = signal::<Option<ExternalOrganization>>(None);
     let (_edit_mode, _set_edit_mode) = signal(false);
+
+    let sort_mode = move || {
+        match app_store.get().net_sort_mode {
+            0 => NetSort::Name,
+            1 => NetSort::Company,
+            2 => NetSort::Status,
+            3 => NetSort::Risk,
+            4 => NetSort::Type,
+            _ => NetSort::Transactions,
+        }
+    };
+    let sort_ascending = move || app_store.get().net_sort_ascending;
 
     let contacts = StoredValue::new(mock_contacts());
     let external_orgs = StoredValue::new(mock_external_orgs());
@@ -217,17 +252,45 @@ pub fn NetworkingPage() -> impl IntoView {
     let integrations_count = integrations.get_value().len();
 
     let filtered_contacts = Memo::new(move |_| {
-        let q = search_query.get().to_lowercase();
-        contacts.get_value().iter().filter(|c| {
+        let q = search_store.get().query.to_lowercase();
+        let sm = sort_mode();
+        let asc = sort_ascending();
+        let mut list: Vec<_> = contacts.get_value().iter().filter(|c| {
             q.is_empty() || c.name.to_lowercase().contains(&q) || c.company.to_lowercase().contains(&q)
-        }).cloned().collect::<Vec<_>>()
+        }).cloned().collect();
+        list.sort_by(|a, b| {
+            let ord = match sm {
+                NetSort::Name => a.name.cmp(&b.name),
+                NetSort::Company => a.company.cmp(&b.company),
+                NetSort::Status => a.status.label().cmp(b.status.label()),
+                NetSort::Risk => a.risk_level.label().cmp(b.risk_level.label()),
+                NetSort::Type => a.relationship_type.cmp(&b.relationship_type),
+                NetSort::Transactions => a.linked_transactions.len().cmp(&b.linked_transactions.len()),
+            };
+            if asc { ord } else { ord.reverse() }
+        });
+        list
     });
 
     let filtered_orgs = Memo::new(move |_| {
-        let q = search_query.get().to_lowercase();
-        external_orgs.get_value().iter().filter(|o| {
+        let q = search_store.get().query.to_lowercase();
+        let sm = sort_mode();
+        let asc = sort_ascending();
+        let mut list: Vec<_> = external_orgs.get_value().iter().filter(|o| {
             q.is_empty() || o.name.to_lowercase().contains(&q) || o.org_type.to_lowercase().contains(&q)
-        }).cloned().collect::<Vec<_>>()
+        }).cloned().collect();
+        list.sort_by(|a, b| {
+            let ord = match sm {
+                NetSort::Name => a.name.cmp(&b.name),
+                NetSort::Company => a.org_type.cmp(&b.org_type),
+                NetSort::Status => a.status.label().cmp(b.status.label()),
+                NetSort::Risk => a.risk_level.label().cmp(b.risk_level.label()),
+                NetSort::Type => a.org_type.cmp(&b.org_type),
+                NetSort::Transactions => a.transaction_count.cmp(&b.transaction_count),
+            };
+            if asc { ord } else { ord.reverse() }
+        });
+        list
     });
 
     let all_tabs = [
@@ -253,17 +316,6 @@ pub fn NetworkingPage() -> impl IntoView {
 
     view! {
         <div class="home-screen">
-            // Search bar
-            <div class="net-search-bar">
-                <input
-                    class="net-search-input"
-                    type="text"
-                    placeholder="Search contacts, companies, channels..."
-                    prop:value=move || search_query.get()
-                    on:input=move |ev| set_search_query.set(event_target_value(&ev))
-                />
-            </div>
-
             // Quick filter tabs
             <div class="net-quick-tabs">
                 {all_tabs.iter().map(|t| {

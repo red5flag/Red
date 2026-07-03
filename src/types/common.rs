@@ -123,6 +123,7 @@ pub enum AssetType {
     Commodity,
     Digital,
     IntellectualProperty,
+    Channel,
     Custom(String),
 }
 
@@ -182,6 +183,22 @@ pub enum ReportSortMode {
     ByName,
     ByDocumentType,
     ByCalendarDate,
+    // Document category sort
+    BySales,
+    ByPurchases,
+    ByBills,
+    ByInvoices,
+    ByNotices,
+    ByStatements,
+    BySummaries,
+    ByCompliance,
+    // Parent entity sort
+    ByOrganization,
+    ByPortfolio,
+    ByAssetGroup,
+    ByDirectAsset,
+    ByRole,
+    ByUser,
 }
 
 // Search filters
@@ -290,6 +307,23 @@ impl TabType {
             TabType::History => "History",
             TabType::Settings => "Settings",
             TabType::Agent => "Agent",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "Overview" => Some(TabType::Overview),
+            "Portfolios" => Some(TabType::Portfolios),
+            "Networking" => Some(TabType::Networking),
+            "Add Team" => Some(TabType::NetworkingAddMember),
+            "Organization" => Some(TabType::Organization),
+            "Reporting" => Some(TabType::Reporting),
+            "Calendar" => Some(TabType::Calendar),
+            "Transactions" => Some(TabType::Transactions),
+            "History" => Some(TabType::History),
+            "Settings" => Some(TabType::Settings),
+            "Agent" => Some(TabType::Agent),
+            _ => None,
         }
     }
 }

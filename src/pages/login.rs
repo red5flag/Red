@@ -24,8 +24,15 @@ pub fn LoginPage() -> impl IntoView {
     let (error, set_error) = signal(String::new());
     let (show_signup, set_show_signup) = signal(false);
     let (remember_me, set_remember_me) = signal(true);
+    let (remember_password, set_remember_password) = signal(false);
+    let (remember_30_days, set_remember_30_days) = signal(false);
     let (login_store_local, set_login_store_local) = signal(true);
     let (login_store_cloud, set_login_store_cloud) = signal(false);
+
+    // Saved profiles dropdown
+    let (show_profiles, set_show_profiles) = signal(false);
+    let (totp_stub_code, set_totp_stub_code) = signal(String::new());
+    let (profile_2fa, set_profile_2fa) = signal(Option::<String>::None);
 
     // 2FA flow signals
     let (pending_username, set_pending_username) = signal(String::new());
@@ -164,6 +171,19 @@ pub fn LoginPage() -> impl IntoView {
             save_last_username(u.clone());
         }
 
+        // Save 30-day remember token
+        if remember_30_days.get() {
+            #[cfg(feature = "hydrate")]
+            if let Some(window) = window() {
+                if let Ok(Some(storage)) = window.local_storage() {
+                    let expiry = chrono::Utc::now().timestamp() + 30 * 24 * 60 * 60;
+                    let token = format!("{}:{}", u, expiry);
+                    let _ = storage.set_item("farley_remember_30", &token);
+                }
+            }
+            let _ = &u;
+        }
+
         // Check if password matches locally
         let password_matches = app_store.get().check_password(&u, &p);
 
@@ -201,6 +221,11 @@ pub fn LoginPage() -> impl IntoView {
                 app_store.update(|s| {
                     s.set_storage_options(&u, local, cloud);
                 });
+                if remember_password.get() {
+                    app_store.update(|s| {
+                        s.save_password_to_credentials(&u, &p);
+                    });
+                }
                 if cloud {
                     sync_credentials_to_cloud(u.clone());
                 }
@@ -226,6 +251,7 @@ pub fn LoginPage() -> impl IntoView {
         let set_pending_username_clone = set_pending_username;
         let set_pending_password_clone = set_pending_password;
         let set_fa_code_clone = set_fa_code;
+        let remember_password_clone = remember_password;
         spawn_local(async move {
             let req = LoginRequest {
                 username: u_clone.clone(),
@@ -248,6 +274,11 @@ pub fn LoginPage() -> impl IntoView {
                                         app_store.update(|store| {
                                             store.upsert_credential_from_login(&u_clone, &p_clone, &name, &email, true, local, cloud);
                                         });
+                                        if remember_password_clone.get() {
+                                            app_store.update(|s| {
+                                                s.save_password_to_credentials(&u_clone, &p_clone);
+                                            });
+                                        }
                                         finish_login(name, email, "Owner".to_string());
                                         if cloud {
                                             sync_credentials_to_cloud(u_clone.clone());
@@ -285,7 +316,7 @@ pub fn LoginPage() -> impl IntoView {
                     }
                 } else {
                     let _ = (req, _app_store_clone, set_error_clone, set_login_pressed_clone, set_fa_mode_clone, set_fa_message_clone,
-                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone);
+                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone, remember_password_clone);
                 }
             }
         });
@@ -512,6 +543,59 @@ pub fn LoginPage() -> impl IntoView {
                 <div class="lp-version">"0.01"</div>
             </div>
 
+            // ── SAVED PROFILES DROPDOWN ──
+            <div class="lp-profiles-dropdown">
+                <button class="lp-profiles-toggle" on:click=move |_| set_show_profiles.update(|v| *v = !*v)>
+                    <span class="lp-profiles-icon">"👤"</span>
+                    <span class="lp-profiles-label">"Saved Profiles"</span>
+                    <span class="lp-profiles-arrow">{move || if show_profiles.get() { "▲" } else { "▼" }}</span>
+                </button>
+                {move || if show_profiles.get() {
+                    let creds = app_store.get().credentials.credentials.clone();
+                    let profiles: Vec<_> = creds.iter().collect::<Vec<_>>();
+                    if profiles.is_empty() {
+                        view! {
+                            <div class="lp-profiles-menu">
+                                <div class="lp-profiles-empty">"No saved profiles"</div>
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <div class="lp-profiles-menu">
+                                {profiles.into_iter().map(|(uname, cred)| {
+                                    let uname_clone = uname.clone();
+                                    let display_name = cred.display_name.clone();
+                                    let email = cred.email.clone();
+                                    let validated = cred.validated;
+                                    let uname_for_click = uname.clone();
+                                    view! {
+                                        <button class="lp-profile-item"
+                                            on:click=move |_| {
+                                                set_username.set(uname_for_click.clone());
+                                                set_show_profiles.set(false);
+                                                set_totp_stub_code.set(String::new());
+                                                set_profile_2fa.set(Some(uname_for_click.clone()));
+                                            }>
+                                            <div class="lp-profile-item-info">
+                                                <div class="lp-profile-item-name">{display_name.clone()}</div>
+                                                <div class="lp-profile-item-meta">
+                                                    <span class="lp-profile-item-user">{uname_clone.clone()}</span>
+                                                    {if validated {
+                                                        view! { <span class="lp-profile-item-badge lp-profile-validated">"✓"</span> }.into_any()
+                                                    } else {
+                                                        view! { <span class="lp-profile-item-badge lp-profile-unvalidated">"⚠"</span> }.into_any()
+                                                    }}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    }
+                } else { ().into_any() }}
+            </div>
+
             // ── USERNAME ROW ──
             <div class="lp-field-row">
                 <button class="lp-visibility-btn" tabindex="-1" title="Toggle username visibility"
@@ -572,6 +656,83 @@ pub fn LoginPage() -> impl IntoView {
                     "Remember username for ease-of-entry"
                 </label>
             </div>
+            <div class="lp-remember-row">
+                <label class="lp-remember-label">
+                    <input
+                        type="checkbox"
+                        checked={move || remember_password.get()}
+                        on:change=move |ev| set_remember_password.set(event_target_checked(&ev))
+                    />
+                    "Remember Password"
+                </label>
+                {move || if remember_password.get() {
+                    view! {
+                        <span class="lp-remember-note" style="font-size:11px;color:var(--text-secondary, #888);">
+                            "(2FA will be required for saved passwords)"
+                        </span>
+                    }.into_any()
+                } else { ().into_any() }}
+            </div>
+            // ── PROFILE 2FA MODAL ──
+            {move || profile_2fa.get().map(|profile_name| {
+                view! {
+                    <div class="lp-2fa-modal-overlay" on:click=move |_| set_profile_2fa.set(None)>
+                        <div class="lp-2fa-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="lp-2fa-modal-header">
+                                <span class="lp-2fa-modal-title">"🔐 2FA Verification"</span>
+                                <button class="lp-2fa-modal-close" on:click=move |_| set_profile_2fa.set(None)>"✕"</button>
+                            </div>
+                            <div class="lp-2fa-modal-body">
+                                <div class="lp-2fa-modal-profile">
+                                    <span class="lp-2fa-modal-profile-icon">"👤"</span>
+                                    <span class="lp-2fa-modal-profile-name">{profile_name.clone()}</span>
+                                </div>
+                                <div class="lp-2fa-modal-message">"Enter the 6-digit code from your authenticator app to continue"</div>
+                                <input
+                                    type="text"
+                                    class="lp-2fa-modal-input"
+                                    placeholder="000000"
+                                    maxlength="6"
+                                    inputmode="numeric"
+                                    prop:value={move || totp_stub_code.get()}
+                                    on:input=move |ev| {
+                                        let v = event_target_value(&ev);
+                                        let filtered: String = v.chars().filter(|c| c.is_ascii_digit()).take(6).collect();
+                                        set_totp_stub_code.set(filtered);
+                                    }
+                                    on:keydown=move |ev| {
+                                        if ev.key() == "Enter" {
+                                            set_profile_2fa.set(None);
+                                            on_login();
+                                        }
+                                    }
+                                />
+                                <label class="lp-2fa-modal-remember">
+                                    <input
+                                        type="checkbox"
+                                        checked={move || remember_30_days.get()}
+                                        on:change=move |ev| set_remember_30_days.set(event_target_checked(&ev))
+                                    />
+                                    "Remember me for 30 days"
+                                </label>
+                                <div class="lp-2fa-modal-actions">
+                                    <button class="lp-action-btn lp-register"
+                                        on:click=move |_| set_profile_2fa.set(None)>
+                                        "CANCEL"
+                                    </button>
+                                    <button class="lp-action-btn lp-login"
+                                        on:click=move |_| {
+                                            set_profile_2fa.set(None);
+                                            on_login();
+                                        }>
+                                        "VERIFY & LOGIN"
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
 
             // ── ERROR ──
             {move || {

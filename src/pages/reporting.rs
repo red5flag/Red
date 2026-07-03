@@ -90,7 +90,6 @@ pub fn ReportingPage() -> impl IntoView {
         ReportTab::Documents,
         ReportTab::Statements,
         ReportTab::Summaries,
-        ReportTab::CamScan,
         ReportTab::Assets,
         ReportTab::Compliance,
         ReportTab::Transactions,
@@ -99,11 +98,15 @@ pub fn ReportingPage() -> impl IntoView {
 
     view! {
         <div class="reporting-page">
+            // CamScan at top of page
+            <crate::pages::camscan::CamScanView app_store />
+
             <div class="reporting-actions">
                 <button class="reporting-btn" on:click=seed_demo>"+ Seed Demo Sale"</button>
             </div>
 
             <div class="reporting-controls-bar">
+                // General sort
                 <select
                     class="reporting-sort-select"
                     prop:value={move || {
@@ -116,6 +119,7 @@ pub fn ReportingPage() -> impl IntoView {
                             ReportSortMode::ByName => "sort_by_name",
                             ReportSortMode::ByDocumentType => "sort_by_doc_type",
                             ReportSortMode::ByCalendarDate => "sort_by_calendar",
+                            _ => "sort_recent",
                         }.to_string()
                     }}
                     on:change=move |ev| {
@@ -141,6 +145,84 @@ pub fn ReportingPage() -> impl IntoView {
                     <option value="sort_by_name">"Sort: By Name"</option>
                     <option value="sort_by_doc_type">"Sort: By Document Type"</option>
                     <option value="sort_by_calendar">"Sort: By Calendar Date"</option>
+                </select>
+                // Document category sort
+                <select
+                    class="reporting-sort-select"
+                    prop:value={move || {
+                        match app_store.get().reporting_sort_mode {
+                            ReportSortMode::BySales => "cat_sales",
+                            ReportSortMode::ByPurchases => "cat_purchases",
+                            ReportSortMode::ByBills => "cat_bills",
+                            ReportSortMode::ByInvoices => "cat_invoices",
+                            ReportSortMode::ByNotices => "cat_notices",
+                            ReportSortMode::ByStatements => "cat_statements",
+                            ReportSortMode::BySummaries => "cat_summaries",
+                            ReportSortMode::ByCompliance => "cat_compliance",
+                            _ => "cat_none",
+                        }.to_string()
+                    }}
+                    on:change=move |ev| {
+                        let v = event_target_value(&ev);
+                        let mode = match v.as_str() {
+                            "cat_sales" => ReportSortMode::BySales,
+                            "cat_purchases" => ReportSortMode::ByPurchases,
+                            "cat_bills" => ReportSortMode::ByBills,
+                            "cat_invoices" => ReportSortMode::ByInvoices,
+                            "cat_notices" => ReportSortMode::ByNotices,
+                            "cat_statements" => ReportSortMode::ByStatements,
+                            "cat_summaries" => ReportSortMode::BySummaries,
+                            "cat_compliance" => ReportSortMode::ByCompliance,
+                            _ => ReportSortMode::Recent,
+                        };
+                        app_store.update(|s| s.reporting_sort_mode = mode);
+                    }
+                >
+                    <option value="cat_none">"Category: All"</option>
+                    <option value="cat_sales">"Category: Sales"</option>
+                    <option value="cat_purchases">"Category: Purchases"</option>
+                    <option value="cat_bills">"Category: Bills"</option>
+                    <option value="cat_invoices">"Category: Invoices"</option>
+                    <option value="cat_notices">"Category: Notices"</option>
+                    <option value="cat_statements">"Category: Statements"</option>
+                    <option value="cat_summaries">"Category: Summaries"</option>
+                    <option value="cat_compliance">"Category: Compliance"</option>
+                </select>
+                // Parent entity sort
+                <select
+                    class="reporting-sort-select"
+                    prop:value={move || {
+                        match app_store.get().reporting_sort_mode {
+                            ReportSortMode::ByOrganization => "parent_org",
+                            ReportSortMode::ByPortfolio => "parent_portfolio",
+                            ReportSortMode::ByAssetGroup => "parent_group",
+                            ReportSortMode::ByDirectAsset => "parent_asset",
+                            ReportSortMode::ByRole => "parent_role",
+                            ReportSortMode::ByUser => "parent_user",
+                            _ => "parent_none",
+                        }.to_string()
+                    }}
+                    on:change=move |ev| {
+                        let v = event_target_value(&ev);
+                        let mode = match v.as_str() {
+                            "parent_org" => ReportSortMode::ByOrganization,
+                            "parent_portfolio" => ReportSortMode::ByPortfolio,
+                            "parent_group" => ReportSortMode::ByAssetGroup,
+                            "parent_asset" => ReportSortMode::ByDirectAsset,
+                            "parent_role" => ReportSortMode::ByRole,
+                            "parent_user" => ReportSortMode::ByUser,
+                            _ => ReportSortMode::Recent,
+                        };
+                        app_store.update(|s| s.reporting_sort_mode = mode);
+                    }
+                >
+                    <option value="parent_none">"Parent: None"</option>
+                    <option value="parent_org">"Parent: Organization"</option>
+                    <option value="parent_portfolio">"Parent: Portfolio"</option>
+                    <option value="parent_group">"Parent: Asset Group"</option>
+                    <option value="parent_asset">"Parent: Direct Asset"</option>
+                    <option value="parent_role">"Parent: Role"</option>
+                    <option value="parent_user">"Parent: User"</option>
                 </select>
                 <button
                     class="reporting-sort-direction"
@@ -176,11 +258,11 @@ pub fn ReportingPage() -> impl IntoView {
                     ReportTab::Documents => documents_view(&app_store).into_any(),
                     ReportTab::Statements => statements_view(&app_store).into_any(),
                     ReportTab::Summaries => summaries_view(&app_store).into_any(),
-                    ReportTab::CamScan => view! { <crate::pages::camscan::CamScanView app_store /> }.into_any(),
                     ReportTab::Assets => assets_view(&app_store).into_any(),
                     ReportTab::Compliance => compliance_view(&app_store).into_any(),
                     ReportTab::Transactions => transactions_view(&app_store).into_any(),
                     ReportTab::ExportedRecords => exported_records_view(&app_store).into_any(),
+                    ReportTab::CamScan => ().into_any(),
                 }}
             </div>
         </div>
@@ -214,8 +296,8 @@ fn table_head(cols: &[&'static str]) -> impl IntoView {
 fn sort_transactions(items: &mut [(crate::models::Transaction, String, String)], sort: &ReportSortMode) {
     use crate::types::ReportSortMode;
     items.sort_by(|a, b| {
-        let (ta, _, _) = a;
-        let (tb, _, _) = b;
+        let (ta, asset_a, pf_a) = a;
+        let (tb, asset_b, pf_b) = b;
         match sort {
             ReportSortMode::Recent => tb.created_at.cmp(&ta.created_at),
             ReportSortMode::Oldest => ta.created_at.cmp(&tb.created_at),
@@ -225,6 +307,14 @@ fn sort_transactions(items: &mut [(crate::models::Transaction, String, String)],
             ReportSortMode::ByName => ta.from_entity.name.to_lowercase().cmp(&tb.from_entity.name.to_lowercase()),
             ReportSortMode::ByCalendarDate => ta.created_at.cmp(&tb.created_at),
             ReportSortMode::ByDocumentType => std::cmp::Ordering::Equal,
+            ReportSortMode::BySales | ReportSortMode::ByPurchases |
+            ReportSortMode::ByBills | ReportSortMode::ByInvoices |
+            ReportSortMode::ByNotices | ReportSortMode::ByStatements |
+            ReportSortMode::BySummaries | ReportSortMode::ByCompliance => std::cmp::Ordering::Equal,
+            ReportSortMode::ByOrganization => std::cmp::Ordering::Equal,
+            ReportSortMode::ByPortfolio => pf_a.to_lowercase().cmp(&pf_b.to_lowercase()),
+            ReportSortMode::ByAssetGroup | ReportSortMode::ByDirectAsset => asset_a.to_lowercase().cmp(&asset_b.to_lowercase()),
+            ReportSortMode::ByRole | ReportSortMode::ByUser => std::cmp::Ordering::Equal,
         }
     });
 }
@@ -232,8 +322,8 @@ fn sort_transactions(items: &mut [(crate::models::Transaction, String, String)],
 fn sort_documents(items: &mut [(crate::models::Document, String, String)], sort: &ReportSortMode) {
     use crate::types::ReportSortMode;
     items.sort_by(|a, b| {
-        let (da, _, _) = a;
-        let (db, _, _) = b;
+        let (da, asset_a, pf_a) = a;
+        let (db, asset_b, pf_b) = b;
         match sort {
             ReportSortMode::Recent => db.uploaded_at.cmp(&da.uploaded_at),
             ReportSortMode::Oldest => da.uploaded_at.cmp(&db.uploaded_at),
@@ -243,6 +333,52 @@ fn sort_documents(items: &mut [(crate::models::Document, String, String)], sort:
             ReportSortMode::ByName => da.name.to_lowercase().cmp(&db.name.to_lowercase()),
             ReportSortMode::ByDocumentType => da.file_type.to_lowercase().cmp(&db.file_type.to_lowercase()),
             ReportSortMode::ByCalendarDate => da.uploaded_at.cmp(&db.uploaded_at),
+            // Document category sort: group by matching name keyword
+            ReportSortMode::BySales => {
+                let a_match = da.name.to_lowercase().contains("sale");
+                let b_match = db.name.to_lowercase().contains("sale");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::ByPurchases => {
+                let a_match = da.name.to_lowercase().contains("purchase");
+                let b_match = db.name.to_lowercase().contains("purchase");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::ByBills => {
+                let a_match = da.name.to_lowercase().contains("bill");
+                let b_match = db.name.to_lowercase().contains("bill");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::ByInvoices => {
+                let a_match = da.name.to_lowercase().contains("invoice") || da.name.to_lowercase().contains("receipt");
+                let b_match = db.name.to_lowercase().contains("invoice") || db.name.to_lowercase().contains("receipt");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::ByNotices => {
+                let a_match = da.name.to_lowercase().contains("notice") || da.name.to_lowercase().contains("delivery") || da.name.to_lowercase().contains("registration");
+                let b_match = db.name.to_lowercase().contains("notice") || db.name.to_lowercase().contains("delivery") || db.name.to_lowercase().contains("registration");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::ByStatements => {
+                let a_match = da.name.to_lowercase().contains("statement");
+                let b_match = db.name.to_lowercase().contains("statement");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::BySummaries => {
+                let a_match = da.name.to_lowercase().contains("summary") || da.name.to_lowercase().contains("report");
+                let b_match = db.name.to_lowercase().contains("summary") || db.name.to_lowercase().contains("report");
+                b_match.cmp(&a_match)
+            }
+            ReportSortMode::ByCompliance => {
+                let a_match = da.name.to_lowercase().contains("compliance") || da.name.to_lowercase().contains("audit");
+                let b_match = db.name.to_lowercase().contains("compliance") || db.name.to_lowercase().contains("audit");
+                b_match.cmp(&a_match)
+            }
+            // Parent entity sort
+            ReportSortMode::ByOrganization => std::cmp::Ordering::Equal,
+            ReportSortMode::ByPortfolio => pf_a.to_lowercase().cmp(&pf_b.to_lowercase()),
+            ReportSortMode::ByAssetGroup | ReportSortMode::ByDirectAsset => asset_a.to_lowercase().cmp(&asset_b.to_lowercase()),
+            ReportSortMode::ByRole | ReportSortMode::ByUser => std::cmp::Ordering::Equal,
         }
     });
 }
@@ -250,8 +386,8 @@ fn sort_documents(items: &mut [(crate::models::Document, String, String)], sort:
 fn sort_assets(items: &mut [(crate::models::Asset, String)], sort: &ReportSortMode) {
     use crate::types::ReportSortMode;
     items.sort_by(|a, b| {
-        let (aa, _) = a;
-        let (ab, _) = b;
+        let (aa, pf_a) = a;
+        let (ab, pf_b) = b;
         match sort {
             ReportSortMode::Recent => ab.purchase_date.cmp(&aa.purchase_date),
             ReportSortMode::Oldest => aa.purchase_date.cmp(&ab.purchase_date),
@@ -261,6 +397,14 @@ fn sort_assets(items: &mut [(crate::models::Asset, String)], sort: &ReportSortMo
             ReportSortMode::ByName => aa.name.to_lowercase().cmp(&ab.name.to_lowercase()),
             ReportSortMode::ByDocumentType => format!("{:?}", aa.asset_type).cmp(&format!("{:?}", ab.asset_type)),
             ReportSortMode::ByCalendarDate => ab.purchase_date.cmp(&aa.purchase_date),
+            ReportSortMode::BySales | ReportSortMode::ByPurchases |
+            ReportSortMode::ByBills | ReportSortMode::ByInvoices |
+            ReportSortMode::ByNotices | ReportSortMode::ByStatements |
+            ReportSortMode::BySummaries | ReportSortMode::ByCompliance => std::cmp::Ordering::Equal,
+            ReportSortMode::ByOrganization => std::cmp::Ordering::Equal,
+            ReportSortMode::ByPortfolio => pf_a.to_lowercase().cmp(&pf_b.to_lowercase()),
+            ReportSortMode::ByAssetGroup | ReportSortMode::ByDirectAsset => aa.name.to_lowercase().cmp(&ab.name.to_lowercase()),
+            ReportSortMode::ByRole | ReportSortMode::ByUser => std::cmp::Ordering::Equal,
         }
     });
 }
@@ -268,8 +412,8 @@ fn sort_assets(items: &mut [(crate::models::Asset, String)], sort: &ReportSortMo
 fn sort_compliance(items: &mut [(String, String, String, String, usize)], sort: &ReportSortMode) {
     use crate::types::ReportSortMode;
     items.sort_by(|a, b| {
-        let (asset_a, _, status_a, risk_a, docs_a) = a;
-        let (asset_b, _, status_b, risk_b, docs_b) = b;
+        let (asset_a, pf_a, status_a, risk_a, docs_a) = a;
+        let (asset_b, pf_b, status_b, risk_b, docs_b) = b;
         match sort {
             ReportSortMode::Recent => docs_b.cmp(docs_a),
             ReportSortMode::Oldest => docs_a.cmp(docs_b),
@@ -279,6 +423,14 @@ fn sort_compliance(items: &mut [(String, String, String, String, usize)], sort: 
             ReportSortMode::ByName => asset_a.to_lowercase().cmp(&asset_b.to_lowercase()),
             ReportSortMode::ByDocumentType => risk_a.to_lowercase().cmp(&risk_b.to_lowercase()),
             ReportSortMode::ByCalendarDate => std::cmp::Ordering::Equal,
+            ReportSortMode::BySales | ReportSortMode::ByPurchases |
+            ReportSortMode::ByBills | ReportSortMode::ByInvoices |
+            ReportSortMode::ByNotices | ReportSortMode::ByStatements |
+            ReportSortMode::BySummaries | ReportSortMode::ByCompliance => std::cmp::Ordering::Equal,
+            ReportSortMode::ByOrganization => std::cmp::Ordering::Equal,
+            ReportSortMode::ByPortfolio => pf_a.to_lowercase().cmp(&pf_b.to_lowercase()),
+            ReportSortMode::ByAssetGroup | ReportSortMode::ByDirectAsset => asset_a.to_lowercase().cmp(&asset_b.to_lowercase()),
+            ReportSortMode::ByRole | ReportSortMode::ByUser => std::cmp::Ordering::Equal,
         }
     });
 }

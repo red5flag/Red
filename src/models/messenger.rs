@@ -52,8 +52,10 @@ pub enum ContactSource {
 pub struct CalendarEvent {
     pub id: Uuid,
     pub title: String,
+    pub description: Option<String>,
     pub start: DateTime<Utc>,
     pub end: DateTime<Utc>,
+    pub all_day: bool,
     pub source: Option<String>,
     pub related_portfolio_id: Option<Uuid>,
     pub related_group_id: Option<Uuid>,
@@ -66,8 +68,10 @@ impl CalendarEvent {
         Self {
             id: Uuid::new_v4(),
             title,
+            description: None,
             start,
             end,
+            all_day: false,
             source: None,
             related_portfolio_id: None,
             related_group_id: None,

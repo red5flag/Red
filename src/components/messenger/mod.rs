@@ -71,10 +71,6 @@ pub fn MessageDrawer() -> impl IntoView {
     view! {
         <div class="messenger-drawer-overlay" on:click=on_close>
             <div class="messenger-drawer" on:click=|ev| ev.stop_propagation()>
-                <div class="messenger-drawer-header">
-                    <span class="messenger-drawer-title">"Messages"</span>
-                    <button class="messenger-drawer-close" on:click=on_close>"✕"</button>
-                </div>
                 <div class="messenger-drawer-search">
                     <input
                         class="messenger-search-input"

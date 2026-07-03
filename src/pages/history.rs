@@ -1,4 +1,4 @@
-use crate::stores::{create_action, format_action_description, use_app_store, use_undo_redo_store, HistoryQuery};
+use crate::stores::{apply_redo_side_effects, apply_undo_side_effects, create_action, format_action_description, use_app_store, use_undo_redo_store, HistoryQuery};
 use crate::types::{ActionType, SortMode};
 use leptos::prelude::*;
 
@@ -81,6 +81,9 @@ pub fn HistoryPage() -> impl IntoView {
         let uid = current_user_id();
         if let Some(undone) = undo_store.get().undo_by_user(uid) {
             record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+            app_store.update(|store| {
+                apply_undo_side_effects(&undone, store);
+            });
         }
     };
 
@@ -89,6 +92,9 @@ pub fn HistoryPage() -> impl IntoView {
         let uid = current_user_id();
         if let Some(redone) = undo_store.get().redo_by_user(uid) {
             record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
+            app_store.update(|store| {
+                apply_redo_side_effects(&redone, store);
+            });
         }
     };
 
@@ -115,10 +121,16 @@ pub fn HistoryPage() -> impl IntoView {
         if is_redo {
             if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
                 record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
+                app_store.update(|store| {
+                    apply_redo_side_effects(&redone, store);
+                });
             }
         } else {
             if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
                 record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+                app_store.update(|store| {
+                    apply_undo_side_effects(&undone, store);
+                });
             }
         }
     };
@@ -126,6 +138,9 @@ pub fn HistoryPage() -> impl IntoView {
     let on_history_undo = move |action_id: uuid::Uuid| {
         if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
             record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+            app_store.update(|store| {
+                apply_undo_side_effects(&undone, store);
+            });
         }
     };
 

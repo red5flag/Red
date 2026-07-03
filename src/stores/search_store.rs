@@ -553,6 +553,190 @@ pub fn create_search_store() -> RwSignal<SearchStore> {
     RwSignal::new(SearchStore::new())
 }
 
+/// Perform an async search via Meilisearch, falling back to local in-memory search on failure.
+/// Updates `search_store.results`, `is_loading`, and `has_searched`.
+pub async fn perform_meilisearch(app_store: &AppStore, search_store: &mut SearchStore) {
+    let query = search_store.query.clone();
+    let filters = search_store.filters.clone();
+    let config = MeilisearchConfig::default();
+
+    search_store.is_loading = true;
+
+    let meili_result = search_meilisearch(&config, &query, &filters).await;
+
+    match meili_result {
+        Ok(results) => {
+            search_store.results = results;
+        }
+        Err(err) => {
+            leptos::logging::log!("Meilisearch search failed, falling back to local search: {}", err);
+            search_store.perform_search(app_store);
+        }
+    }
+
+    search_store.is_loading = false;
+    search_store.has_searched = !query.trim().is_empty();
+
+    // Record search history
+    let result_count = search_store.results.total_count;
+    search_store.search_history.push(SearchQuery {
+        query: query.clone(),
+        filters: filters.clone(),
+        timestamp: chrono::Utc::now(),
+        result_count,
+    });
+    if search_store.search_history.len() > 20 {
+        search_store.search_history.remove(0);
+    }
+}
+
+async fn search_meilisearch(
+    config: &MeilisearchConfig,
+    query: &str,
+    filters: &SearchFilters,
+) -> Result<SearchResults, String> {
+    let url = format!("{}/indexes/{}/search", config.host, config.index_name);
+    let body = serde_json::json!({
+        "q": query,
+        "limit": 20,
+        "filter": build_meilisearch_filter(filters),
+        "attributesToHighlight": ["name", "description"],
+    });
+
+    let response_json: serde_json::Value;
+
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "ssr")] {
+            let client = reqwest::Client::new();
+            let response = client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", config.api_key))
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+            response_json = response.json().await.map_err(|e| e.to_string())?;
+        } else {
+            let request = gloo_net::http::Request::post(&url)
+                .header("Authorization", &format!("Bearer {}", config.api_key))
+                .json(&body)
+                .map_err(|e| e.to_string())?;
+            let response = request.send().await.map_err(|e| e.to_string())?;
+            response_json = response.json().await.map_err(|e| e.to_string())?;
+        }
+    }
+
+    parse_meilisearch_response(response_json)
+}
+
+fn build_meilisearch_filter(filters: &SearchFilters) -> String {
+    let mut parts = Vec::new();
+
+    if !filters.asset_types.is_empty() {
+        let types: Vec<String> = filters
+            .asset_types
+            .iter()
+            .map(|t| format!("asset_type = {:?}", t))
+            .collect();
+        parts.push(format!("({})", types.join(" OR ")));
+    }
+
+    if let Some((min, max)) = filters.value_range {
+        parts.push(format!("current_value >= {} AND current_value <= {}", min, max));
+    }
+
+    if let Some((from, to)) = filters.date_range {
+        parts.push(format!(
+            "updated_at >= {} AND updated_at <= {}",
+            from.to_rfc3339(),
+            to.to_rfc3339()
+        ));
+    }
+
+    if let Some(ref status) = filters.status {
+        parts.push(format!("status = {}", status));
+    }
+
+    if let Some(owner) = filters.owner {
+        parts.push(format!("owner_id = {}", owner));
+    }
+
+    if let Some(portfolio) = filters.portfolio {
+        parts.push(format!("portfolio_id = {}", portfolio));
+    }
+
+    if !filters.tags.is_empty() {
+        let tags: Vec<String> = filters
+            .tags
+            .iter()
+            .map(|t| format!("tags = {}", t))
+            .collect();
+        parts.push(format!("({})", tags.join(" OR ")));
+    }
+
+    parts.join(" AND ")
+}
+
+fn parse_meilisearch_response(json: serde_json::Value) -> Result<SearchResults, String> {
+    let hits = json
+        .get("hits")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut portfolios = Vec::new();
+    let mut assets = Vec::new();
+    let mut organizations = Vec::new();
+    let mut users = Vec::new();
+
+    for hit in hits {
+        let kind = hit.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+        match kind {
+            "portfolio" => {
+                if let Ok(p) = serde_json::from_value::<Portfolio>(hit.clone()) {
+                    portfolios.push(p);
+                }
+            }
+            "asset" => {
+                if let Ok(a) = serde_json::from_value::<Asset>(hit.clone()) {
+                    assets.push(a);
+                }
+            }
+            "organization" => {
+                if let Ok(o) = serde_json::from_value::<Organization>(hit.clone()) {
+                    organizations.push(o);
+                }
+            }
+            "user" | "member" => {
+                if let Ok(u) = serde_json::from_value::<User>(hit.clone()) {
+                    users.push(u);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let total_count = json
+        .get("estimatedTotalHits")
+        .or_else(|| json.get("totalHits"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0) as usize;
+
+    let search_time_ms = json
+        .get("processingTimeMs")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+
+    Ok(SearchResults {
+        portfolios,
+        assets,
+        organizations,
+        users,
+        total_count,
+        search_time_ms,
+    })
+}
+
 // Context provider for the search store
 pub fn provide_search_store() -> RwSignal<SearchStore> {
     let store = create_search_store();

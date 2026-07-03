@@ -138,6 +138,34 @@ impl CredentialStore {
         }
     }
 
+    /// Save (or update) a password for a user in the credential store.
+    /// If the user already exists, only the password hash is updated.
+    /// If the user does not exist, a new entry is created with default values.
+    /// NOTE: 2FA requirement is stubbed for future implementation.
+    pub fn save_password(&mut self, username: &str, password: &str, display_name: &str, email: &str) {
+        if let Ok(hash) = Self::hash_password(password) {
+            if let Some(cred) = self.credentials.get_mut(username) {
+                cred.password_hash = hash;
+            } else {
+                self.credentials.insert(
+                    username.to_string(),
+                    StoredCredential {
+                        username: username.to_string(),
+                        password_hash: hash,
+                        display_name: display_name.to_string(),
+                        email: email.to_string(),
+                        validated: false,
+                        totp_secret: None,
+                        totp_enabled: false,
+                        email_2fa_enabled: false,
+                        store_local: true,
+                        store_cloud: false,
+                    },
+                );
+            }
+        }
+    }
+
     /// Verify credentials against stored users
     pub fn verify(&self, username: &str, password: &str) -> Option<&StoredCredential> {
         self.credentials
