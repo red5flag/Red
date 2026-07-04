@@ -34,8 +34,14 @@ pub struct AppStore {
     pub search_query: String,
     pub theme: Theme,
     pub blind_mode: bool,
-    // Notifications
+    pub font_size: String,
+    pub reduced_motion: bool,
+    pub language: String,
+    // Notification preferences
     pub notifications: Vec<Notification>,
+    pub email_notifications: bool,
+    pub push_notifications: bool,
+    pub sound_enabled: bool,
     // Modal state
     pub active_modal: Option<ModalType>,
     // Open document modals (by entity id) - persisted across re-renders
@@ -219,7 +225,13 @@ impl Default for AppStore {
             search_query: String::new(),
             theme: Theme::default(),
             blind_mode: false,
+            font_size: "default".to_string(),
+            reduced_motion: false,
+            language: "en-AU".to_string(),
             notifications: Vec::new(),
+            email_notifications: true,
+            push_notifications: true,
+            sound_enabled: true,
             active_modal: None,
             open_doc_modals: HashSet::new(),
             is_loading: false,
@@ -704,7 +716,7 @@ impl AppStore {
 
     // Portfolio grid column count
     pub fn set_portfolio_grid_columns(&mut self, columns: usize) {
-        let allowed = [2, 3, 4, 6, 8, 12];
+        let allowed = [1, 2, 3, 4, 6, 8, 12];
         self.portfolio_grid_columns = allowed.iter().copied().find(|&c| c == columns).unwrap_or(2);
     }
 

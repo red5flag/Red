@@ -52,7 +52,7 @@ pub fn Navbar() -> impl IntoView {
             org,
             None,
         );
-        undo_store.update(|u| u.record_action(action));
+        undo_store.update(|u| u.record_history_action(action));
     };
 
     let on_redo = move |_| {

@@ -206,6 +206,29 @@
     font-size: 156%;
 }
 
+/* Font size accessibility preferences */
+[data-font-size="small"] {
+    font-size: 88%;
+}
+
+[data-font-size="large"] {
+    font-size: 118%;
+}
+
+[data-font-size="extra-large"] {
+    font-size: 140%;
+}
+
+/* Reduced motion accessibility preference */
+[data-reduced-motion="true"] *,
+[data-reduced-motion="true"] *::before,
+[data-reduced-motion="true"] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}
+
 html, body {
     width: 100%;
     min-height: 100%;
@@ -2130,6 +2153,70 @@ html, body {
     color: #fff;
 }
 
+.settings-action-btn-danger {
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+
+.settings-action-btn-danger:hover {
+    background: #e74c3c;
+    border-color: #e74c3c;
+    color: #fff;
+}
+
+.settings-toggle {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.settings-toggle input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+}
+
+.settings-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--secondary-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 26px;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.settings-toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    top: 3px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    transition: transform 0.15s;
+}
+
+.settings-toggle input:checked + .settings-toggle-slider {
+    background: var(--highlight);
+    border-color: var(--highlight);
+}
+
+.settings-toggle input:checked + .settings-toggle-slider::before {
+    transform: translateX(20px);
+    background: #fff;
+}
+
+.settings-toggle input:focus-visible + .settings-toggle-slider {
+    outline: 2px solid var(--highlight);
+    outline-offset: 2px;
+}
+
 .dev-test-row {
     display: flex;
     flex-wrap: wrap;
@@ -2866,6 +2953,7 @@ html, body {
     border: 2px solid var(--border-color);
 }
 
+.grid-view.grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
 .grid-view.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
 .grid-view.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
 .grid-view.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
@@ -2879,19 +2967,56 @@ html, body {
 }
 
 @media (max-width: 768px) {
-    .grid-view.grid-cols-4,
-    .grid-view.grid-cols-6,
-    .grid-view.grid-cols-8,
-    .grid-view.grid-cols-12 { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (max-width: 480px) {
+    .grid-view,
     .grid-view.grid-cols-2,
     .grid-view.grid-cols-3,
     .grid-view.grid-cols-4,
     .grid-view.grid-cols-6,
     .grid-view.grid-cols-8,
     .grid-view.grid-cols-12 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+    .grid-view,
+    .grid-view.grid-cols-1,
+    .grid-view.grid-cols-2,
+    .grid-view.grid-cols-3,
+    .grid-view.grid-cols-4,
+    .grid-view.grid-cols-6,
+    .grid-view.grid-cols-8,
+    .grid-view.grid-cols-12 {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 8px;
+        border: none;
+    }
+
+    .grid-view .asset-group {
+        aspect-ratio: auto;
+        min-height: 120px;
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+    }
+
+    .grid-view .asset-group-header {
+        height: auto;
+        min-height: 120px;
+        padding: 12px;
+    }
+
+    .grid-view .asset-item {
+        aspect-ratio: auto;
+        min-height: 120px;
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+    }
+
+    .grid-item {
+        aspect-ratio: auto;
+        min-height: 120px;
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+    }
 }
 
 .grid-item {
@@ -5542,24 +5667,89 @@ html, body {
     border-color: var(--highlight);
 }
 
-.reporting-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+.reporting-tab-title-bar {
+    font-size: clamp(18px, 2.8vh, 24px);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    padding-bottom: 8px;
     border-bottom: 2px solid var(--border-color);
+}
+
+.reporting-tabs-outer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 16px;
 }
 
+.reporting-tab-arrow {
+    flex-shrink: 0;
+    width: 40px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-bg);
+    border: 2px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+
+.reporting-tab-arrow:hover {
+    border-color: var(--highlight);
+}
+
+.reporting-tab-arrow:active {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.reporting-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--highlight) var(--secondary-bg);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 2px;
+}
+
+.reporting-tabs::-webkit-scrollbar {
+    height: 8px;
+}
+
+.reporting-tabs::-webkit-scrollbar-track {
+    background: var(--secondary-bg);
+}
+
+.reporting-tabs::-webkit-scrollbar-thumb {
+    background: var(--highlight);
+    border-radius: 4px;
+}
+
 .reporting-tab {
+    flex-shrink: 0;
     height: 44px;
     padding: 0 18px;
     background: var(--secondary-bg);
     border: 2px solid var(--border-color);
     border-bottom: none;
+    border-radius: 6px 6px 0 0;
     color: var(--text-secondary);
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
+    white-space: nowrap;
 }
 
 .reporting-tab.active {
@@ -5821,28 +6011,31 @@ html, body {
 .camscan-preview-section {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin-bottom: 4px;
+    gap: 8px;
+    margin-bottom: 16px;
+    width: 100%;
 }
 .camscan-preview-title {
-    font-size: 4.5px;
+    font-size: clamp(18px, 2.8vh, 24px);
     font-weight: 700;
     color: var(--text-primary);
 }
 .camscan-preview-subtitle {
-    font-size: 3.25px;
+    font-size: clamp(13px, 2vh, 16px);
     color: var(--text-secondary);
-    margin-bottom: 1px;
+    margin-bottom: 4px;
 }
 
 .camscan-camera-frame {
     position: relative;
     width: 100%;
-    max-width: 150px;
+    max-width: 100%;
     aspect-ratio: 4 / 3;
+    min-height: 220px;
+    max-height: 440px;
     background: var(--primary-bg);
-    border: 0.5px dashed var(--border-color);
-    border-radius: 3px;
+    border: 2px dashed var(--border-color);
+    border-radius: 12px;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -5876,29 +6069,29 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 10px;
     color: var(--text-secondary);
 }
 .camscan-camera-outline-icon {
-    font-size: 12px;
+    font-size: clamp(40px, 8vh, 72px);
     opacity: 0.5;
 }
 .camscan-camera-outline-text {
-    font-size: 4px;
+    font-size: clamp(14px, 2.2vh, 18px);
     font-weight: 600;
 }
 .camscan-camera-outline-hint {
-    font-size: 3px;
+    font-size: clamp(12px, 1.8vh, 14px);
     opacity: 0.7;
 }
 
 .camscan-source-overlay {
     position: absolute;
-    top: 3px;
+    top: 12px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 2px;
+    gap: 12px;
     z-index: 2;
     flex-wrap: wrap;
     justify-content: center;
@@ -5907,11 +6100,13 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
-    padding: 2px 3.5px;
+    gap: 6px;
+    width: 72px;
+    height: 72px;
+    padding: 8px;
     background: rgba(0, 0, 0, 0.55);
-    border: 0.25px solid var(--border-color);
-    border-radius: 2px;
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
     color: #fff;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
@@ -5922,20 +6117,48 @@ html, body {
     border-color: var(--highlight);
 }
 .camscan-source-icon {
-    font-size: 5px;
+    font-size: 24px;
 }
 .camscan-source-label {
-    font-size: 2.75px;
+    font-size: 11px;
     font-weight: 600;
 }
 
 .camscan-camera-error {
-    padding: 2px 3.5px;
-    font-size: 3.25px;
+    padding: 10px 12px;
+    font-size: 13px;
     color: #e74c3c;
     background: rgba(231, 76, 60, 0.1);
-    border-radius: 1.5px;
-    margin-top: 2px;
+    border-radius: 6px;
+    margin-top: 8px;
+}
+
+@media (max-width: 480px) {
+    .camscan-camera-frame {
+        min-height: 180px;
+        max-height: 260px;
+    }
+
+    .camscan-source-btn {
+        width: 56px;
+        height: 56px;
+        padding: 6px;
+        gap: 4px;
+        border-radius: 10px;
+    }
+
+    .camscan-source-icon {
+        font-size: 20px;
+    }
+
+    .camscan-source-label {
+        font-size: 9px;
+    }
+
+    .camscan-source-overlay {
+        gap: 8px;
+        padding: 8px;
+    }
 }
 
 /* ── CamScan modal ── */
@@ -8051,7 +8274,7 @@ html, body {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 12px 3vw;
+    padding: 12px 16px;
     background: var(--secondary-bg);
     border-bottom: 2px solid var(--border-color);
 }
@@ -8062,6 +8285,7 @@ html, body {
     padding: 8px 12px;
     background: var(--depth-1-bg);
     border: 2px solid var(--border-color);
+    border-radius: 6px;
     color: var(--text-primary);
     font-size: clamp(11px, 1.8vh, 13px);
     font-weight: 700;
@@ -8074,6 +8298,7 @@ html, body {
 .tx-tab-btn.active {
     background: var(--highlight);
     border-color: var(--highlight);
+    color: #fff;
 }
 
 .tx-form {
@@ -8127,8 +8352,9 @@ html, body {
 .tx-action-bar {
     display: flex;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 10px 16px;
     flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .tx-action-btn,
@@ -8136,18 +8362,33 @@ html, body {
     padding: 8px 16px;
     background: var(--secondary-bg);
     border: 2px solid var(--border-color);
+    border-radius: 6px;
     color: var(--text-primary);
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
-    border-radius: 4px;
 }
 
 .tx-action-btn:hover,
 .tx-print-btn:hover {
     border-color: var(--highlight);
     background: var(--accent-bg);
+}
+
+.tx-action-btn-invoice {
+    border-color: var(--highlight);
+    color: var(--highlight);
+}
+
+.tx-action-btn-invoice:hover {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.tx-action-btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
 }
 
 .tx-wallets-section {
@@ -8167,19 +8408,20 @@ html, body {
 }
 
 .wallet-dashboard {
-    padding: 12px 16px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
 }
 
 .wallet-balance-bar {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: space-between;
     background: var(--secondary-bg);
     border: 2px solid var(--border-color);
-    padding: 10px 16px;
+    border-radius: 10px;
+    padding: 14px 16px;
     gap: 8px;
 }
 
@@ -8188,11 +8430,13 @@ html, body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
 }
 
 .wallet-bal-label {
-    font-size: 10px;
+    font-size: clamp(10px, 1.6vh, 12px);
     font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -8200,7 +8444,7 @@ html, body {
 }
 
 .wallet-bal-value {
-    font-size: clamp(14px, 2.2vh, 18px);
+    font-size: clamp(16px, 2.6vh, 22px);
     font-weight: 800;
     color: var(--text-primary);
 }
@@ -8328,6 +8572,210 @@ html, body {
 .dcard-bal-cur {
     font-size: 9px;
     opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════
+   BANKING STYLE TRANSACTIONS & INVOICES
+   ═══════════════════════════════════════════ */
+.tx-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.tx-status-success { background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.3); }
+.tx-status-pending { background: rgba(241, 196, 15, 0.15); color: #f1c40f; border: 1px solid rgba(241, 196, 15, 0.3); }
+.tx-status-draft { background: rgba(149, 165, 166, 0.15); color: #95a5a6; border: 1px solid rgba(149, 165, 166, 0.3); }
+.tx-status-danger { background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3); }
+.tx-status-muted { background: rgba(127, 140, 141, 0.15); color: #7f8c8d; border: 1px solid rgba(127, 140, 141, 0.3); }
+
+.tx-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 0 16px;
+}
+
+.tx-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px;
+    background: var(--secondary-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.tx-summary-card:hover { border-color: var(--highlight); background: var(--accent-bg); }
+
+.tx-summary-label {
+    font-size: clamp(11px, 1.6vh, 13px);
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tx-summary-value {
+    font-size: clamp(16px, 2.6vh, 22px);
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.tx-summary-outstanding .tx-summary-value { color: var(--highlight); }
+.tx-summary-overdue .tx-summary-value { color: #e74c3c; }
+
+.tx-statement-list,
+.tx-invoice-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.tx-statement-row,
+.tx-invoice-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.15s;
+}
+
+.tx-statement-row:last-child,
+.tx-invoice-item:last-child {
+    border-bottom: none;
+}
+
+.tx-statement-row:hover,
+.tx-invoice-item:hover {
+    background: var(--accent-bg);
+}
+
+.tx-statement-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: var(--secondary-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tx-statement-main,
+.tx-invoice-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tx-statement-title,
+.tx-invoice-desc {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tx-invoice-number {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--highlight);
+}
+
+.tx-statement-meta,
+.tx-invoice-parties,
+.tx-invoice-dates {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tx-statement-right,
+.tx-invoice-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.tx-statement-amount,
+.tx-invoice-amount {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.tx-empty {
+    padding: 20px 16px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 480px) {
+    .tx-summary-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .tx-statement-row,
+    .tx-invoice-item {
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px 14px;
+    }
+
+    .tx-statement-icon {
+        width: 34px;
+        height: 34px;
+        font-size: 16px;
+    }
+
+    .tx-statement-right,
+    .tx-invoice-right {
+        align-items: flex-start;
+    }
+
+    .tx-statement-amount,
+    .tx-invoice-amount {
+        font-size: 14px;
+    }
+
+    .wallet-balance-bar {
+        padding: 10px 12px;
+    }
+
+    .wallet-bal-value {
+        font-size: 14px;
+    }
+
+    .tx-tabs {
+        padding: 10px 12px;
+        gap: 6px;
+    }
+
+    .tx-tab-btn {
+        padding: 6px 8px;
+        font-size: 10px;
+    }
 }
 
 /* ═══════════════════════════════════════════

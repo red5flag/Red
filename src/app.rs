@@ -42,17 +42,19 @@ pub fn App() -> impl IntoView {
 
     let is_authenticated = Memo::new(move |_| app_store.get().is_authenticated);
     let theme_attr = Memo::new(move |_| app_store.get().theme.as_str().to_string());
+    let font_size_attr = Memo::new(move |_| app_store.get().font_size.clone());
+    let reduced_motion_attr = Memo::new(move |_| if app_store.get().reduced_motion { "true".to_string() } else { "false".to_string() });
 
     view! {
         <Show
             when=move || is_authenticated.get()
             fallback=move || view! {
-                <div class="app-container" data-theme={move || theme_attr.get()}>
+                <div class="app-container" data-theme={move || theme_attr.get()} data-font-size={move || font_size_attr.get()} data-reduced-motion={move || reduced_motion_attr.get()}>
                     <LoginPage />
                 </div>
             }
         >
-            <div class="app-container" data-theme={move || theme_attr.get()}>
+            <div class="app-container" data-theme={move || theme_attr.get()} data-font-size={move || font_size_attr.get()} data-reduced-motion={move || reduced_motion_attr.get()}>
                 // Main content area with collapsible tabs
                 <main class="main-content">
                     <TabsContainer />

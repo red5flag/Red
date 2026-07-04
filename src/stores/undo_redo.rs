@@ -72,6 +72,14 @@ impl UndoRedoStore {
         }
     }
 
+    // Record a history entry (e.g. Undo/Redo meta-actions) without clearing the redo history
+    pub fn record_history_action(&mut self, action: Action) {
+        self.past.push_back(action);
+        if self.past.len() > MAX_HISTORY_SIZE {
+            self.past.pop_front();
+        }
+    }
+
     // Check if undo is available
     pub fn can_undo(&self) -> bool {
         !self.past.is_empty()

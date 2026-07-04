@@ -3,7 +3,7 @@ use crate::stores::{create_action, use_app_store, use_undo_redo_store};
 use crate::types::{ActionType, TabType};
 use leptos::prelude::*;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct TabListItem {
     tab_type: TabType,
     title: &'static str,

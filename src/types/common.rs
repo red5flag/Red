@@ -57,6 +57,21 @@ impl Default for Currency {
     }
 }
 
+impl std::fmt::Display for Currency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Currency::USD => write!(f, "USD"),
+            Currency::EUR => write!(f, "EUR"),
+            Currency::GBP => write!(f, "GBP"),
+            Currency::JPY => write!(f, "JPY"),
+            Currency::CAD => write!(f, "CAD"),
+            Currency::AUD => write!(f, "AUD"),
+            Currency::CNY => write!(f, "CNY"),
+            Currency::Custom(s) => write!(f, "{}", s),
+        }
+    }
+}
+
 // Payment intervals
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PaymentInterval {

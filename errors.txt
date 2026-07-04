@@ -1,25 +1,5 @@
 warning: unused variable: `org_roles`
 warning: unused variable: `org_portfolios`
-warning: unused variable: `source_is_camera`
-warning: unused variable: `email`
-warning: unused variable: `oid`
-warning: unused variable: `did`
-warning: unused variable: `on_open_edit`
-warning: unused variable: `set_show_add_group`
-warning: unused variable: `pid2`
-warning: unused variable: `gid2`
-warning: unused variable: `set_show_add_asset`
-warning: unused variable: `doc_sort`
-warning: unused variable: `set_doc_sort`
-warning: unused variable: `detail_tab`
-warning: unused variable: `set_detail_tab`
-warning: unused variable: `a_purchase_val`
-warning: unused variable: `a_pl`
-warning: unused variable: `a_pl_pct`
-warning: unused variable: `a_revenue`
-warning: unused variable: `a_pl_cls`
-warning: unused variable: `detail`
-warning: value assigned to `origin_pid` is never read
 warning: unused variable: `org_roles`
 warning: unused variable: `org_portfolios`
 warning: unused variable: `source_is_camera`
@@ -41,6 +21,26 @@ warning: unused variable: `a_pl_pct`
 warning: unused variable: `a_revenue`
 warning: unused variable: `a_pl_cls`
 warning: unused variable: `detail`
+warning: unused variable: `source_is_camera`
+warning: unused variable: `email`
+warning: unused variable: `oid`
+warning: unused variable: `did`
+warning: unused variable: `on_open_edit`
+warning: value assigned to `origin_pid` is never read
+warning: unused variable: `set_show_add_group`
+warning: unused variable: `pid2`
+warning: unused variable: `gid2`
+warning: unused variable: `set_show_add_asset`
+warning: unused variable: `doc_sort`
+warning: unused variable: `set_doc_sort`
+warning: unused variable: `detail_tab`
+warning: unused variable: `set_detail_tab`
+warning: unused variable: `a_purchase_val`
+warning: unused variable: `a_pl`
+warning: unused variable: `a_pl_pct`
+warning: unused variable: `a_revenue`
+warning: unused variable: `a_pl_cls`
+warning: unused variable: `detail`
 warning: value assigned to `origin_pid` is never read
 warning: variant `File` is never constructed
 warning: field `id` is never read
@@ -53,6 +53,9 @@ warning: method `label` is never used
 warning: function `default_mock_users` is never used
 warning: multiple fields are never read
 warning: variant `CamScan` is never constructed
+warning: field `interval` is never read
+warning: field `id` is never read
+warning: variants `Viewed` and `Cancelled` are never constructed
 warning: function `load_tab_state_from_local_storage` is never used
 warning: variant `File` is never constructed
 warning: field `id` is never read
@@ -65,149 +68,10 @@ warning: method `label` is never used
 warning: function `default_mock_users` is never used
 warning: multiple fields are never read
 warning: variant `CamScan` is never constructed
+warning: field `interval` is never read
+warning: field `id` is never read
+warning: variants `Viewed` and `Cancelled` are never constructed
 warning: struct `TabState` is never constructed
 warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 34 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
-warning: `farley` (lib) generated 35 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
-warning: unused variable: `org_roles`
-warning: unused variable: `org_portfolios`
-warning: unused variable: `source_is_camera`
-warning: unused variable: `email`
-warning: unused variable: `org_roles`
-warning: unused variable: `org_portfolios`
-warning: unused variable: `source_is_camera`
-warning: unused variable: `oid`
-warning: unused variable: `email`
-warning: unused variable: `did`
-warning: unused variable: `oid`
-warning: unused variable: `did`
-warning: unused variable: `on_open_edit`
-warning: unused variable: `set_show_add_group`
-warning: unused variable: `pid2`
-warning: unused variable: `gid2`
-warning: unused variable: `set_show_add_asset`
-warning: unused variable: `on_open_edit`
-warning: unused variable: `set_show_add_group`
-warning: unused variable: `pid2`
-warning: unused variable: `gid2`
-warning: unused variable: `set_show_add_asset`
-warning: unused variable: `doc_sort`
-warning: unused variable: `set_doc_sort`
-warning: unused variable: `detail_tab`
-warning: unused variable: `set_detail_tab`
-warning: unused variable: `a_purchase_val`
-warning: unused variable: `a_pl`
-warning: unused variable: `a_pl_pct`
-warning: unused variable: `a_revenue`
-warning: unused variable: `a_pl_cls`
-warning: unused variable: `detail`
-warning: value assigned to `origin_pid` is never read
-warning: unused variable: `doc_sort`
-warning: unused variable: `set_doc_sort`
-warning: unused variable: `detail_tab`
-warning: unused variable: `set_detail_tab`
-warning: unused variable: `a_purchase_val`
-warning: unused variable: `a_pl`
-warning: unused variable: `a_pl_pct`
-warning: unused variable: `a_revenue`
-warning: unused variable: `a_pl_cls`
-warning: unused variable: `detail`
-warning: value assigned to `origin_pid` is never read
-warning: variant `File` is never constructed
-warning: field `id` is never read
-warning: variants `Inactive` and `Archived` are never constructed
-warning: variants `High` and `Unknown` are never constructed
-warning: field `id` is never read
-warning: field `id` is never read
-warning: field `id` is never read
-warning: method `label` is never used
-warning: function `default_mock_users` is never used
-warning: multiple fields are never read
-warning: variant `CamScan` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: variant `File` is never constructed
-warning: field `id` is never read
-warning: variants `Inactive` and `Archived` are never constructed
-warning: variants `High` and `Unknown` are never constructed
-warning: field `id` is never read
-warning: field `id` is never read
-warning: field `id` is never read
-warning: method `label` is never used
-warning: function `default_mock_users` is never used
-warning: multiple fields are never read
-warning: variant `CamScan` is never constructed
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 34 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
-warning: `farley` (lib) generated 35 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
-warning: unused variable: `org_roles`
-warning: unused variable: `org_portfolios`
-warning: unused variable: `org_roles`
-warning: unused variable: `org_portfolios`
-warning: unused variable: `source_is_camera`
-warning: unused variable: `email`
-warning: unused variable: `oid`
-warning: unused variable: `did`
-warning: unused variable: `source_is_camera`
-warning: unused variable: `email`
-warning: unused variable: `oid`
-warning: unused variable: `did`
-warning: unused variable: `on_open_edit`
-warning: unused variable: `set_show_add_group`
-warning: unused variable: `pid2`
-warning: unused variable: `gid2`
-warning: unused variable: `set_show_add_asset`
-warning: unused variable: `on_open_edit`
-warning: unused variable: `set_show_add_group`
-warning: unused variable: `pid2`
-warning: unused variable: `gid2`
-warning: unused variable: `set_show_add_asset`
-warning: unused variable: `doc_sort`
-warning: unused variable: `set_doc_sort`
-warning: unused variable: `detail_tab`
-warning: unused variable: `set_detail_tab`
-warning: unused variable: `a_purchase_val`
-warning: unused variable: `a_pl`
-warning: unused variable: `a_pl_pct`
-warning: unused variable: `a_revenue`
-warning: unused variable: `a_pl_cls`
-warning: unused variable: `detail`
-warning: value assigned to `origin_pid` is never read
-warning: unused variable: `doc_sort`
-warning: unused variable: `set_doc_sort`
-warning: unused variable: `detail_tab`
-warning: unused variable: `set_detail_tab`
-warning: unused variable: `a_purchase_val`
-warning: unused variable: `a_pl`
-warning: unused variable: `a_pl_pct`
-warning: unused variable: `a_revenue`
-warning: unused variable: `a_pl_cls`
-warning: unused variable: `detail`
-warning: value assigned to `origin_pid` is never read
-warning: variant `File` is never constructed
-warning: field `id` is never read
-warning: variants `Inactive` and `Archived` are never constructed
-warning: variants `High` and `Unknown` are never constructed
-warning: field `id` is never read
-warning: field `id` is never read
-warning: field `id` is never read
-warning: method `label` is never used
-warning: function `default_mock_users` is never used
-warning: multiple fields are never read
-warning: variant `CamScan` is never constructed
-warning: struct `TabState` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: variant `File` is never constructed
-warning: field `id` is never read
-warning: variants `Inactive` and `Archived` are never constructed
-warning: variants `High` and `Unknown` are never constructed
-warning: field `id` is never read
-warning: field `id` is never read
-warning: field `id` is never read
-warning: method `label` is never used
-warning: function `default_mock_users` is never used
-warning: multiple fields are never read
-warning: variant `CamScan` is never constructed
-warning: function `load_tab_state_from_local_storage` is never used
-warning: `farley` (lib) generated 34 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
-warning: `farley` (lib) generated 35 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
+warning: `farley` (lib) generated 37 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)
+warning: `farley` (lib) generated 38 warnings (run `cargo fix --lib -p farley` to apply 21 suggestions)

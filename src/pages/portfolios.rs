@@ -362,6 +362,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 }
                             }
                         >
+                            <option value="grid_1">"Grid: 1"</option>
                             <option value="grid_2">"Grid: 2"</option>
                             <option value="grid_3">"Grid: 3"</option>
                             <option value="grid_4">"Grid: 4"</option>

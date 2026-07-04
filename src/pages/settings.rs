@@ -354,11 +354,14 @@ pub fn SettingsPage() -> impl IntoView {
                 <div class="settings-list">
                     <div class="list-item">
                         <div class="list-item-left">
-                            <div class="list-item-title">"Theme"</div>
+                            <label class="list-item-title" for="settings-theme">"Theme"</label>
+                            <div class="list-item-desc">"Choose the colour scheme and visual accessibility mode."</div>
                         </div>
                         <div class="list-item-right">
                             <select
+                                id="settings-theme"
                                 class="form-select"
+                                aria-label="Select theme"
                                 prop:value={move || app_store.get().theme.as_str().to_string()}
                                 on:change=move |ev| {
                                     let value = event_target_value(&ev);
@@ -403,12 +406,90 @@ pub fn SettingsPage() -> impl IntoView {
                             <div class="list-item-desc">"Show explicit Add, Edit, and Remove buttons for screen readers and accessibility needs."</div>
                         </div>
                         <div class="list-item-right">
-                            <input type="checkbox" prop:checked={move || app_store.get().blind_mode}
+                            <label class="settings-toggle">
+                                <input
+                                    type="checkbox"
+                                    aria-label="Toggle blind mode"
+                                    prop:checked={move || app_store.get().blind_mode}
+                                    on:change=move |ev| {
+                                        let checked = event_target_checked(&ev);
+                                        app_store.update(|s| s.blind_mode = checked);
+                                    }
+                                />
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="data-card">
+                <div class="card-header">
+                    <span class="card-title">"Accessibility"</span>
+                </div>
+                <div class="settings-list">
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <label class="list-item-title" for="settings-font-size">"Font Size"</label>
+                            <div class="list-item-desc">"Adjust the text size across the application."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <select
+                                id="settings-font-size"
+                                class="form-select"
+                                aria-label="Select font size"
+                                prop:value={move || app_store.get().font_size.clone()}
                                 on:change=move |ev| {
-                                    let checked = event_target_checked(&ev);
-                                    app_store.update(|s| s.blind_mode = checked);
+                                    let value = event_target_value(&ev);
+                                    app_store.update(|s| s.font_size = value);
                                 }
-                            />
+                            >
+                                <option value="small">"Small"</option>
+                                <option value="default">"Default"</option>
+                                <option value="large">"Large"</option>
+                                <option value="extra-large">"Extra Large"</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">"Reduced Motion"</div>
+                            <div class="list-item-desc">"Minimise animations and transitions for vestibular and motion sensitivity."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <label class="settings-toggle">
+                                <input
+                                    type="checkbox"
+                                    aria-label="Toggle reduced motion"
+                                    prop:checked={move || app_store.get().reduced_motion}
+                                    on:change=move |ev| {
+                                        let checked = event_target_checked(&ev);
+                                        app_store.update(|s| s.reduced_motion = checked);
+                                    }
+                                />
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <label class="list-item-title" for="settings-language">"Language"</label>
+                            <div class="list-item-desc">"Choose the display language for the interface."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <select
+                                id="settings-language"
+                                class="form-select"
+                                aria-label="Select language"
+                                prop:value={move || app_store.get().language.clone()}
+                                on:change=move |ev| {
+                                    let value = event_target_value(&ev);
+                                    app_store.update(|s| s.language = value);
+                                }
+                            >
+                                <option value="en-AU">"English (Australia)"</option>
+                                <option value="en-US">"English (United States)"</option>
+                                <option value="en-GB">"English (United Kingdom)"</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -421,17 +502,61 @@ pub fn SettingsPage() -> impl IntoView {
                     <div class="list-item">
                         <div class="list-item-left">
                             <div class="list-item-title">"Email Notifications"</div>
+                            <div class="list-item-desc">"Receive security alerts and summaries by email."</div>
                         </div>
                         <div class="list-item-right">
-                            <input type="checkbox" checked />
+                            <label class="settings-toggle">
+                                <input
+                                    type="checkbox"
+                                    aria-label="Toggle email notifications"
+                                    prop:checked={move || app_store.get().email_notifications}
+                                    on:change=move |ev| {
+                                        let checked = event_target_checked(&ev);
+                                        app_store.update(|s| s.email_notifications = checked);
+                                    }
+                                />
+                                <span class="settings-toggle-slider"></span>
+                            </label>
                         </div>
                     </div>
                     <div class="list-item">
                         <div class="list-item-left">
                             <div class="list-item-title">"Push Notifications"</div>
+                            <div class="list-item-desc">"Show in-app notifications and alerts."</div>
                         </div>
                         <div class="list-item-right">
-                            <input type="checkbox" checked />
+                            <label class="settings-toggle">
+                                <input
+                                    type="checkbox"
+                                    aria-label="Toggle push notifications"
+                                    prop:checked={move || app_store.get().push_notifications}
+                                    on:change=move |ev| {
+                                        let checked = event_target_checked(&ev);
+                                        app_store.update(|s| s.push_notifications = checked);
+                                    }
+                                />
+                                <span class="settings-toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">"Sound Effects"</div>
+                            <div class="list-item-desc">"Play a sound for alerts and actions."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <label class="settings-toggle">
+                                <input
+                                    type="checkbox"
+                                    aria-label="Toggle sound effects"
+                                    prop:checked={move || app_store.get().sound_enabled}
+                                    on:change=move |ev| {
+                                        let checked = event_target_checked(&ev);
+                                        app_store.update(|s| s.sound_enabled = checked);
+                                    }
+                                />
+                                <span class="settings-toggle-slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -764,6 +889,40 @@ pub fn SettingsPage() -> impl IntoView {
                     </div>
                 </div>
             </div>
+            <div class="data-card">
+                <div class="card-header">
+                    <span class="card-title">"Data & Reset"</span>
+                </div>
+                <div class="settings-list">
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">"Reset Settings"</div>
+                            <div class="list-item-desc">"Restore appearance, accessibility, and notification preferences to defaults."</div>
+                        </div>
+                        <div class="list-item-right">
+                            <button
+                                class="settings-action-btn settings-action-btn-danger"
+                                aria-label="Reset all settings to defaults"
+                                on:click=move |_| {
+                                    app_store.update(|s| {
+                                        s.theme = crate::types::Theme::default();
+                                        s.blind_mode = false;
+                                        s.font_size = "default".to_string();
+                                        s.reduced_motion = false;
+                                        s.language = "en-AU".to_string();
+                                        s.email_notifications = true;
+                                        s.push_notifications = true;
+                                        s.sound_enabled = true;
+                                        s.developer_mode = false;
+                                    });
+                                    set_import_status.set("Settings restored to defaults.".to_string());
+                                }
+                            >"Reset to Defaults"</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {move || if !import_status.get().is_empty() {
                 view! {
                     <div class="data-card import-status-card">

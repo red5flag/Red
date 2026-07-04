@@ -45,6 +45,43 @@ struct Payment {
     created_at: chrono::DateTime<Utc>,
 }
 
+#[derive(Clone, Debug)]
+struct Invoice {
+    id: Uuid,
+    number: String,
+    issue_date: chrono::DateTime<Utc>,
+    due_date: chrono::DateTime<Utc>,
+    amount: f64,
+    currency: String,
+    status: InvoiceStatus,
+    from_name: String,
+    to_name: String,
+    description: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum InvoiceStatus {
+    Draft,
+    Sent,
+    Viewed,
+    Paid,
+    Overdue,
+    Cancelled,
+}
+
+impl InvoiceStatus {
+    fn label(&self) -> &'static str {
+        match self {
+            InvoiceStatus::Draft => "Draft",
+            InvoiceStatus::Sent => "Sent",
+            InvoiceStatus::Viewed => "Viewed",
+            InvoiceStatus::Paid => "Paid",
+            InvoiceStatus::Overdue => "Overdue",
+            InvoiceStatus::Cancelled => "Cancelled",
+        }
+    }
+}
+
 fn mock_wallets() -> Vec<Wallet> {
     vec![
         Wallet {
@@ -100,6 +137,47 @@ fn mock_payers() -> Vec<Contact> {
     ]
 }
 
+fn mock_invoices() -> Vec<Invoice> {
+    vec![
+        Invoice {
+            id: Uuid::new_v4(),
+            number: "INV-2026-001".to_string(),
+            issue_date: Utc::now() - chrono::Duration::days(5),
+            due_date: Utc::now() + chrono::Duration::days(25),
+            amount: 12_500.0,
+            currency: "AUD".to_string(),
+            status: InvoiceStatus::Sent,
+            from_name: "Carly Holdings".to_string(),
+            to_name: "Buyer Corp".to_string(),
+            description: "Property consultation services".to_string(),
+        },
+        Invoice {
+            id: Uuid::new_v4(),
+            number: "INV-2026-002".to_string(),
+            issue_date: Utc::now() - chrono::Duration::days(35),
+            due_date: Utc::now() - chrono::Duration::days(5),
+            amount: 8_400.0,
+            currency: "AUD".to_string(),
+            status: InvoiceStatus::Overdue,
+            from_name: "Carly Holdings".to_string(),
+            to_name: "Tenant LLC".to_string(),
+            description: "Monthly warehouse rent".to_string(),
+        },
+        Invoice {
+            id: Uuid::new_v4(),
+            number: "INV-2026-003".to_string(),
+            issue_date: Utc::now() - chrono::Duration::days(20),
+            due_date: Utc::now() + chrono::Duration::days(10),
+            amount: 45_000.0,
+            currency: "USD".to_string(),
+            status: InvoiceStatus::Paid,
+            from_name: "Carly Holdings".to_string(),
+            to_name: "Tech Supplies Inc".to_string(),
+            description: "Equipment purchase invoice".to_string(),
+        },
+    ]
+}
+
 fn create_mock_transaction(
     transaction_type: TransactionType,
     amount: f64,
@@ -136,6 +214,52 @@ fn status_label(status: &TransactionStatus) -> &'static str {
         TransactionStatus::Executed => "Executed",
         TransactionStatus::Cancelled => "Cancelled",
     }
+}
+
+fn transaction_status_class(status: &TransactionStatus) -> &'static str {
+    match status {
+        TransactionStatus::Executed => "tx-status-success",
+        TransactionStatus::Approved => "tx-status-pending",
+        TransactionStatus::Pending => "tx-status-pending",
+        TransactionStatus::Draft => "tx-status-draft",
+        TransactionStatus::Rejected => "tx-status-danger",
+        TransactionStatus::Cancelled => "tx-status-muted",
+    }
+}
+
+fn invoice_status_class(status: &InvoiceStatus) -> &'static str {
+    match status {
+        InvoiceStatus::Draft => "tx-status-draft",
+        InvoiceStatus::Sent => "tx-status-pending",
+        InvoiceStatus::Viewed => "tx-status-pending",
+        InvoiceStatus::Paid => "tx-status-success",
+        InvoiceStatus::Overdue => "tx-status-danger",
+        InvoiceStatus::Cancelled => "tx-status-muted",
+    }
+}
+
+fn currency_label(currency: &crate::types::Currency) -> String {
+    currency.to_string()
+}
+
+fn format_dollars(amount: f64, currency: &str) -> String {
+    let whole = amount.trunc() as i64;
+    let cents = ((amount.fract() * 100.0).round() as i64).abs();
+    let s = whole.abs().to_string();
+    let mut grouped = String::new();
+    for (i, ch) in s.chars().rev().enumerate() {
+        if i > 0 && i % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(ch);
+    }
+    let grouped = grouped.chars().rev().collect::<String>();
+    let sign = if amount < 0.0 { "-" } else { "" };
+    format!("{}{}{}.{:02} {}", sign, currency_symbol(currency), grouped, cents, currency)
+}
+
+fn format_date(d: &chrono::DateTime<Utc>) -> String {
+    d.format("%d %b %Y").to_string()
 }
 
 fn type_icon(transaction_type: &TransactionType) -> &'static str {
@@ -547,6 +671,77 @@ fn CreateTransactionRecord(
 }
 
 #[component]
+fn InvoiceForm(on_create: Callback<Invoice>) -> impl IntoView {
+    let (number, set_number) = signal(String::new());
+    let (amount, set_amount) = signal(String::new());
+    let (currency, set_currency) = signal("AUD".to_string());
+    let (to_name, set_to_name) = signal(String::new());
+    let (description, set_description) = signal(String::new());
+    let (due_days, set_due_days) = signal("30".to_string());
+
+    let submit = move |_| {
+        let value: f64 = amount.get().parse().unwrap_or(0.0);
+        if value <= 0.0 || to_name.get().trim().is_empty() { return; }
+        let days: i64 = due_days.get().parse().unwrap_or(30);
+        let invoice = Invoice {
+            id: Uuid::new_v4(),
+            number: if number.get().trim().is_empty() { format!("INV-{}", Uuid::new_v4().to_string().split('-').next().unwrap()) } else { number.get() },
+            issue_date: Utc::now(),
+            due_date: Utc::now() + chrono::Duration::days(days),
+            amount: value,
+            currency: currency.get(),
+            status: InvoiceStatus::Draft,
+            from_name: "Carly Holdings".to_string(),
+            to_name: to_name.get(),
+            description: description.get(),
+        };
+        on_create.run(invoice);
+        set_number.set(String::new());
+        set_amount.set(String::new());
+        set_to_name.set(String::new());
+        set_description.set(String::new());
+        set_due_days.set("30".to_string());
+    };
+
+    view! {
+        <div class="tx-form">
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Invoice #"</label>
+                <input class="form-input" type="text" placeholder="Auto-generated if empty" prop:value={move || number.get()} on:input=move |ev| set_number.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Bill to"</label>
+                <input class="form-input" type="text" placeholder="Customer or payer name" prop:value={move || to_name.get()} on:input=move |ev| set_to_name.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Description"</label>
+                <input class="form-input" type="text" placeholder="What this invoice is for" prop:value={move || description.get()} on:input=move |ev| set_description.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Amount"</label>
+                <input class="form-input" type="number" placeholder="0.00" prop:value={move || amount.get()} on:input=move |ev| set_amount.set(event_target_value(&ev)) />
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Currency"</label>
+                <select class="form-select" prop:value={move || currency.get()} on:change=move |ev| set_currency.set(event_target_value(&ev))>
+                    <option value="AUD">"AUD"</option>
+                    <option value="USD">"USD"</option>
+                    <option value="EUR">"EUR"</option>
+                    <option value="GBP">"GBP"</option>
+                    <option value="BTC">"BTC"</option>
+                    <option value="ETH">"ETH"</option>
+                </select>
+            </div>
+            <div class="tx-form-row">
+                <label class="tx-form-label">"Due in (days)"</label>
+                <input class="form-input" type="number" placeholder="30" prop:value={move || due_days.get()} on:input=move |ev| set_due_days.set(event_target_value(&ev)) />
+            </div>
+            <button class="login-btn" on:click=submit>"Create Invoice"</button>
+        </div>
+    }
+}
+
+#[component]
 fn PrintRecordButton() -> impl IntoView {
     let on_print = move |_| {
         if let Some(window) = web_sys::window() {
@@ -567,6 +762,7 @@ pub fn TransactionsPage() -> impl IntoView {
     let (payees, _set_payees) = signal(mock_payees());
     let (payers, _set_payers) = signal(mock_payers());
     let (payments, set_payments) = signal(Vec::<Payment>::new());
+    let (invoices, set_invoices) = signal(mock_invoices());
     let (transactions, set_transactions) = signal(vec![
         create_mock_transaction(TransactionType::Purchase, 125000.0, "Office equipment purchase", "Main Org", "Tech Supplies Inc", TransactionStatus::Executed),
         create_mock_transaction(TransactionType::Sale, 450000.0, "Property sale - downtown plaza", "Real Estate Holdings", "Buyer Corp", TransactionStatus::Approved),
@@ -584,6 +780,9 @@ pub fn TransactionsPage() -> impl IntoView {
     });
     let on_create_txn = Callback::new(move |t: Transaction| {
         set_transactions.update(|list| list.insert(0, t));
+    });
+    let on_create_invoice = Callback::new(move |inv: Invoice| {
+        set_invoices.update(|list| list.insert(0, inv));
     });
 
     let tab_btn = |label: &str, key: &str| {
@@ -611,14 +810,16 @@ pub fn TransactionsPage() -> impl IntoView {
                 {tab_btn("Recent", "recent")}
                 {tab_btn("Send", "send")}
                 {tab_btn("Receive", "receive")}
+                {tab_btn("Invoices", "invoices")}
                 {tab_btn("Payees", "payees")}
                 {tab_btn("Payers", "payers")}
                 {tab_btn("Wallets", "wallets")}
             </div>
 
-            // Create + Print buttons always visible
+            // Action bar
             <div class="tx-action-bar">
-                <button class="tx-action-btn" on:click=move |_| set_active_tab.set("create".to_string())>"📝 Create Record"</button>
+                <button class="tx-action-btn" on:click=move |_| set_active_tab.set("create".to_string())>"📝 Transaction"</button>
+                <button class="tx-action-btn tx-action-btn-invoice" on:click=move |_| set_active_tab.set("create_invoice".to_string())>"🧾 Invoice"</button>
                 <PrintRecordButton />
             </div>
 
@@ -627,6 +828,49 @@ pub fn TransactionsPage() -> impl IntoView {
                     <div class="data-card">
                         <div class="card-header"><span class="card-title">"Create Transaction Record"</span></div>
                         <CreateTransactionRecord _wallets={wallets.get()} on_create={on_create_txn.clone()} />
+                    </div>
+                }.into_any(),
+                "create_invoice" => view! {
+                    <div class="data-card">
+                        <div class="card-header"><span class="card-title">"Create Invoice"</span></div>
+                        <InvoiceForm on_create={on_create_invoice.clone()} />
+                    </div>
+                }.into_any(),
+                "invoices" => view! {
+                    <div class="data-card">
+                        <div class="card-header">
+                            <span class="card-title">"Invoices"</span>
+                            <button class="tx-action-btn tx-action-btn-small" on:click=move |_| set_active_tab.set("create_invoice".to_string())>"+ New Invoice"</button>
+                        </div>
+                        {move || if invoices.get().is_empty() {
+                            view! { <div class="tx-empty">"No invoices yet."</div> }.into_any()
+                        } else {
+                            view! {
+                                <div class="tx-invoice-list">
+                                    {invoices.get().into_iter().map(|inv| {
+                                        let status = inv.status.clone();
+                                        let status_class = invoice_status_class(&status);
+                                        let amount = format_dollars(inv.amount, &inv.currency);
+                                        let issue = format_date(&inv.issue_date);
+                                        let due = format_date(&inv.due_date);
+                                        view! {
+                                            <div class="tx-invoice-item">
+                                                <div class="tx-invoice-main">
+                                                    <div class="tx-invoice-number">{inv.number}</div>
+                                                    <div class="tx-invoice-desc">{inv.description}</div>
+                                                    <div class="tx-invoice-parties">{format!("{} → {}", inv.from_name, inv.to_name)}</div>
+                                                    <div class="tx-invoice-dates">{format!("Issued {} · Due {}", issue, due)}</div>
+                                                </div>
+                                                <div class="tx-invoice-right">
+                                                    <div class="tx-invoice-amount">{amount}</div>
+                                                    <div class={format!("tx-status-badge {}", status_class)}>{status.label()}</div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any()
+                        }}
                     </div>
                 }.into_any(),
                 "payees" => view! {
@@ -700,6 +944,27 @@ pub fn TransactionsPage() -> impl IntoView {
                     </div>
                 }.into_any(),
                 _ => view! {
+                    <div class="tx-summary-cards">
+                        {move || {
+                            let invs = invoices.get();
+                            let total_outstanding: f64 = invs.iter().filter(|i| matches!(i.status, InvoiceStatus::Sent | InvoiceStatus::Viewed | InvoiceStatus::Draft)).map(|i| i.amount).sum();
+                            let total_overdue: f64 = invs.iter().filter(|i| i.status == InvoiceStatus::Overdue).map(|i| i.amount).sum();
+                            view! {
+                                <div class="tx-summary-card tx-summary-outstanding">
+                                    <div class="tx-summary-label">"Outstanding"</div>
+                                    <div class="tx-summary-value">{format_dollars(total_outstanding, "AUD")}</div>
+                                </div>
+                                <div class="tx-summary-card tx-summary-overdue">
+                                    <div class="tx-summary-label">"Overdue"</div>
+                                    <div class="tx-summary-value">{format_dollars(total_overdue, "AUD")}</div>
+                                </div>
+                                <div class="tx-summary-card" on:click=move |_| set_active_tab.set("invoices".to_string())>
+                                    <div class="tx-summary-label">"Invoices"</div>
+                                    <div class="tx-summary-value">{format!("{}", invs.len())}</div>
+                                </div>
+                            }.into_any()
+                        }}
+                    </div>
                     <div class="data-card">
                         <div class="card-header">
                             <span class="card-title">"Recent Transactions"</span>
@@ -733,56 +998,73 @@ pub fn TransactionsPage() -> impl IntoView {
                                 SortMode::LowestValue => a.amount.partial_cmp(&b.amount).unwrap_or(std::cmp::Ordering::Equal),
                                 _ => b.created_at.cmp(&a.created_at),
                             });
-                            items.into_iter().map(|t| {
-                                let icon = type_icon(&t.transaction_type);
-                                let status = status_label(&t.status);
-                                let amount = format!("${:.2}", t.amount);
-                                let desc = t.description.unwrap_or_default();
+                            if items.is_empty() {
+                                view! { <div class="tx-empty">"No transactions yet."</div> }.into_any()
+                            } else {
                                 view! {
-                                    <div class="list-item">
-                                        <div class="list-item-left">
-                                            <div class="list-item-title">{icon} " " {desc}</div>
-                                            <div class="list-item-subtitle">{format!("{} → {}", t.from_entity.name, t.to_entity.name)}</div>
-                                        </div>
-                                        <div class="list-item-right">
-                                            <div class="list-item-value">{amount}</div>
-                                            <div class="list-item-subtitle">{status}</div>
-                                        </div>
+                                    <div class="tx-statement-list">
+                                        {items.into_iter().map(|t| {
+                                            let icon = type_icon(&t.transaction_type);
+                                            let status = t.status.clone();
+                                            let status_label = status_label(&status);
+                                            let status_class = transaction_status_class(&status);
+                                            let amount = format_dollars(t.amount, &currency_label(&t.currency));
+                                            let desc = t.description.unwrap_or_default();
+                                            let date = t.created_at.format("%d %b %Y").to_string();
+                                            view! {
+                                                <div class="tx-statement-row">
+                                                    <div class="tx-statement-icon">{icon}</div>
+                                                    <div class="tx-statement-main">
+                                                        <div class="tx-statement-title">{desc}</div>
+                                                        <div class="tx-statement-meta">{format!("{} · {} → {}", date, t.from_entity.name, t.to_entity.name)}</div>
+                                                    </div>
+                                                    <div class="tx-statement-right">
+                                                        <div class="tx-statement-amount">{amount}</div>
+                                                        <div class={format!("tx-status-badge {}", status_class)}>{status_label}</div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
                                     </div>
-                                }
-                            }).collect::<Vec<_>>()
+                                }.into_any()
+                            }
                         }}
                     </div>
                     <div class="data-card">
                         <div class="card-header"><span class="card-title">"Recent Payments"</span></div>
                         {move || if payments.get().is_empty() {
-                            view! { <div class="list-item"><div class="list-item-left"><div class="list-item-subtitle">"No payments yet"</div></div></div> }.into_any()
+                            view! { <div class="tx-empty">"No payments yet"</div> }.into_any()
                         } else {
-                            payments.get().into_iter().rev().take(5).map(|p| {
-                                let wallet = wallets.get().iter().find(|w| w.id == p.from_wallet_id).cloned();
-                                let contact = if p.direction == "send" {
-                                    payees.get().iter().find(|c| c.id == p.to_contact_id).cloned()
-                                } else {
-                                    payers.get().iter().find(|c| c.id == p.to_contact_id).cloned()
-                                };
-                                let wallet_name = wallet.as_ref().map(|w| w.name.clone()).unwrap_or_else(|| "Unknown".to_string());
-                                let contact_name = contact.map(|c| c.name).unwrap_or_else(|| "Unknown".to_string());
-                                let card_label = wallet.and_then(|w| p.from_card_id.and_then(|cid| w.cards.iter().find(|c| c.id == cid).map(|c| format!("{} ending {}", c.label, c.last4)))).unwrap_or_else(|| "wallet balance".to_string());
-                                let routine = if p.is_routine { "routine" } else { "one-time" };
-                                let date = p.created_at.format("%d %b %H:%M").to_string();
-                                view! {
-                                    <div class="list-item">
-                                        <div class="list-item-left">
-                                            <div class="list-item-title">{format!("{} - {}", p.direction.to_uppercase(), contact_name)}</div>
-                                            <div class="list-item-subtitle">{format!("{} via {} | {} | {} | {}", wallet_name, card_label, p.interval, routine, date)}</div>
-                                        </div>
-                                        <div class="list-item-right">
-                                            <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&p.currency), p.amount, p.currency)}</div>
-                                            <div class="list-item-subtitle">{if p.is_auto { "Auto" } else { "Manual" }}</div>
-                                        </div>
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>().into_any()
+                            view! {
+                                <div class="tx-statement-list">
+                                    {payments.get().into_iter().rev().take(5).map(|p| {
+                                        let wallet = wallets.get().iter().find(|w| w.id == p.from_wallet_id).cloned();
+                                        let contact = if p.direction == "send" {
+                                            payees.get().iter().find(|c| c.id == p.to_contact_id).cloned()
+                                        } else {
+                                            payers.get().iter().find(|c| c.id == p.to_contact_id).cloned()
+                                        };
+                                        let wallet_name = wallet.as_ref().map(|w| w.name.clone()).unwrap_or_else(|| "Unknown".to_string());
+                                        let contact_name = contact.map(|c| c.name).unwrap_or_else(|| "Unknown".to_string());
+                                        let card_label = wallet.and_then(|w| p.from_card_id.and_then(|cid| w.cards.iter().find(|c| c.id == cid).map(|c| format!("{} ending {}", c.label, c.last4)))).unwrap_or_else(|| "wallet balance".to_string());
+                                        let routine = if p.is_routine { "routine" } else { "one-time" };
+                                        let date = p.created_at.format("%d %b %H:%M").to_string();
+                                        view! {
+                                            <div class="tx-statement-row">
+                                                <div class="tx-statement-icon">{if p.direction == "send" { "📤" } else { "📥" }}</div>
+                                                <div class="tx-statement-main">
+                                                    <div class="tx-statement-title">{format!("{} - {}", p.direction.to_uppercase(), contact_name)}</div>
+                                                    <div class="tx-statement-meta">{format!("{} · {} via {} · {}", date, wallet_name, card_label, routine)}</div>
+                                                </div>
+                                                <div class="tx-statement-right">
+                                                    <div class="tx-statement-amount">{format_dollars(p.amount, &p.currency)}</div>
+                                                    <div class="tx-status-badge tx-status-draft">{if p.is_auto { "Auto" } else { "Manual" }}</div>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any()
                         }}
                     </div>
                 }.into_any(),

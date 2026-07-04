@@ -3,6 +3,51 @@ use crate::types::{ReportSortMode, TransactionType};
 use leptos::prelude::*;
 use uuid::Uuid;
 
+#[cfg(feature = "hydrate")]
+fn scroll_tabs_node_ref(node_ref: &NodeRef<leptos::html::Div>, delta: i32) {
+    use wasm_bindgen::JsCast;
+    if let Some(el) = node_ref.get() {
+        if let Ok(html_el) = el.dyn_into::<web_sys::HtmlElement>() {
+            html_el.set_scroll_left(html_el.scroll_left() + delta);
+        }
+    }
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn scroll_tabs_node_ref(_node_ref: &NodeRef<leptos::html::Div>, _delta: i32) {}
+
+#[cfg(feature = "hydrate")]
+fn start_scroll_interval(node_ref: &NodeRef<leptos::html::Div>, delta: i32) -> Option<i32> {
+    use wasm_bindgen::prelude::*;
+    let node_ref = node_ref.clone();
+    let closure = Closure::wrap(Box::new(move || {
+        scroll_tabs_node_ref(&node_ref, delta);
+    }) as Box<dyn FnMut()>);
+    let id = web_sys::window()?.set_interval_with_callback_and_timeout_and_arguments_0(
+        closure.as_ref().unchecked_ref(),
+        50,
+    ).ok()?;
+    closure.forget();
+    Some(id)
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn start_scroll_interval(_node_ref: &NodeRef<leptos::html::Div>, _delta: i32) -> Option<i32> {
+    None
+}
+
+#[cfg(feature = "hydrate")]
+fn stop_scroll_interval(id: Option<i32>) {
+    if let Some(id) = id {
+        if let Some(window) = web_sys::window() {
+            window.clear_interval_with_handle(id);
+        }
+    }
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn stop_scroll_interval(_id: Option<i32>) {}
+
 /// Format a number as whole-dollar currency with thousands separators.
 fn fmt_dollars(v: f64) -> String {
     let s = format!("{:.0}", v);
@@ -96,6 +141,56 @@ pub fn ReportingPage() -> impl IntoView {
         ReportTab::ExportedRecords,
     ];
 
+    let tabs_container_ref = NodeRef::<leptos::html::Div>::new();
+    let scroll_interval = StoredValue::new(None::<i32>);
+
+    let start_scroll = {
+        let tabs_container_ref = tabs_container_ref.clone();
+        let scroll_interval = scroll_interval.clone();
+        move |delta: i32| {
+            stop_scroll_interval(scroll_interval.get_value());
+            let id = start_scroll_interval(&tabs_container_ref, delta);
+            scroll_interval.set_value(id);
+        }
+    };
+
+    let stop_scroll = {
+        let scroll_interval = scroll_interval.clone();
+        move |_| {
+            stop_scroll_interval(scroll_interval.get_value());
+            scroll_interval.set_value(None);
+        }
+    };
+
+    let scroll_tabs_left = move |_| scroll_tabs_node_ref(&tabs_container_ref, -150);
+    let scroll_tabs_left_hold_mouse = {
+        let start_scroll = start_scroll.clone();
+        move |_ev: leptos::ev::MouseEvent| start_scroll(-30)
+    };
+    let scroll_tabs_left_hold_touch = {
+        let start_scroll = start_scroll.clone();
+        move |_ev: leptos::ev::TouchEvent| start_scroll(-30)
+    };
+
+    let scroll_tabs_right = move |_| scroll_tabs_node_ref(&tabs_container_ref, 150);
+    let scroll_tabs_right_hold_mouse = {
+        let start_scroll = start_scroll.clone();
+        move |_ev: leptos::ev::MouseEvent| start_scroll(30)
+    };
+    let scroll_tabs_right_hold_touch = {
+        let start_scroll = start_scroll.clone();
+        move |_ev: leptos::ev::TouchEvent| start_scroll(30)
+    };
+
+    let stop_scroll_mouse = {
+        let stop_scroll = stop_scroll.clone();
+        move |_ev: leptos::ev::MouseEvent| stop_scroll(())
+    };
+    let stop_scroll_touch = {
+        let stop_scroll = stop_scroll.clone();
+        move |_ev: leptos::ev::TouchEvent| stop_scroll(())
+    };
+
     view! {
         <div class="reporting-page">
             // CamScan at top of page
@@ -103,6 +198,47 @@ pub fn ReportingPage() -> impl IntoView {
 
             <div class="reporting-actions">
                 <button class="reporting-btn" on:click=seed_demo>"+ Seed Demo Sale"</button>
+            </div>
+
+            <div class="reporting-tab-title-bar">
+                {move || active_tab.get().label()}
+            </div>
+
+            <div class="reporting-tabs-outer">
+                <button
+                    class="reporting-tab-arrow"
+                    title="Scroll left"
+                    on:click=scroll_tabs_left
+                    on:mousedown=scroll_tabs_left_hold_mouse
+                    on:mouseup=stop_scroll_mouse
+                    on:mouseleave=stop_scroll_mouse
+                    on:touchstart=scroll_tabs_left_hold_touch
+                    on:touchend=stop_scroll_touch
+                >"←"</button>
+                <div class="reporting-tabs" node_ref=tabs_container_ref>
+                    {tabs.iter().map(|tab| {
+                        let t = *tab;
+                        view! {
+                            <button
+                                class="reporting-tab"
+                                class:active={move || active_tab.get() == t}
+                                on:click=move |_| set_active_tab.set(t)
+                            >
+                                {t.label()}
+                            </button>
+                        }
+                    }).collect::<Vec<_>>()}
+                </div>
+                <button
+                    class="reporting-tab-arrow"
+                    title="Scroll right"
+                    on:click=scroll_tabs_right
+                    on:mousedown=scroll_tabs_right_hold_mouse
+                    on:mouseup=stop_scroll_mouse
+                    on:mouseleave=stop_scroll_mouse
+                    on:touchstart=scroll_tabs_right_hold_touch
+                    on:touchend=stop_scroll_touch
+                >"→"</button>
             </div>
 
             <div class="reporting-controls-bar">
@@ -231,21 +367,6 @@ pub fn ReportingPage() -> impl IntoView {
                 >
                     {move || if app_store.get().reporting_sort_ascending { "↑" } else { "↓" }}
                 </button>
-            </div>
-
-            <div class="reporting-tabs">
-                {tabs.iter().map(|tab| {
-                    let t = *tab;
-                    view! {
-                        <button
-                            class="reporting-tab"
-                            class:active={move || active_tab.get() == t}
-                            on:click=move |_| set_active_tab.set(t)
-                        >
-                            {t.label()}
-                        </button>
-                    }
-                }).collect::<Vec<_>>()}
             </div>
 
             <div class="reporting-body">
@@ -446,7 +567,6 @@ fn sales_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) ->
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Sales"</div>
             <div class="reporting-section-meta">{format!("{} asset-linked sale records", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Asset", "Portfolio", "Amount", "Status", "Counterparty"])}
@@ -486,7 +606,6 @@ fn purchases_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Purchases"</div>
             <div class="reporting-section-meta">{format!("{} asset-linked purchase records", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Asset", "Portfolio", "Amount", "Status", "Seller"])}
@@ -532,7 +651,6 @@ fn bills_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) ->
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Bills"</div>
             <div class="reporting-section-meta">{format!("{} asset-linked bills", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset", "Portfolio", "Type"])}
@@ -576,7 +694,6 @@ fn invoices_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>)
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Invoices"</div>
             <div class="reporting-section-meta">{format!("{} asset-linked invoices / receipts", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset", "Portfolio", "Type"])}
@@ -620,7 +737,6 @@ fn notices_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) 
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Notices"</div>
             <div class="reporting-section-meta">{format!("{} asset-linked notices", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset", "Portfolio", "Type"])}
@@ -665,7 +781,6 @@ fn documents_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Documents"</div>
             <div class="reporting-section-meta">{format!("{} asset-linked documents", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset / Scope", "Portfolio", "Type"])}
@@ -705,7 +820,6 @@ fn assets_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>) -
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Assets"</div>
             <div class="reporting-section-meta">{format!("{} assets across portfolios", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Name", "Portfolio", "Type", "Status", "Current Value", "P&L %"])}
@@ -749,7 +863,6 @@ fn compliance_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Compliance"</div>
             <div class="reporting-section-meta">{format!("{} asset compliance checks", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Asset", "Portfolio", "Status", "Risk", "Docs"])}
@@ -785,7 +898,6 @@ fn transactions_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppSto
     let count = items.len();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Transactions"</div>
             <div class="reporting-section-meta">{format!("{} all-time transactions", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Type", "Asset", "Portfolio", "Amount", "Status"])}
@@ -825,7 +937,6 @@ fn statements_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore
     let total: f64 = items.iter().map(|(t, _, _)| t.amount).sum();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Statements"</div>
             <div class="reporting-section-meta">{format!("{} statements · Total: {}", count, fmt_dollars(total))}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Type", "Asset", "Portfolio", "Amount", "Status"])}
@@ -867,7 +978,6 @@ fn summaries_view(app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>
     let grand_pl: f64 = portfolios.iter().map(|(_, _, _, _, pl)| *pl).sum();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Summaries"</div>
             <div class="reporting-section-meta">{format!("{} portfolios · Total: {} · P/L: {}", count, fmt_dollars(grand_total), fmt_dollars(grand_pl))}</div>
             <div class="reporting-table">
                 {table_head(&["Portfolio", "Assets", "Documents", "Value", "P/L"])}
@@ -901,7 +1011,6 @@ fn exported_records_view(app_store: &leptos::prelude::RwSignal<crate::stores::Ap
     let doc_count: usize = store.portfolios.iter().flat_map(|p| p.get_all_assets()).map(|a| a.documents.len()).sum();
     view! {
         <div class="reporting-section">
-            <div class="reporting-section-title">"Exported Records"</div>
             <div class="reporting-section-meta">"Download or export data from the system"</div>
             <div class="reporting-export-grid">
                 <div class="reporting-export-card">
