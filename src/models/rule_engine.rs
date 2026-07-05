@@ -22,10 +22,18 @@ impl ActorFilter {
             ActorFilter::SpecificUser(id) => format!("User {}", &id.to_string()[..8]),
             ActorFilter::AnyUser => "Any user".to_string(),
             ActorFilter::UserWithRole(id) => format!("User with role {}", &id.to_string()[..8]),
-            ActorFilter::UserInOrganization(id) => format!("User in organization {}", &id.to_string()[..8]),
-            ActorFilter::UserAssignedToPortfolio(id) => format!("User assigned to portfolio {}", &id.to_string()[..8]),
-            ActorFilter::UserRoleAbove(id) => format!("User with role above {}", &id.to_string()[..8]),
-            ActorFilter::UserRoleBelow(id) => format!("User with role below {}", &id.to_string()[..8]),
+            ActorFilter::UserInOrganization(id) => {
+                format!("User in organization {}", &id.to_string()[..8])
+            }
+            ActorFilter::UserAssignedToPortfolio(id) => {
+                format!("User assigned to portfolio {}", &id.to_string()[..8])
+            }
+            ActorFilter::UserRoleAbove(id) => {
+                format!("User with role above {}", &id.to_string()[..8])
+            }
+            ActorFilter::UserRoleBelow(id) => {
+                format!("User with role below {}", &id.to_string()[..8])
+            }
         }
     }
 
@@ -290,11 +298,21 @@ impl NotificationRecipient {
             NotificationRecipient::SpecificUser(id) => format!("User {}", &id.to_string()[..8]),
             NotificationRecipient::SpecificRole(id) => format!("Role {}", &id.to_string()[..8]),
             NotificationRecipient::SpecificTeam(id) => format!("Team {}", &id.to_string()[..8]),
-            NotificationRecipient::MembersAboveActorRole => "Members above actor's role".to_string(),
-            NotificationRecipient::MembersBelowActorRole => "Members below actor's role".to_string(),
-            NotificationRecipient::MembersWithApprovePermission => "Members with permission to approve".to_string(),
-            NotificationRecipient::MembersAssignedToPortfolio => "Members assigned to affected portfolio".to_string(),
-            NotificationRecipient::MembersWatchingItem => "Members watching the affected item".to_string(),
+            NotificationRecipient::MembersAboveActorRole => {
+                "Members above actor's role".to_string()
+            }
+            NotificationRecipient::MembersBelowActorRole => {
+                "Members below actor's role".to_string()
+            }
+            NotificationRecipient::MembersWithApprovePermission => {
+                "Members with permission to approve".to_string()
+            }
+            NotificationRecipient::MembersAssignedToPortfolio => {
+                "Members assigned to affected portfolio".to_string()
+            }
+            NotificationRecipient::MembersWatchingItem => {
+                "Members watching the affected item".to_string()
+            }
         }
     }
 
@@ -308,8 +326,12 @@ impl NotificationRecipient {
             NotificationRecipient::SpecificTeam(_) => "Specific team",
             NotificationRecipient::MembersAboveActorRole => "Members above actor's role",
             NotificationRecipient::MembersBelowActorRole => "Members below actor's role",
-            NotificationRecipient::MembersWithApprovePermission => "Members with permission to approve",
-            NotificationRecipient::MembersAssignedToPortfolio => "Members assigned to affected portfolio",
+            NotificationRecipient::MembersWithApprovePermission => {
+                "Members with permission to approve"
+            }
+            NotificationRecipient::MembersAssignedToPortfolio => {
+                "Members assigned to affected portfolio"
+            }
             NotificationRecipient::MembersWatchingItem => "Members watching the affected item",
         }
     }
@@ -400,7 +422,13 @@ impl ConditionValue {
         match self {
             ConditionValue::Text(s) => s.clone(),
             ConditionValue::Number(n) => format!("{}", n),
-            ConditionValue::Boolean(b) => if *b { "true".to_string() } else { "false".to_string() },
+            ConditionValue::Boolean(b) => {
+                if *b {
+                    "true".to_string()
+                } else {
+                    "false".to_string()
+                }
+            }
             ConditionValue::RoleId(id) => format!("role {}", &id.to_string()[..8]),
             ConditionValue::OrgId(id) => format!("organization {}", &id.to_string()[..8]),
             ConditionValue::PortfolioId(id) => format!("portfolio {}", &id.to_string()[..8]),
@@ -456,11 +484,21 @@ impl ConditionLeftValue {
             ConditionLeftValue::CryptoNetwork => "Crypto network",
             ConditionLeftValue::PayeeIsNew => "Payee is new",
             ConditionLeftValue::PayeeIsHighRisk => "Payee is high-risk",
-            ConditionLeftValue::ActionOutsideBusinessHours => "Action occurs outside business hours",
-            ConditionLeftValue::ActionAffectsFinalLockedRecords => "Action affects final/locked records",
-            ConditionLeftValue::ActionAffectsRoleEqualOrAboveActor => "Action affects a role equal to or above the actor's role",
-            ConditionLeftValue::ActionAffectsDocumentNotOwnedByActor => "Action affects a document not owned by the actor",
-            ConditionLeftValue::ActionAffectsPortfolioNotOwnedByActor => "Action affects a portfolio the actor does not own",
+            ConditionLeftValue::ActionOutsideBusinessHours => {
+                "Action occurs outside business hours"
+            }
+            ConditionLeftValue::ActionAffectsFinalLockedRecords => {
+                "Action affects final/locked records"
+            }
+            ConditionLeftValue::ActionAffectsRoleEqualOrAboveActor => {
+                "Action affects a role equal to or above the actor's role"
+            }
+            ConditionLeftValue::ActionAffectsDocumentNotOwnedByActor => {
+                "Action affects a document not owned by the actor"
+            }
+            ConditionLeftValue::ActionAffectsPortfolioNotOwnedByActor => {
+                "Action affects a portfolio the actor does not own"
+            }
         }
     }
 
@@ -500,7 +538,11 @@ pub struct Condition {
 }
 
 impl Condition {
-    pub fn new(left_value: ConditionLeftValue, operator: ConditionOperator, right_value: ConditionValue) -> Self {
+    pub fn new(
+        left_value: ConditionLeftValue,
+        operator: ConditionOperator,
+        right_value: ConditionValue,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             left_value,
@@ -510,7 +552,12 @@ impl Condition {
     }
 
     pub fn summary(&self) -> String {
-        format!("{} {} {}", self.left_value.label(), self.operator.label(), self.right_value.display())
+        format!(
+            "{} {} {}",
+            self.left_value.label(),
+            self.operator.label(),
+            self.right_value.display()
+        )
     }
 }
 
@@ -557,7 +604,11 @@ impl ConditionGroup {
             ConditionGroupMode::All => " AND ",
             ConditionGroupMode::Any => " OR ",
         };
-        self.conditions.iter().map(|c| c.summary()).collect::<Vec<_>>().join(connector)
+        self.conditions
+            .iter()
+            .map(|c| c.summary())
+            .collect::<Vec<_>>()
+            .join(connector)
     }
 }
 
@@ -623,7 +674,11 @@ pub struct RuleActionEntry {
 }
 
 impl RuleActionEntry {
-    pub fn new(action_type: RuleActionType, recipient: Option<NotificationRecipient>, priority: ActionPriority) -> Self {
+    pub fn new(
+        action_type: RuleActionType,
+        recipient: Option<NotificationRecipient>,
+        priority: ActionPriority,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             action_type,
@@ -633,8 +688,17 @@ impl RuleActionEntry {
     }
 
     pub fn summary(&self) -> String {
-        let recipient_text = self.recipient.as_ref().map(|r| r.label()).unwrap_or_default();
-        format!("{} {} ({})", self.action_type.label(), recipient_text, self.priority.label())
+        let recipient_text = self
+            .recipient
+            .as_ref()
+            .map(|r| r.label())
+            .unwrap_or_default();
+        format!(
+            "{} {} ({})",
+            self.action_type.label(),
+            recipient_text,
+            self.priority.label()
+        )
     }
 }
 
@@ -713,7 +777,14 @@ pub struct Rule {
 }
 
 impl Rule {
-    pub fn new(name: String, organization_id: Uuid, created_by: Uuid, trigger: RuleTrigger, condition_group: ConditionGroup, actions: Vec<RuleActionEntry>) -> Self {
+    pub fn new(
+        name: String,
+        organization_id: Uuid,
+        created_by: Uuid,
+        trigger: RuleTrigger,
+        condition_group: ConditionGroup,
+        actions: Vec<RuleActionEntry>,
+    ) -> Self {
         let now = chrono::Utc::now();
         Self {
             id: Uuid::new_v4(),
@@ -737,8 +808,16 @@ impl Rule {
         } else {
             format!(" And if: {}", self.condition_group.summary())
         };
-        let actions_text = self.actions.iter().map(|a| a.summary()).collect::<Vec<_>>().join(", ");
-        format!("{}.{}. Then: {}", trigger_text, condition_text, actions_text)
+        let actions_text = self
+            .actions
+            .iter()
+            .map(|a| a.summary())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{}.{}. Then: {}",
+            trigger_text, condition_text, actions_text
+        )
     }
 
     pub fn validate(&self) -> Result<(), String> {
@@ -750,10 +829,16 @@ impl Rule {
         }
         for action in &self.actions {
             match action.action_type {
-                RuleActionType::NotifyInApp | RuleActionType::SendMessage | RuleActionType::SendEmail
-                | RuleActionType::EscalateToHigherRole | RuleActionType::CreateReviewTask => {
+                RuleActionType::NotifyInApp
+                | RuleActionType::SendMessage
+                | RuleActionType::SendEmail
+                | RuleActionType::EscalateToHigherRole
+                | RuleActionType::CreateReviewTask => {
                     if action.recipient.is_none() {
-                        return Err(format!("Action '{}' requires a recipient", action.action_type.label()));
+                        return Err(format!(
+                            "Action '{}' requires a recipient",
+                            action.action_type.label()
+                        ));
                     }
                 }
                 _ => {}
@@ -780,7 +865,14 @@ pub struct RuleHistoryEntry {
 }
 
 impl RuleHistoryEntry {
-    pub fn new(rule_id: Uuid, rule_name: String, action: String, performed_by: Uuid, performed_by_name: String, details: String) -> Self {
+    pub fn new(
+        rule_id: Uuid,
+        rule_name: String,
+        action: String,
+        performed_by: Uuid,
+        performed_by_name: String,
+        details: String,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             rule_id,

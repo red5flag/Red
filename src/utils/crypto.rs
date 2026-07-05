@@ -1,3 +1,4 @@
+#[cfg(feature = "ssr")]
 use base64::{engine::general_purpose, Engine};
 #[cfg(feature = "ssr")]
 use serde::{de::DeserializeOwned, Serialize};
@@ -54,7 +55,10 @@ pub fn local_storage_key() -> [u8; 32] {
 /// `[nonce(12) | ciphertext+tag | ...]` and can be fed directly to
 /// `decompress_and_decrypt`.
 #[cfg(feature = "ssr")]
-pub fn compress_and_encrypt<T: Serialize>(value: &T, key: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+pub fn compress_and_encrypt<T: Serialize>(
+    value: &T,
+    key: &[u8],
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let plain = serde_json::to_vec(value)?;
     let compressed = zstd::encode_all(&plain[..], 3)?;
     let encrypted = aead_encrypt(&compressed, key);
@@ -64,7 +68,10 @@ pub fn compress_and_encrypt<T: Serialize>(value: &T, key: &[u8]) -> Result<Vec<u
 /// Decrypt and then decompress a value previously produced by
 /// `compress_and_encrypt`.
 #[cfg(feature = "ssr")]
-pub fn decompress_and_decrypt<T: DeserializeOwned>(data: &[u8], key: &[u8]) -> Result<T, Box<dyn std::error::Error>> {
+pub fn decompress_and_decrypt<T: DeserializeOwned>(
+    data: &[u8],
+    key: &[u8],
+) -> Result<T, Box<dyn std::error::Error>> {
     let compressed = aead_decrypt(data, key)?;
     let plain = zstd::decode_all(&compressed[..])?;
     let value = serde_json::from_slice(&plain)?;
@@ -75,8 +82,12 @@ pub fn decompress_and_decrypt<T: DeserializeOwned>(data: &[u8], key: &[u8]) -> R
 // AEAD helpers (ChaCha20-Poly1305)
 // ------------------------------------------------------------------
 
+#[cfg(feature = "ssr")]
 fn aead_encrypt(plaintext: &[u8], key: &[u8]) -> Vec<u8> {
-    use chacha20poly1305::{aead::{Aead, KeyInit}, ChaCha20Poly1305, Nonce};
+    use chacha20poly1305::{
+        aead::{Aead, KeyInit},
+        ChaCha20Poly1305, Nonce,
+    };
     use rand::RngCore;
 
     let key = format_key(key);
@@ -91,8 +102,12 @@ fn aead_encrypt(plaintext: &[u8], key: &[u8]) -> Vec<u8> {
     out
 }
 
+#[cfg(feature = "ssr")]
 fn aead_decrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, String> {
-    use chacha20poly1305::{aead::{Aead, KeyInit}, ChaCha20Poly1305, Nonce};
+    use chacha20poly1305::{
+        aead::{Aead, KeyInit},
+        ChaCha20Poly1305, Nonce,
+    };
 
     if data.len() < 12 {
         return Err("ciphertext too short".to_string());
@@ -112,12 +127,14 @@ fn aead_decrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, String> {
 
 /// Encrypt a string for client-side localStorage with the user's key.
 /// Uses the same AEAD construction as the server store.
+#[cfg(feature = "ssr")]
 pub fn encrypt(plaintext: &str, key: &[u8]) -> String {
     let bytes = aead_encrypt(plaintext.as_bytes(), key);
     general_purpose::STANDARD.encode(&bytes)
 }
 
 /// Decrypt a base64 AEAD ciphertext stored in localStorage.
+#[cfg(feature = "ssr")]
 pub fn decrypt(ciphertext: &str, key: &[u8]) -> Result<String, String> {
     let data = general_purpose::STANDARD
         .decode(ciphertext)
@@ -240,12 +257,13 @@ pub fn pqc_key_exchange(_public_key: &[u8], _secret_key: &[u8]) -> Vec<u8> {
 /// Encrypt a plaintext string using the PQC shared secret.
 /// The secret is formatted to a 32-byte ChaCha20-Poly1305 key and the
 /// result is returned as a base64-encoded string.
+#[cfg(feature = "ssr")]
 pub fn pqc_encrypt(plaintext: &str, shared_secret: &[u8]) -> String {
     encrypt(plaintext, shared_secret)
 }
 
 /// Decrypt a ciphertext produced by `pqc_encrypt`.
+#[cfg(feature = "ssr")]
 pub fn pqc_decrypt(ciphertext: &str, shared_secret: &[u8]) -> Result<String, String> {
     decrypt(ciphertext, shared_secret)
 }
-

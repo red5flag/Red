@@ -1,5 +1,5 @@
 use crate::models::CalendarEvent;
-use crate::stores::use_app_store;
+use crate::stores::{use_app_store, use_calendar_store};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use leptos::prelude::*;
 use uuid::Uuid;
@@ -24,8 +24,20 @@ impl CalendarScope {
 }
 
 fn month_label(year: i32, month: u32) -> String {
-    let labels = ["January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"];
+    let labels = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
     format!("{} {}", labels[(month as usize - 1).min(11)], year)
 }
 
@@ -35,54 +47,55 @@ pub fn CalendarManager(
     #[prop(default = false)] embedded: bool,
 ) -> impl IntoView {
     let app_store = use_app_store();
+    let calendar_store = use_calendar_store();
 
     let events_for_scope = Memo::new(move |_| {
-        let store = app_store.get();
-        let mut events: Vec<CalendarEvent> = if scope.portfolio_id.is_none()
-            && scope.group_id.is_none()
-            && scope.asset_id.is_none()
-        {
-            store.calendar_events.clone()
-        } else {
-            let mut local = Vec::new();
-            if let Some(pid) = scope.portfolio_id {
-                if let Some(p) = store.portfolios.iter().find(|p| p.id == pid) {
-                    local.extend(p.calendar_events.clone());
-                    for g in &p.asset_groups {
-                        local.extend(g.calendar_events.clone());
-                        for a in &g.assets {
+        let app = app_store.get();
+        let calendar = calendar_store.get();
+        let mut events: Vec<CalendarEvent> =
+            if scope.portfolio_id.is_none() && scope.group_id.is_none() && scope.asset_id.is_none()
+            {
+                calendar.calendar_events.clone()
+            } else {
+                let mut local = Vec::new();
+                if let Some(pid) = scope.portfolio_id {
+                    if let Some(p) = app.portfolios.iter().find(|p| p.id == pid) {
+                        local.extend(p.calendar_events.clone());
+                        for g in &p.asset_groups {
+                            local.extend(g.calendar_events.clone());
+                            for a in &g.assets {
+                                local.extend(a.calendar_events.clone());
+                            }
+                        }
+                        for a in &p.assets {
                             local.extend(a.calendar_events.clone());
                         }
                     }
-                    for a in &p.assets {
-                        local.extend(a.calendar_events.clone());
-                    }
-                }
-            } else if let Some(gid) = scope.group_id {
-                for p in &store.portfolios {
-                    if let Some(g) = p.asset_groups.iter().find(|g| g.id == gid) {
-                        local.extend(g.calendar_events.clone());
-                        for a in &g.assets {
-                            local.extend(a.calendar_events.clone());
+                } else if let Some(gid) = scope.group_id {
+                    for p in &app.portfolios {
+                        if let Some(g) = p.asset_groups.iter().find(|g| g.id == gid) {
+                            local.extend(g.calendar_events.clone());
+                            for a in &g.assets {
+                                local.extend(a.calendar_events.clone());
+                            }
+                            break;
                         }
-                        break;
+                    }
+                } else if let Some(aid) = scope.asset_id {
+                    for p in &app.portfolios {
+                        let all: Vec<&crate::models::Asset> = p
+                            .assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                            .collect();
+                        if let Some(a) = all.into_iter().find(|a| a.id == aid) {
+                            local.extend(a.calendar_events.clone());
+                            break;
+                        }
                     }
                 }
-            } else if let Some(aid) = scope.asset_id {
-                for p in &store.portfolios {
-                    let all: Vec<&crate::models::Asset> = p
-                        .assets
-                        .iter()
-                        .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
-                        .collect();
-                    if let Some(a) = all.into_iter().find(|a| a.id == aid) {
-                        local.extend(a.calendar_events.clone());
-                        break;
-                    }
-                }
-            }
-            local
-        };
+                local
+            };
         events.sort_by(|a, b| a.start.cmp(&b.start));
         events
     });
@@ -96,13 +109,21 @@ pub fn CalendarManager(
 
     let prev_month = move |_| {
         let (y, m) = (view_year.get(), view_month.get());
-        if m == 1 { set_view_year.set(y - 1); set_view_month.set(12); }
-        else { set_view_month.set(m - 1); }
+        if m == 1 {
+            set_view_year.set(y - 1);
+            set_view_month.set(12);
+        } else {
+            set_view_month.set(m - 1);
+        }
     };
     let next_month = move |_| {
         let (y, m) = (view_year.get(), view_month.get());
-        if m == 12 { set_view_year.set(y + 1); set_view_month.set(1); }
-        else { set_view_month.set(m + 1); }
+        if m == 12 {
+            set_view_year.set(y + 1);
+            set_view_month.set(1);
+        } else {
+            set_view_month.set(m + 1);
+        }
     };
     let go_today = move |_| {
         set_view_year.set(today.year());
@@ -131,11 +152,13 @@ pub fn CalendarManager(
     });
 
     let on_delete = Callback::new(move |id: Uuid| {
-        app_store.update(|s| s.remove_calendar_event(id));
+        calendar_store.update(|s| s.remove_calendar_event(id));
+        app_store.update(|s| s.remove_calendar_event_from_portfolios(id));
     });
 
     let on_save = Callback::new(move |ev: CalendarEvent| {
-        app_store.update(|s| s.upsert_calendar_event(ev));
+        calendar_store.update(|s| s.upsert_calendar_event(ev.clone()));
+        app_store.update(|s| s.sync_calendar_event_to_portfolios(ev));
         set_show_form.set(false);
         set_editing_event.set(None);
     });
@@ -158,13 +181,18 @@ pub fn CalendarManager(
         let y = view_year.get();
         let m = view_month.get();
         let first_day = NaiveDate::from_ymd_opt(y, m, 1).unwrap();
-        let days_in_month = (NaiveDate::from_ymd_opt(y, m + 1, 1).unwrap_or(NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap()) - first_day).num_days() as u32;
+        let days_in_month = (NaiveDate::from_ymd_opt(y, m + 1, 1)
+            .unwrap_or(NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap())
+            - first_day)
+            .num_days() as u32;
         let start_weekday = first_day.weekday().num_days_from_sunday();
 
         let mut days: Vec<Option<NaiveDate>> = Vec::new();
         // Leading blanks from previous month
         for i in 0..start_weekday {
-            if let Some(d) = first_day.checked_sub_signed(Duration::days((start_weekday - i) as i64)) {
+            if let Some(d) =
+                first_day.checked_sub_signed(Duration::days((start_weekday - i) as i64))
+            {
                 days.push(Some(d));
             } else {
                 days.push(None);
@@ -190,7 +218,10 @@ pub fn CalendarManager(
         let date = selected_date.get();
         let events = events_for_scope.get();
         match date {
-            Some(d) => events.into_iter().filter(|e| e.start.date_naive() == d).collect::<Vec<_>>(),
+            Some(d) => events
+                .into_iter()
+                .filter(|e| e.start.date_naive() == d)
+                .collect::<Vec<_>>(),
             None => Vec::new(),
         }
     });
@@ -382,7 +413,9 @@ fn EventEditor(
 
     let ev = event.clone();
     let save = move |_| {
-        let Ok(d) = NaiveDate::parse_from_str(&date.get(), "%Y-%m-%d") else { return; };
+        let Ok(d) = NaiveDate::parse_from_str(&date.get(), "%Y-%m-%d") else {
+            return;
+        };
         let ad = all_day.get();
 
         let (start, end) = if ad {
@@ -395,17 +428,29 @@ fn EventEditor(
         } else {
             let time_str = time.get();
             let parts: Vec<&str> = time_str.split(':').collect();
-            if parts.len() != 2 { return; }
-            let Ok(h) = parts[0].parse::<u32>() else { return; };
-            let Ok(m) = parts[1].parse::<u32>() else { return; };
-            let Some(start) = d.and_hms_opt(h, m, 0) else { return; };
+            if parts.len() != 2 {
+                return;
+            }
+            let Ok(h) = parts[0].parse::<u32>() else {
+                return;
+            };
+            let Ok(m) = parts[1].parse::<u32>() else {
+                return;
+            };
+            let Some(start) = d.and_hms_opt(h, m, 0) else {
+                return;
+            };
 
             let end_dt = NaiveDate::parse_from_str(&end_date.get(), "%Y-%m-%d").unwrap_or(d);
             let end_time_str = end_time.get();
             let end_parts: Vec<&str> = end_time_str.split(':').collect();
             let end = if end_parts.len() == 2 {
-                let Ok(eh) = end_parts[0].parse::<u32>() else { return; };
-                let Ok(em) = end_parts[1].parse::<u32>() else { return; };
+                let Ok(eh) = end_parts[0].parse::<u32>() else {
+                    return;
+                };
+                let Ok(em) = end_parts[1].parse::<u32>() else {
+                    return;
+                };
                 end_dt.and_hms_opt(eh, em, 0).unwrap_or(start)
             } else {
                 start + Duration::hours(1)
@@ -418,8 +463,16 @@ fn EventEditor(
         updated.start = start;
         updated.end = end;
         updated.all_day = ad;
-        updated.category = if category.get().trim().is_empty() { None } else { Some(category.get()) };
-        updated.description = if description.get().trim().is_empty() { None } else { Some(description.get()) };
+        updated.category = if category.get().trim().is_empty() {
+            None
+        } else {
+            Some(category.get())
+        };
+        updated.description = if description.get().trim().is_empty() {
+            None
+        } else {
+            Some(description.get())
+        };
         on_save.run(updated);
     };
 

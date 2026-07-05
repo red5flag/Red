@@ -66,11 +66,7 @@ impl Action {
         self
     }
 
-    pub fn with_state(
-        mut self,
-        previous: serde_json::Value,
-        new: serde_json::Value,
-    ) -> Self {
+    pub fn with_state(mut self, previous: serde_json::Value, new: serde_json::Value) -> Self {
         self.previous_state = Some(previous);
         self.new_state = Some(new);
         self

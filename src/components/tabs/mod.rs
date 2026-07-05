@@ -1,5 +1,10 @@
-use crate::pages::{AddTeamMemberPage, AgentPage, CalendarPage, HistoryPage, NetworkingPage, OrganizationPage, OverviewPage, PortfoliosPage, ReportingPage, SettingsPage, TransactionsPage};
-use crate::stores::{create_action, use_app_store, use_undo_redo_store};
+use crate::pages::{
+    AddTeamMemberPage, AgentPage, CalendarPage, HistoryPage, NetworkingPage, OrganizationPage,
+    OverviewPage, PortfoliosPage, ReportingPage, SettingsPage, TransactionsPage,
+};
+use crate::stores::{
+    create_action, use_app_store, use_notification_store, use_ui_store, use_undo_redo_store,
+};
 use crate::types::{ActionType, TabType};
 use leptos::prelude::*;
 
@@ -14,11 +19,14 @@ struct TabListItem {
 pub struct TabEditMode(pub Signal<bool>);
 
 pub fn use_tab_edit_mode() -> Signal<bool> {
-    use_context::<TabEditMode>().map(|c| c.0).unwrap_or_else(|| Signal::derive(move || false))
+    use_context::<TabEditMode>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| Signal::derive(move || false))
 }
 
 fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
     let app_store = use_app_store();
+    let ui_store = use_ui_store();
     let undo_store = use_undo_redo_store();
     let tab_type_for_scroll = tab_type.clone();
     Callback::new(move |_| {
@@ -40,7 +48,7 @@ fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
                     }
                 }
             }
-            app_store.update(|store| store.close_tabs_drawer());
+            ui_store.update(|ui| ui.close_tabs_drawer());
             return;
         }
 
@@ -56,15 +64,14 @@ fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
                 org_id,
                 None,
             );
-            let action = action
-                .with_navigation(
-                    prev_tab.map(|t| t.as_str().to_string()).unwrap_or_default(),
-                    current_tab.as_str().to_string(),
-                );
+            let action = action.with_navigation(
+                prev_tab.map(|t| t.as_str().to_string()).unwrap_or_default(),
+                current_tab.as_str().to_string(),
+            );
             undo_store.update(|u| u.record_action(action));
             store.expand_tab(current_tab);
-            store.close_tabs_drawer();
         });
+        ui_store.update(|ui| ui.close_tabs_drawer());
     })
 }
 
@@ -100,6 +107,7 @@ fn render_tab_page(tab_type: TabType) -> impl IntoView {
 #[component]
 fn TabItem(tab_type: TabType, title: &'static str) -> impl IntoView {
     let app_store = use_app_store();
+    let notification_store = use_notification_store();
     let on_toggle = use_tab_toggle(tab_type.clone());
     let tab_type_class = tab_type.clone();
     let tab_type_badge = tab_type.clone();
@@ -109,7 +117,7 @@ fn TabItem(tab_type: TabType, title: &'static str) -> impl IntoView {
             <div class="tab-header" on:click=move |_| on_toggle.run(())>
                 <span class="tab-title">{title}</span>
                 {move || {
-                    let count = app_store.get().notifications_for_tab(&tab_type_badge);
+                    let count = notification_store.get().notifications_for_tab(&tab_type_badge);
                     if count > 0 {
                         view! { <span class="tab-notif-badge">{count}</span> }.into_any()
                     } else {
@@ -139,85 +147,69 @@ fn TabContent(tab_type: TabType) -> impl IntoView {
 
 #[component]
 pub fn TabList() -> impl IntoView {
-    let app_store = use_app_store();
-    let (tab_query, set_tab_query) = signal(String::new());
+    let ui_store = use_ui_store();
 
     let tab_items = move || {
         let mut items = vec![
-            TabListItem { tab_type: TabType::Overview, title: "Overview" },
-            TabListItem { tab_type: TabType::Portfolios, title: "Portfolios" },
-            TabListItem { tab_type: TabType::Networking, title: "Networking" },
-            TabListItem { tab_type: TabType::Organization, title: "Organization" },
-            TabListItem { tab_type: TabType::Reporting, title: "Reporting" },
-            TabListItem { tab_type: TabType::Calendar, title: "Calendar" },
-            TabListItem { tab_type: TabType::Transactions, title: "Transactions" },
-            TabListItem { tab_type: TabType::History, title: "History" },
-            TabListItem { tab_type: TabType::Settings, title: "Settings" },
-            TabListItem { tab_type: TabType::Agent, title: "Agent" },
+            TabListItem {
+                tab_type: TabType::Portfolios,
+                title: "Portfolios",
+            },
+            TabListItem {
+                tab_type: TabType::Networking,
+                title: "Networking",
+            },
+            TabListItem {
+                tab_type: TabType::Organization,
+                title: "Organization",
+            },
+            TabListItem {
+                tab_type: TabType::Reporting,
+                title: "Reporting",
+            },
+            TabListItem {
+                tab_type: TabType::Calendar,
+                title: "Calendar",
+            },
+            TabListItem {
+                tab_type: TabType::Transactions,
+                title: "Transactions",
+            },
+            TabListItem {
+                tab_type: TabType::History,
+                title: "History",
+            },
+            TabListItem {
+                tab_type: TabType::Settings,
+                title: "Settings",
+            },
+            TabListItem {
+                tab_type: TabType::Agent,
+                title: "Agent",
+            },
         ];
-        if app_store.get().networking_add_member_open {
-            items.push(TabListItem { tab_type: TabType::NetworkingAddMember, title: "Add Team" });
+        if ui_store.get().networking_add_member_open {
+            items.push(TabListItem {
+                tab_type: TabType::NetworkingAddMember,
+                title: "Add Team",
+            });
         }
-        let query = tab_query.get().to_lowercase();
-        if query.is_empty() {
-            items
-        } else {
-            items
-                .into_iter()
-                .filter(|item| item.title.to_lowercase().contains(&query))
-                .collect()
-        }
+        items
     };
 
     view! {
         <div class="tab-list">
-            <div class="tab-drawer-search-wrap">
-                <input
-                    class="tab-drawer-search"
-                    type="text"
-                    placeholder="Search tabs..."
-                    prop:value={move || tab_query.get()}
-                    on:input=move |ev| {
-                        set_tab_query.set(event_target_value(&ev));
-                    }
-                />
-            </div>
-            <div class="tab-drawer-divider"></div>
             {move || {
-                let query = tab_query.get().to_lowercase();
                 let items = tab_items();
-                if items.is_empty() {
-                    view! {
-                        <div class="tab-drawer-empty">"No tabs match"</div>
-                    }.into_any()
-                } else {
-                    let has_overview = query.is_empty() || "overview".contains(&query);
-                    items
-                        .into_iter()
-                        .filter(|item| item.tab_type != TabType::Overview || has_overview)
-                        .map(|item| {
-                            if item.tab_type == TabType::Overview {
-                                view! {
-                                    <div class="tab-drawer-home"
-                                        class:active=move || app_store.get().is_tab_expanded(&TabType::Overview)
-                                        on:click=move |_| {
-                                            let on_toggle = use_tab_toggle(TabType::Overview);
-                                            on_toggle.run(());
-                                        }
-                                    >
-                                        <span class="tab-drawer-home-icon">"🏠"</span>
-                                        <span class="tab-drawer-home-label">"Overview"</span>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                view! {
-                                    <TabItem tab_type=item.tab_type title=item.title />
-                                }.into_any()
-                            }
-                        })
-                        .collect_view()
-                        .into_any()
-                }
+                items
+                    .into_iter()
+                    .map(|item| {
+                        view! {
+                            <TabItem tab_type=item.tab_type title=item.title />
+                        }.into_any()
+                    })
+                    .collect_view()
+                    .into_any()
             }}
         </div>
     }

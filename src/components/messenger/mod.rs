@@ -1,25 +1,28 @@
 use crate::models::{ContactSource, MessengerContact};
-use crate::stores::use_app_store;
+use crate::stores::{use_app_store, use_messenger_store, use_organization_store};
 use leptos::prelude::*;
 use uuid::Uuid;
 
 #[component]
 pub fn MessageDrawer() -> impl IntoView {
     let app_store = use_app_store();
+    let messenger_store = use_messenger_store();
+    let organization_store = use_organization_store();
     let (draft, set_draft) = signal(String::new());
     let (search, set_search) = signal(String::new());
 
-    let selected_contact = move || app_store.get().selected_chat_id;
-    let set_selected_contact = move |id: Option<Uuid>| app_store.update(|s| s.set_selected_chat(id));
+    let selected_contact = move || messenger_store.get().selected_chat_id;
+    let set_selected_contact =
+        move |id: Option<Uuid>| messenger_store.update(|s| s.set_selected_chat(id));
 
-    let on_close = move |_| app_store.update(|s| s.set_message_drawer(false));
+    let on_close = move |_| messenger_store.update(|s| s.set_message_drawer(false));
 
     let contacts = Memo::new(move |_| {
-        let store = app_store.get();
-        let mut contacts = store.messenger_contacts.clone();
+        let org = organization_store.get();
+        let mut contacts = messenger_store.get().messenger_contacts.clone();
         // Seed organization users if no contacts exist
         if contacts.is_empty() {
-            for user in &store.organization_users {
+            for user in &org.organization_users {
                 contacts.push(MessengerContact {
                     id: user.id,
                     name: user.name.clone(),
@@ -45,18 +48,24 @@ pub fn MessageDrawer() -> impl IntoView {
         if q.is_empty() {
             contacts
         } else {
-            contacts.into_iter().filter(|c| c.name.to_lowercase().contains(&q)).collect()
+            contacts
+                .into_iter()
+                .filter(|c| c.name.to_lowercase().contains(&q))
+                .collect()
         }
     });
 
     let send_message = move |recipient_id: Uuid| {
         let text = draft.get();
-        if text.trim().is_empty() { return; }
-        app_store.update(|s| s.send_message(recipient_id, text.clone()));
+        let current_user_id = app_store.get().current_user.id;
+        if text.trim().is_empty() {
+            return;
+        }
+        messenger_store.update(|s| s.send_message(current_user_id, recipient_id, text.clone()));
         // Echo from bot for testing
         if recipient_id == Uuid::nil() {
             let reply = format!("Bot received: {}", text);
-            app_store.update(|s| s.receive_message(Uuid::nil(), reply));
+            messenger_store.update(|s| s.receive_message(Uuid::nil(), current_user_id, reply));
         }
         set_draft.set(String::new());
     };
@@ -84,12 +93,13 @@ pub fn MessageDrawer() -> impl IntoView {
                     {move || {
                         let all = contacts.get();
                         let active = selected_contact();
+                        let current_user_id = app_store.get().current_user.id;
                         if let Some(cid) = active {
                             let contact = all.iter().find(|c| c.id == cid).cloned();
-                            let messages = app_store.get().messages.clone();
+                            let messages = messenger_store.get().messages.clone();
                             let thread = messages.iter().filter(|m| {
-                                (m.sender_id == cid && m.recipient_id == app_store.get().current_user.id) ||
-                                (m.sender_id == app_store.get().current_user.id && m.recipient_id == cid)
+                                (m.sender_id == cid && m.recipient_id == current_user_id) ||
+                                (m.sender_id == current_user_id && m.recipient_id == cid)
                             }).cloned().collect::<Vec<_>>();
                             view! {
                                 <div class="messenger-thread">
@@ -99,7 +109,7 @@ pub fn MessageDrawer() -> impl IntoView {
                                     </div>
                                     <div class="messenger-messages">
                                         {thread.into_iter().map(|m| {
-                                            let is_me = m.sender_id == app_store.get().current_user.id;
+                                            let is_me = m.sender_id == current_user_id;
                                             let cls = if is_me { "messenger-message messenger-message-me" } else { "messenger-message" };
                                             view! {
                                                 <div class={cls}>

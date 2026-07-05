@@ -1,5 +1,5 @@
 use crate::models::*;
-use crate::stores::use_app_store;
+use crate::stores::{use_app_store, use_organization_store, use_rule_store};
 use crate::types::UserRole;
 use leptos::prelude::*;
 use uuid::Uuid;
@@ -7,18 +7,32 @@ use uuid::Uuid;
 #[component]
 pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
     let app_store = use_app_store();
+    let organization_store = use_organization_store();
+    let rule_store = use_rule_store();
     let (show_builder, set_show_builder) = signal(false);
     let (editing_rule_id, set_editing_rule_id) = signal::<Option<Uuid>>(None);
     let (show_history_for, set_show_history_for) = signal::<Option<Uuid>>(None);
     let (validation_error, set_validation_error) = signal(Option::<String>::None);
 
     let can_manage = move || {
-        let role = app_store.get().current_user_role_in_org(org_id);
-        matches!(role, UserRole::Owner | UserRole::Director | UserRole::SeniorManager)
+        let role = organization_store.get().current_user_role_in_org(
+            org_id,
+            app_store.get().current_user.id,
+            app_store.get().current_user.role.clone(),
+        );
+        matches!(
+            role,
+            UserRole::Owner | UserRole::Director | UserRole::SeniorManager
+        )
     };
 
     let org_rules = Memo::new(move |_| {
-        app_store.get().rules_for_org(org_id).into_iter().cloned().collect::<Vec<_>>()
+        rule_store
+            .get()
+            .rules_for_org(org_id)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
     });
 
     let on_add_rule = move |_| {
@@ -34,18 +48,26 @@ pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
     };
 
     let on_delete_rule = move |rid: Uuid| {
-        let uid = app_store.get().current_user.id;
-        app_store.update(|s| s.delete_rule(rid, uid));
+        let app = app_store.get();
+        let uid = app.current_user.id;
+        let name = app.current_user.name.clone();
+        rule_store.update(|s| s.delete_rule(rid, uid, name));
     };
 
     let on_toggle_rule = move |rid: Uuid| {
-        let uid = app_store.get().current_user.id;
-        app_store.update(|s| s.toggle_rule(rid, uid));
+        let app = app_store.get();
+        let uid = app.current_user.id;
+        let name = app.current_user.name.clone();
+        rule_store.update(|s| s.toggle_rule(rid, uid, name));
     };
 
     let on_duplicate_rule = move |rid: Uuid| {
-        let uid = app_store.get().current_user.id;
-        app_store.update(|s| { s.duplicate_rule(rid, uid); });
+        let app = app_store.get();
+        let uid = app.current_user.id;
+        let name = app.current_user.name.clone();
+        rule_store.update(|s| {
+            s.duplicate_rule(rid, uid, name);
+        });
     };
 
     view! {
@@ -82,11 +104,13 @@ pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
                                 set_validation_error.set(Some(e));
                                 return;
                             }
-                            let uid = app_store.get().current_user.id;
-                            if let Some(_existing) = app_store.get().rules.iter().find(|r| r.id == rule.id) {
-                                app_store.update(|s| s.update_rule(rule, uid));
+                            let app = app_store.get();
+                            let uid = app.current_user.id;
+                            let name = app.current_user.name.clone();
+                            if let Some(_existing) = rule_store.get().rules.iter().find(|r| r.id == rule.id) {
+                                rule_store.update(|s| s.update_rule(rule, uid, name));
                             } else {
-                                app_store.update(|s| s.add_rule(rule));
+                                rule_store.update(|s| s.add_rule(rule, name));
                             }
                             set_validation_error.set(None);
                             set_show_builder.set(false);
@@ -225,8 +249,8 @@ pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
 
             // Rule history modal
             {move || show_history_for.get().map(|rid| {
-                let history: Vec<_> = app_store.get().rule_history_for_rule(rid).into_iter().cloned().collect();
-                let rule_name = app_store.get().rules.iter()
+                let history: Vec<_> = rule_store.get().rule_history_for_rule(rid).into_iter().cloned().collect();
+                let rule_name = rule_store.get().rules.iter()
                     .find(|r| r.id == rid)
                     .map(|r| r.name.clone())
                     .unwrap_or_else(|| "Unknown".to_string());
@@ -287,63 +311,95 @@ fn RuleBuilder(
     validation_error: Option<String>,
 ) -> impl IntoView {
     let app_store = use_app_store();
+    let organization_store = use_organization_store();
+    let rule_store = use_rule_store();
 
     // Load existing rule if editing
-    let existing = editing_rule_id.and_then(|rid| {
-        app_store.get().rules.iter().find(|r| r.id == rid).cloned()
-    });
+    let existing = editing_rule_id
+        .and_then(|rid| rule_store.get().rules.iter().find(|r| r.id == rid).cloned());
 
     // Rule name
     let (rule_name, set_rule_name) = signal(
-        existing.as_ref().map(|r| r.name.clone()).unwrap_or_default()
+        existing
+            .as_ref()
+            .map(|r| r.name.clone())
+            .unwrap_or_default(),
     );
 
     // Trigger state
     let (actor_type, set_actor_type) = signal(
-        existing.as_ref().map(|r| r.trigger.actor_filter.type_label().to_string())
-            .unwrap_or_else(|| "Any user".to_string())
+        existing
+            .as_ref()
+            .map(|r| r.trigger.actor_filter.type_label().to_string())
+            .unwrap_or_else(|| "Any user".to_string()),
     );
     let (action_sel, set_action_sel) = signal(
-        existing.as_ref().map(|r| r.trigger.action.label().to_string())
-            .unwrap_or_else(|| "Creates".to_string())
+        existing
+            .as_ref()
+            .map(|r| r.trigger.action.label().to_string())
+            .unwrap_or_else(|| "Creates".to_string()),
     );
     let (target_sel, set_target_sel) = signal(
-        existing.as_ref().map(|r| r.trigger.target_type.label().to_string())
-            .unwrap_or_else(|| "Document".to_string())
+        existing
+            .as_ref()
+            .map(|r| r.trigger.target_type.label().to_string())
+            .unwrap_or_else(|| "Document".to_string()),
     );
     let (scope_type, set_scope_type) = signal(
-        existing.as_ref().map(|r| r.trigger.scope.type_label().to_string())
-            .unwrap_or_else(|| "Entire organization".to_string())
+        existing
+            .as_ref()
+            .map(|r| r.trigger.scope.type_label().to_string())
+            .unwrap_or_else(|| "Entire organization".to_string()),
     );
 
     // Condition group
     let (cond_mode, set_cond_mode) = signal(
-        existing.as_ref().map(|r| r.condition_group.mode.clone())
-            .unwrap_or(ConditionGroupMode::All)
+        existing
+            .as_ref()
+            .map(|r| r.condition_group.mode.clone())
+            .unwrap_or(ConditionGroupMode::All),
     );
     let (conditions, set_conditions) = signal(
-        existing.as_ref().map(|r| r.condition_group.conditions.clone())
-            .unwrap_or_default()
+        existing
+            .as_ref()
+            .map(|r| r.condition_group.conditions.clone())
+            .unwrap_or_default(),
     );
 
     // Actions
     let (rule_actions, set_rule_actions) = signal(
-        existing.as_ref().map(|r| r.actions.clone())
-            .unwrap_or_default()
+        existing
+            .as_ref()
+            .map(|r| r.actions.clone())
+            .unwrap_or_default(),
     );
 
     // Advanced mode toggle
     let (advanced_mode, set_advanced_mode) = signal(false);
     let (advanced_expr, set_advanced_expr) = signal(
-        existing.as_ref().map(|r| r.plain_english_summary()).unwrap_or_default()
+        existing
+            .as_ref()
+            .map(|r| r.plain_english_summary())
+            .unwrap_or_default(),
     );
 
-    let org_roles: Vec<(String, String)> = app_store.get().organizations.iter()
+    let _org_roles: Vec<(String, String)> = organization_store
+        .get()
+        .organizations
+        .iter()
         .find(|o| o.id == org_id)
-        .map(|o| o.roles.iter().map(|r| (r.id.to_string(), r.name.clone())).collect())
+        .map(|o| {
+            o.roles
+                .iter()
+                .map(|r| (r.id.to_string(), r.name.clone()))
+                .collect()
+        })
         .unwrap_or_default();
 
-    let org_portfolios: Vec<(String, String)> = app_store.get().portfolios.iter()
+    let _org_portfolios: Vec<(String, String)> = app_store
+        .get()
+        .portfolios
+        .iter()
         .filter(|p| p.organization_id == Some(org_id))
         .map(|p| (p.id.to_string(), p.name.clone()))
         .collect();
@@ -357,22 +413,24 @@ fn RuleBuilder(
         let actor = match actor_type.get().as_str() {
             "Any user" => ActorFilter::AnyUser,
             "Specific user" => ActorFilter::SpecificUser(Uuid::nil()),
-            "User with selected role" => {
-                ActorFilter::UserWithRole(Uuid::nil())
-            }
+            "User with selected role" => ActorFilter::UserWithRole(Uuid::nil()),
             "User in selected organization" => ActorFilter::UserInOrganization(org_id),
-            "User assigned to selected portfolio" => ActorFilter::UserAssignedToPortfolio(Uuid::nil()),
+            "User assigned to selected portfolio" => {
+                ActorFilter::UserAssignedToPortfolio(Uuid::nil())
+            }
             "User with role above selected" => ActorFilter::UserRoleAbove(Uuid::nil()),
             "User with role below selected" => ActorFilter::UserRoleBelow(Uuid::nil()),
             _ => ActorFilter::AnyUser,
         };
 
-        let action = RuleAction::all().iter()
+        let action = RuleAction::all()
+            .iter()
             .find(|a| a.label() == action_sel.get())
             .cloned()
             .unwrap_or(RuleAction::Creates);
 
-        let target = TargetType::all().iter()
+        let target = TargetType::all()
+            .iter()
             .find(|t| t.label() == target_sel.get())
             .cloned()
             .unwrap_or(TargetType::Document);
@@ -415,7 +473,10 @@ fn RuleBuilder(
             condition_group: cond_group,
             actions: rule_actions.get(),
             created_by: existing.as_ref().map(|r| r.created_by).unwrap_or(uid),
-            created_at: existing.as_ref().map(|r| r.created_at).unwrap_or_else(chrono::Utc::now),
+            created_at: existing
+                .as_ref()
+                .map(|r| r.created_at)
+                .unwrap_or_else(chrono::Utc::now),
             updated_by: uid,
             updated_at: chrono::Utc::now(),
         };

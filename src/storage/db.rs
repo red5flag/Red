@@ -80,7 +80,9 @@ impl DataStore {
             let (k, v) = item?;
             // Credential keys are prefixed with "cred:".
             if let Some(username_bytes) = k.strip_prefix(b"cred:") {
-                let username = std::str::from_utf8(username_bytes).unwrap_or("").to_string();
+                let username = std::str::from_utf8(username_bytes)
+                    .unwrap_or("")
+                    .to_string();
                 if !username.is_empty() {
                     if let Ok(c) = serde_json::from_slice::<CredentialStore>(&v) {
                         self.credential_cache.insert(username, c);
@@ -129,7 +131,10 @@ impl DataStore {
 
     /// Load all portfolios.
     pub fn load_all_portfolios(&self) -> Vec<Portfolio> {
-        self.portfolio_cache.iter().map(|e| e.value().clone()).collect()
+        self.portfolio_cache
+            .iter()
+            .map(|e| e.value().clone())
+            .collect()
     }
 
     /// Delete a portfolio from DB and cache.
@@ -143,11 +148,16 @@ impl DataStore {
     // Credentials
 
     /// Persist credentials to the local DB (plain text for development).
-    pub fn save_credentials(&self, username: &str, credentials: &CredentialStore) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_credentials(
+        &self,
+        username: &str,
+        credentials: &CredentialStore,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let id_key = format!("cred:{}", username);
         let value = serde_json::to_vec(credentials)?;
         self.db.insert(id_key.as_bytes(), value)?;
-        self.credential_cache.insert(username.to_string(), credentials.clone());
+        self.credential_cache
+            .insert(username.to_string(), credentials.clone());
         Ok(())
     }
 
@@ -163,7 +173,8 @@ impl DataStore {
             .flatten()
             .and_then(|v| serde_json::from_slice::<CredentialStore>(&v).ok())
             .inspect(|c| {
-                self.credential_cache.insert(username.to_string(), c.clone());
+                self.credential_cache
+                    .insert(username.to_string(), c.clone());
             })
     }
 
@@ -196,7 +207,10 @@ impl DataStore {
 
     /// Load all messages.
     pub fn load_all_messages(&self) -> Vec<Message> {
-        self.message_cache.iter().map(|e| e.value().clone()).collect()
+        self.message_cache
+            .iter()
+            .map(|e| e.value().clone())
+            .collect()
     }
 
     /// Delete a message from DB and cache.

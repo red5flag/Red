@@ -2,6 +2,8 @@ use base64::Engine;
 use leptos::prelude::*;
 use uuid::Uuid;
 
+use crate::stores::use_organization_store;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ScanSource {
     Files,
@@ -56,9 +58,7 @@ impl CamScanTarget {
 /// Camera preview placeholder with source selection buttons overlaid.
 /// Replaces the old inline CamScanView on the Reporting page.
 #[component]
-pub fn CamScanView(
-    app_store: leptos::prelude::RwSignal<crate::stores::AppStore>,
-) -> impl IntoView {
+pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>) -> impl IntoView {
     let (modal_open, set_modal_open) = signal(false);
     let (active_source, set_active_source) = signal::<Option<ScanSource>>(None);
     let (camera_active, set_camera_active) = signal(false);
@@ -231,6 +231,7 @@ fn CamScanModal(
     on_close: Callback<()>,
 ) -> impl IntoView {
     let store = app_store.get();
+    let organization_store = use_organization_store();
     let (selected_target, set_selected_target) = signal(CamScanTarget::Portfolio);
     let (selected_id, set_selected_id) = signal(String::new());
     let (doc_name, set_doc_name) = signal(String::new());
@@ -238,8 +239,11 @@ fn CamScanModal(
     let (is_converting, set_is_converting) = signal(false);
     let (captured_images, set_captured_images) = signal::<Vec<Vec<u8>>>(Vec::new());
 
-    let portfolios: Vec<(Uuid, String)> =
-        store.portfolios.iter().map(|p| (p.id, p.name.clone())).collect();
+    let portfolios: Vec<(Uuid, String)> = store
+        .portfolios
+        .iter()
+        .map(|p| (p.id, p.name.clone()))
+        .collect();
     let asset_groups: Vec<(Uuid, String)> = store
         .portfolios
         .iter()
@@ -258,15 +262,24 @@ fn CamScanModal(
                 .map(|a| (a.id, format!("{} / {}", p.name, a.name)))
         })
         .collect();
-    let organizations: Vec<(Uuid, String)> =
-        store.organizations.iter().map(|o| (o.id, o.name.clone())).collect();
-    let users: Vec<(Uuid, String)> =
-        store.organization_users.iter().map(|u| (u.id, u.name.clone())).collect();
-    let roles: Vec<(Uuid, String)> = store
+    let org = organization_store.get();
+    let organizations: Vec<(Uuid, String)> = org
+        .organizations
+        .iter()
+        .map(|o| (o.id, o.name.clone()))
+        .collect();
+    let users: Vec<(Uuid, String)> = org
+        .organization_users
+        .iter()
+        .map(|u| (u.id, u.name.clone()))
+        .collect();
+    let roles: Vec<(Uuid, String)> = org
         .organizations
         .iter()
         .flat_map(|o| {
-            o.roles.iter().map(|r| (r.id, format!("{} / {}", o.name, r.name)))
+            o.roles
+                .iter()
+                .map(|r| (r.id, format!("{} / {}", o.name, r.name)))
         })
         .collect();
 
@@ -280,8 +293,9 @@ fn CamScanModal(
     ];
 
     let source_label = source.map(|s| s.label()).unwrap_or("Files");
-    let source_is_camera = source == Some(ScanSource::Camera);
-    let source_is_cloud = source == Some(ScanSource::GoogleDrive) || source == Some(ScanSource::ProtonDrive);
+    let _source_is_camera = source == Some(ScanSource::Camera);
+    let source_is_cloud =
+        source == Some(ScanSource::GoogleDrive) || source == Some(ScanSource::ProtonDrive);
 
     // Capture a frame from the live camera video element
     let on_capture_frame = move |_| {
@@ -353,7 +367,7 @@ fn CamScanModal(
 
             if all_image_bytes.is_empty() {
                 use wasm_bindgen::JsCast;
-                use web_sys::{HtmlInputElement, FileList};
+                use web_sys::{FileList, HtmlInputElement};
 
                 let window = match web_sys::window() {
                     Some(w) => w,
@@ -375,7 +389,10 @@ fn CamScanModal(
                 let input_el = match document.get_element_by_id("camscan-file-input") {
                     Some(el) => el,
                     None => {
-                        set_status.set("No images selected. Use the file input or capture from camera.".to_string());
+                        set_status.set(
+                            "No images selected. Use the file input or capture from camera."
+                                .to_string(),
+                        );
                         set_converting.set(false);
                         return;
                     }
@@ -425,14 +442,12 @@ fn CamScanModal(
                 }
             }
 
-            set_status.set(format!(
-                "Decoding {} image(s)...",
-                all_image_bytes.len()
-            ));
+            set_status.set(format!("Decoding {} image(s)...", all_image_bytes.len()));
 
-            let pdf_bytes = match build_pdf_from_images(&all_image_bytes, &set_status).await {
+            let pdf_bytes = match crate::server::convert_images_to_pdf(all_image_bytes).await {
                 Ok(bytes) => bytes,
-                Err(_) => {
+                Err(e) => {
+                    set_status.set(format!("PDF conversion failed: {}", e));
                     set_converting.set(false);
                     return;
                 }
@@ -446,68 +461,78 @@ fn CamScanModal(
                 name: name.clone(),
                 file_type: "pdf".to_string(),
                 content: Some(base64::engine::general_purpose::STANDARD.encode(&pdf_bytes)),
-                url: format!("data:application/pdf;base64,{}", base64::engine::general_purpose::STANDARD.encode(&pdf_bytes)),
+                url: format!(
+                    "data:application/pdf;base64,{}",
+                    base64::engine::general_purpose::STANDARD.encode(&pdf_bytes)
+                ),
                 uploaded_at: chrono::Utc::now(),
                 uploaded_by,
             };
 
             let mut found = false;
-            app_store.update(|s| {
-                match target {
-                    CamScanTarget::Portfolio => {
-                        if let Some(p) = s.get_portfolio_mut(target_id) {
-                            p.documents.push(doc.clone());
+            organization_store.update(|s| match target {
+                CamScanTarget::Organization => {
+                    if let Some(o) = s.get_organization_mut(target_id) {
+                        o.documents.push(doc.clone());
+                        found = true;
+                    }
+                }
+                CamScanTarget::User => {
+                    if let Some(u) = s.organization_users.iter_mut().find(|u| u.id == target_id) {
+                        u.documents.push(doc.clone());
+                        found = true;
+                    }
+                }
+                CamScanTarget::Role => {
+                    for o in &mut s.organizations {
+                        if let Some(r) = o.roles.iter_mut().find(|r| r.id == target_id) {
+                            r.documents.push(doc.clone());
                             found = true;
+                            break;
                         }
                     }
-                    CamScanTarget::AssetGroup => {
-                        for p in &mut s.portfolios {
-                            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == target_id) {
-                                g.documents.push(doc.clone());
-                                found = true;
-                                break;
-                            }
+                }
+                _ => {}
+            });
+            if found {
+                return;
+            }
+            app_store.update(|s| match target {
+                CamScanTarget::Portfolio => {
+                    if let Some(p) = s.get_portfolio_mut(target_id) {
+                        p.documents.push(doc.clone());
+                        found = true;
+                    }
+                }
+                CamScanTarget::AssetGroup => {
+                    for p in &mut s.portfolios {
+                        if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == target_id) {
+                            g.documents.push(doc.clone());
+                            found = true;
+                            break;
                         }
                     }
-                    CamScanTarget::Asset => {
-                        for p in &mut s.portfolios {
-                            if let Some(a) = p.assets.iter_mut().find(|a| a.id == target_id) {
+                }
+                CamScanTarget::Asset => {
+                    for p in &mut s.portfolios {
+                        if let Some(a) = p.assets.iter_mut().find(|a| a.id == target_id) {
+                            a.documents.push(doc.clone());
+                            found = true;
+                            break;
+                        }
+                        for g in &mut p.asset_groups {
+                            if let Some(a) = g.assets.iter_mut().find(|a| a.id == target_id) {
                                 a.documents.push(doc.clone());
                                 found = true;
                                 break;
                             }
-                            for g in &mut p.asset_groups {
-                                if let Some(a) = g.assets.iter_mut().find(|a| a.id == target_id) {
-                                    a.documents.push(doc.clone());
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if found { break; }
                         }
-                    }
-                    CamScanTarget::Organization => {
-                        if let Some(o) = s.get_organization_mut(target_id) {
-                            o.documents.push(doc.clone());
-                            found = true;
-                        }
-                    }
-                    CamScanTarget::User => {
-                        if let Some(u) = s.organization_users.iter_mut().find(|u| u.id == target_id) {
-                            u.documents.push(doc.clone());
-                            found = true;
-                        }
-                    }
-                    CamScanTarget::Role => {
-                        for o in &mut s.organizations {
-                            if let Some(r) = o.roles.iter_mut().find(|r| r.id == target_id) {
-                                r.documents.push(doc.clone());
-                                found = true;
-                                break;
-                            }
+                        if found {
+                            break;
                         }
                     }
                 }
+                _ => {}
             });
 
             if found {
@@ -678,74 +703,4 @@ fn CamScanModal(
             </div>
         </div>
     }
-}
-
-async fn build_pdf_from_images(
-    images: &[Vec<u8>],
-    set_status: &leptos::prelude::WriteSignal<String>,
-) -> Result<Vec<u8>, String> {
-    use printpdf::{
-        image_types::RawImage, ops::Op, units::Mm, PdfDocument, PdfPage,
-        PdfSaveOptions, PdfWarnMsg, XObjectId,
-        xobject::XObjectTransform,
-    };
-
-    let mut pdf = PdfDocument::new("CamScan Document");
-    let mut page_specs: Vec<(XObjectId, usize, usize)> = Vec::new();
-    let mut pages: Vec<PdfPage> = Vec::new();
-
-    for (idx, img_bytes) in images.iter().enumerate() {
-        let mut warnings: Vec<PdfWarnMsg> = Vec::new();
-        let raw_image = match RawImage::decode_from_bytes_async(img_bytes, &mut warnings).await {
-            Ok(img) => img,
-            Err(e) => {
-                let msg = format!("Failed to decode image {}: {}", idx, e);
-                set_status.set(msg.clone());
-                return Err(msg);
-            }
-        };
-        let img_w = raw_image.width;
-        let img_h = raw_image.height;
-        let xobj_id = pdf.add_image(&raw_image);
-        page_specs.push((xobj_id, img_w, img_h));
-    }
-
-    let page_w = Mm(210.0);
-    let page_h = Mm(297.0);
-
-    for (xobj_id, img_w, img_h) in page_specs {
-        let img_w_mm = Mm(img_w as f32 * 25.4 / 300.0);
-        let img_h_mm = Mm(img_h as f32 * 25.4 / 300.0);
-        let scale = if img_w_mm.0 > page_w.0 || img_h_mm.0 > page_h.0 {
-            let sx = page_w.0 / img_w_mm.0;
-            let sy = page_h.0 / img_h_mm.0;
-            sx.min(sy) * 0.9
-        } else {
-            1.0
-        };
-        let final_w = img_w_mm.0 * scale;
-        let final_h = img_h_mm.0 * scale;
-        let offset_x = (page_w.0 - final_w) / 2.0;
-        let offset_y = (page_h.0 - final_h) / 2.0;
-
-        let transform = XObjectTransform {
-            translate_x: Some(printpdf::units::Pt(offset_x * 2.83465)),
-            translate_y: Some(printpdf::units::Pt(offset_y * 2.83465)),
-            scale_x: Some(scale),
-            scale_y: Some(scale),
-            rotate: None,
-            dpi: Some(300.0),
-        };
-
-        let ops = vec![Op::UseXobject { id: xobj_id, transform }];
-        let pdf_page = PdfPage::new(page_w, page_h, ops);
-        pages.push(pdf_page);
-    }
-
-    pdf.with_pages(pages);
-
-    let save_opts = PdfSaveOptions::default();
-    let mut warnings: Vec<PdfWarnMsg> = Vec::new();
-    let pdf_bytes = pdf.save(&save_opts, &mut warnings);
-    Ok(pdf_bytes)
 }

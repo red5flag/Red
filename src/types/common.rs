@@ -264,7 +264,7 @@ pub enum Theme {
     Achromatopsia, // Total colour blindness (grayscale)
     Achromatomaly, // Reduced colour with blue-yellow weakness
     // Low vision / legally blind support
-    LowVision,     // High contrast + larger UI elements
+    LowVision, // High contrast + larger UI elements
 }
 
 impl Default for Theme {

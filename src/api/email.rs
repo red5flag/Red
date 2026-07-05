@@ -313,7 +313,10 @@ impl ValidationEmail {
 }
 
 /// Send a validation email (SSR: stores in memory queue for testing; CSR: no-op)
-pub async fn send_validation_email(to: String, username: String) -> Result<ValidationEmail, String> {
+pub async fn send_validation_email(
+    to: String,
+    username: String,
+) -> Result<ValidationEmail, String> {
     let email = ValidationEmail::new(to, username);
     cfg_if! {
         if #[cfg(feature = "ssr")] {

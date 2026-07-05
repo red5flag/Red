@@ -1,7 +1,5 @@
 use argon2::{
-    password_hash::{
-        PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
-    },
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
 use rand::RngCore;
@@ -26,6 +24,10 @@ pub struct StoredCredential {
     pub store_local: bool,
     #[serde(default)]
     pub store_cloud: bool,
+    // Plain-text password retained only when the user opts in to "Remember Password".
+    // This is intentionally stored locally for convenience in this dev/test build.
+    #[serde(default)]
+    pub remembered_password: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -99,11 +101,9 @@ impl CredentialStore {
     /// Verify a password against a stored hash
     pub fn verify_password(password: &str, hash: &str) -> bool {
         match PasswordHash::new(hash) {
-            Ok(parsed_hash) => {
-                Argon2::default()
-                    .verify_password(password.as_bytes(), &parsed_hash)
-                    .is_ok()
-            }
+            Ok(parsed_hash) => Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok(),
             Err(_) => false,
         }
     }
@@ -133,6 +133,7 @@ impl CredentialStore {
                     email_2fa_enabled: false,
                     store_local,
                     store_cloud,
+                    remembered_password: None,
                 },
             );
         }
@@ -141,11 +142,21 @@ impl CredentialStore {
     /// Save (or update) a password for a user in the credential store.
     /// If the user already exists, only the password hash is updated.
     /// If the user does not exist, a new entry is created with default values.
-    /// NOTE: 2FA requirement is stubbed for future implementation.
-    pub fn save_password(&mut self, username: &str, password: &str, display_name: &str, email: &str) {
+    /// `remembered_password` is the optional plain-text password kept when the user opts in to Remember Password.
+    pub fn save_password(
+        &mut self,
+        username: &str,
+        password: &str,
+        display_name: &str,
+        email: &str,
+        remembered_password: Option<String>,
+    ) {
         if let Ok(hash) = Self::hash_password(password) {
             if let Some(cred) = self.credentials.get_mut(username) {
                 cred.password_hash = hash;
+                if remembered_password.is_some() {
+                    cred.remembered_password = remembered_password;
+                }
             } else {
                 self.credentials.insert(
                     username.to_string(),
@@ -160,6 +171,7 @@ impl CredentialStore {
                         email_2fa_enabled: false,
                         store_local: true,
                         store_cloud: false,
+                        remembered_password,
                     },
                 );
             }
@@ -200,7 +212,15 @@ impl CredentialStore {
         if !email.contains('@') {
             return Err("A valid email is required".to_string());
         }
-        self.add_user(username, password, display_name, email, false, store_local, store_cloud);
+        self.add_user(
+            username,
+            password,
+            display_name,
+            email,
+            false,
+            store_local,
+            store_cloud,
+        );
         Ok(())
     }
 
@@ -213,7 +233,10 @@ impl CredentialStore {
 
     /// Check if a user's email has been validated
     pub fn is_validated(&self, username: &str) -> bool {
-        self.credentials.get(username).map(|c| c.validated).unwrap_or(false)
+        self.credentials
+            .get(username)
+            .map(|c| c.validated)
+            .unwrap_or(false)
     }
 
     /// Verify password without checking validation status
@@ -225,12 +248,7 @@ impl CredentialStore {
     }
 
     /// Set both local and cloud storage preferences for a user
-    pub fn set_storage_options(
-        &mut self,
-        username: &str,
-        store_local: bool,
-        store_cloud: bool,
-    ) {
+    pub fn set_storage_options(&mut self, username: &str, store_local: bool, store_cloud: bool) {
         if let Some(cred) = self.credentials.get_mut(username) {
             cred.store_local = store_local;
             cred.store_cloud = store_cloud;

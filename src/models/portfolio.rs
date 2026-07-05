@@ -1,4 +1,6 @@
-use crate::types::{AssetType, Currency, NotificationTrigger, NotificationType, SearchFilters, ViewMode};
+use crate::types::{
+    AssetType, Currency, NotificationTrigger, NotificationType, SearchFilters, ViewMode,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -109,12 +111,14 @@ impl Portfolio {
             .filter(|asset| {
                 let matches_query = query.is_empty()
                     || asset.name.to_lowercase().contains(&query.to_lowercase())
-                    || asset.description.as_ref().map_or(false, |d| {
-                        d.to_lowercase().contains(&query.to_lowercase())
-                    })
-                    || asset.tags.iter().any(|t| {
-                        t.to_lowercase().contains(&query.to_lowercase())
-                    });
+                    || asset
+                        .description
+                        .as_ref()
+                        .map_or(false, |d| d.to_lowercase().contains(&query.to_lowercase()))
+                    || asset
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query.to_lowercase()));
 
                 let matches_type = filters.asset_types.is_empty()
                     || filters.asset_types.contains(&asset.asset_type);

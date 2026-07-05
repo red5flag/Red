@@ -2,7 +2,10 @@ use crate::components::footer::Footer;
 use crate::components::navbar::Navbar;
 use crate::components::tabs::TabsContainer;
 use crate::pages::LoginPage;
-use crate::stores::{AppStore, SearchStore, UndoRedoStore};
+use crate::stores::{
+    AppStore, CalendarStore, MessengerStore, NotificationStore, OrganizationStore, RuleStore,
+    SearchStore, TransactionStore, UiStore, UndoRedoStore,
+};
 use leptos::prelude::*;
 use leptos_meta::*;
 
@@ -32,18 +35,38 @@ pub fn App() -> impl IntoView {
 
     // Initialize stores as signals
     let app_store = RwSignal::new(AppStore::default());
+    let calendar_store = RwSignal::new(CalendarStore::new());
+    let messenger_store = RwSignal::new(MessengerStore::new());
+    let notification_store = RwSignal::new(NotificationStore::default());
+    let organization_store = RwSignal::new(OrganizationStore::new());
+    let rule_store = RwSignal::new(RuleStore::new());
     let search_store = RwSignal::new(SearchStore::default());
+    let transaction_store = RwSignal::new(TransactionStore::new());
+    let ui_store = RwSignal::new(UiStore::default());
     let undo_store = RwSignal::new(UndoRedoStore::default());
 
     // Provide stores to all children
     provide_context(app_store);
+    provide_context(calendar_store);
+    provide_context(messenger_store);
+    provide_context(notification_store);
+    provide_context(organization_store);
+    provide_context(rule_store);
     provide_context(search_store);
+    provide_context(transaction_store);
+    provide_context(ui_store);
     provide_context(undo_store);
 
     let is_authenticated = Memo::new(move |_| app_store.get().is_authenticated);
-    let theme_attr = Memo::new(move |_| app_store.get().theme.as_str().to_string());
-    let font_size_attr = Memo::new(move |_| app_store.get().font_size.clone());
-    let reduced_motion_attr = Memo::new(move |_| if app_store.get().reduced_motion { "true".to_string() } else { "false".to_string() });
+    let theme_attr = Memo::new(move |_| ui_store.get().theme.as_str().to_string());
+    let font_size_attr = Memo::new(move |_| ui_store.get().font_size.clone());
+    let reduced_motion_attr = Memo::new(move |_| {
+        if ui_store.get().reduced_motion {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }
+    });
 
     view! {
         <Show

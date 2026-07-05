@@ -1,4 +1,6 @@
-use crate::stores::{perform_meilisearch, use_app_store, use_search_store};
+use crate::stores::{
+    perform_meilisearch, use_app_store, use_organization_store, use_search_store, use_ui_store,
+};
 use crate::types::{SearchFilters, TabType};
 use chrono::TimeZone;
 use leptos::prelude::*;
@@ -24,13 +26,16 @@ fn parse_dd_mm_yyyy(s: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 pub fn SearchFilters() -> impl IntoView {
     let app_store = use_app_store();
     let search_store = use_search_store();
+    let organization_store = use_organization_store();
+    let ui_store = use_ui_store();
 
     let run_search = move || {
         let app_snapshot = app_store.get();
+        let org_snapshot = organization_store.get();
         let search_store_signal = search_store;
         leptos::task::spawn_local(async move {
             let mut store = search_store_signal.get_untracked();
-            perform_meilisearch(&app_snapshot, &mut store).await;
+            perform_meilisearch(&app_snapshot, &org_snapshot, &mut store).await;
             search_store_signal.set(store);
         });
     };
@@ -55,7 +60,7 @@ pub fn SearchFilters() -> impl IntoView {
     // and sync the advanced filter chips/inputs into SearchStore.filters.
     Effect::new(move |_| {
         let app_snapshot = app_store.get();
-        if !app_snapshot.is_search_open {
+        if !ui_store.get().is_search_open {
             return;
         }
 
@@ -94,7 +99,10 @@ pub fn SearchFilters() -> impl IntoView {
         if chg_redo.get() {
             filters.tags.push("redo".to_string());
         }
-        if let (Some(from), Some(to)) = (parse_dd_mm_yyyy(&time_from.get()), parse_dd_mm_yyyy(&time_to.get())) {
+        if let (Some(from), Some(to)) = (
+            parse_dd_mm_yyyy(&time_from.get()),
+            parse_dd_mm_yyyy(&time_to.get()),
+        ) {
             filters.date_range = Some((from, to));
         }
 
@@ -110,8 +118,9 @@ pub fn SearchFilters() -> impl IntoView {
         );
 
         let app_snapshot = app_snapshot.clone();
+        let org_snapshot = organization_store.get_untracked();
         leptos::task::spawn_local(async move {
-            perform_meilisearch(&app_snapshot, &mut store).await;
+            perform_meilisearch(&app_snapshot, &org_snapshot, &mut store).await;
             search_store.set(store);
         });
     });
@@ -136,7 +145,7 @@ pub fn SearchFilters() -> impl IntoView {
                     }
                 />
                 <button class="sd-search-close-btn" on:click=move |_| {
-                    app_store.update(|s| s.close_search());
+                    ui_store.update(|s| s.close_search());
                 }>"✕"</button>
                 <button class="sd-search-close-btn sd-search-submit-btn" on:click=move |_| {
                     run_search();
@@ -179,13 +188,13 @@ pub fn SearchFilters() -> impl IntoView {
                 let is_networking = app_store.get().is_tab_expanded(&crate::types::TabType::Networking);
                 if is_networking {
                     let sort_labels = ["Name", "Company", "Status", "Risk", "Type", "Transactions"];
-                    let current_mode = app_store.get().net_sort_mode;
-                    let current_asc = app_store.get().net_sort_ascending;
+                    let current_mode = ui_store.get().net_sort_mode;
+                    let current_asc = ui_store.get().net_sort_ascending;
                     view! {
                         <div class="sd-section">
                             <div class="sd-section-header" style="cursor: default;">
                                 <span class="sd-section-title">"SORT NETWORKING"</span>
-                                <button class="net-sort-toggle" on:click=move |_| app_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
+                                <button class="net-sort-toggle" on:click=move |_| ui_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
                                     {if current_asc { "↑ Asc" } else { "↓ Desc" }}
                                 </button>
                             </div>
@@ -198,7 +207,7 @@ pub fn SearchFilters() -> impl IntoView {
                                             view! {
                                                 <button class="sd-chip" class:sd-chip-active={is_active}
                                                     on:click=move |_| {
-                                                        app_store.update(|s| {
+                                                        ui_store.update(|s| {
                                                             if s.net_sort_mode == idx as u8 {
                                                                 s.net_sort_ascending = !s.net_sort_ascending;
                                                             } else {
@@ -335,6 +344,7 @@ pub fn SearchFilters() -> impl IntoView {
 pub fn SearchResults() -> impl IntoView {
     let search_store = use_search_store();
     let app_store = use_app_store();
+    let ui_store = use_ui_store();
     let is_loading = move || search_store.get().is_loading;
     let has_results = move || search_store.get().results.total_count > 0;
     let results_count = move || search_store.get().results.total_count;
@@ -344,33 +354,33 @@ pub fn SearchResults() -> impl IntoView {
         app_store.update(|s| {
             s.touch_portfolio(id);
             s.selected_portfolio_id = Some(id);
-            s.close_search();
             s.expand_tab(crate::types::TabType::Portfolios);
         });
+        ui_store.update(|s| s.close_search());
     };
 
     let on_asset_click = move |id: Uuid| {
         app_store.update(|s| {
             s.touch_asset(id);
             s.selected_asset_id = Some(id);
-            s.close_search();
             s.expand_tab(crate::types::TabType::Portfolios);
         });
+        ui_store.update(|s| s.close_search());
     };
 
     let on_org_click = move |id: Uuid| {
         app_store.update(|s| {
-            s.close_search();
             s.expand_tab(crate::types::TabType::Organization);
             let _ = id;
         });
+        ui_store.update(|s| s.close_search());
     };
 
     let on_user_click = move |_id: Uuid| {
         app_store.update(|s| {
-            s.close_search();
             s.expand_tab(crate::types::TabType::Networking);
         });
+        ui_store.update(|s| s.close_search());
     };
 
     view! {

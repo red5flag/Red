@@ -1,43 +1,71 @@
 use crate::components::editable_text::EditableText;
-use crate::stores::use_app_store;
+use crate::stores::{
+    use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
+    use_organization_store, use_transaction_store,
+};
 use leptos::prelude::*;
 
 fn fmt_time(ts: chrono::DateTime<chrono::Utc>) -> String {
     let now = chrono::Utc::now();
     let diff = now.signed_duration_since(ts);
-    if diff.num_minutes() < 1 { "now".to_string() }
-    else if diff.num_hours() < 1 { format!("{}m", diff.num_minutes()) }
-    else if diff.num_days() < 1 { format!("{}h", diff.num_hours()) }
-    else if diff.num_days() < 30 { format!("{}d", diff.num_days()) }
-    else { ts.format("%d %b").to_string() }
+    if diff.num_minutes() < 1 {
+        "now".to_string()
+    } else if diff.num_hours() < 1 {
+        format!("{}m", diff.num_minutes())
+    } else if diff.num_days() < 1 {
+        format!("{}h", diff.num_hours())
+    } else if diff.num_days() < 30 {
+        format!("{}d", diff.num_days())
+    } else {
+        ts.format("%d %b").to_string()
+    }
 }
 
 #[component]
 pub fn OverviewPage() -> impl IntoView {
     let app_store = use_app_store();
+    let organization_store = use_organization_store();
+    let calendar_store = use_calendar_store();
+    let messenger_store = use_messenger_store();
+    let notification_store = use_notification_store();
+    let transaction_store = use_transaction_store();
 
     let user_name = move || app_store.get().current_user.name.clone();
     let on_name_commit = move |name: String| {
         app_store.update(|s| s.set_user_name(name));
     };
 
-    let unread_message_count = move || app_store.get().unread_message_count();
+    let unread_message_count = move || {
+        let current_user_id = app_store.get().current_user.id;
+        messenger_store.get().unread_message_count(current_user_id)
+    };
 
     let recent_messages = move || {
-        let mut messages = app_store.get().messages.clone();
+        let mut messages = messenger_store.get().messages.clone();
         messages.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         messages.into_iter().take(4).collect::<Vec<_>>()
     };
 
     let sender_name_for_message = move |msg: &crate::models::Message| {
-        let store = app_store.get();
-        store.messenger_contacts.iter().find(|c| c.id == msg.sender_id).map(|c| c.name.clone())
-            .or_else(|| store.organization_users.iter().find(|u| u.id == msg.sender_id).map(|u| u.name.clone()))
+        let _app = app_store.get();
+        let org = organization_store.get();
+        let messenger = messenger_store.get();
+        messenger
+            .messenger_contacts
+            .iter()
+            .find(|c| c.id == msg.sender_id)
+            .map(|c| c.name.clone())
+            .or_else(|| {
+                org.organization_users
+                    .iter()
+                    .find(|u| u.id == msg.sender_id)
+                    .map(|u| u.name.clone())
+            })
             .unwrap_or_else(|| "Unknown".to_string())
     };
 
     let on_open_messages = move |_| {
-        app_store.update(|s| s.set_message_drawer(true));
+        messenger_store.update(|s| s.set_message_drawer(true));
     };
 
     let on_open_bookings = move |_| {
@@ -54,7 +82,7 @@ pub fn OverviewPage() -> impl IntoView {
 
     // Recent bookings = upcoming/recent calendar events
     let recent_bookings = move || {
-        let mut events: Vec<_> = app_store.get().calendar_events.clone();
+        let mut events: Vec<_> = calendar_store.get().calendar_events.clone();
         events.sort_by(|a, b| b.start.cmp(&a.start));
         events.into_iter().take(4).collect::<Vec<_>>()
     };
@@ -68,47 +96,43 @@ pub fn OverviewPage() -> impl IntoView {
 
     // Recent contacts = most recently updated users
     let recent_contacts = move || {
-        let mut users: Vec<_> = app_store.get().organization_users.clone();
+        let mut users: Vec<_> = organization_store.get().organization_users.clone();
         users.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         users.into_iter().take(4).collect::<Vec<_>>()
     };
 
     // Recent transactions
     let recent_transactions = move || {
-        let mut txns: Vec<_> = app_store.get().transactions.clone();
+        let mut txns: Vec<_> = transaction_store.get().transactions.clone();
         txns.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         txns.into_iter().take(4).collect::<Vec<_>>()
     };
 
     // Recent notifications
     let recent_notifications = move || {
-        let mut notifs: Vec<_> = app_store.get().notifications.clone();
+        let mut notifs: Vec<_> = notification_store.get().notifications.clone();
         notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         notifs.into_iter().take(4).collect::<Vec<_>>()
     };
 
-    let notif_icon = |t: &crate::stores::app_store::NotificationType| {
-        match t {
-            crate::stores::app_store::NotificationType::Success => "✅",
-            crate::stores::app_store::NotificationType::Error => "❌",
-            crate::stores::app_store::NotificationType::Warning => "⚠",
-            crate::stores::app_store::NotificationType::Info => "ℹ",
-        }
+    let notif_icon = |t: &crate::stores::NotificationType| match t {
+        crate::stores::NotificationType::Success => "✅",
+        crate::stores::NotificationType::Error => "❌",
+        crate::stores::NotificationType::Warning => "⚠",
+        crate::stores::NotificationType::Info => "ℹ",
     };
 
-    let txn_type_label = |t: &crate::types::TransactionType| {
-        match t {
-            crate::types::TransactionType::Purchase => "Buy",
-            crate::types::TransactionType::Sale => "Sell",
-            crate::types::TransactionType::Rent => "Rent",
-            crate::types::TransactionType::Lease => "Lease",
-            crate::types::TransactionType::Payout => "Payout",
-            crate::types::TransactionType::Dividend => "Div",
-            crate::types::TransactionType::Fee => "Fee",
-            crate::types::TransactionType::Tax => "Tax",
-            crate::types::TransactionType::Transfer => "Xfer",
-            crate::types::TransactionType::Adjustment => "Adj",
-        }
+    let txn_type_label = |t: &crate::types::TransactionType| match t {
+        crate::types::TransactionType::Purchase => "Buy",
+        crate::types::TransactionType::Sale => "Sell",
+        crate::types::TransactionType::Rent => "Rent",
+        crate::types::TransactionType::Lease => "Lease",
+        crate::types::TransactionType::Payout => "Payout",
+        crate::types::TransactionType::Dividend => "Div",
+        crate::types::TransactionType::Fee => "Fee",
+        crate::types::TransactionType::Tax => "Tax",
+        crate::types::TransactionType::Transfer => "Xfer",
+        crate::types::TransactionType::Adjustment => "Adj",
     };
 
     view! {
@@ -161,7 +185,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📅"</span>
                         <span class="overview-square-label">"Recent Bookings"</span>
-                        <span class="overview-square-count">{move || app_store.get().calendar_events.len()}</span>
+                        <span class="overview-square-count">{move || calendar_store.get().calendar_events.len()}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -232,7 +256,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"💰"</span>
                         <span class="overview-square-label">"Recent Transactions"</span>
-                        <span class="overview-square-count">{move || app_store.get().transactions.len()}</span>
+                        <span class="overview-square-count">{move || transaction_store.get().transactions.len()}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -269,7 +293,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"�"</span>
                         <span class="overview-square-label">"Recent Contacts"</span>
-                        <span class="overview-square-count">{move || app_store.get().organization_users.len()}</span>
+                        <span class="overview-square-count">{move || organization_store.get().organization_users.len()}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -305,7 +329,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🔔"</span>
                         <span class="overview-square-label">"Notifications"</span>
-                        <span class="overview-square-count">{move || app_store.get().notifications.len()}</span>
+                        <span class="overview-square-count">{move || notification_store.get().notifications.len()}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {

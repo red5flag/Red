@@ -166,12 +166,19 @@ impl UndoRedoStore {
 
     // Get actions that the given user can currently undo, newest first
     pub fn undoable_by_user(&self, user_id: Uuid) -> Vec<&Action> {
-        self.past.iter().filter(|a| a.user_id == user_id).rev().collect()
+        self.past
+            .iter()
+            .filter(|a| a.user_id == user_id)
+            .rev()
+            .collect()
     }
 
     // Get actions that the given user can currently redo, in redo order
     pub fn redoable_by_user(&self, user_id: Uuid) -> Vec<&Action> {
-        self.future.iter().filter(|a| a.user_id == user_id).collect()
+        self.future
+            .iter()
+            .filter(|a| a.user_id == user_id)
+            .collect()
     }
 
     // Get the last action without removing it
@@ -230,15 +237,20 @@ impl UndoRedoStore {
             .filter(|a| {
                 let mut keep = true;
                 if !q.is_empty() {
-                    keep = keep && (
-                        a.description.to_lowercase().contains(&q) ||
-                        a.entity_type.to_lowercase().contains(&q) ||
-                        a.user_name.to_lowercase().contains(&q) ||
-                        a.user_role.to_lowercase().contains(&q) ||
-                        a.tab_context.as_ref().map(|s| s.to_lowercase().contains(&q)).unwrap_or(false) ||
-                        a.reason.as_ref().map(|s| s.to_lowercase().contains(&q)).unwrap_or(false) ||
-                        a.metadata.to_string().to_lowercase().contains(&q)
-                    );
+                    keep = keep
+                        && (a.description.to_lowercase().contains(&q)
+                            || a.entity_type.to_lowercase().contains(&q)
+                            || a.user_name.to_lowercase().contains(&q)
+                            || a.user_role.to_lowercase().contains(&q)
+                            || a.tab_context
+                                .as_ref()
+                                .map(|s| s.to_lowercase().contains(&q))
+                                .unwrap_or(false)
+                            || a.reason
+                                .as_ref()
+                                .map(|s| s.to_lowercase().contains(&q))
+                                .unwrap_or(false)
+                            || a.metadata.to_string().to_lowercase().contains(&q));
                 }
                 if let Some(ref types) = query.action_types {
                     keep = keep && types.contains(&a.action_type);
@@ -253,10 +265,18 @@ impl UndoRedoStore {
                     keep = keep && a.timestamp >= start && a.timestamp <= end;
                 }
                 if let Some(ref tab) = query.tab_context {
-                    keep = keep && a.tab_context.as_ref().map(|t| t.eq_ignore_ascii_case(tab)).unwrap_or(false);
+                    keep = keep
+                        && a.tab_context
+                            .as_ref()
+                            .map(|t| t.eq_ignore_ascii_case(tab))
+                            .unwrap_or(false);
                 }
                 if query.has_reason_only {
-                    keep = keep && a.reason.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+                    keep = keep
+                        && a.reason
+                            .as_ref()
+                            .map(|s| !s.trim().is_empty())
+                            .unwrap_or(false);
                 }
                 keep
             })
@@ -283,7 +303,13 @@ impl UndoRedoStore {
         let mut seen = std::collections::HashSet::new();
         self.past
             .iter()
-            .filter_map(|a| if seen.insert(a.entity_type.clone()) { Some(a.entity_type.clone()) } else { None })
+            .filter_map(|a| {
+                if seen.insert(a.entity_type.clone()) {
+                    Some(a.entity_type.clone())
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 }

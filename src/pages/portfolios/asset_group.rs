@@ -1,0 +1,496 @@
+use crate::models::{Asset, AssetGroup};
+use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
+use crate::types::{AssetType, ViewMode};
+use leptos::prelude::*;
+use uuid::Uuid;
+
+use super::{detect_file_type, AssetItem, AssetTarget, DocModal, NotifTarget, UserAssignmentPanel};
+
+#[component]
+pub(crate) fn AssetGroupItem(
+    group: AssetGroup,
+    #[prop(default = false)] can_edit: bool,
+    #[prop(default = false)] can_edit_documents: bool,
+    pid: Uuid,
+    gid: Uuid,
+    expanded: Memo<bool>,
+    view_mode: ViewMode,
+    grid_columns: usize,
+    on_toggle: Callback<Uuid>,
+    show_add_asset: ReadSignal<AssetTarget>,
+    #[allow(unused_variables)] set_show_add_asset: WriteSignal<AssetTarget>,
+    _new_asset_name: ReadSignal<String>,
+    set_new_asset_name: WriteSignal<String>,
+    _new_asset_type: ReadSignal<AssetType>,
+    set_new_asset_type: WriteSignal<AssetType>,
+    _new_asset_value: ReadSignal<String>,
+    set_new_asset_value: WriteSignal<String>,
+    on_add_asset: Callback<AssetTarget>,
+    on_select_asset: Callback<Asset>,
+    portfolio_name: String,
+    #[prop(default = 0)] tint_index: usize,
+    on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
+) -> impl IntoView {
+    let app_store = use_app_store();
+    let notification_store = use_notification_store();
+    let ui_store = use_ui_store();
+    let _ = view_mode;
+
+    let current_user = app_store.get().current_user.clone();
+    let user_id = current_user.id;
+    let can_view_all = current_user.can_view_all();
+    let group_visible_to_user = group.is_visible_to(user_id, can_view_all);
+
+    let can_edit_here = can_edit;
+    let can_edit_documents_here = can_edit_documents;
+
+    let (is_editing, set_is_editing) = signal(false);
+    let (group_context_menu, set_group_context_menu) = signal(Option::<(i32, i32)>::None);
+    let (show_group_add_role, set_show_group_add_role) = signal(false);
+    let (show_group_add_org, set_show_group_add_org) = signal(false);
+    let (confirm_group_remove, set_confirm_group_remove) = signal(false);
+    let (group_role_name, set_group_role_name) = signal(String::new());
+    let (group_role_desc, set_group_role_desc) = signal(String::new());
+    let (group_org_name, set_group_org_name) = signal(String::new());
+    let (edit_name, set_edit_name) = signal(group.name.clone());
+    let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
+
+    let g_name = group.name.clone();
+    let g_desc = group.description.clone().unwrap_or_default();
+    let g_name_for_modal = group.name.clone();
+    let g_name_for_doc_btn = group.name.clone();
+    let g_name_for_confirm = group.name.clone();
+    let docs = group.documents.clone();
+    let doc_count = docs.len();
+    let asset_count = group.assets.len();
+    let assigned_users = group.assigned_users.clone();
+    let organization_store = use_organization_store();
+    let org_users = move || organization_store.get().organization_users.clone();
+    let gid_for_assign = gid;
+    let pid_for_assign = pid;
+    let toggle_group_assignment = Callback::new(move |uid: Uuid| {
+        let gid = gid_for_assign;
+        let pid = pid_for_assign;
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                    if g.assigned_users.contains(&uid) {
+                        g.assigned_users.retain(|&id| id != uid);
+                    } else {
+                        g.assigned_users.push(uid);
+                    }
+                }
+            }
+        });
+        if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+            leptos::task::spawn_local(async move {
+                let _ = crate::server::save_portfolio(p).await;
+            });
+        }
+    });
+
+    let save_group_edit = move |_| {
+        let n = edit_name.get();
+        let d = edit_desc.get();
+        if n.trim().is_empty() {
+            return;
+        }
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                    g.name = n.clone();
+                    g.description = if d.trim().is_empty() {
+                        None
+                    } else {
+                        Some(d.clone())
+                    };
+                    g.updated_at = chrono::Utc::now();
+                }
+            }
+        });
+        set_is_editing.set(false);
+    };
+
+    let add_group_doc = move |n: String| {
+        if n.trim().is_empty() {
+            return;
+        }
+        let uploaded_by = app_store.get().current_user.id;
+        let ft = detect_file_type(&n);
+        let doc = crate::models::Document {
+            id: Uuid::new_v4(),
+            name: n.clone(),
+            file_type: ft,
+            content: None,
+            url: "#".to_string(),
+            uploaded_at: chrono::Utc::now(),
+            uploaded_by,
+        };
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                    g.documents.push(doc);
+                }
+            }
+        });
+    };
+
+    let group_tint_style = format!(
+        "background: rgba(255,255,255,{});",
+        (tint_index as f64 * 0.1).min(0.9)
+    );
+
+    view! {
+        <div class="asset-group" class:expanded={move || expanded.get()} style={group_tint_style.clone()}
+            on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                if can_edit_here {
+                    ev.prevent_default();
+                    set_group_context_menu.set(Some((ev.client_x(), ev.client_y())));
+                }
+            }
+        >
+            <div class="asset-group-header"
+                role="button"
+                tabindex="0"
+                aria-expanded={move || expanded.get()}
+                aria-controls={format!("ag-content-{}", gid)}
+                aria-label={move || {
+                    format!("{} group. {} asset{}. {} document{}. {}",
+                        g_name,
+                        asset_count,
+                        if asset_count == 1 { "" } else { "s" },
+                        doc_count,
+                        if doc_count == 1 { "" } else { "s" },
+                        if expanded.get() { "Expanded" } else { "Collapsed" }
+                    )
+                }}
+                on:click=move |_| if !is_editing.get() { on_toggle.run(gid) }
+                on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_is_editing.set(true); } }
+                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                    if ev.key() == "Enter" || ev.key() == " " {
+                        ev.prevent_default();
+                        if !is_editing.get() { on_toggle.run(gid) }
+                    }
+                }
+            >
+                <span class="asset-group-arrow">
+                    {move || if expanded.get() { "▲" } else { "▼" }}
+                </span>
+                <div class="asset-group-icon">"📁"</div>
+                <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
+                    {let g_name_header = g_name.clone();
+                    let g_desc_header = g_desc.clone();
+                    move || if is_editing.get() && can_edit_here {
+                        view! {
+                            <div class="asset-group-edit-form">
+                                <input class="pf-edit-input" placeholder="Group name"
+                                    aria-label="Group name"
+                                    prop:value=move || edit_name.get()
+                                    on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                                    on:blur=save_group_edit />
+                                <input class="pf-edit-input" placeholder="Description"
+                                    aria-label="Description"
+                                    prop:value=move || edit_desc.get()
+                                    on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
+                                    on:blur=save_group_edit />
+                                <UserAssignmentPanel assigned={assigned_users.clone()} users={org_users()} on_toggle={toggle_group_assignment} />
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <div>
+                                <div class="asset-group-name">{g_name_header.clone()}</div>
+                                {if !g_desc_header.is_empty() {
+                                    view! { <div class="asset-group-desc">{g_desc_header.clone()}</div> }.into_any()
+                                } else { ().into_any() }}
+                                <div class="asset-group-count">{format!("{} assets", asset_count)}</div>
+                            </div>
+                        }.into_any()
+                    }}
+                </div>
+                // Action buttons
+                <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
+                    {let g_name_for_notif = g_name_for_doc_btn.clone();
+                    move || {
+                        let count = app_store.get().doc_notifications_for_group(pid, gid, &notification_store.get().notifications);
+                        let gname = g_name_for_notif.clone();
+                        let gname_click = gname.clone();
+                        let gname_ctx = gname.clone();
+                        let gname_keydown = gname.clone();
+                        view! {
+                            <span class="pf-notif-badge pf-notif-badge-clickable"
+                                role="button"
+                                tabindex="0"
+                                aria-label={format!("Notifications for {} group. {} unread", gname, count)}
+                                title="Left-click to view notifications, right-click to edit settings"
+                                on:click=move |ev| {
+                                    ev.stop_propagation();
+                                    on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname_click.clone(), false));
+                                }
+                                on:contextmenu=move |ev| {
+                                    ev.prevent_default();
+                                    ev.stop_propagation();
+                                    on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname_ctx.clone(), true));
+                                }
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Enter" || ev.key() == " " {
+                                        ev.prevent_default();
+                                        ev.stop_propagation();
+                                        on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname_keydown.clone(), false));
+                                    }
+                                }>
+                                "🔔"
+                                {move || if count > 0 {
+                                    Some(view! { <span class="pf-notif-count">{count}</span> })
+                                } else {
+                                    None
+                                }}
+                            </span>
+                        }.into_any()
+                    }}
+                    <button class="pf-action-btn"
+                        class:active=move || ui_store.get().is_doc_modal_open(gid)
+                        aria-label={format!("View documents for {} group. {} document{}", g_name_for_doc_btn, doc_count, if doc_count == 1 { "" } else { "s" })}
+                        on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(gid))>
+                        {format!("📄 {}", doc_count)}
+                    </button>
+                </div>
+            </div>
+            // Docs modal for group
+            {move || if ui_store.get().is_doc_modal_open(gid) {
+                let modal_title = g_name_for_modal.clone();
+                let add_cb = if can_edit_documents_here { Some(Callback::new(move |n: String| add_group_doc(n))) } else { None };
+                view! {
+                    <DocModal
+                        entity_id={gid}
+                        title={modal_title}
+                        on_close=move || ui_store.update(|s| s.close_doc_modal(gid))
+                        can_edit={can_edit_documents_here}
+                        on_add={add_cb}
+                        portfolio_id={Some(pid)}
+                        group_id={Some(gid)}
+                    />
+                }.into_any()
+            } else { ().into_any() }}
+
+            <div id={format!("ag-content-{}", gid)} class="asset-group-content" class:hidden={move || !expanded.get()}>
+                {move || if show_add_asset.get() == AssetTarget::Group(pid, gid) {
+                    view! {
+                        <div class="add-form">
+                            <input class="login-input" type="text" placeholder="Asset name"
+                                aria-label="Asset name"
+                                on:input=move |ev| set_new_asset_name.set(event_target_value(&ev)) />
+                            <select class="login-input"
+                                aria-label="Asset type"
+                                prop:value={move || format!("{:?}", _new_asset_type.get())}
+                                on:change=move |ev| {
+                                    let v = event_target_value(&ev);
+                                    let t = match v.as_str() {
+                                        "RealEstate" => AssetType::RealEstate,
+                                        "Vehicle" => AssetType::Vehicle,
+                                        "Equipment" => AssetType::Equipment,
+                                        "Stock" => AssetType::Stock,
+                                        "Bond" => AssetType::Bond,
+                                        "Commodity" => AssetType::Commodity,
+                                        "Digital" => AssetType::Digital,
+                                        "IntellectualProperty" => AssetType::IntellectualProperty,
+                                        "Channel" => AssetType::Channel,
+                                        _ => AssetType::RealEstate,
+                                    };
+                                    set_new_asset_type.set(t);
+                                }
+                            >
+                                <option value="RealEstate">"Real Estate"</option>
+                                <option value="Vehicle">"Vehicle"</option>
+                                <option value="Equipment">"Equipment"</option>
+                                <option value="Stock">"Stock"</option>
+                                <option value="Bond">"Bond"</option>
+                                <option value="Commodity">"Commodity"</option>
+                                <option value="Digital">"Digital"</option>
+                                <option value="IntellectualProperty">"IP"</option>
+                                <option value="Channel">"Channel"</option>
+                            </select>
+                            <input class="login-input" type="number" placeholder="Value ($)"
+                                aria-label="Value"
+                                on:input=move |ev| set_new_asset_value.set(event_target_value(&ev)) />
+                            <button class="login-btn"
+                                on:click=move |_| on_add_asset.run(AssetTarget::Group(pid, gid))>
+                                "Add Asset"
+                            </button>
+                        </div>
+                    }.into_any()
+                } else { ().into_any() }}
+
+                {{
+                    let view_mode = view_mode.clone();
+                    let group_assets: Vec<_> = group.assets.into_iter().filter(|a| group_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
+                    let class_str = if view_mode == ViewMode::Grid {
+                        format!("asset-group-assets grid-view-{}", grid_columns)
+                    } else {
+                        "asset-group-assets asset-list".to_string()
+                    };
+                    view! {
+                        <div class={class_str}>
+                            {group_assets.into_iter().enumerate().map({
+                                let view_mode = view_mode.clone();
+                                move |(idx, asset)| view! {
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={Some(gid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} />
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    }
+                }}
+            </div>
+
+            // Context menu for group press-and-hold
+            {move || group_context_menu.get().map(|(x, y)| {
+                let _pid2 = pid;
+                let _gid2 = gid;
+                view! {
+                    <div class="context-menu-overlay" on:click=move |_| set_group_context_menu.set(None)>
+                        <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    ui_store.update(|s| s.open_doc_modal(gid));
+                                }
+                            >"📄 Add Document"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_show_group_add_role.set(true);
+                                }
+                            >"🎭 Add Role"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_show_group_add_org.set(true);
+                                }
+                            >"🏢 Add Organization"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_confirm_group_remove.set(true);
+                                }
+                            >"🗑 Remove"</button>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+
+            // Add Role modal (group context menu)
+            {move || if show_group_add_role.get() {
+                let org_id = app_store.get().portfolios.iter()
+                    .find(|p| p.id == pid)
+                    .and_then(|p| p.organization_id);
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_group_add_role.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Role"</span>
+                                <button class="doc-modal-close" aria-label="Close add role" on:click=move |_| set_show_group_add_role.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Role name"
+                                    aria-label="Role name"
+                                    prop:value={move || group_role_name.get()}
+                                    on:input=move |ev| set_group_role_name.set(event_target_value(&ev)) />
+                                <input class="login-input" type="text" placeholder="Description"
+                                    aria-label="Description"
+                                    prop:value={move || group_role_desc.get()}
+                                    on:input=move |ev| set_group_role_desc.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = group_role_name.get();
+                                    let desc = group_role_desc.get();
+                                    if !name.trim().is_empty() {
+                                        let role = crate::models::OrgRole::new(name, 0, desc, vec![]);
+                                        if let Some(oid) = org_id {
+                                            organization_store.update(|s| s.add_role_to_org(oid, role));
+                                        }
+                                    }
+                                    set_group_role_name.set(String::new());
+                                    set_group_role_desc.set(String::new());
+                                    set_show_group_add_role.set(false);
+                                }>"Add Role"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Add Organization modal (group context menu)
+            {move || if show_group_add_org.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_group_add_org.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add Organization"</span>
+                                <button class="doc-modal-close" aria-label="Close add organization" on:click=move |_| set_show_group_add_org.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <input class="login-input" type="text" placeholder="Organization name"
+                                    aria-label="Organization name"
+                                    prop:value={move || group_org_name.get()}
+                                    on:input=move |ev| set_group_org_name.set(event_target_value(&ev)) />
+                                <button class="login-btn" on:click=move |_| {
+                                    let name = group_org_name.get();
+                                    if !name.trim().is_empty() {
+                                        let owner_id = app_store.get().current_user.id;
+                                        let org = crate::models::Organization::new(name, owner_id);
+                                        let oid = org.id;
+                                        organization_store.update(|s| s.add_organization(org));
+                                        // Link group's portfolio to org if not already linked
+                                        app_store.update(|s| {
+                                            if let Some(p) = s.get_portfolio_mut(pid) {
+                                                if p.organization_id.is_none() {
+                                                    p.organization_id = Some(oid);
+                                                }
+                                            }
+                                        });
+                                    }
+                                    set_group_org_name.set(String::new());
+                                    set_show_group_add_org.set(false);
+                                }>"Add Organization"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Confirm group removal
+            {move || if confirm_group_remove.get() {
+                let gname = g_name_for_confirm.clone();
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_confirm_group_remove.set(false)>
+                        <div class="doc-modal confirm-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"🗑 Confirm Removal"</span>
+                                <button class="doc-modal-close" aria-label={format!("Cancel removal of {} group", g_name_for_confirm)} on:click=move |_| set_confirm_group_remove.set(false)>"✕"</button>
+                            </div>
+                            <div class="confirm-modal-body">
+                                <p class="confirm-modal-msg">
+                                    "Are you sure you want to remove "
+                                    <strong>{gname.clone()}</strong>
+                                    "? This action cannot be undone."
+                                </p>
+                                <div class="confirm-modal-actions">
+                                    <button class="login-btn confirm-no"
+                                        on:click=move |_| set_confirm_group_remove.set(false)>
+                                        "✕ No, Cancel"
+                                    </button>
+                                    <button class="login-btn sell confirm-yes"
+                                        on:click=move |_| {
+                                            set_confirm_group_remove.set(false);
+                                            app_store.update(|s| { s.remove_asset_group(pid, gid); });
+                                        }>
+                                        "✔ Yes, Remove"
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+        </div>
+    }
+}

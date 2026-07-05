@@ -681,56 +681,117 @@ impl Perm {
 
     pub fn group(&self) -> PermGroup {
         match self {
-            Perm::ViewOrganization | Perm::EditOrganizationDetails | Perm::ManageOrgSettings
-            | Perm::ManageMembers | Perm::InviteMembers | Perm::RemoveMembers
-            | Perm::AssignRoles | Perm::CreateRoles | Perm::EditRolesBelowOwn
-            | Perm::DeleteRolesBelowOwn | Perm::ReorderRoles | Perm::TransferOwnership
+            Perm::ViewOrganization
+            | Perm::EditOrganizationDetails
+            | Perm::ManageOrgSettings
+            | Perm::ManageMembers
+            | Perm::InviteMembers
+            | Perm::RemoveMembers
+            | Perm::AssignRoles
+            | Perm::CreateRoles
+            | Perm::EditRolesBelowOwn
+            | Perm::DeleteRolesBelowOwn
+            | Perm::ReorderRoles
+            | Perm::TransferOwnership
             | Perm::DeleteOrganization => PermGroup::Organization,
 
-            Perm::ViewPortfolios | Perm::CreatePortfolios | Perm::EditAssignedPortfolios
-            | Perm::DeleteAssignedPortfolios | Perm::ManagePortfolioAccess
-            | Perm::CreateAssetGroups | Perm::EditAssetGroups | Perm::DeleteAssetGroups
-            | Perm::CreateAssets | Perm::EditAssets | Perm::DeleteAssets
-            | Perm::MoveAssetsBetweenGroups | Perm::CreateDirectAssets
-            | Perm::EditDirectAssets | Perm::DeleteDirectAssets
+            Perm::ViewPortfolios
+            | Perm::CreatePortfolios
+            | Perm::EditAssignedPortfolios
+            | Perm::DeleteAssignedPortfolios
+            | Perm::ManagePortfolioAccess
+            | Perm::CreateAssetGroups
+            | Perm::EditAssetGroups
+            | Perm::DeleteAssetGroups
+            | Perm::CreateAssets
+            | Perm::EditAssets
+            | Perm::DeleteAssets
+            | Perm::MoveAssetsBetweenGroups
+            | Perm::CreateDirectAssets
+            | Perm::EditDirectAssets
+            | Perm::DeleteDirectAssets
             | Perm::MoveDirectAssetsIntoGroups => PermGroup::Portfolio,
 
-            Perm::ViewNetworkingContacts | Perm::CreateContacts | Perm::EditContacts
-            | Perm::DeleteContacts | Perm::ViewExternalOrganizations
-            | Perm::CreateExternalOrganizations | Perm::EditExternalOrganizations
-            | Perm::DeleteExternalOrganizations | Perm::ViewChannels
-            | Perm::CreateChannels | Perm::EditChannels | Perm::DeleteChannels
-            | Perm::ManagePartners | Perm::ManageSuppliers | Perm::ManageIntegrations
+            Perm::ViewNetworkingContacts
+            | Perm::CreateContacts
+            | Perm::EditContacts
+            | Perm::DeleteContacts
+            | Perm::ViewExternalOrganizations
+            | Perm::CreateExternalOrganizations
+            | Perm::EditExternalOrganizations
+            | Perm::DeleteExternalOrganizations
+            | Perm::ViewChannels
+            | Perm::CreateChannels
+            | Perm::EditChannels
+            | Perm::DeleteChannels
+            | Perm::ManagePartners
+            | Perm::ManageSuppliers
+            | Perm::ManageIntegrations
             | Perm::LinkContactsToPortfolios => PermGroup::Networking,
 
-            Perm::ViewReports | Perm::CreateReports | Perm::EditOwnReports
-            | Perm::EditAnyDraftReport | Perm::SubmitReports | Perm::ApproveReports
-            | Perm::PublishReports | Perm::ArchiveReports | Perm::DeleteOwnDraftReports
-            | Perm::DeleteAnyDraftReports | Perm::ViewReportingHistory
-            | Perm::ViewDocuments | Perm::UploadDocuments | Perm::EditOwnDraftDocuments
-            | Perm::EditAnyDraftDocument | Perm::SubmitDocuments | Perm::ApproveDocuments
-            | Perm::LockFinalDocuments | Perm::UnlockFinalDocuments | Perm::ArchiveDocuments
-            | Perm::CreateDocumentRevision | Perm::ViewLockedDocuments
-            | Perm::DeleteOwnDraftDocuments | Perm::DeleteAnyDraftDocuments
-            | Perm::DeleteLockedDocuments | Perm::RestoreArchivedDocuments
-            | Perm::ManageDocumentCategories | Perm::ManageDocumentVisibility
+            Perm::ViewReports
+            | Perm::CreateReports
+            | Perm::EditOwnReports
+            | Perm::EditAnyDraftReport
+            | Perm::SubmitReports
+            | Perm::ApproveReports
+            | Perm::PublishReports
+            | Perm::ArchiveReports
+            | Perm::DeleteOwnDraftReports
+            | Perm::DeleteAnyDraftReports
+            | Perm::ViewReportingHistory
+            | Perm::ViewDocuments
+            | Perm::UploadDocuments
+            | Perm::EditOwnDraftDocuments
+            | Perm::EditAnyDraftDocument
+            | Perm::SubmitDocuments
+            | Perm::ApproveDocuments
+            | Perm::LockFinalDocuments
+            | Perm::UnlockFinalDocuments
+            | Perm::ArchiveDocuments
+            | Perm::CreateDocumentRevision
+            | Perm::ViewLockedDocuments
+            | Perm::DeleteOwnDraftDocuments
+            | Perm::DeleteAnyDraftDocuments
+            | Perm::DeleteLockedDocuments
+            | Perm::RestoreArchivedDocuments
+            | Perm::ManageDocumentCategories
+            | Perm::ManageDocumentVisibility
             | Perm::ManageDocumentOwnership => PermGroup::Reporting,
 
-            Perm::ViewCalendar | Perm::CreateCalendarEvents | Perm::EditOwnEvents
-            | Perm::EditOrgEvents | Perm::DeleteOwnEvents | Perm::DeleteOrgEvents
-            | Perm::AssignEventsToPortfolios | Perm::ManageReminders
-            | Perm::ViewPrivateCalendar | Perm::ManageSharedCalendarVisibility => PermGroup::Calendar,
+            Perm::ViewCalendar
+            | Perm::CreateCalendarEvents
+            | Perm::EditOwnEvents
+            | Perm::EditOrgEvents
+            | Perm::DeleteOwnEvents
+            | Perm::DeleteOrgEvents
+            | Perm::AssignEventsToPortfolios
+            | Perm::ManageReminders
+            | Perm::ViewPrivateCalendar
+            | Perm::ManageSharedCalendarVisibility => PermGroup::Calendar,
 
-            Perm::ViewTransactions | Perm::CreateTransactions | Perm::EditOwnDraftTransactions
-            | Perm::EditAnyDraftTransaction | Perm::SubmitTransactions | Perm::ApproveTransactions
-            | Perm::RejectTransactions | Perm::LockFinalizedTransactions
-            | Perm::ExportTransactions | Perm::DeleteDraftTransactions
-            | Perm::ViewTransactionHistory | Perm::ManageTransactionCategories => PermGroup::Transaction,
+            Perm::ViewTransactions
+            | Perm::CreateTransactions
+            | Perm::EditOwnDraftTransactions
+            | Perm::EditAnyDraftTransaction
+            | Perm::SubmitTransactions
+            | Perm::ApproveTransactions
+            | Perm::RejectTransactions
+            | Perm::LockFinalizedTransactions
+            | Perm::ExportTransactions
+            | Perm::DeleteDraftTransactions
+            | Perm::ViewTransactionHistory
+            | Perm::ManageTransactionCategories => PermGroup::Transaction,
 
-            Perm::ViewOwnActivityHistory | Perm::ViewOrgAuditLog | Perm::ViewPortfolioHistory
-            | Perm::ViewAssetHistory | Perm::ViewDocumentHistory
-            | Perm::ViewTransactionHistoryLog | Perm::ExportHistoryLogs
-            | Perm::RestorePreviousVersions | Perm::ViewDeletedArchivedItems
+            Perm::ViewOwnActivityHistory
+            | Perm::ViewOrgAuditLog
+            | Perm::ViewPortfolioHistory
+            | Perm::ViewAssetHistory
+            | Perm::ViewDocumentHistory
+            | Perm::ViewTransactionHistoryLog
+            | Perm::ExportHistoryLogs
+            | Perm::RestorePreviousVersions
+            | Perm::ViewDeletedArchivedItems
             | Perm::RestoreDeletedArchivedItems => PermGroup::History,
         }
     }
@@ -738,61 +799,127 @@ impl Perm {
     pub fn all() -> Vec<Perm> {
         vec![
             // Organization
-            Perm::ViewOrganization, Perm::EditOrganizationDetails, Perm::ManageOrgSettings,
-            Perm::ManageMembers, Perm::InviteMembers, Perm::RemoveMembers,
-            Perm::AssignRoles, Perm::CreateRoles, Perm::EditRolesBelowOwn,
-            Perm::DeleteRolesBelowOwn, Perm::ReorderRoles, Perm::TransferOwnership,
+            Perm::ViewOrganization,
+            Perm::EditOrganizationDetails,
+            Perm::ManageOrgSettings,
+            Perm::ManageMembers,
+            Perm::InviteMembers,
+            Perm::RemoveMembers,
+            Perm::AssignRoles,
+            Perm::CreateRoles,
+            Perm::EditRolesBelowOwn,
+            Perm::DeleteRolesBelowOwn,
+            Perm::ReorderRoles,
+            Perm::TransferOwnership,
             Perm::DeleteOrganization,
             // Portfolio
-            Perm::ViewPortfolios, Perm::CreatePortfolios, Perm::EditAssignedPortfolios,
-            Perm::DeleteAssignedPortfolios, Perm::ManagePortfolioAccess,
-            Perm::CreateAssetGroups, Perm::EditAssetGroups, Perm::DeleteAssetGroups,
-            Perm::CreateAssets, Perm::EditAssets, Perm::DeleteAssets,
-            Perm::MoveAssetsBetweenGroups, Perm::CreateDirectAssets,
-            Perm::EditDirectAssets, Perm::DeleteDirectAssets, Perm::MoveDirectAssetsIntoGroups,
+            Perm::ViewPortfolios,
+            Perm::CreatePortfolios,
+            Perm::EditAssignedPortfolios,
+            Perm::DeleteAssignedPortfolios,
+            Perm::ManagePortfolioAccess,
+            Perm::CreateAssetGroups,
+            Perm::EditAssetGroups,
+            Perm::DeleteAssetGroups,
+            Perm::CreateAssets,
+            Perm::EditAssets,
+            Perm::DeleteAssets,
+            Perm::MoveAssetsBetweenGroups,
+            Perm::CreateDirectAssets,
+            Perm::EditDirectAssets,
+            Perm::DeleteDirectAssets,
+            Perm::MoveDirectAssetsIntoGroups,
             // Networking
-            Perm::ViewNetworkingContacts, Perm::CreateContacts, Perm::EditContacts,
-            Perm::DeleteContacts, Perm::ViewExternalOrganizations,
-            Perm::CreateExternalOrganizations, Perm::EditExternalOrganizations,
-            Perm::DeleteExternalOrganizations, Perm::ViewChannels,
-            Perm::CreateChannels, Perm::EditChannels, Perm::DeleteChannels,
-            Perm::ManagePartners, Perm::ManageSuppliers, Perm::ManageIntegrations,
+            Perm::ViewNetworkingContacts,
+            Perm::CreateContacts,
+            Perm::EditContacts,
+            Perm::DeleteContacts,
+            Perm::ViewExternalOrganizations,
+            Perm::CreateExternalOrganizations,
+            Perm::EditExternalOrganizations,
+            Perm::DeleteExternalOrganizations,
+            Perm::ViewChannels,
+            Perm::CreateChannels,
+            Perm::EditChannels,
+            Perm::DeleteChannels,
+            Perm::ManagePartners,
+            Perm::ManageSuppliers,
+            Perm::ManageIntegrations,
             Perm::LinkContactsToPortfolios,
             // Reporting
-            Perm::ViewReports, Perm::CreateReports, Perm::EditOwnReports,
-            Perm::EditAnyDraftReport, Perm::SubmitReports, Perm::ApproveReports,
-            Perm::PublishReports, Perm::ArchiveReports, Perm::DeleteOwnDraftReports,
-            Perm::DeleteAnyDraftReports, Perm::ViewReportingHistory,
+            Perm::ViewReports,
+            Perm::CreateReports,
+            Perm::EditOwnReports,
+            Perm::EditAnyDraftReport,
+            Perm::SubmitReports,
+            Perm::ApproveReports,
+            Perm::PublishReports,
+            Perm::ArchiveReports,
+            Perm::DeleteOwnDraftReports,
+            Perm::DeleteAnyDraftReports,
+            Perm::ViewReportingHistory,
             // Document Controls
-            Perm::ViewDocuments, Perm::UploadDocuments, Perm::EditOwnDraftDocuments,
-            Perm::EditAnyDraftDocument, Perm::SubmitDocuments, Perm::ApproveDocuments,
-            Perm::LockFinalDocuments, Perm::UnlockFinalDocuments, Perm::ArchiveDocuments,
-            Perm::CreateDocumentRevision, Perm::ViewLockedDocuments,
-            Perm::DeleteOwnDraftDocuments, Perm::DeleteAnyDraftDocuments,
-            Perm::DeleteLockedDocuments, Perm::RestoreArchivedDocuments,
-            Perm::ManageDocumentCategories, Perm::ManageDocumentVisibility,
+            Perm::ViewDocuments,
+            Perm::UploadDocuments,
+            Perm::EditOwnDraftDocuments,
+            Perm::EditAnyDraftDocument,
+            Perm::SubmitDocuments,
+            Perm::ApproveDocuments,
+            Perm::LockFinalDocuments,
+            Perm::UnlockFinalDocuments,
+            Perm::ArchiveDocuments,
+            Perm::CreateDocumentRevision,
+            Perm::ViewLockedDocuments,
+            Perm::DeleteOwnDraftDocuments,
+            Perm::DeleteAnyDraftDocuments,
+            Perm::DeleteLockedDocuments,
+            Perm::RestoreArchivedDocuments,
+            Perm::ManageDocumentCategories,
+            Perm::ManageDocumentVisibility,
             Perm::ManageDocumentOwnership,
             // Calendar
-            Perm::ViewCalendar, Perm::CreateCalendarEvents, Perm::EditOwnEvents,
-            Perm::EditOrgEvents, Perm::DeleteOwnEvents, Perm::DeleteOrgEvents,
-            Perm::AssignEventsToPortfolios, Perm::ManageReminders,
-            Perm::ViewPrivateCalendar, Perm::ManageSharedCalendarVisibility,
+            Perm::ViewCalendar,
+            Perm::CreateCalendarEvents,
+            Perm::EditOwnEvents,
+            Perm::EditOrgEvents,
+            Perm::DeleteOwnEvents,
+            Perm::DeleteOrgEvents,
+            Perm::AssignEventsToPortfolios,
+            Perm::ManageReminders,
+            Perm::ViewPrivateCalendar,
+            Perm::ManageSharedCalendarVisibility,
             // Transaction
-            Perm::ViewTransactions, Perm::CreateTransactions, Perm::EditOwnDraftTransactions,
-            Perm::EditAnyDraftTransaction, Perm::SubmitTransactions, Perm::ApproveTransactions,
-            Perm::RejectTransactions, Perm::LockFinalizedTransactions,
-            Perm::ExportTransactions, Perm::DeleteDraftTransactions,
-            Perm::ViewTransactionHistory, Perm::ManageTransactionCategories,
+            Perm::ViewTransactions,
+            Perm::CreateTransactions,
+            Perm::EditOwnDraftTransactions,
+            Perm::EditAnyDraftTransaction,
+            Perm::SubmitTransactions,
+            Perm::ApproveTransactions,
+            Perm::RejectTransactions,
+            Perm::LockFinalizedTransactions,
+            Perm::ExportTransactions,
+            Perm::DeleteDraftTransactions,
+            Perm::ViewTransactionHistory,
+            Perm::ManageTransactionCategories,
             // History
-            Perm::ViewOwnActivityHistory, Perm::ViewOrgAuditLog, Perm::ViewPortfolioHistory,
-            Perm::ViewAssetHistory, Perm::ViewDocumentHistory, Perm::ViewTransactionHistoryLog,
-            Perm::ExportHistoryLogs, Perm::RestorePreviousVersions,
-            Perm::ViewDeletedArchivedItems, Perm::RestoreDeletedArchivedItems,
+            Perm::ViewOwnActivityHistory,
+            Perm::ViewOrgAuditLog,
+            Perm::ViewPortfolioHistory,
+            Perm::ViewAssetHistory,
+            Perm::ViewDocumentHistory,
+            Perm::ViewTransactionHistoryLog,
+            Perm::ExportHistoryLogs,
+            Perm::RestorePreviousVersions,
+            Perm::ViewDeletedArchivedItems,
+            Perm::RestoreDeletedArchivedItems,
         ]
     }
 
     pub fn for_group(group: &PermGroup) -> Vec<Perm> {
-        Self::all().into_iter().filter(|p| p.group() == *group).collect()
+        Self::all()
+            .into_iter()
+            .filter(|p| p.group() == *group)
+            .collect()
     }
 }
 
@@ -833,12 +960,20 @@ impl OrgRole {
         if can_count > 10 {
             format!(
                 "{} role. Rank {}. Applies to {}. {} members. Has {} permissions.",
-                self.name, self.rank, scope_text, self.member_ids.len(), can_count
+                self.name,
+                self.rank,
+                scope_text,
+                self.member_ids.len(),
+                can_count
             )
         } else {
             format!(
                 "{} role. Rank {}. Applies to {}. {} members. {} permissions.",
-                self.name, self.rank, scope_text, self.member_ids.len(), can_count
+                self.name,
+                self.rank,
+                scope_text,
+                self.member_ids.len(),
+                can_count
             )
         }
     }
