@@ -35,6 +35,24 @@ pub fn Navbar() -> impl IntoView {
     // Document reader view toggle inside the notifications drawer
     let (show_doc_reader, set_show_doc_reader) = signal(false);
 
+    // Click feedback state for navbar buttons (1-second flash)
+    let (clicked, set_clicked) = signal(std::collections::HashSet::<usize>::new());
+    let click_feedback = {
+        let set_clicked = set_clicked.clone();
+        move |idx: usize| {
+            set_clicked.update(|s| {
+                s.insert(idx);
+            });
+            let set_clicked = set_clicked.clone();
+            leptos::task::spawn_local(async move {
+                gloo_timers::future::TimeoutFuture::new(1000).await;
+                set_clicked.update(|s| {
+                    s.remove(&idx);
+                });
+            });
+        }
+    };
+
     // Helper to get user info tuple
     fn user_info(
         app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>,
@@ -58,6 +76,7 @@ pub fn Navbar() -> impl IntoView {
             }
         });
         notification_store.update(|store| store.close_drawer());
+        click_feedback(0);
     };
 
     let record_undo_redo = move |kind: ActionType, description: String| {
@@ -92,6 +111,7 @@ pub fn Navbar() -> impl IntoView {
                 apply_undo_side_effects(&undone, store);
             });
         }
+        click_feedback(2);
     };
 
     let on_undo_context = move |ev: leptos::ev::MouseEvent| {
@@ -152,6 +172,7 @@ pub fn Navbar() -> impl IntoView {
             }
         });
         notification_store.update(|s| s.close_drawer());
+        click_feedback(3);
     };
 
     let on_message_click = move |_| {
@@ -165,6 +186,7 @@ pub fn Navbar() -> impl IntoView {
             }
         });
         notification_store.update(|s| s.close_drawer());
+        click_feedback(5);
     };
 
     let on_notifications_click = move |_| {
@@ -178,6 +200,7 @@ pub fn Navbar() -> impl IntoView {
                 });
             }
         });
+        click_feedback(6);
     };
 
     let is_tabs_drawer_open = move || ui_store.get().tabs_drawer_open;
@@ -201,6 +224,7 @@ pub fn Navbar() -> impl IntoView {
             ui.close_search();
         });
         notification_store.update(|s| s.close_drawer());
+        click_feedback(4);
     };
 
     view! {
@@ -209,20 +233,20 @@ pub fn Navbar() -> impl IntoView {
             // ROW 1: buttons always visible
             <div class="navbar-row navbar-row-1">
                 <div class="nav-row1-left">
-                    <button class="nav-btn" on:click=on_tabs_drawer title="Tabs">"☰"</button>
-                    <button class="nav-btn nav-search-btn" on:click=on_search_click title="Search">"🔍"</button>
-                    <button class="nav-btn" on:click=on_redo
+                    <button class="nav-btn" class:clicked={move || clicked.get().contains(&0)} on:click=on_tabs_drawer title="Tabs">"☰"</button>
+                    <button class="nav-btn nav-search-btn" class:clicked={move || clicked.get().contains(&3)} on:click=on_search_click title="Search">"🔍"</button>
+                    <button class="nav-btn" class:clicked={move || clicked.get().contains(&1)} on:click=on_redo
                         on:contextmenu=on_redo_context
                         disabled={move || !can_redo()} title="Redo (hold for list)">"↻"</button>
                 </div>
                 <div class="nav-row1-centre">
-                    <button class="nav-home-btn" on:click=on_home_click title="Home">"🏠"</button>
+                    <button class="nav-home-btn" class:clicked={move || clicked.get().contains(&4)} on:click=on_home_click title="Home">"🏠"</button>
                 </div>
                 <div class="nav-row1-right">
-                    <button class="nav-btn" on:click=on_undo
+                    <button class="nav-btn" class:clicked={move || clicked.get().contains(&2)} on:click=on_undo
                         on:contextmenu=on_undo_context
                         disabled={move || !can_undo()} title="Undo (hold for list)">"↺"</button>
-                    <div class="nav-message-wrap" on:click=on_message_click title="Open messages">
+                    <div class="nav-message-wrap" class:clicked={move || clicked.get().contains(&5)} on:click=on_message_click title="Open messages">
                         <div class="nav-message-icon">"💬"</div>
                         {move || {
                             let count = message_count();
@@ -231,7 +255,7 @@ pub fn Navbar() -> impl IntoView {
                             } else { ().into_any() }
                         }}
                     </div>
-                    <div class="nav-message-wrap" on:click=on_notifications_click title="Notifications">
+                    <div class="nav-message-wrap" class:clicked={move || clicked.get().contains(&6)} on:click=on_notifications_click title="Notifications">
                         <div class="nav-message-icon">"🔔"</div>
                         {move || {
                             let count = notification_count();

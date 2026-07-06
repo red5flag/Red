@@ -229,17 +229,15 @@ pub fn CalendarManager(
     view! {
         <div class={if embedded { "calendar-manager embedded" } else { "calendar-manager" }}>
             <div class="calendar-manager-header">
-                <div class="calendar-manager-title">{scope.title.clone()}</div>
+                <div class="calendar-manager-title">
+                    {move || month_label(view_year.get(), view_month.get())}
+                </div>
                 <div class="calendar-manager-actions">
                     <button class="calendar-nav-btn" on:click=prev_month title="Previous month">"‹"</button>
                     <button class="calendar-today-btn" on:click=go_today>"Today"</button>
                     <button class="calendar-nav-btn" on:click=next_month title="Next month">"›"</button>
                     <button class="calendar-manager-btn" on:click=on_add_new title="Add event">"+"</button>
                 </div>
-            </div>
-
-            <div class="calendar-month-label">
-                {move || month_label(view_year.get(), view_month.get())}
             </div>
 
             {move || if show_form.get() {

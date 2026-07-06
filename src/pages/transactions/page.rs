@@ -311,8 +311,7 @@ pub fn TransactionsPage() -> impl IntoView {
                         <div class="card-header">
                             <span class="card-title">"Recent Transactions"</span>
                             <select
-                                class="form-select"
-                                style="width: auto; min-width: 120px;"
+                                class="form-select tx-sort-select"
                                 on:change=move |ev| {
                                     let v = event_target_value(&ev);
                                     let mode = match v.as_str() {

@@ -136,29 +136,35 @@ pub(crate) fn RoleCard(
                         let role_users: Vec<User> = available_users.iter()
                             .filter(|u| role_members.contains(&u.id))
                             .cloned().collect();
+                        let role_users_for = role_users.clone();
+                        let role_users_memo = Memo::new(move |_| role_users_for.clone());
                         view! {
                             <div class="org-role-members-list">
-                            {role_users.into_iter().map(|user| {
-                                let uid = user.id;
-                                let uname = user.name.clone();
-                                view! {
-                                    <div class="org-role-member-chip">
-                                        <span class="org-member-avatar-sm">
-                                            {user.name.chars().next().unwrap_or('?').to_uppercase().to_string()}
-                                        </span>
-                                        <span>{uname}</span>
-                                        {if can_edit {
-                                            view! {
-                                                <button class="org-role-btn org-role-btn-sm org-role-btn-danger"
-                                                    aria-label={format!("Remove {} from role", user.name)}
-                                                    on:click=move |_| on_remove_member.run((org_id, rid, uid))>
-                                                    "\u{2715}"
-                                                </button>
-                                            }.into_any()
-                                        } else { ().into_any() }}
-                                    </div>
+                            <For
+                                each=move || role_users_memo.get()
+                                key=|user| user.id
+                                children=move |user| {
+                                    let uid = user.id;
+                                    let uname = user.name.clone();
+                                    view! {
+                                        <div class="org-role-member-chip">
+                                            <span class="org-member-avatar-sm">
+                                                {user.name.chars().next().unwrap_or('?').to_uppercase().to_string()}
+                                            </span>
+                                            <span>{uname}</span>
+                                            {if can_edit {
+                                                view! {
+                                                    <button class="org-role-btn org-role-btn-sm org-role-btn-danger"
+                                                        aria-label={format!("Remove {} from role", user.name)}
+                                                        on:click=move |_| on_remove_member.run((org_id, rid, uid))>
+                                                        "\u{2715}"
+                                                    </button>
+                                                }.into_any()
+                                            } else { ().into_any() }}
+                                        </div>
+                                    }
                                 }
-                            }).collect::<Vec<_>>()}
+                            />
                             </div>
                         }.into_any()
                     }}
@@ -168,6 +174,8 @@ pub(crate) fn RoleCard(
                         let unassigned: Vec<User> = available_users.into_iter()
                             .filter(|u| !role_members.contains(&u.id))
                             .collect();
+                        let unassigned_for = unassigned.clone();
+                        let unassigned_memo = Memo::new(move |_| unassigned_for.clone());
                         view! {
                             <div class="org-role-add-member">
                                 <select class="login-input org-role-member-select"
@@ -178,9 +186,13 @@ pub(crate) fn RoleCard(
                                         }
                                     }>
                                     <option value="">"+ Assign member to role"</option>
-                                    {unassigned.into_iter().map(|u| view! {
-                                        <option value={u.id.to_string()}>{u.name.clone()}</option>
-                                    }).collect::<Vec<_>>()}
+                                    <For
+                                        each=move || unassigned_memo.get()
+                                        key=|u| u.id
+                                        children=move |u| view! {
+                                            <option value={u.id.to_string()}>{u.name.clone()}</option>
+                                        }
+                                    />
                                 </select>
                             </div>
                         }.into_any()

@@ -98,6 +98,7 @@ pub(crate) fn AssetViewer(
     });
 
     let (show_groups, set_show_groups) = signal(true);
+    let (show_direct_assets, set_show_direct_assets) = signal(false);
 
     let (grid_columns, _set_grid_columns) = signal(3usize);
     let (selected_asset, set_selected_asset) = signal::<Option<Asset>>(None);
@@ -273,16 +274,32 @@ pub(crate) fn AssetViewer(
                 }.into_any()
             } else { ().into_any() }}
 
-            // Direct Assets section — always visible, no dropdown toggle
+            // Direct Assets section — collapsible dropdown
             <div class="asset-section">
                 <div class="asset-section-title">
-                    <div class="asset-section-title-left">
+                    <div class="asset-section-title-left"
+                        role="button"
+                        tabindex="0"
+                        aria-expanded={move || show_direct_assets.get()}
+                        aria-controls="av-direct-content"
+                        aria-label={move || if show_direct_assets.get() { "Collapse Direct Assets section" } else { "Expand Direct Assets section" }}
+                        on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "Enter" || ev.key() == " " {
+                                ev.prevent_default();
+                                set_show_direct_assets.update(|v| *v = !*v);
+                            }
+                        }
+                    >
+                        <span class="asset-section-arrow" aria-hidden="true">
+                            {move || if show_direct_assets.get() { "▼" } else { "▶" }}
+                        </span>
                         <span class="asset-section-label">"Direct Assets"</span>
                     </div>
                     <div class="section-title-right">
                         {move || {
                             let vmd = view_mode_direct_title.clone();
-                            if vmd == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
+                            if show_direct_assets.get() && vmd == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
                                 view! {
                                     <div class="sort-dropdown-wrap sort-dropdown-inline">
                                         <button class="sort-btn"
@@ -320,12 +337,12 @@ pub(crate) fn AssetViewer(
                     </div>
                 </div>
 
-                {move || {
+                {move || if show_direct_assets.get() {
                     let visible_direct_assets: Vec<_> = portfolio_direct.assets.clone().into_iter().filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
                     let visible_direct_assets = sort_assets(visible_direct_assets, direct_sort_mode.get());
                     let _vmd = view_mode_direct_content.clone();
                     view! {
-                        <div>
+                        <div id="av-direct-content">
 
                             {move || {
                                 if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
@@ -398,7 +415,7 @@ pub(crate) fn AssetViewer(
                             }}
                         </div>
                     }.into_any()
-                }}
+                } else { ().into_any() }}
             </div>
 
             {move || selected_asset.get().map(|asset| view! {

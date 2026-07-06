@@ -143,12 +143,16 @@ pub fn HistoryPage() -> impl IntoView {
 
     view! {
         <div class="home-screen">
-            <HistorySummary
-                action_count={Signal::derive(action_count)}
-                total_count={Signal::derive(total_count)}
-                current_user_name={Signal::derive(current_user_name)}
-                current_user_role={Signal::derive(current_user_role)}
-            />
+            <div class="history-page-header">
+                <div class="history-page-title">
+                    <span class="history-page-name">{move || current_user_name()}</span>
+                    <span class="history-page-role">{move || current_user_role()}</span>
+                </div>
+                <HistorySummary
+                    action_count={Signal::derive(action_count)}
+                    total_count={Signal::derive(total_count)}
+                />
+            </div>
 
             <div class="data-card">
                 <div class="card-header">

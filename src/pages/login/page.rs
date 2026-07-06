@@ -481,8 +481,7 @@ pub fn LoginPage() -> impl IntoView {
     };
 
     let (changelog_open, set_changelog_open) = signal(false);
-    #[allow(unused_variables)]
-    let (commits, set_commits) = signal(Vec::<(String, String)>::new());
+    let (commits, _set_commits) = signal(Vec::<(String, String)>::new());
     let (commits_loading, set_commits_loading) = signal(false);
     let (commits_fetched, set_commits_fetched) = signal(false);
 
@@ -510,7 +509,7 @@ pub fn LoginPage() -> impl IntoView {
                                         let first_line = msg.lines().next().unwrap_or(msg).to_string();
                                         Some((sha, first_line))
                                     }).collect();
-                                    set_commits.set(parsed);
+                                    _set_commits.set(parsed);
                                 }
                             }
                         }

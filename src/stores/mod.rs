@@ -23,48 +23,5 @@ pub use transaction_store::*;
 pub use ui_store::*;
 pub use undo_redo::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, create_undo_redo_store,
-    format_action_description, HistoryQuery, UndoRedoStore,
+    format_action_description, use_undo_redo_store, HistoryQuery, UndoRedoStore,
 };
-
-use leptos::prelude::*;
-
-// Helper functions to consume stores from context
-pub fn use_app_store() -> RwSignal<AppStore> {
-    expect_context::<RwSignal<AppStore>>()
-}
-
-pub fn use_notification_store() -> RwSignal<NotificationStore> {
-    expect_context::<RwSignal<NotificationStore>>()
-}
-
-pub fn use_search_store() -> RwSignal<SearchStore> {
-    expect_context::<RwSignal<SearchStore>>()
-}
-
-pub fn use_ui_store() -> RwSignal<UiStore> {
-    expect_context::<RwSignal<UiStore>>()
-}
-
-pub fn use_messenger_store() -> RwSignal<MessengerStore> {
-    expect_context::<RwSignal<MessengerStore>>()
-}
-
-pub fn use_calendar_store() -> RwSignal<CalendarStore> {
-    expect_context::<RwSignal<CalendarStore>>()
-}
-
-pub fn use_rule_store() -> RwSignal<RuleStore> {
-    expect_context::<RwSignal<RuleStore>>()
-}
-
-pub fn use_transaction_store() -> RwSignal<TransactionStore> {
-    expect_context::<RwSignal<TransactionStore>>()
-}
-
-pub fn use_organization_store() -> RwSignal<OrganizationStore> {
-    expect_context::<RwSignal<OrganizationStore>>()
-}
-
-pub fn use_undo_redo_store() -> RwSignal<UndoRedoStore> {
-    expect_context::<RwSignal<UndoRedoStore>>()
-}

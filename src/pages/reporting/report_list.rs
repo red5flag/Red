@@ -242,29 +242,35 @@ pub(crate) fn sales_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
         .collect();
     sort_transactions(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} asset-linked sale records", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Asset", "Portfolio", "Amount", "Status", "Counterparty"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No sales recorded."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(t, asset, portfolio)| {
-                            let date = t.created_at.format("%d %b %Y").to_string();
-                            let status = format!("{:?}", t.status);
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{fmt_dollars(t.amount)}</div>
-                                    <div class="reporting-td">{status}</div>
-                                    <div class="reporting-td">{t.from_entity.name}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(t, _, _)| t.id
+                            children=move |(t, asset, portfolio)| {
+                                let date = t.created_at.format("%d %b %Y").to_string();
+                                let status = format!("{:?}", t.status);
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{fmt_dollars(t.amount)}</div>
+                                        <div class="reporting-td">{status}</div>
+                                        <div class="reporting-td">{t.from_entity.name}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -292,29 +298,35 @@ pub(crate) fn purchases_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
         .collect();
     sort_transactions(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} asset-linked purchase records", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Asset", "Portfolio", "Amount", "Status", "Seller"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No purchases recorded."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(t, asset, portfolio)| {
-                            let date = t.created_at.format("%d %b %Y").to_string();
-                            let status = format!("{:?}", t.status);
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{fmt_dollars(t.amount)}</div>
-                                    <div class="reporting-td">{status}</div>
-                                    <div class="reporting-td">{t.from_entity.name}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(t, _, _)| t.id
+                            children=move |(t, asset, portfolio)| {
+                                let date = t.created_at.format("%d %b %Y").to_string();
+                                let status = format!("{:?}", t.status);
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{fmt_dollars(t.amount)}</div>
+                                        <div class="reporting-td">{status}</div>
+                                        <div class="reporting-td">{t.from_entity.name}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -340,27 +352,33 @@ pub(crate) fn bills_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     }
     sort_documents(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} asset-linked bills", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset", "Portfolio", "Type"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No bills found. Document names containing 'bill' will appear here."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(d, asset, portfolio)| {
-                            let date = d.uploaded_at.format("%d %b %Y").to_string();
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{d.name}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{d.file_type.to_uppercase()}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(d, _, _)| d.id
+                            children=move |(d, asset, portfolio)| {
+                                let date = d.uploaded_at.format("%d %b %Y").to_string();
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{d.name}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{d.file_type.to_uppercase()}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -386,27 +404,33 @@ pub(crate) fn invoices_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     }
     sort_documents(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} asset-linked invoices / receipts", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset", "Portfolio", "Type"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No invoices found. Document names containing 'invoice' or 'receipt' will appear here."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(d, asset, portfolio)| {
-                            let date = d.uploaded_at.format("%d %b %Y").to_string();
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{d.name}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{d.file_type.to_uppercase()}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(d, _, _)| d.id
+                            children=move |(d, asset, portfolio)| {
+                                let date = d.uploaded_at.format("%d %b %Y").to_string();
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{d.name}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{d.file_type.to_uppercase()}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -433,27 +457,33 @@ pub(crate) fn notices_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     }
     sort_documents(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} asset-linked notices", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset", "Portfolio", "Type"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No notices found. Document names containing 'notice', 'delivery', or 'registration' will appear here."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(d, asset, portfolio)| {
-                            let date = d.uploaded_at.format("%d %b %Y").to_string();
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{d.name}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{d.file_type.to_uppercase()}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(d, _, _)| d.id
+                            children=move |(d, asset, portfolio)| {
+                                let date = d.uploaded_at.format("%d %b %Y").to_string();
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{d.name}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{d.file_type.to_uppercase()}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -478,27 +508,33 @@ pub(crate) fn documents_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     }
     sort_documents(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} asset-linked documents", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Document", "Asset / Scope", "Portfolio", "Type"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No documents found."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(d, asset, portfolio)| {
-                            let date = d.uploaded_at.format("%d %b %Y").to_string();
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{d.name}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{d.file_type.to_uppercase()}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(d, _, _)| d.id
+                            children=move |(d, asset, portfolio)| {
+                                let date = d.uploaded_at.format("%d %b %Y").to_string();
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{d.name}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{d.file_type.to_uppercase()}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -518,28 +554,34 @@ pub(crate) fn assets_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     }
     sort_assets(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} assets across portfolios", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Name", "Portfolio", "Type", "Status", "Current Value", "P&L %"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No assets found."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(a, portfolio)| {
-                            let pl_cls = if a.profit_loss_percent >= 0.0 { "positive" } else { "negative" };
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{a.name}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{format!("{:?}", a.asset_type)}</div>
-                                    <div class="reporting-td">{format!("{:?}", a.status)}</div>
-                                    <div class="reporting-td">{fmt_dollars(a.current_value)}</div>
-                                    <div class={format!("reporting-td {}", pl_cls)}>{format!("{:+.1}%", a.profit_loss_percent)}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(a, _)| a.id
+                            children=move |(a, portfolio)| {
+                                let pl_cls = if a.profit_loss_percent >= 0.0 { "positive" } else { "negative" };
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{a.name}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{format!("{:?}", a.asset_type)}</div>
+                                        <div class="reporting-td">{format!("{:?}", a.status)}</div>
+                                        <div class="reporting-td">{fmt_dollars(a.current_value)}</div>
+                                        <div class={format!("reporting-td {}", pl_cls)}>{format!("{:+.1}%", a.profit_loss_percent)}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -620,28 +662,34 @@ pub(crate) fn transactions_view(app_store: &RwSignal<AppStore>) -> impl IntoView
         .collect();
     sort_transactions(&mut items, &sort);
     let count = items.len();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} all-time transactions", count)}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Type", "Asset", "Portfolio", "Amount", "Status"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No transactions recorded."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(t, asset, portfolio)| {
-                            let date = t.created_at.format("%d %b %Y").to_string();
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{format!("{:?}", t.transaction_type)}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{fmt_dollars(t.amount)}</div>
-                                    <div class="reporting-td">{format!("{:?}", t.status)}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(t, _, _)| t.id
+                            children=move |(t, asset, portfolio)| {
+                                let date = t.created_at.format("%d %b %Y").to_string();
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{format!("{:?}", t.transaction_type)}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{fmt_dollars(t.amount)}</div>
+                                        <div class="reporting-td">{format!("{:?}", t.status)}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>
@@ -675,28 +723,34 @@ pub(crate) fn statements_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     sort_transactions(&mut items, &sort);
     let count = items.len();
     let total: f64 = items.iter().map(|(t, _, _)| t.amount).sum();
+    let items_for = items.clone();
+    let items_memo = Memo::new(move |_| items_for.clone());
     view! {
         <div class="reporting-section">
             <div class="reporting-section-meta">{format!("{} statements · Total: {}", count, fmt_dollars(total))}</div>
             <div class="reporting-table">
                 {table_head(&["Date", "Type", "Asset", "Portfolio", "Amount", "Status"])}
-                {if items.is_empty() {
+                {if items_memo.get().is_empty() {
                     view! { <div class="reporting-empty">"No statements generated."</div> }.into_any()
                 } else {
                     view! {
-                        {items.into_iter().map(|(t, asset, portfolio)| {
-                            let date = t.created_at.format("%d %b %Y").to_string();
-                            view! {
-                                <div class="reporting-row">
-                                    <div class="reporting-td">{date}</div>
-                                    <div class="reporting-td">{format!("{:?}", t.transaction_type)}</div>
-                                    <div class="reporting-td">{asset}</div>
-                                    <div class="reporting-td">{portfolio}</div>
-                                    <div class="reporting-td">{fmt_dollars(t.amount)}</div>
-                                    <div class="reporting-td">{format!("{:?}", t.status)}</div>
-                                </div>
+                        <For
+                            each=move || items_memo.get()
+                            key=|(t, _, _)| t.id
+                            children=move |(t, asset, portfolio)| {
+                                let date = t.created_at.format("%d %b %Y").to_string();
+                                view! {
+                                    <div class="reporting-row">
+                                        <div class="reporting-td">{date}</div>
+                                        <div class="reporting-td">{format!("{:?}", t.transaction_type)}</div>
+                                        <div class="reporting-td">{asset}</div>
+                                        <div class="reporting-td">{portfolio}</div>
+                                        <div class="reporting-td">{fmt_dollars(t.amount)}</div>
+                                        <div class="reporting-td">{format!("{:?}", t.status)}</div>
+                                    </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     }.into_any()
                 }}
             </div>

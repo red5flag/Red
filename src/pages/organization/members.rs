@@ -26,6 +26,8 @@ pub(crate) fn MembersSection(
     on_toggle_member: Callback<(Uuid, Uuid), ()>,
     #[prop(into)] portfolios: Vec<crate::models::Portfolio>,
 ) -> impl IntoView {
+    let mems = members.clone();
+    let indexed_mems = Memo::new(move |_| mems.iter().cloned().enumerate().collect::<Vec<_>>());
     view! {
         <div class="org-sub-tab-header">
             <span class="org-sub-tab-title">"Members"</span>
@@ -69,39 +71,43 @@ pub(crate) fn MembersSection(
             </div>
         })}
 
-        {if members.is_empty() {
+        {if indexed_mems.get().is_empty() {
             view! { <div class="empty-state"><div class="empty-text">"No members."</div></div> }.into_any()
         } else {
             view! {
                 <div class="org-member-list">
-                {members.into_iter().enumerate().map(|(uidx, user)| {
-                    let uid = user.id;
-                    let is_exp = move || expanded_members.get().contains(&(org_id, uid));
-                    let user_role_names: Vec<String> = roles.iter()
-                        .filter(|r| r.member_ids.contains(&uid))
-                        .map(|r| r.name.clone())
-                        .collect();
-                    let accessible_portfolios = portfolios.iter()
-                        .filter(|p| p.assigned_users.contains(&uid))
-                        .map(|p| p.name.clone())
-                        .collect::<Vec<_>>();
-                    let utint = format!("background: rgba(255,255,255,{:.1});", (uidx as f64 * 0.04).min(0.25));
-                    view! {
-                        <div style={utint}>
-                            <MemberCard
-                                org_id=org_id
-                                user={user}
-                                can_edit=can_edit
-                                is_expanded={Signal::derive(is_exp)}
-                                on_toggle={Callback::new(move |v: (Uuid, Uuid)| on_toggle_member.run(v))}
-                                on_update_role={Callback::new(move |(id, role): (Uuid, UserRole)| on_update_member_role.run((id, role)))}
-                                on_remove={Callback::new(move |v: (Uuid, Uuid)| on_remove_member.run(v))}
-                                role_names=user_role_names
-                                accessible_portfolios=accessible_portfolios
-                            />
-                        </div>
+                <For
+                    each=move || indexed_mems.get()
+                    key=|(_, user)| user.id
+                    children=move |(uidx, user)| {
+                        let uid = user.id;
+                        let is_exp = move || expanded_members.get().contains(&(org_id, uid));
+                        let user_role_names: Vec<String> = roles.iter()
+                            .filter(|r| r.member_ids.contains(&uid))
+                            .map(|r| r.name.clone())
+                            .collect();
+                        let accessible_portfolios = portfolios.iter()
+                            .filter(|p| p.assigned_users.contains(&uid))
+                            .map(|p| p.name.clone())
+                            .collect::<Vec<_>>();
+                        let utint = format!("background: rgba(255,255,255,{:.1});", (uidx as f64 * 0.04).min(0.25));
+                        view! {
+                            <div style={utint}>
+                                <MemberCard
+                                    org_id=org_id
+                                    user={user}
+                                    can_edit=can_edit
+                                    is_expanded={Signal::derive(is_exp)}
+                                    on_toggle={Callback::new(move |v: (Uuid, Uuid)| on_toggle_member.run(v))}
+                                    on_update_role={Callback::new(move |(id, role): (Uuid, UserRole)| on_update_member_role.run((id, role)))}
+                                    on_remove={Callback::new(move |v: (Uuid, Uuid)| on_remove_member.run(v))}
+                                    role_names=user_role_names
+                                    accessible_portfolios=accessible_portfolios
+                                />
+                            </div>
+                        }
                     }
-                }).collect::<Vec<_>>()}
+                />
                 </div>
             }.into_any()
         }}

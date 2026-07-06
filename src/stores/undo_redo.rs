@@ -420,3 +420,7 @@ pub fn apply_redo_side_effects(action: &Action, app_store: &mut crate::stores::A
     }
     false
 }
+
+pub fn use_undo_redo_store() -> RwSignal<UndoRedoStore> {
+    expect_context::<RwSignal<UndoRedoStore>>()
+}

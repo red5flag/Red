@@ -1,4 +1,84 @@
-warning: multiple fields are never read
+error[E0277]: can't compare `Channel` with `Channel`
+error: could not compile `farley` (lib) due to 1 previous error
+error[E0277]: can't compare `Channel` with `Channel`
+error: could not compile `farley` (lib) due to 1 previous error
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error: could not compile `farley` (lib) due to 2 previous errors
+error: could not compile `farley` (lib) due to 2 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+warning: unused variable: `orgs_memo`
+warning: unused variable: `contacts_memo`
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
+warning: unused variable: `orgs_memo`
+warning: unused variable: `contacts_memo`
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Integration` with `Integration`
+warning: unused variable: `contacts_memo`
+warning: unused variable: `contacts_memo`
 warning: `farley` (lib) generated 1 warning
-warning: multiple fields are never read
+error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
 warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error: could not compile `farley` (lib) due to 2 previous errors
+error: could not compile `farley` (lib) due to 2 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error: could not compile `farley` (lib) due to 2 previous errors
+error: could not compile `farley` (lib) due to 2 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error: could not compile `farley` (lib) due to 4 previous errors
+error: could not compile `farley` (lib) due to 4 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error: could not compile `farley` (lib) due to 4 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error: could not compile `farley` (lib) due to 4 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error: could not compile `farley` (lib) due to 4 previous errors
+error: could not compile `farley` (lib) due to 4 previous errors
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `Channel` with `Channel`
+error[E0277]: can't compare `Integration` with `Integration`
+error: could not compile `farley` (lib) due to 4 previous errors
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
+error: could not compile `farley` (lib) due to 4 previous errors

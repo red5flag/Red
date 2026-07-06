@@ -24,6 +24,10 @@ pub(crate) fn render_by_type(
         })
         .cloned()
         .collect();
+    let orgs_for = filtered_orgs.clone();
+    let orgs_memo = Memo::new(move |_| orgs_for.clone());
+    let contacts_for = filtered_contacts.clone();
+    let contacts_memo = Memo::new(move |_| contacts_for.clone());
     let rel_type = rel_type.to_string();
 
     view! {
@@ -41,26 +45,30 @@ pub(crate) fn render_by_type(
                             view! {
                                 <div class="net-section-title">"Organizations"</div>
                                 <div class="net-cards-list">
-                                    {filtered_orgs.iter().map(|o| {
-                                        let status_cls = o.status.css_class();
-                                        let initial = o.name.chars().next().unwrap_or('A');
-                                        view! {
-                                            <div class="net-relationship-card">
-                                                <div class="net-rel-avatar net-rel-avatar-org">{initial}</div>
-                                                <div class="net-rel-body">
-                                                    <div class="net-rel-name">{o.name.clone()}</div>
-                                                    <div class="net-rel-type">{o.org_type.clone()}</div>
-                                                    <div class="net-rel-meta">
-                                                        <span class={format!("net-rel-status {}", status_cls)}>{o.status.label()}</span>
-                                                    </div>
-                                                    <div class="net-rel-linked">
-                                                        {format!("Portfolios: {} • Transactions: {}",
-                                                            o.linked_portfolios.len(), o.transaction_count)}
+                                    <For
+                                        each=move || orgs_memo.get()
+                                        key=|o| o.id
+                                        children=move |o| {
+                                            let status_cls = o.status.css_class();
+                                            let initial = o.name.chars().next().unwrap_or('A');
+                                            view! {
+                                                <div class="net-relationship-card">
+                                                    <div class="net-rel-avatar net-rel-avatar-org">{initial}</div>
+                                                    <div class="net-rel-body">
+                                                        <div class="net-rel-name">{o.name.clone()}</div>
+                                                        <div class="net-rel-type">{o.org_type.clone()}</div>
+                                                        <div class="net-rel-meta">
+                                                            <span class={format!("net-rel-status {}", status_cls)}>{o.status.label()}</span>
+                                                        </div>
+                                                        <div class="net-rel-linked">
+                                                            {format!("Portfolios: {} • Transactions: {}",
+                                                                o.linked_portfolios.len(), o.transaction_count)}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            }
                                         }
-                                    }).collect::<Vec<_>>()}
+                                    />
                                 </div>
                             }.into_any()
                         } else { ().into_any() }}
@@ -68,25 +76,29 @@ pub(crate) fn render_by_type(
                             view! {
                                 <div class="net-section-title">"Contacts"</div>
                                 <div class="net-cards-list">
-                                    {filtered_contacts.iter().map(|c| {
-                                        let status_cls = c.status.css_class();
-                                        view! {
-                                            <div class="net-relationship-card">
-                                                <img class="net-rel-avatar" src={c.avatar_url.clone().unwrap_or_default()} alt={c.name.clone()} />
-                                                <div class="net-rel-body">
-                                                    <div class="net-rel-name">{c.name.clone()}</div>
-                                                    <div class="net-rel-type">{format!("{} • {}", c.title, c.company)}</div>
-                                                    <div class="net-rel-meta">
-                                                        <span class={format!("net-rel-status {}", status_cls)}>{c.status.label()}</span>
-                                                    </div>
-                                                    <div class="net-rel-linked">
-                                                        {format!("Portfolios: {} • Transactions: {}",
-                                                            c.linked_portfolios.len(), c.linked_transactions.len())}
+                                    <For
+                                        each=move || contacts_memo.get()
+                                        key=|c| c.id
+                                        children=move |c| {
+                                            let status_cls = c.status.css_class();
+                                            view! {
+                                                <div class="net-relationship-card">
+                                                    <img class="net-rel-avatar" src={c.avatar_url.clone().unwrap_or_default()} alt={c.name.clone()} />
+                                                    <div class="net-rel-body">
+                                                        <div class="net-rel-name">{c.name.clone()}</div>
+                                                        <div class="net-rel-type">{format!("{} • {}", c.title, c.company)}</div>
+                                                        <div class="net-rel-meta">
+                                                            <span class={format!("net-rel-status {}", status_cls)}>{c.status.label()}</span>
+                                                        </div>
+                                                        <div class="net-rel-linked">
+                                                            {format!("Portfolios: {} • Transactions: {}",
+                                                                c.linked_portfolios.len(), c.linked_transactions.len())}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            }
                                         }
-                                    }).collect::<Vec<_>>()}
+                                    />
                                 </div>
                             }.into_any()
                         } else { ().into_any() }}

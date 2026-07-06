@@ -27,6 +27,9 @@ pub(crate) fn RolesSection(
     let mut sorted_roles = roles.clone();
     sorted_roles.sort_by(|a, b| b.rank.cmp(&a.rank));
 
+    let sorted = sorted_roles.clone();
+    let indexed_roles = Memo::new(move |_| sorted.iter().cloned().enumerate().collect::<Vec<_>>());
+
     view! {
         <div class="org-sub-tab-header">
             <span class="org-sub-tab-title">"Roles"</span>
@@ -40,32 +43,36 @@ pub(crate) fn RolesSection(
             } else { ().into_any() }}
         </div>
         <div class="org-role-list">
-        {sorted_roles.into_iter().enumerate().map(|(ridx, role)| {
-            let rid = role.id;
-            let is_exp = move || expanded_roles.get().contains(&(org_id, rid));
-            let rtint = format!("background: rgba(255,255,255,{:.1});", (ridx as f64 * 0.04).min(0.3));
-            view! {
-                <div style={rtint}>
-                    <RoleCard
-                        org_id=org_id
-                        role={role}
-                        can_edit=can_edit
-                        is_expanded={Signal::derive(is_exp)}
-                        on_toggle=on_toggle_role
-                        on_start_edit={Callback::new(move |v| on_start_role_edit.run(v))}
-                        on_duplicate={Callback::new(move |v| on_duplicate_role.run(v))}
-                        on_delete={Callback::new(move |v| on_delete_role.run(v))}
-                        expanded_perm_groups=expanded_perm_groups
-                        on_toggle_perm_group=on_toggle_perm_group
-                        on_toggle_perm={Callback::new(move |v| on_toggle_role_perm.run(v))}
-                        on_assign_member={Callback::new(move |v| on_assign_role_member.run(v))}
-                        on_remove_member={Callback::new(move |v| on_remove_role_member.run(v))}
-                        available_users=available_users.clone()
-                        on_context_menu={Callback::new(move |v| on_role_context_menu.run(v))}
-                    />
-                </div>
+        <For
+            each=move || indexed_roles.get()
+            key=|(_, role)| role.id
+            children=move |(ridx, role)| {
+                let rid = role.id;
+                let is_exp = move || expanded_roles.get().contains(&(org_id, rid));
+                let rtint = format!("background: rgba(255,255,255,{:.1});", (ridx as f64 * 0.04).min(0.3));
+                view! {
+                    <div style={rtint}>
+                        <RoleCard
+                            org_id=org_id
+                            role={role}
+                            can_edit=can_edit
+                            is_expanded={Signal::derive(is_exp)}
+                            on_toggle=on_toggle_role
+                            on_start_edit={Callback::new(move |v| on_start_role_edit.run(v))}
+                            on_duplicate={Callback::new(move |v| on_duplicate_role.run(v))}
+                            on_delete={Callback::new(move |v| on_delete_role.run(v))}
+                            expanded_perm_groups=expanded_perm_groups
+                            on_toggle_perm_group=on_toggle_perm_group
+                            on_toggle_perm={Callback::new(move |v| on_toggle_role_perm.run(v))}
+                            on_assign_member={Callback::new(move |v| on_assign_role_member.run(v))}
+                            on_remove_member={Callback::new(move |v| on_remove_role_member.run(v))}
+                            available_users=available_users.clone()
+                            on_context_menu={Callback::new(move |v| on_role_context_menu.run(v))}
+                        />
+                    </div>
+                }
             }
-        }).collect::<Vec<_>>()}
+        />
         </div>
         <div class="org-rule-engine-wrap">
             <RuleEngine org_id={org_id} />

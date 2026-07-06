@@ -9,6 +9,36 @@ use leptos::prelude::*;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OrgSortMode {
+    Recent,
+    NameAsc,
+    NameDesc,
+    Members,
+    Roles,
+}
+
+fn sort_mode_label(m: OrgSortMode) -> &'static str {
+    match m {
+        OrgSortMode::Recent => "Recent",
+        OrgSortMode::NameAsc => "Name A→Z",
+        OrgSortMode::NameDesc => "Name Z→A",
+        OrgSortMode::Members => "Members",
+        OrgSortMode::Roles => "Roles",
+    }
+}
+
+fn sort_organizations(mut orgs: Vec<Organization>, mode: OrgSortMode) -> Vec<Organization> {
+    match mode {
+        OrgSortMode::Recent => orgs.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
+        OrgSortMode::NameAsc => orgs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        OrgSortMode::NameDesc => orgs.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase())),
+        OrgSortMode::Members => orgs.sort_by(|a, b| b.members.len().cmp(&a.members.len())),
+        OrgSortMode::Roles => orgs.sort_by(|a, b| b.roles.len().cmp(&a.roles.len())),
+    }
+    orgs
+}
+
 #[component]
 pub fn OrganizationPage() -> impl IntoView {
     let app_store = use_app_store();
@@ -44,6 +74,7 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_color, set_edit_color) = signal(String::new());
     let (context_menu, set_context_menu) = signal(Option::<(i32, i32, Uuid)>::None);
     let (role_context_menu, set_role_context_menu) = signal(Option::<(i32, i32, Uuid, Uuid)>::None);
+    let (org_sort_mode, set_org_sort_mode) = signal(OrgSortMode::Recent);
 
     let toggle_org = move |oid: Uuid| {
         set_expanded_orgs.update(|s| {
@@ -281,6 +312,25 @@ pub fn OrganizationPage() -> impl IntoView {
         <div class="home-screen">
             {blind_add_button}
 
+            <div class="org-quick-tabs" role="tablist" aria-label="Organization sort options">
+                {[OrgSortMode::Recent, OrgSortMode::NameAsc, OrgSortMode::NameDesc, OrgSortMode::Members, OrgSortMode::Roles]
+                    .iter().map(|&mode| {
+                        let mode_for_click = mode;
+                        let label = sort_mode_label(mode);
+                        view! {
+                            <button
+                                class="org-quick-tab"
+                                class:active={move || org_sort_mode.get() == mode_for_click}
+                                role="tab"
+                                aria-selected={move || org_sort_mode.get() == mode_for_click}
+                                on:click=move |_| set_org_sort_mode.set(mode_for_click)
+                            >
+                                {label}
+                            </button>
+                        }
+                    }).collect::<Vec<_>>()}
+            </div>
+
             <AddOrgForm
                 show={show_add_org}
                 _set_show={set_show_add_org}
@@ -292,7 +342,7 @@ pub fn OrganizationPage() -> impl IntoView {
             />
 
             {move || {
-                let orgs = organizations.get();
+                let orgs = sort_organizations(organizations.get(), org_sort_mode.get());
                 view! {
                     <OrganizationList
                         app_store={app_store}

@@ -32,17 +32,6 @@ pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> Strin
     )
 }
 
-/// Stored snapshot for the detail panel so nested closures can read/clone data without moving it.
-#[derive(Clone)]
-pub(crate) struct AssetDetailSnapshot {
-    #[allow(dead_code)]
-    a_type: String,
-    #[allow(dead_code)]
-    a_addr: String,
-    #[allow(dead_code)]
-    asset_name_for_modal: String,
-}
-
 #[component]
 pub(crate) fn AssetItem(
     asset: Asset,
@@ -149,12 +138,6 @@ pub(crate) fn AssetItem(
         "negative"
     };
     let _a_purchase_date = asset.purchase_date.format("%d %b %Y").to_string();
-
-    let _detail = StoredValue::new(AssetDetailSnapshot {
-        a_type: a_type.clone(),
-        a_addr: a_addr.clone(),
-        asset_name_for_modal: asset_name_for_modal.clone(),
-    });
 
     let save_edit = move || {
         let n = edit_name.get();
@@ -827,159 +810,6 @@ pub(crate) fn AssetItem(
             }}
         </div>
     }.into_any()
-    }
-}
-
-#[allow(dead_code)]
-#[component]
-pub(crate) fn AssetDetailViewTab(
-    #[allow(unused_variables, dead_code)] detail: StoredValue<AssetDetailSnapshot>,
-    #[allow(unused_variables, dead_code)] asset_id: Uuid,
-    #[allow(unused_variables, dead_code)] a_purchase_val: f64,
-    #[allow(unused_variables, dead_code)] a_current_val: f64,
-    #[allow(unused_variables, dead_code)] a_pl: f64,
-    #[allow(unused_variables, dead_code)] a_pl_pct: f64,
-    #[allow(unused_variables, dead_code)] a_revenue: f64,
-    #[allow(unused_variables, dead_code)] a_pl_cls: &'static str,
-    #[allow(unused_variables, dead_code)] doc_sort: ReadSignal<u8>,
-    #[allow(unused_variables, dead_code)] set_doc_sort: WriteSignal<u8>,
-    #[allow(unused_variables, dead_code)] can_edit: bool,
-    #[allow(unused_variables, dead_code)] can_edit_documents: bool,
-    #[allow(unused_variables, dead_code)] add_cb: Option<Callback<String>>,
-    #[allow(unused_variables, dead_code)] portfolio_id: Option<Uuid>,
-    #[prop(default = None)]
-    #[allow(unused_variables, dead_code)]
-    group_id: Option<Uuid>,
-) -> impl IntoView {
-    let app_store = use_app_store();
-    let ui_store = use_ui_store();
-    let _ = (a_purchase_val, a_pl, a_pl_pct, a_revenue, a_pl_cls);
-    let modal_title = detail.get_value().asset_name_for_modal.clone();
-
-    // Reactive document list for this asset read directly from the store.
-    let asset_docs = Memo::new(move |_| {
-        app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
-                    .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
-            })
-            .find(|a| a.id == asset_id)
-            .map(|a| a.documents.clone())
-            .unwrap_or_default()
-    });
-
-    view! {
-        <div class="ai-view-tab">
-            <div class="pf-detail-grid">
-                <div class="pf-detail-cell">
-                    <span class="pf-detail-label">"NAME"</span>
-                    <span class="pf-detail-value">{modal_title.clone()}</span>
-                </div>
-                <div class="pf-detail-cell">
-                    <span class="pf-detail-label">"TYPE & BUILD"</span>
-                    <span class="pf-detail-value">{detail.get_value().a_type.clone()}</span>
-                </div>
-                <div class="pf-detail-cell">
-                    <span class="pf-detail-label">"ADDRESS"</span>
-                    <span class="pf-detail-value">{detail.get_value().a_addr.clone()}</span>
-                </div>
-                <div class="pf-detail-cell">
-                    <span class="pf-detail-label">"PRICE"</span>
-                    <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
-                </div>
-            </div>
-
-            <div class="ai-docs-section">
-                <div class="ai-docs-heading-row">
-                    <span class="ai-detail-heading">"Documents"</span>
-                    <div class="ai-docs-sort-btns">
-                        <button class="ai-docs-sort-btn"
-                            class:active=move || doc_sort.get() == 0
-                            on:click=move |_| set_doc_sort.set(0)>
-                            "Recent"
-                        </button>
-                        <button class="ai-docs-sort-btn"
-                            class:active=move || doc_sort.get() == 1
-                            on:click=move |_| set_doc_sort.set(1)>
-                            "Name"
-                        </button>
-                        {if can_edit_documents {
-                            view! {
-                                <button class="ai-docs-sort-btn ai-docs-add-btn"
-                                    aria-label={format!("Add document to {}", modal_title)}
-                                    on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(asset_id))>
-                                    "+ Add"
-                                </button>
-                            }.into_any()
-                        } else { ().into_any() }}
-                    </div>
-                </div>
-                {move || {
-                    let mut sorted_docs = asset_docs.get();
-                    if doc_sort.get() == 1 {
-                        sorted_docs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-                    }
-                    // Recent order is insertion order (already newest-last in seed)
-                    if sorted_docs.is_empty() {
-                        view! { <div class="ai-docs-empty">"No documents attached"</div> }.into_any()
-                    } else {
-                        view! {
-                            <div class="ai-docs-strip">
-                                {sorted_docs.into_iter().map(|doc| {
-                                    let icon  = document_icon(&doc.file_type);
-                                    let ft    = doc.file_type.to_uppercase();
-                                    let dname = doc.name.clone();
-                                    let doc_for_view = doc.clone();
-                                    let (viewing, set_viewing) = signal(false);
-                                    view! {
-                                        <div class="ai-doc-card" aria-label={format!("View document {}. Type {}", dname, ft)} on:click=move |_| set_viewing.set(true)>
-                                            <span class="ai-doc-card-icon">{icon}</span>
-                                            <span class="ai-doc-card-name">{dname.clone()}</span>
-                                            <span class="ai-doc-card-ft">{ft.clone()}</span>
-                                        </div>
-                                        {move || if viewing.get() {
-                                            let d = doc_for_view.clone();
-                                            view! {
-                                                <div class="doc-modal-overlay" on:click=move |_| set_viewing.set(false)>
-                                                    <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
-                                                        <DocumentViewer
-                                                            doc={d.clone()}
-                                                            on_close=move || set_viewing.set(false)
-                                                            can_edit={can_edit}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            }.into_any()
-                                        } else { ().into_any() }}
-                                    }
-                                }).collect::<Vec<_>>()}
-                            </div>
-                        }.into_any()
-                    }
-                }}
-            </div>
-        </div>
-
-        {move || if ui_store.get().is_doc_modal_open(asset_id) {
-            let mt = modal_title.clone();
-            let ac = add_cb.clone();
-            view! {
-                <DocModal
-                    entity_id={asset_id}
-                    title={mt}
-                    on_close=move || ui_store.update(|s| s.close_doc_modal(asset_id))
-                    can_edit={can_edit_documents}
-                    on_add={ac}
-                    portfolio_id={portfolio_id}
-                    group_id={group_id}
-                    asset_id={Some(asset_id)}
-                />
-            }.into_any()
-        } else { ().into_any() }}
     }
 }
 

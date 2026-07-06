@@ -5,7 +5,8 @@ use crate::stores::seed_data::seed_portfolio_2;
 use crate::types::{TabType, UserProfile, UserRole};
 use crate::utils::crypto;
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "hydrate")]
+use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -47,31 +48,11 @@ pub struct PendingNavTarget {
     pub doc_id: Option<Uuid>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[allow(dead_code)]
+#[cfg(feature = "hydrate")]
+#[derive(Clone, Debug, Serialize)]
 struct TabState {
     active_tabs: Vec<TabType>,
     edit_mode_tabs: HashSet<TabType>,
-}
-
-#[cfg(feature = "hydrate")]
-#[allow(dead_code)]
-fn load_tab_state_from_local_storage() -> Option<TabState> {
-    use web_sys::window;
-    if let Some(window) = window() {
-        if let Ok(Some(storage)) = window.local_storage() {
-            if let Ok(Some(json)) = storage.get_item("farley_tab_state") {
-                return serde_json::from_str(&json).ok();
-            }
-        }
-    }
-    None
-}
-
-#[cfg(not(feature = "hydrate"))]
-#[allow(dead_code)]
-fn load_tab_state_from_local_storage() -> Option<TabState> {
-    None
 }
 
 impl AppStore {
@@ -264,13 +245,15 @@ impl AppStore {
             let before = p.assets.len();
             p.assets.retain(|a| a.id != asset_id);
             let removed_direct = p.assets.len() < before;
+            let mut removed_from_group = false;
             for g in &mut p.asset_groups {
+                let g_before = g.assets.len();
                 g.assets.retain(|a| a.id != asset_id);
+                if g.assets.len() < g_before {
+                    removed_from_group = true;
+                }
             }
-            removed_direct
-                || p.asset_groups
-                    .iter()
-                    .any(|g| g.assets.len() < g.assets.len())
+            removed_direct || removed_from_group
         } else {
             false
         }

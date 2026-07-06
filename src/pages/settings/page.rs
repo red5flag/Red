@@ -268,11 +268,6 @@ pub fn SettingsPage() -> impl IntoView {
 
     view! {
         <div class="home-screen">
-            <div class="welcome-header">
-                <h1>"Settings"</h1>
-                <p>"Customize your experience"</p>
-            </div>
-
             <account_settings::AccountSettings />
             <display_settings::DisplaySettings />
             <accessibility_settings::AccessibilitySettings />
