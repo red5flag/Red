@@ -68,6 +68,15 @@ pub enum SearchResultItem {
 }
 
 impl SearchResultItem {
+    pub fn id(&self) -> Uuid {
+        match self {
+            SearchResultItem::Portfolio(p) => p.id,
+            SearchResultItem::Asset { asset, .. } => asset.id,
+            SearchResultItem::Organization(o) => o.id,
+            SearchResultItem::User(u) => u.id,
+        }
+    }
+
     pub fn name(&self) -> String {
         match self {
             SearchResultItem::Portfolio(p) => p.name.clone(),
@@ -368,17 +377,34 @@ impl SearchStore {
             search_time_ms: elapsed,
         };
 
-        // Record search in history
-        self.search_history.push(SearchQuery {
-            query: self.query.clone(),
-            filters: self.filters.clone(),
-            timestamp: chrono::Utc::now(),
-            result_count: self.results.total_count,
-        });
+        // Trim results to only those relevant to the current tab.
+        self.filter_results_by_current_tab();
+    }
 
-        // Keep only last 20 searches
-        if self.search_history.len() > 20 {
-            self.search_history.remove(0);
+    /// Retain only result types relevant to the current tab. For tabs with
+    /// no specific search relevance, all results are kept.
+    pub fn filter_results_by_current_tab(&mut self) {
+        if let Some(ref tab) = self.current_tab {
+            match tab {
+                TabType::Portfolios => {
+                    self.results.organizations.clear();
+                    self.results.users.clear();
+                }
+                TabType::Networking | TabType::NetworkingAddMember => {
+                    self.results.portfolios.clear();
+                    self.results.assets.clear();
+                    self.results.organizations.clear();
+                }
+                TabType::Organization => {
+                    self.results.portfolios.clear();
+                    self.results.assets.clear();
+                }
+                _ => {}
+            }
+            self.results.total_count = self.results.portfolios.len()
+                + self.results.assets.len()
+                + self.results.organizations.len()
+                + self.results.users.len();
         }
     }
 
@@ -602,6 +628,9 @@ pub async fn perform_meilisearch(
             search_store.perform_search(app_store, organization_store);
         }
     }
+
+    // Trim results to only those relevant to the current tab.
+    search_store.filter_results_by_current_tab();
 
     search_store.is_loading = false;
     search_store.has_searched = !query.trim().is_empty();

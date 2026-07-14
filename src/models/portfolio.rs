@@ -31,6 +31,7 @@ pub struct Portfolio {
     pub calendar_events: Vec<crate::models::CalendarEvent>,
     pub assigned_users: Vec<Uuid>,
     pub notification_settings: Vec<EntityNotificationSetting>,
+    pub channel_ids: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,6 +69,7 @@ impl Portfolio {
             calendar_events: Vec::new(),
             assigned_users: Vec::new(),
             notification_settings: Vec::new(),
+            channel_ids: Vec::new(),
         }
     }
 
@@ -152,6 +154,7 @@ pub struct AssetGroup {
     pub calendar_events: Vec<crate::models::CalendarEvent>,
     pub assigned_users: Vec<Uuid>,
     pub notification_settings: Vec<EntityNotificationSetting>,
+    pub channel_ids: Vec<Uuid>,
 }
 
 impl AssetGroup {
@@ -174,6 +177,7 @@ impl AssetGroup {
             calendar_events: Vec::new(),
             assigned_users: Vec::new(),
             notification_settings: Vec::new(),
+            channel_ids: Vec::new(),
         }
     }
 
@@ -224,6 +228,7 @@ pub struct Asset {
     pub quick_sale_enabled: bool,
     pub notification_settings: Vec<AssetNotificationSetting>,
     pub calendar_events: Vec<crate::models::CalendarEvent>,
+    pub channel_ids: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,6 +309,7 @@ impl Asset {
             quick_sale_enabled: false,
             notification_settings: Vec::new(),
             calendar_events: Vec::new(),
+            channel_ids: Vec::new(),
         }
     }
 

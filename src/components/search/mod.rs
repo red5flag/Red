@@ -1,5 +1,6 @@
 use crate::stores::{
     perform_meilisearch, use_app_store, use_organization_store, use_search_store, use_ui_store,
+    SearchResultItem,
 };
 use crate::types::{SearchFilters, TabType};
 use chrono::TimeZone;
@@ -41,6 +42,7 @@ pub fn SearchFilters() -> impl IntoView {
     };
 
     let (adv_open, set_adv_open) = signal(false);
+    let search_input_ref = NodeRef::<leptos::html::Input>::new();
     let (lineage_open, set_lineage_open) = signal(false);
     let (tree_open, set_tree_open) = signal(false);
     let (prof1, set_prof1) = signal(false);
@@ -56,16 +58,24 @@ pub fn SearchFilters() -> impl IntoView {
     let (chg_undo, set_chg_undo) = signal(false);
     let (chg_redo, set_chg_redo) = signal(false);
 
-    // Run an initial search when the panel opens, keep advanced options open by default,
+    // Run an initial search when the panel opens, keep advanced options collapsed by default,
     // and sync the advanced filter chips/inputs into SearchStore.filters.
     Effect::new(move |_| {
         let app_snapshot = app_store.get();
-        if !ui_store.get().is_search_open {
+        let is_open = ui_store.get().is_search_open;
+
+        if is_open {
+            if let Some(input) = search_input_ref.get() {
+                let _ = input.focus();
+            }
+        }
+
+        if !is_open {
             return;
         }
 
-        // Advanced search panel is open by default.
-        set_adv_open.set(true);
+        // Advanced search panel is collapsed by default.
+        set_adv_open.set(false);
 
         // Build filters from the advanced UI signals.
         let mut filters = SearchFilters::default();
@@ -109,13 +119,14 @@ pub fn SearchFilters() -> impl IntoView {
         // Set filters/context then run Meilisearch-backed search.
         let mut store = search_store.get_untracked();
         store.filters = filters;
-        store.set_context_tab(
-            app_snapshot
-                .active_tabs
-                .first()
-                .cloned()
-                .unwrap_or(TabType::Overview),
-        );
+        let context_tab = app_snapshot
+            .active_tabs
+            .iter()
+            .find(|&&t| matches!(t, TabType::Networking | TabType::NetworkingAddMember))
+            .cloned()
+            .or_else(|| app_snapshot.active_tabs.first().cloned())
+            .unwrap_or(TabType::Overview);
+        store.set_context_tab(context_tab);
 
         let app_snapshot = app_snapshot.clone();
         let org_snapshot = organization_store.get_untracked();
@@ -132,6 +143,7 @@ pub fn SearchFilters() -> impl IntoView {
                     type="text"
                     class="sd-search-input"
                     placeholder="Search..."
+                    node_ref=search_input_ref
                     prop:value={move || search_store.get().query}
                     on:input=move |ev| {
                         let v = event_target_value(&ev);
@@ -179,57 +191,6 @@ pub fn SearchFilters() -> impl IntoView {
                         </div>
                     }.into_any()
                 }
-            }}
-
-            <SearchResults />
-
-            // Networking sort quick options (shown when Networking tab is active)
-            {move || {
-                let is_networking = app_store.get().is_tab_expanded(&crate::types::TabType::Networking);
-                if is_networking {
-                    let sort_labels = ["Name", "Company", "Status", "Risk", "Type", "Transactions"];
-                    let current_mode = ui_store.get().net_sort_mode;
-                    let current_asc = ui_store.get().net_sort_ascending;
-                    view! {
-                        <div class="sd-section">
-                            <div class="sd-section-header" style="cursor: default;">
-                                <span class="sd-section-title">"SORT NETWORKING"</span>
-                                <button class="net-sort-toggle" on:click=move |_| ui_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
-                                    {if current_asc { "↑ Asc" } else { "↓ Desc" }}
-                                </button>
-                            </div>
-                            <div class="sd-adv-body">
-                                <div class="sd-filter-row">
-                                    <div class="sd-filter-label">"SORT BY"</div>
-                                    <div class="sd-filter-chips">
-                                        {sort_labels.iter().enumerate().map(|(idx, label)| {
-                                            let is_active = current_mode == idx as u8;
-                                            view! {
-                                                <button class="sd-chip" class:sd-chip-active={is_active}
-                                                    on:click=move |_| {
-                                                        ui_store.update(|s| {
-                                                            if s.net_sort_mode == idx as u8 {
-                                                                s.net_sort_ascending = !s.net_sort_ascending;
-                                                            } else {
-                                                                s.net_sort_mode = idx as u8;
-                                                            }
-                                                        });
-                                                    }
-                                                >
-                                                    {if is_active {
-                                                        format!("{} {}", label, if current_asc { "↑" } else { "↓" })
-                                                    } else {
-                                                        label.to_string()
-                                                    }}
-                                                </button>
-                                            }
-                                        }).collect::<Vec<_>>()}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }.into_any()
-                } else { ().into_any() }
             }}
 
             <div class="sd-section">
@@ -336,6 +297,8 @@ pub fn SearchFilters() -> impl IntoView {
                     </div>
                 }.into_any()} else {().into_any()}}
             </div>
+
+            <SearchResults />
         </div>
     }
 }
@@ -353,7 +316,7 @@ pub fn SearchResults() -> impl IntoView {
     let on_portfolio_click = move |id: Uuid| {
         app_store.update(|s| {
             s.touch_portfolio(id);
-            s.selected_portfolio_id = Some(id);
+            s.selected_portfolio_ids.insert(id);
             s.expand_tab(crate::types::TabType::Portfolios);
         });
         ui_store.update(|s| s.close_search());
@@ -389,58 +352,90 @@ pub fn SearchResults() -> impl IntoView {
                 view! { <div class="loading"><span class="loading-text">"Searching..."</span></div> }.into_any()
             } else if has_results() {
                 let store = search_store.get();
+                let mut items: Vec<SearchResultItem> = Vec::new();
+                for p in &store.results.portfolios {
+                    items.push(SearchResultItem::Portfolio(p.clone()));
+                }
+                for a in &store.results.assets {
+                    items.push(SearchResultItem::Asset {
+                        asset: a.clone(),
+                        portfolio_id: Uuid::nil(),
+                        portfolio_name: String::new(),
+                    });
+                }
+                for o in &store.results.organizations {
+                    items.push(SearchResultItem::Organization(o.clone()));
+                }
+                for u in &store.results.users {
+                    items.push(SearchResultItem::User(u.clone()));
+                }
+                if let Some(ref tab) = store.current_tab {
+                    items.sort_by(|a, b| {
+                        let matches_a = a.matches_tab(tab);
+                        let matches_b = b.matches_tab(tab);
+                        matches_b.cmp(&matches_a)
+                    });
+                }
                 view! {
                     <div>
                         <span class="sd-result-count">{format!("{} results", results_count())}</span>
                         <div class="sd-results-list">
-                            {store.results.portfolios.into_iter().map(|p| {
-                                let pid = p.id;
-                                view! {
-                                    <div class="sd-result-row" on:click=move |_| on_portfolio_click(pid)>
-                                        <div class="sd-result-icon">"🏢"</div>
-                                        <div class="sd-result-info">
-                                            <div class="sd-result-name">{p.name.clone()}</div>
-                                            <div class="sd-result-meta">{format!("Portfolio — ${:.2} value", p.total_value)}</div>
-                                        </div>
-                                    </div>
+                            <For
+                                each=move || items.clone()
+                                key=|item| item.id()
+                                children=move |item| {
+                                    match item {
+                                        SearchResultItem::Portfolio(p) => {
+                                            let pid = p.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_portfolio_click(pid)>
+                                                    <div class="sd-result-icon">"🏢"</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{p.name.clone()}</div>
+                                                        <div class="sd-result-meta">{format!("Portfolio — ${:.2} value", p.total_value)}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::Asset { asset, .. } => {
+                                            let aid = asset.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_asset_click(aid)>
+                                                    <div class="sd-result-icon">"📦"</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{asset.name.clone()}</div>
+                                                        <div class="sd-result-meta">{format!("Asset — {:?} — ${:.2}", asset.asset_type, asset.current_value)}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::Organization(o) => {
+                                            let oid = o.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_org_click(oid)>
+                                                    <div class="sd-result-icon">"🏛"</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{o.name.clone()}</div>
+                                                        <div class="sd-result-meta">{format!("Organization — {} members · {} roles", o.members.len(), o.roles.len())}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::User(u) => {
+                                            let uid = u.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_user_click(uid)>
+                                                    <div class="sd-result-icon">"👤"</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{u.name.clone()}</div>
+                                                        <div class="sd-result-meta">{format!("Member — {}", u.email)}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                    }
                                 }
-                            }).collect::<Vec<_>>()}
-                            {store.results.assets.into_iter().map(|a| {
-                                let aid = a.id;
-                                view! {
-                                    <div class="sd-result-row" on:click=move |_| on_asset_click(aid)>
-                                        <div class="sd-result-icon">"📦"</div>
-                                        <div class="sd-result-info">
-                                            <div class="sd-result-name">{a.name.clone()}</div>
-                                            <div class="sd-result-meta">{format!("Asset — {:?} — ${:.2}", a.asset_type, a.current_value)}</div>
-                                        </div>
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>()}
-                            {store.results.organizations.into_iter().map(|o| {
-                                let oid = o.id;
-                                view! {
-                                    <div class="sd-result-row" on:click=move |_| on_org_click(oid)>
-                                        <div class="sd-result-icon">"🏛"</div>
-                                        <div class="sd-result-info">
-                                            <div class="sd-result-name">{o.name.clone()}</div>
-                                            <div class="sd-result-meta">{format!("Organization — {} members · {} roles", o.members.len(), o.roles.len())}</div>
-                                        </div>
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>()}
-                            {store.results.users.into_iter().map(|u| {
-                                let uid = u.id;
-                                view! {
-                                    <div class="sd-result-row" on:click=move |_| on_user_click(uid)>
-                                        <div class="sd-result-icon">"👤"</div>
-                                        <div class="sd-result-info">
-                                            <div class="sd-result-name">{u.name.clone()}</div>
-                                            <div class="sd-result-meta">{format!("Member — {}", u.email)}</div>
-                                        </div>
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>()}
+                            />
                         </div>
                     </div>
                 }.into_any()

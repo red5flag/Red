@@ -4,21 +4,22 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, AssetTarget, AssetViewer, DocModal, NotifTarget, UserAssignmentPanel,
+    detect_file_type, single_sentence, AssetTarget, AssetViewer, DocModal, NotifTarget,
+    UserAssignmentPanel,
 };
 
 /// Portfolio list row — accordion style matching AssetGroupItem.
 #[component]
 pub(crate) fn PortfolioListItem(
     portfolio: crate::models::Portfolio,
-    #[prop(default = false)] can_edit: bool,
-    #[prop(default = false)] can_edit_documents: bool,
-    expanded: bool,
+    #[prop(into)] can_edit: Signal<bool>,
+    #[prop(into)] can_edit_documents: Signal<bool>,
+    #[prop(into)] expanded: Signal<bool>,
     on_toggle: Callback<()>,
     on_context: impl Fn(leptos::ev::MouseEvent) + 'static,
     on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
     // AssetViewer props forwarded for expanded content
-    show_add_group: Option<Uuid>,
+    #[prop(into)] show_add_group: Signal<Option<Uuid>>,
     set_show_add_group: WriteSignal<Option<Uuid>>,
     _new_group_name: ReadSignal<String>,
     set_new_group_name: WriteSignal<String>,
@@ -31,8 +32,8 @@ pub(crate) fn PortfolioListItem(
     set_new_asset_type: WriteSignal<AssetType>,
     new_asset_value: ReadSignal<String>,
     set_new_asset_value: WriteSignal<String>,
-    on_add_asset: Callback<AssetTarget>,
-    view_mode: ViewMode,
+    on_add_asset: Callback<AssetTarget, Option<Uuid>>,
+    #[prop(into)] view_mode: Signal<ViewMode>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let notification_store = use_notification_store();
@@ -47,7 +48,7 @@ pub(crate) fn PortfolioListItem(
     let name = portfolio.name.clone();
     let name_for_modal = portfolio.name.clone();
     let name_for_doc_btn = portfolio.name.clone();
-    let desc = portfolio.description.clone().unwrap_or_default();
+    let desc = single_sentence(&portfolio.description.clone().unwrap_or_default());
     let asset_count = portfolio.get_all_assets().len();
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
@@ -71,6 +72,8 @@ pub(crate) fn PortfolioListItem(
     });
     let current_org_id = portfolio.organization_id;
     let orgs = organization_store.get().organizations.clone();
+
+    let (portfolio_context_menu, set_portfolio_context_menu) = signal(Option::<(i32, i32)>::None);
 
     let save_edit = move |_: leptos::ev::FocusEvent| {
         let n = edit_name.get();
@@ -173,26 +176,21 @@ pub(crate) fn PortfolioListItem(
     });
 
     view! {
-        <div class="asset-group" class:expanded={expanded} on:contextmenu=on_context>
-            // Org color strip — left-side color coding for organization identification
-            {org_color.as_ref().map(|c| view! {
-                <div class="pf-org-color-strip" style={format!("background: {}", c)} aria-hidden="true"></div>
-            })}
+        <div class="asset-group" class:expanded={expanded} class:hidden={move || !expanded.get()} on:contextmenu=on_context>
             // Header row — same structure as asset-group-header
             <div class="asset-group-header"
-                style={org_color.as_ref().map(|c| format!("border-left: 3px solid {}", c)).unwrap_or_default()}
                 role="button"
                 tabindex="0"
-                aria-expanded={expanded}
+                aria-expanded={move || expanded.get()}
                 aria-controls={format!("pf-content-{}", pid)}
-                aria-label={format!("{} portfolio. {}. {} asset{}. {} document{}. {}",
+                aria-label={move || format!("{} portfolio. {}. {} asset{}. {} document{}. {}",
                     name,
                     org_name_for_label.as_deref().unwrap_or("No organization"),
                     asset_count,
                     if asset_count == 1 { "" } else { "s" },
                     doc_count,
                     if doc_count == 1 { "" } else { "s" },
-                    if expanded { "Expanded" } else { "Collapsed" }
+                    if expanded.get() { "Expanded" } else { "Collapsed" }
                 )}
                 on:click=move |_| {
                     if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
@@ -209,7 +207,7 @@ pub(crate) fn PortfolioListItem(
                 }
             >
                 <span class="asset-group-arrow">
-                    {if expanded { "▲" } else { "▼" }}
+                    {move || if expanded.get() { "▶" } else { "▼" }}
                 </span>
                 <div class="asset-group-icon">"🏢"</div>
                 <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
@@ -218,8 +216,9 @@ pub(crate) fn PortfolioListItem(
                     move || {
                         let mut parts: Vec<leptos::prelude::AnyView> = Vec::new();
                         // Organization label / editor
-                        if can_edit_here {
+                        if can_edit_here.get() {
                             if is_editing_org.get() {
+                                let orgs_for_select = orgs.clone();
                                 parts.push(view! {
                                     <select class="pf-edit-input pf-org-select"
                                         prop:value={move || current_org_id.map(|id| id.to_string()).unwrap_or_else(|| "none".to_string())}
@@ -227,27 +226,45 @@ pub(crate) fn PortfolioListItem(
                                         on:blur=move |_| set_is_editing_org.set(false)
                                     >
                                         <option value="none">"No Organization"</option>
-                                        {orgs.iter().map(|o| {
-                                            let oid = o.id.to_string();
-                                            let oname = o.name.clone();
-                                            view! {
-                                                <option value={oid.clone()}>{oname}</option>
+                                        <For
+                                            each=move || orgs_for_select.clone()
+                                            key=|o| o.id
+                                            children=move |o| {
+                                                let oid = o.id.to_string();
+                                                let oname = o.name.clone();
+                                                view! {
+                                                    <option value={oid.clone()}>{oname}</option>
+                                                }
                                             }
-                                        }).collect::<Vec<_>>()}
+                                        />
                                     </select>
                                 }.into_any());
                             } else if let Some(on) = &org_name {
+                                let color_tag = org_color.clone();
                                 parts.push(view! {
                                     <div class="pf-org-label"
                                         on:dblclick=move |ev| { ev.stop_propagation(); set_is_editing_org.set(true); }
-                                    >{on.clone()}</div>
+                                    >
+                                        {color_tag.map(|c| view! {
+                                            <span class="pf-org-color-tag" style={format!("background: {}", c)} aria-hidden="true"></span>
+                                        }).unwrap_or_else(|| view! { <span class="pf-org-color-tag" style={String::new()} aria-hidden="true"></span> })}
+                                        {on.clone()}
+                                    </div>
                                 }.into_any());
                             }
                         } else if let Some(on) = &org_name {
-                            parts.push(view! { <div class="pf-org-label">{on.clone()}</div> }.into_any());
+                            let color_tag = org_color.clone();
+                            parts.push(view! {
+                                <div class="pf-org-label">
+                                    {color_tag.map(|c| view! {
+                                        <span class="pf-org-color-tag" style={format!("background: {}", c)} aria-hidden="true"></span>
+                                    }).unwrap_or_else(|| view! { <span class="pf-org-color-tag" style={String::new()} aria-hidden="true"></span> })}
+                                    {on.clone()}
+                                </div>
+                            }.into_any());
                         }
                         // Name
-                        if is_editing_name.get() && can_edit_here {
+                        if is_editing_name.get() && can_edit_here.get() {
                             parts.push(view! {
                                 <input class="pf-edit-input" placeholder="Portfolio name"
                                     prop:value=move || edit_name.get()
@@ -260,12 +277,12 @@ pub(crate) fn PortfolioListItem(
                             let set_editing = set_is_editing_name;
                             parts.push(view! {
                                 <div class="asset-group-name"
-                                    on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_editing.set(true); } }
+                                    on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); } }
                                 >{name_header.clone()}</div>
                             }.into_any());
                         }
                         // Description
-                        if is_editing_desc.get() && can_edit_here {
+                        if is_editing_desc.get() && can_edit_here.get() {
                             parts.push(view! {
                                 <input class="pf-edit-input" placeholder="Description"
                                     prop:value=move || edit_desc.get()
@@ -278,7 +295,7 @@ pub(crate) fn PortfolioListItem(
                             let set_editing = set_is_editing_desc;
                             parts.push(view! {
                                 <div class="asset-group-desc"
-                                    on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_editing.set(true); } }
+                                    on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); } }
                                 >{desc_header.clone()}</div>
                             }.into_any());
                         }
@@ -337,7 +354,7 @@ pub(crate) fn PortfolioListItem(
                         class:active=move || ui_store.get().is_doc_modal_open(pid)
                         aria-label={format!("View documents for {} portfolio. {} document{}", name_for_doc_btn, doc_count, if doc_count == 1 { "" } else { "s" })}
                         on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(pid))
-                        on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); ui_store.update(|s| s.open_doc_modal(pid)); } }
+                        on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); ui_store.update(|s| s.open_doc_modal(pid)); } }
                     >
                         {format!("📄 {}", doc_count)}
                     </button>
@@ -347,20 +364,20 @@ pub(crate) fn PortfolioListItem(
             // Docs modal for portfolio
             {move || if ui_store.get().is_doc_modal_open(pid) {
                 let modal_title = name_for_modal.clone();
-                let add_cb = if can_edit_documents_here { Some(Callback::new(move |n: String| add_doc(n))) } else { None };
+                let add_cb = if can_edit_documents_here.get() { Some(Callback::new(move |n: String| add_doc(n))) } else { None };
                 view! {
                     <DocModal
                         entity_id={pid}
                         title={modal_title}
                         on_close=move || ui_store.update(|s| s.close_doc_modal(pid))
-                        can_edit={can_edit_documents_here}
+                        can_edit={can_edit_documents_here.get()}
                         on_add={add_cb}
                         portfolio_id={Some(pid)}
                     />
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if is_editing_org.get() && can_edit_here {
+            {move || if is_editing_org.get() && can_edit_here.get() {
                 let users = org_users();
                 let assigned = assigned_users.clone();
                 view! {
@@ -368,8 +385,24 @@ pub(crate) fn PortfolioListItem(
                 }.into_any()
             } else { ().into_any() }}
 
+            // Context menu for portfolio press-and-hold
+            {move || portfolio_context_menu.get().map(|(x, y)| {
+                view! {
+                    <div class="context-menu-overlay" on:click=move |_| set_portfolio_context_menu.set(None)>
+                        <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_portfolio_context_menu.set(None);
+                                    // TODO: Open channel selection modal
+                                }
+                            >"📡 Add to Channel"</button>
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+
             // Expanded content — AssetViewer
-            <div id={format!("pf-content-{}", pid)} class="asset-group-content" class:hidden={!expanded}>
+            <div id={format!("pf-content-{}", pid)} class="asset-group-content" class:hidden={move || !expanded.get()}>
                 <AssetViewer
                     portfolio={portfolio_for_viewer}
                     can_edit={can_edit_here}

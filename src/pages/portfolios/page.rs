@@ -1,7 +1,7 @@
 use crate::components::tabs::use_tab_edit_mode;
-use crate::models::{Asset, AssetGroup, AssetStatus, Portfolio};
+use crate::models::{Asset, AssetGroup, AssetStatus, Channel, Portfolio};
 use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
-use crate::types::{AssetType, SortMode, UserRole, ViewMode};
+use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -9,6 +9,24 @@ use super::{
     asset_placeholder_url, AssetTarget, NotifTarget, NotificationContentView,
     NotificationQuickSettings, PortfolioListItem,
 };
+
+/// Compare two portfolio lists by their ids in order.
+/// Used by the list memos so that `selected_portfolio_ids` changes
+/// (which do not affect filtering or ordering) do not re-render the list.
+fn pf_list_changed(old: Option<&Vec<Portfolio>>, new: Option<&Vec<Portfolio>>) -> bool {
+    let old = match old {
+        Some(old) => old,
+        None => return new.is_some(),
+    };
+    let new = match new {
+        Some(new) => new,
+        None => return true,
+    };
+    if old.len() != new.len() {
+        return true;
+    }
+    old.iter().zip(new.iter()).any(|(a, b)| a.id != b.id)
+}
 
 #[component]
 pub fn PortfoliosPage() -> impl IntoView {
@@ -18,20 +36,67 @@ pub fn PortfoliosPage() -> impl IntoView {
     let ui_store = use_ui_store();
 
     // Read portfolios from AppStore and filter by current user visibility
-    let filtered_portfolios = Memo::new(move |_| {
-        let user = app_store.get().current_user.clone();
-        let can_view_all = user.can_view_all();
-        let user_id = user.id;
-        app_store
-            .get()
-            .portfolios
-            .iter()
-            .filter(|p| p.is_visible_to(user_id, can_view_all))
-            .cloned()
-            .collect::<Vec<_>>()
-    });
-    let view_mode = move || ui_store.get().portfolio_view_mode.clone();
-    let selected_id = move || app_store.get().selected_portfolio_id;
+    let filtered_portfolios = Memo::new_with_compare(
+        move |_| {
+            let user = app_store.get().current_user.clone();
+            let can_view_all = user.can_view_all();
+            let user_id = user.id;
+            app_store
+                .get()
+                .portfolios
+                .iter()
+                .filter(|p| p.is_visible_to(user_id, can_view_all))
+                .cloned()
+                .collect::<Vec<_>>()
+        },
+        pf_list_changed,
+    );
+
+    let sorted_portfolios = Memo::new_with_compare(
+        move |_| {
+            let ui = ui_store.get();
+            let sort = if ui.sort_ascending {
+                ui.reversed_sort_mode()
+            } else {
+                ui.portfolio_sort_mode.clone()
+            };
+            let mut items: Vec<_> = filtered_portfolios.get().into_iter().collect();
+            items.sort_by(|a, b| match sort {
+                SortMode::Recent => b.created_at.cmp(&a.created_at),
+                SortMode::Oldest => a.created_at.cmp(&b.created_at),
+                SortMode::HighestValue => b
+                    .total_value
+                    .partial_cmp(&a.total_value)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortMode::LowestValue => a
+                    .total_value
+                    .partial_cmp(&b.total_value)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortMode::HighestProfit => b
+                    .profit_loss
+                    .partial_cmp(&a.profit_loss)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortMode::LowestProfit => a
+                    .profit_loss
+                    .partial_cmp(&b.profit_loss)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortMode::HighestRevenue => b
+                    .revenue
+                    .partial_cmp(&a.revenue)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortMode::LowestRevenue => a
+                    .revenue
+                    .partial_cmp(&b.revenue)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+                SortMode::ByOrganization => b.organization_id.cmp(&a.organization_id),
+            });
+            items
+        },
+        pf_list_changed,
+    );
+
+    let view_mode = Memo::new(move |_| ui_store.get().portfolio_view_mode.clone());
+    let selected_ids = move || app_store.get().selected_portfolio_ids;
     let edit_mode = use_tab_edit_mode();
     let _ = edit_mode;
     let can_edit = move |org_id: Option<Uuid>| {
@@ -86,6 +151,8 @@ pub fn PortfoliosPage() -> impl IntoView {
     let (new_asset_name, set_new_asset_name) = signal(String::new());
     let (new_asset_type, set_new_asset_type) = signal(AssetType::RealEstate);
     let (new_asset_value, set_new_asset_value) = signal(String::new());
+    let (new_channel_name, set_new_channel_name) = signal(String::new());
+    let (new_channel_rate, set_new_channel_rate) = signal(String::new());
 
     // Notification quick settings popover state (right-click / edit)
     let (notif_qs_target, set_notif_qs_target) = signal(Option::<(NotifTarget, String)>::None);
@@ -109,7 +176,7 @@ pub fn PortfoliosPage() -> impl IntoView {
             let gid = nav.group_id;
             let aid = nav.asset_id;
             app_store.update(|s| {
-                s.selected_portfolio_id = Some(pid);
+                s.selected_portfolio_ids.insert(pid);
                 s.touch_portfolio(pid);
                 s.pending_nav_target = None;
             });
@@ -131,10 +198,10 @@ pub fn PortfoliosPage() -> impl IntoView {
 
     let on_toggle_view = move |id: Uuid| {
         app_store.update(|s| {
-            if s.selected_portfolio_id == Some(id) {
-                s.selected_portfolio_id = None;
+            if s.selected_portfolio_ids.contains(&id) {
+                s.selected_portfolio_ids.remove(&id);
             } else {
-                s.selected_portfolio_id = Some(id);
+                s.selected_portfolio_ids.insert(id);
                 s.touch_portfolio(id);
             }
         });
@@ -161,9 +228,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     let on_delete_portfolio = move |id: Uuid| {
         app_store.update(|s| {
             s.remove_portfolio(id);
-            if s.selected_portfolio_id == Some(id) {
-                s.selected_portfolio_id = None;
-            }
+            s.selected_portfolio_ids.remove(&id);
         });
         set_edit_portfolio_id.set(None);
     };
@@ -192,25 +257,26 @@ pub fn PortfoliosPage() -> impl IntoView {
         set_show_add_group.set(None);
     });
 
-    let on_add_asset = Callback::new(move |target: AssetTarget| {
+    let on_add_asset = Callback::new(move |target: AssetTarget| -> Option<Uuid> {
         let name = new_asset_name.get();
         if name.trim().is_empty() {
-            return;
+            return None;
         }
         let value: f64 = new_asset_value.get().parse().unwrap_or(0.0);
         let uploaded_by = app_store.get().current_user.id;
-        let _asset = create_mock_asset(&name, new_asset_type.get(), value, value, uploaded_by);
+        let asset = create_mock_asset(&name, new_asset_type.get(), value, value, uploaded_by);
+        let asset_id = asset.id;
         app_store.update(|s| match target {
             AssetTarget::PortfolioDirect(pid) => {
                 if let Some(p) = s.get_portfolio_mut(pid) {
-                    p.assets.push(_asset);
+                    p.assets.push(asset);
                     p.recalculate_values();
                 }
             }
             AssetTarget::Group(pid, gid) => {
                 if let Some(p) = s.get_portfolio_mut(pid) {
                     if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
-                        g.assets.push(_asset);
+                        g.assets.push(asset);
                         g.recalculate_values();
                     }
                     p.recalculate_values();
@@ -221,6 +287,7 @@ pub fn PortfoliosPage() -> impl IntoView {
         set_new_asset_name.set(String::new());
         set_new_asset_value.set(String::new());
         set_show_add_asset.set(AssetTarget::default());
+        Some(asset_id)
     });
 
     let on_top_add_group = move |_| {
@@ -238,18 +305,33 @@ pub fn PortfoliosPage() -> impl IntoView {
         if pid.is_none() {
             return;
         }
+        let pid = pid.unwrap();
         let target = match top_add_asset_gid.get() {
-            Some(gid) => AssetTarget::Group(pid.unwrap(), gid),
-            None => AssetTarget::PortfolioDirect(pid.unwrap()),
+            Some(gid) => AssetTarget::Group(pid, gid),
+            None => AssetTarget::PortfolioDirect(pid),
         };
-        on_add_asset.run(target);
+        if let Some(asset_id) = on_add_asset.run(target) {
+            let name = new_channel_name.get();
+            if !name.trim().is_empty() {
+                let rate = new_channel_rate.get().parse::<f64>().ok();
+                let mut channel = Channel::new_test_channel(name, Some(asset_id), Some(pid));
+                channel.nightly_rate_override = rate;
+                app_store.update(|s| s.add_channel(channel));
+            }
+        }
         ui_store.update(|s| s.show_top_add_asset = false);
         set_top_add_asset_pid.set(None);
         set_top_add_asset_gid.set(None);
+        set_new_channel_name.set(String::new());
+        set_new_channel_rate.set(String::new());
     };
 
     let _selected_portfolio = move || {
-        selected_id().and_then(|id| filtered_portfolios.get().into_iter().find(|p| p.id == id))
+        let ids = selected_ids();
+        filtered_portfolios
+            .get()
+            .into_iter()
+            .find(|p| ids.contains(&p.id))
     };
 
     view! {
@@ -258,14 +340,14 @@ pub fn PortfoliosPage() -> impl IntoView {
             <div class="portfolio-controls-bar">
                 <button
                     class="nav-portfolio-btn"
-                    class:active={move || view_mode() == ViewMode::List}
+                    class:active={move || view_mode.get() == ViewMode::List}
                     on:click=move |_| ui_store.update(|s| s.portfolio_view_mode = ViewMode::List)
                 >
                     "☰ List"
                 </button>
                 <button
                     class="nav-portfolio-btn"
-                    class:active={move || view_mode() == ViewMode::Grid}
+                    class:active={move || view_mode.get() == ViewMode::Grid}
                     on:click=move |_| ui_store.update(|s| s.portfolio_view_mode = ViewMode::Grid)
                 >
                     "⊞ Grid"
@@ -320,6 +402,64 @@ pub fn PortfoliosPage() -> impl IntoView {
                 >
                     {move || if ui_store.get().sort_ascending { "↑" } else { "↓" }}
                 </button>
+                <select
+                    class="nav-portfolio-btn nav-portfolio-sort nav-portfolio-view"
+                    aria-label="View amount"
+                    prop:value={move || {
+                        match ui_store.get().portfolio_view_count(view_mode.get()) {
+                            ViewCount::V1 => "view_1",
+                            ViewCount::V10 => "view_10",
+                            ViewCount::V20 => "view_20",
+                            ViewCount::V50 => "view_50",
+                            ViewCount::V100 => "view_100",
+                            ViewCount::Custom(_) => "view_custom",
+                        }.to_string()
+                    }}
+                    on:change=move |ev| {
+                        let v = event_target_value(&ev);
+                        let vc = match v.as_str() {
+                            "view_1" => ViewCount::V1,
+                            "view_10" => ViewCount::V10,
+                            "view_20" => ViewCount::V20,
+                            "view_50" => ViewCount::V50,
+                            "view_100" => ViewCount::V100,
+                            "view_custom" => ViewCount::Custom(10),
+                            _ => ViewCount::V10,
+                        };
+                        let mode = view_mode.get();
+                        ui_store.update(|s| s.set_portfolio_view_count(mode, vc));
+                    }
+                >
+                    <option value="view_1">"View: 1"</option>
+                    <option value="view_10">"View: 10"</option>
+                    <option value="view_20">"View: 20"</option>
+                    <option value="view_50">"View: 50"</option>
+                    <option value="view_100">"View: 100"</option>
+                    <option value="view_custom">"..."</option>
+                </select>
+                {move || if matches!(ui_store.get().portfolio_view_count(view_mode.get()), ViewCount::Custom(_)) {
+                    view! {
+                        <input
+                            class="nav-portfolio-view-input"
+                            type="number"
+                            min="1"
+                            step="1"
+                            aria-label="Custom view count"
+                            prop:value={move || match ui_store.get().portfolio_view_count(view_mode.get()) {
+                                ViewCount::Custom(n) => n.to_string(),
+                                _ => "10".to_string(),
+                            }}
+                            on:input=move |ev| {
+                                let val = event_target_value(&ev);
+                                if let Ok(n) = val.parse::<usize>() {
+                                    let n = n.max(1);
+                                    let mode = view_mode.get();
+                                    ui_store.update(|s| s.set_portfolio_view_count(mode, ViewCount::Custom(n)));
+                                }
+                            }
+                        />
+                    }.into_any()
+                } else { ().into_any() }}
             </div>
 
             // Edit portfolio assets modal
@@ -369,35 +509,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                 }.into_any()
             })}
 
-            // Grid columns selector (only visible in grid mode)
-            {move || if view_mode() == ViewMode::Grid {
-                view! {
-                    <div class="view-toggle">
-                        <select
-                            class="view-btn sort-select"
-                            aria-label="Grid columns"
-                            prop:value={move || format!("grid_{}", ui_store.get().portfolio_grid_columns)}
-                            on:change=move |ev| {
-                                let v = event_target_value(&ev);
-                                if let Some(suffix) = v.strip_prefix("grid_") {
-                                    if let Ok(n) = suffix.parse::<usize>() {
-                                        ui_store.update(|s| s.set_portfolio_grid_columns(n));
-                                    }
-                                }
-                            }
-                        >
-                            <option value="grid_1">"Grid: 1"</option>
-                            <option value="grid_2">"Grid: 2"</option>
-                            <option value="grid_3">"Grid: 3"</option>
-                            <option value="grid_4">"Grid: 4"</option>
-                            <option value="grid_6">"Grid: 6"</option>
-                            <option value="grid_8">"Grid: 8"</option>
-                            <option value="grid_12">"Grid: 12"</option>
-                        </select>
-                    </div>
-                }.into_any()
-                } else { ().into_any() }}
-
             // Add Portfolio Form (toggled from navbar)
             {move || ui_store.get().show_add_portfolio.then(|| view! {
                 <div class="add-form">
@@ -436,9 +547,13 @@ pub fn PortfoliosPage() -> impl IntoView {
                         }
                     >
                         <option value="">"Select portfolio"</option>
-                        {filtered_portfolios.get().into_iter().map(|p| view! {
-                            <option value={p.id.to_string()}>{p.name.clone()}</option>
-                        }).collect::<Vec<_>>()}
+                        <For
+                            each=move || filtered_portfolios.get()
+                            key=|portfolio| portfolio.id
+                            children=move |portfolio| view! {
+                                <option value={portfolio.id.to_string()}>{portfolio.name.clone()}</option>
+                            }
+                        />
                     </select>
                     <input
                         class="login-input"
@@ -470,9 +585,13 @@ pub fn PortfoliosPage() -> impl IntoView {
                         }
                     >
                         <option value="">"Select portfolio"</option>
-                        {filtered_portfolios.get().into_iter().map(|p| view! {
-                            <option value={p.id.to_string()}>{p.name.clone()}</option>
-                        }).collect::<Vec<_>>()}
+                        <For
+                            each=move || filtered_portfolios.get()
+                            key=|portfolio| portfolio.id
+                            children=move |portfolio| view! {
+                                <option value={portfolio.id.to_string()}>{portfolio.name.clone()}</option>
+                            }
+                        />
                     </select>
                     {move || {
                         let pid = top_add_asset_pid.get();
@@ -494,9 +613,13 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 }
                             >
                                 <option value="">"No group — add to portfolio"</option>
-                                {groups.into_iter().map(|g| view! {
-                                    <option value={g.id.to_string()}>{g.name.clone()}</option>
-                                }).collect::<Vec<_>>()}
+                                <For
+                                    each=move || groups.clone()
+                                    key=|group| group.id
+                                    children=move |group| view! {
+                                        <option value={group.id.to_string()}>{group.name.clone()}</option>
+                                    }
+                                />
                             </select>
                         }.into_any()
                     }}
@@ -514,27 +637,11 @@ pub fn PortfoliosPage() -> impl IntoView {
                         aria-label="Value"
                         on:input=move |ev| set_new_asset_value.set(event_target_value(&ev))
                     />
-                    <select
-                        class="login-input"
+                    <input class="login-input" type="text" list="asset-type-options-top" placeholder="Asset type"
                         aria-label="Asset type"
-                        prop:value={move || format!("{:?}", new_asset_type.get())}
-                        on:change=move |ev| {
-                            let v = event_target_value(&ev);
-                            let t = match v.as_str() {
-                                "RealEstate" => AssetType::RealEstate,
-                                "Vehicle" => AssetType::Vehicle,
-                                "Equipment" => AssetType::Equipment,
-                                "Stock" => AssetType::Stock,
-                                "Bond" => AssetType::Bond,
-                                "Commodity" => AssetType::Commodity,
-                                "Digital" => AssetType::Digital,
-                                "IntellectualProperty" => AssetType::IntellectualProperty,
-                                "Channel" => AssetType::Channel,
-                                _ => AssetType::RealEstate,
-                            };
-                            set_new_asset_type.set(t);
-                        }
-                    >
+                        prop:value={move || new_asset_type.get().to_input_string()}
+                        on:input=move |ev| set_new_asset_type.set(AssetType::from_input(&event_target_value(&ev))) />
+                    <datalist id="asset-type-options-top">
                         <option value="RealEstate">"Real Estate"</option>
                         <option value="Vehicle">"Vehicle"</option>
                         <option value="Equipment">"Equipment"</option>
@@ -544,38 +651,49 @@ pub fn PortfoliosPage() -> impl IntoView {
                         <option value="Digital">"Digital"</option>
                         <option value="IntellectualProperty">"Intellectual Property"</option>
                         <option value="Channel">"Channel"</option>
-                    </select>
+                    </datalist>
+                    <input class="login-input" type="text" placeholder="Channel name (optional)"
+                        aria-label="Channel name"
+                        prop:value={move || new_channel_name.get()}
+                        on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) />
+                    <input class="login-input" type="number" placeholder="Channel nightly rate (optional)"
+                        aria-label="Channel nightly rate"
+                        prop:value={move || new_channel_rate.get()}
+                        on:input=move |ev| set_new_channel_rate.set(event_target_value(&ev)) />
                     <button class="login-btn" on:click=on_top_add_asset>"Create Asset"</button>
                 </div>
             })}
 
             // Portfolios List
             <div class={move || {
-                if view_mode() == ViewMode::Grid {
+                if view_mode.get() == ViewMode::Grid {
                     format!("grid-view grid-cols-{}", ui_store.get().portfolio_grid_columns)
                 } else { "pf-accordion".to_string() }
-            }}>
-                {move || {
-                    let ui = ui_store.get();
-                    let sort = if ui.sort_ascending { ui.reversed_sort_mode() } else { ui.portfolio_sort_mode.clone() };
-                    let mut items: Vec<_> = filtered_portfolios.get().into_iter().collect();
-                    items.sort_by(|a, b| match sort {
-                        SortMode::Recent => b.created_at.cmp(&a.created_at),
-                        SortMode::Oldest => a.created_at.cmp(&b.created_at),
-                        SortMode::HighestValue => b.total_value.partial_cmp(&a.total_value).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::LowestValue => a.total_value.partial_cmp(&b.total_value).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::HighestProfit => b.profit_loss.partial_cmp(&a.profit_loss).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::LowestProfit => a.profit_loss.partial_cmp(&b.profit_loss).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::HighestRevenue => b.revenue.partial_cmp(&a.revenue).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::LowestRevenue => a.revenue.partial_cmp(&b.revenue).unwrap_or(std::cmp::Ordering::Equal),
-                        SortMode::ByOrganization => b.organization_id.cmp(&a.organization_id),
-                    });
-                    items.into_iter().map(move |portfolio| {
+            }}
+            on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                ev.prevent_default();
+                set_context_menu.set(Some((Uuid::new_v4(), ev.client_x(), ev.client_y())));
+            }>
+                {move || if sorted_portfolios.get().is_empty() {
+                    view! {
+                        <div class="empty-state">
+                            <div class="empty-state-icon">"📊"</div>
+                            <div class="empty-state-title">"No portfolios yet"</div>
+                            <div class="empty-state-desc">"Create your first portfolio to get started"</div>
+                            <button class="login-btn" on:click=move |_| ui_store.update(|s| s.show_add_portfolio = true)>"Create Portfolio"</button>
+                        </div>
+                    }.into_any()
+                } else {
+                    view! {
+                        <For
+                            each=move || sorted_portfolios.get()
+                            key=|portfolio| portfolio.id
+                            children=move |portfolio| {
                         let portfolio_id = portfolio.id;
                         let org_id = portfolio.organization_id;
-                        let is_expanded = selected_id() == Some(portfolio_id);
-                        let can = can_edit(org_id);
-                        let can_docs = can_edit_documents(org_id);
+                        let is_expanded = Memo::new(move |_| selected_ids().contains(&portfolio_id));
+                        let can = Memo::new(move |_| can_edit(org_id));
+                        let can_docs = Memo::new(move |_| can_edit_documents(org_id));
 
                         view! {
                             <PortfolioListItem
@@ -586,10 +704,11 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 on_toggle=Callback::new(move |_| on_toggle_view(portfolio_id))
                                 on_context=move |ev: leptos::ev::MouseEvent| {
                                     ev.prevent_default();
+                                    ev.stop_propagation();
                                     set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
                                 }
                                 on_open_notif_qs={Callback::new(move |(target, name, is_settings)| if is_settings { set_notif_qs_target.set(Some((target, name))) } else { set_notif_content_target.set(Some((target, name))) })}
-                                show_add_group={show_add_group.get()}
+                                show_add_group={show_add_group}
                                 set_show_add_group={set_show_add_group}
                                 _new_group_name={new_group_name}
                                 set_new_group_name={set_new_group_name}
@@ -603,22 +722,134 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 new_asset_value={new_asset_value}
                                 set_new_asset_value={set_new_asset_value}
                                 on_add_asset={on_add_asset}
-                                view_mode={view_mode()}
+                                view_mode={view_mode}
                             />
-                        }.into_any()
-                    })
-                    .collect::<Vec<_>>()
+                        }
+                    }
+                />
+                    }.into_any()
                 }}
             </div>
 
-            // Context menu for portfolio press-and-hold
+            // Context menu for portfolio press-and-hold or whitespace
             {move || context_menu.get().map(|(pid, x, y)| {
+                let is_whitespace = app_store.get().portfolios.iter().find(|p| p.id == pid).is_none();
                 let pid_doc = pid;
                 let pid_role = pid;
                 let pid_org = pid;
                 let pid_remove = pid;
                 let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
                 let can = can_edit(org_id);
+                let content = if is_whitespace {
+                    view! {
+                        <button
+                            class="context-menu-item"
+                            on:click=move |_| {
+                                set_context_menu.set(None);
+                                ui_store.update(|s| s.show_add_portfolio = true);
+                            }
+                        >
+                            "➕ Create Portfolio"
+                        </button>
+                        <button
+                            class="context-menu-item"
+                            on:click=move |_| {
+                                set_context_menu.set(None);
+                                ui_store.update(|s| s.show_top_add_group = true);
+                            }
+                        >
+                            "➕ Create Asset Group"
+                        </button>
+                        <button
+                            class="context-menu-item"
+                            on:click=move |_| {
+                                set_context_menu.set(None);
+                                ui_store.update(|s| s.show_top_add_asset = true);
+                            }
+                        >
+                            "➕ Create Asset"
+                        </button>
+                    }.into_any()
+                } else {
+                    let admin_items = if can {
+                        view! {
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    app_store.update(|s| {
+                                        s.selected_portfolio_ids.insert(pid);
+                                    });
+                                    set_show_add_asset.set(AssetTarget::PortfolioDirect(pid));
+                                }
+                            >
+                                "➕ Add Asset"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    app_store.update(|s| {
+                                        s.selected_portfolio_ids.insert(pid);
+                                    });
+                                    set_show_add_group.set(Some(pid));
+                                }
+                            >
+                                "➕ Add Asset Group"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    ui_store.update(|s| s.open_doc_modal(pid_doc));
+                                }
+                            >
+                                "📄 Add Document"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    set_show_pf_add_role.set(Some(pid_role));
+                                }
+                            >
+                                "🎭 Add Role"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    set_show_pf_add_org.set(Some(pid_org));
+                                }
+                            >
+                                "� Add Organization"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    set_confirm_pf_remove.set(Some(pid_remove));
+                                }
+                            >
+                                "🗑 Remove"
+                            </button>
+                        }.into_any()
+                    } else {
+                        ().into_any()
+                    };
+                    view! {
+                        <button
+                            class="context-menu-item"
+                            on:click=move |_| {
+                                set_context_menu.set(None);
+                                on_toggle_view(pid);
+                            }
+                        >
+                            "Overview"
+                        </button>
+                        {admin_items}
+                    }.into_any()
+                };
                 view! {
                     <div
                         class="context-menu-overlay"
@@ -628,55 +859,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                             class="context-menu"
                             style={format!("left: {}px; top: {}px;", x, y)}
                         >
-                            <button
-                                class="context-menu-item"
-                                on:click=move |_| {
-                                    set_context_menu.set(None);
-                                    on_toggle_view(pid);
-                                }
-                            >
-                                "Overview"
-                            </button>
-                            {move || if can {
-                                view! {
-                                    <button
-                                        class="context-menu-item"
-                                        on:click=move |_| {
-                                            set_context_menu.set(None);
-                                            ui_store.update(|s| s.open_doc_modal(pid_doc));
-                                        }
-                                    >
-                                        "📄 Add Document"
-                                    </button>
-                                    <button
-                                        class="context-menu-item"
-                                        on:click=move |_| {
-                                            set_context_menu.set(None);
-                                            set_show_pf_add_role.set(Some(pid_role));
-                                        }
-                                    >
-                                        "🎭 Add Role"
-                                    </button>
-                                    <button
-                                        class="context-menu-item"
-                                        on:click=move |_| {
-                                            set_context_menu.set(None);
-                                            set_show_pf_add_org.set(Some(pid_org));
-                                        }
-                                    >
-                                        "🏢 Add Organization"
-                                    </button>
-                                    <button
-                                        class="context-menu-item"
-                                        on:click=move |_| {
-                                            set_context_menu.set(None);
-                                            set_confirm_pf_remove.set(Some(pid_remove));
-                                        }
-                                    >
-                                        "🗑 Remove"
-                                    </button>
-                                }.into_any()
-                            } else { ().into_any() }}
+                            {content}
                         </div>
                     </div>
                 }.into_any()
@@ -874,6 +1057,7 @@ fn create_mock_asset(
         quick_sale_enabled: false,
         notification_settings: vec![],
         calendar_events: vec![],
+        channel_ids: vec![],
     }
 }
 fn create_mock_asset_group(name: &str, assets: Vec<Asset>) -> AssetGroup {
@@ -894,6 +1078,7 @@ fn create_mock_asset_group(name: &str, assets: Vec<Asset>) -> AssetGroup {
         calendar_events: vec![],
         assigned_users: vec![],
         notification_settings: vec![],
+        channel_ids: vec![],
     };
     group.recalculate_values();
     group

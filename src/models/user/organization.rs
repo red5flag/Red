@@ -17,6 +17,13 @@ pub struct Organization {
     pub documents: Vec<crate::models::Document>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // Business details (optional)
+    pub abn: Option<String>,           // Australian Business Number
+    pub lei: Option<String>,           // Legal Entity Identifier (global)
+    pub business_type: Option<String>, // e.g., "Sole Trader", "Company", "Partnership", etc.
+    pub business_address: Option<String>,
+    pub business_phone: Option<String>,
+    pub business_email: Option<String>,
 }
 
 impl Organization {
@@ -33,6 +40,12 @@ impl Organization {
             documents: Vec::new(),
             created_at: now,
             updated_at: now,
+            abn: None,
+            lei: None,
+            business_type: None,
+            business_address: None,
+            business_phone: None,
+            business_email: None,
         }
     }
 

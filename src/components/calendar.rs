@@ -1,7 +1,8 @@
-use crate::models::CalendarEvent;
+use crate::models::{CalendarEvent, CalendarEventType};
 use crate::stores::{use_app_store, use_calendar_store};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use leptos::prelude::*;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,6 +20,23 @@ impl CalendarScope {
             group_id: None,
             asset_id: None,
             title: "Calendar".to_string(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CalendarViewMode {
+    Month,
+    MultiMonth,
+    Year,
+}
+
+impl CalendarViewMode {
+    fn label(&self) -> &'static str {
+        match self {
+            CalendarViewMode::Month => "Month",
+            CalendarViewMode::MultiMonth => "Multi-month",
+            CalendarViewMode::Year => "Year",
         }
     }
 }
@@ -48,6 +66,18 @@ pub fn CalendarManager(
 ) -> impl IntoView {
     let app_store = use_app_store();
     let calendar_store = use_calendar_store();
+    let (selected_types, set_selected_types) = signal(HashSet::<CalendarEventType>::from_iter(
+        CalendarEventType::all().iter().copied(),
+    ));
+    let toggle_type = Callback::new(move |t: CalendarEventType| {
+        set_selected_types.update(|set| {
+            if set.contains(&t) {
+                set.remove(&t);
+            } else {
+                set.insert(t);
+            }
+        });
+    });
 
     let events_for_scope = Memo::new(move |_| {
         let app = app_store.get();
@@ -55,7 +85,20 @@ pub fn CalendarManager(
         let mut events: Vec<CalendarEvent> =
             if scope.portfolio_id.is_none() && scope.group_id.is_none() && scope.asset_id.is_none()
             {
-                calendar.calendar_events.clone()
+                let mut local = calendar.calendar_events.clone();
+                for p in &app.portfolios {
+                    local.extend(p.calendar_events.clone());
+                    for g in &p.asset_groups {
+                        local.extend(g.calendar_events.clone());
+                        for a in &g.assets {
+                            local.extend(a.calendar_events.clone());
+                        }
+                    }
+                    for a in &p.assets {
+                        local.extend(a.calendar_events.clone());
+                    }
+                }
+                local
             } else {
                 let mut local = Vec::new();
                 if let Some(pid) = scope.portfolio_id {
@@ -97,12 +140,17 @@ pub fn CalendarManager(
                 local
             };
         events.sort_by(|a, b| a.start.cmp(&b.start));
+        events.dedup_by(|a, b| a.id == b.id);
+        let selected = selected_types.get();
+        events.retain(|e| selected.contains(&e.event_type));
         events
     });
 
     let today = Utc::now().date_naive();
     let (view_year, set_view_year) = signal(today.year());
     let (view_month, set_view_month) = signal(today.month());
+    let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Month);
+    let (zoom, set_zoom) = signal(1_usize);
     let (selected_date, set_selected_date) = signal::<Option<NaiveDate>>(None);
     let (editing_event, set_editing_event) = signal::<Option<CalendarEvent>>(None);
     let (show_form, set_show_form) = signal(false);
@@ -176,6 +224,18 @@ pub fn CalendarManager(
         open_new_event(date);
     });
 
+    let actions_ref = NodeRef::<leptos::html::Div>::new();
+    let scroll_actions_left = move |_| {
+        if let Some(el) = actions_ref.get() {
+            let _ = el.scroll_by_with_x_and_y(-120.0, 0.0);
+        }
+    };
+    let scroll_actions_right = move |_| {
+        if let Some(el) = actions_ref.get() {
+            let _ = el.scroll_by_with_x_and_y(120.0, 0.0);
+        }
+    };
+
     // Build the grid days for the current view month
     let grid_days = Memo::new(move |_| {
         let y = view_year.get();
@@ -232,12 +292,67 @@ pub fn CalendarManager(
                 <div class="calendar-manager-title">
                     {move || month_label(view_year.get(), view_month.get())}
                 </div>
-                <div class="calendar-manager-actions">
+                <button class="calendar-scroll-arrow calendar-scroll-arrow-left"
+                    title="Scroll controls left"
+                    aria-label="Scroll calendar controls left"
+                    on:click=scroll_actions_left>"‹"</button>
+                <div class="calendar-manager-actions" node_ref=actions_ref>
                     <button class="calendar-nav-btn" on:click=prev_month title="Previous month">"‹"</button>
                     <button class="calendar-today-btn" on:click=go_today>"Today"</button>
                     <button class="calendar-nav-btn" on:click=next_month title="Next month">"›"</button>
+                    <div class="calendar-view-controls">
+                        {[CalendarViewMode::Month, CalendarViewMode::MultiMonth, CalendarViewMode::Year]
+                            .into_iter()
+                            .map(|mode| {
+                                let mode_clone = mode;
+                                view! {
+                                    <button
+                                        class="calendar-view-btn"
+                                        class:calendar-view-active={move || calendar_view_mode.get() == mode_clone}
+                                        on:click=move |_| set_calendar_view_mode.set(mode_clone)
+                                    >
+                                        {mode_clone.label()}
+                                    </button>
+                                }
+                            }).collect::<Vec<_>>()}
+                    </div>
+                    <div class="calendar-zoom-controls">
+                        <button
+                            class="calendar-view-btn"
+                            on:click=move |_| set_zoom.update(|z| *z = z.saturating_sub(1).max(1))
+                            title="Zoom out"
+                            aria-label="Zoom out"
+                        >"−"</button>
+                        <span class="calendar-zoom-label">{move || format!("{}x", zoom.get())}</span>
+                        <button
+                            class="calendar-view-btn"
+                            on:click=move |_| set_zoom.update(|z| *z = (*z + 1).min(4))
+                            title="Zoom in"
+                            aria-label="Zoom in"
+                        >"+"</button>
+                    </div>
                     <button class="calendar-manager-btn" on:click=on_add_new title="Add event">"+"</button>
                 </div>
+                <button class="calendar-scroll-arrow calendar-scroll-arrow-right"
+                    title="Scroll controls right"
+                    aria-label="Scroll calendar controls right"
+                    on:click=scroll_actions_right>"›"</button>
+            </div>
+
+            <div class="calendar-filter-bar" aria-label="Event type filters">
+                {CalendarEventType::all().iter().copied().map(|t| {
+                    let toggle = toggle_type.clone();
+                    view! {
+                        <button
+                            class="calendar-filter-btn"
+                            class:calendar-filter-active={move || selected_types.get().contains(&t)}
+                            on:click=move |_| toggle.run(t)
+                            title={format!("Toggle {}", t.display())}
+                        >
+                            {t.display()}
+                        </button>
+                    }
+                }).collect::<Vec<_>>()}
             </div>
 
             {move || if show_form.get() {
@@ -254,7 +369,10 @@ pub fn CalendarManager(
                     }).collect::<Vec<_>>()}
                 </div>
                 // Day cells
-                <div class="calendar-grid-days">
+                <div
+                    class="calendar-grid-days"
+                    style={move || { let z = zoom.get(); format!("grid-auto-rows: {}px; aspect-ratio: auto;", 70 * z) }}
+                >
                     {move || {
                         let days = grid_days.get();
                         let events = events_for_scope.get();
@@ -280,6 +398,7 @@ pub fn CalendarManager(
                                         .cloned()
                                         .collect();
                                     let event_count = day_events.len();
+                                    let max_chips = zoom.get() * 3;
 
                                     view! {
                                         <div class="calendar-grid-day"
@@ -290,7 +409,7 @@ pub fn CalendarManager(
                                         >
                                             <div class="calendar-grid-day-num">{date.day().to_string()}</div>
                                             <div class="calendar-grid-day-events">
-                                                {day_events.iter().take(3).map(|ev| {
+                                                {day_events.iter().take(max_chips).map(|ev| {
                                                     let ev_clone = ev.clone();
                                                     let on_e2 = on_e.clone();
                                                     let _cat = ev.category.clone().unwrap_or_else(|| "General".to_string());
@@ -311,10 +430,10 @@ pub fn CalendarManager(
                                                         </div>
                                                     }
                                                 }).collect::<Vec<_>>()}
-                                                {if event_count > 3 {
+                                                {if event_count > max_chips {
                                                     view! {
                                                         <div class="calendar-grid-event-more">
-                                                            {format!("+{} more", event_count - 3)}
+                                                            {format!("+{} more", event_count - max_chips)}
                                                         </div>
                                                     }.into_any()
                                                 } else { ().into_any() }}

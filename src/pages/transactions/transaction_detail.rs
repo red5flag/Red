@@ -35,7 +35,7 @@ pub(crate) fn InvoiceForm(on_create: Callback<Invoice>) -> impl IntoView {
             amount: value,
             currency: currency.get(),
             status: InvoiceStatus::Draft,
-            from_name: "Carly Holdings".to_string(),
+            from_name: "Red Holdings".to_string(),
             to_name: to_name.get(),
             description: description.get(),
         };
@@ -90,6 +90,8 @@ pub(crate) fn InvoiceList(
     invoices: Vec<Invoice>,
     #[prop(default = None)] on_new_invoice: Option<Callback<()>>,
 ) -> impl IntoView {
+    let invoices_for = invoices.clone();
+    let invoices_memo = Memo::new(move |_| invoices_for.clone());
     view! {
         <div class="data-card">
             <div class="card-header">
@@ -106,27 +108,31 @@ pub(crate) fn InvoiceList(
             } else {
                 view! {
                     <div class="tx-invoice-list">
-                        {invoices.into_iter().map(|inv| {
-                            let status = inv.status.clone();
-                            let status_class = invoice_status_class(&status);
-                            let amount = format_dollars(inv.amount, &inv.currency);
-                            let issue = format_date(&inv.issue_date);
-                            let due = format_date(&inv.due_date);
-                            view! {
-                                <div class="tx-invoice-item">
-                                    <div class="tx-invoice-main">
-                                        <div class="tx-invoice-number">{inv.number}</div>
-                                        <div class="tx-invoice-desc">{inv.description}</div>
-                                        <div class="tx-invoice-parties">{format!("{} → {}", inv.from_name, inv.to_name)}</div>
-                                        <div class="tx-invoice-dates">{format!("Issued {} · Due {}", issue, due)}</div>
+                        <For
+                            each=move || invoices_memo.get()
+                            key=|inv| inv.id
+                            children=move |inv| {
+                                let status = inv.status.clone();
+                                let status_class = invoice_status_class(&status);
+                                let amount = format_dollars(inv.amount, &inv.currency);
+                                let issue = format_date(&inv.issue_date);
+                                let due = format_date(&inv.due_date);
+                                view! {
+                                    <div class="tx-invoice-item">
+                                        <div class="tx-invoice-main">
+                                            <div class="tx-invoice-number">{inv.number}</div>
+                                            <div class="tx-invoice-desc">{inv.description}</div>
+                                            <div class="tx-invoice-parties">{format!("{} → {}", inv.from_name, inv.to_name)}</div>
+                                            <div class="tx-invoice-dates">{format!("Issued {} · Due {}", issue, due)}</div>
+                                        </div>
+                                        <div class="tx-invoice-right">
+                                            <div class="tx-invoice-amount">{amount}</div>
+                                            <div class={format!("tx-status-badge {}", status_class)}>{status.label()}</div>
+                                        </div>
                                     </div>
-                                    <div class="tx-invoice-right">
-                                        <div class="tx-invoice-amount">{amount}</div>
-                                        <div class={format!("tx-status-badge {}", status_class)}>{status.label()}</div>
-                                    </div>
-                                </div>
+                                }
                             }
-                        }).collect::<Vec<_>>()}
+                        />
                     </div>
                 }.into_any()
             }}

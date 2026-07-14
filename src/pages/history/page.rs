@@ -1,9 +1,9 @@
-use crate::pages::history::{HistoryFilters, HistoryList, HistorySummary, UndoRedoDropdown};
+use crate::pages::history::{HistoryFilters, HistoryList, HistorySummary};
 use crate::stores::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, use_app_store,
     use_undo_redo_store, HistoryQuery,
 };
-use crate::types::{ActionType, SortMode};
+use crate::types::{ActionType, ChangeSeverity, SortMode};
 use leptos::prelude::*;
 
 #[component]
@@ -13,6 +13,7 @@ pub fn HistoryPage() -> impl IntoView {
 
     let (search_text, set_search_text) = signal(String::new());
     let (type_filter, set_type_filter) = signal::<Option<ActionType>>(None);
+    let (severity_filter, set_severity_filter) = signal::<Option<ChangeSeverity>>(None);
     let (has_reason_only, set_has_reason_only) = signal(false);
     let (sort_mode, set_sort_mode) = signal(SortMode::Recent);
 
@@ -20,14 +21,14 @@ pub fn HistoryPage() -> impl IntoView {
     let current_user_role = move || format!("{:?}", app_store.get().current_user.role);
     let current_user_id = move || app_store.get().current_user.id;
 
-    let (dropdown, set_dropdown) =
-        signal::<Option<(i32, i32, Vec<crate::models::Action>, bool)>>(None);
-
     let filtered_actions = move || {
         let mut q = HistoryQuery::default();
         q.text = search_text.get();
         if let Some(t) = type_filter.get() {
             q.action_types = Some(vec![t]);
+        }
+        if let Some(s) = severity_filter.get() {
+            q.severity = Some(s);
         }
         q.has_reason_only = has_reason_only.get();
         let mut actions: Vec<_> = undo_store
@@ -45,8 +46,6 @@ pub fn HistoryPage() -> impl IntoView {
 
     let action_count = move || filtered_actions().len();
     let total_count = move || undo_store.get().past.len();
-    let can_undo = move || undo_store.get().can_undo_by_user(current_user_id());
-    let can_redo = move || undo_store.get().can_redo_by_user(current_user_id());
 
     let record_undo_redo = move |kind: ActionType, description: String| {
         let store = app_store.get();
@@ -59,12 +58,8 @@ pub fn HistoryPage() -> impl IntoView {
         undo_store.update(|u| u.record_history_action(action));
     };
 
-    let on_undo = move |_| {
-        if dropdown.get().is_some() {
-            return;
-        }
-        let uid = current_user_id();
-        if let Some(undone) = undo_store.get().undo_by_user(uid) {
+    let on_history_undo = move |action_id: uuid::Uuid| {
+        if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
             record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
             app_store.update(|store| {
                 apply_undo_side_effects(&undone, store);
@@ -72,12 +67,8 @@ pub fn HistoryPage() -> impl IntoView {
         }
     };
 
-    let on_redo = move |_| {
-        if dropdown.get().is_some() {
-            return;
-        }
-        let uid = current_user_id();
-        if let Some(redone) = undo_store.get().redo_by_user(uid) {
+    let _on_history_redo = move |action_id: uuid::Uuid| {
+        if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
             record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
             app_store.update(|store| {
                 apply_redo_side_effects(&redone, store);
@@ -85,58 +76,24 @@ pub fn HistoryPage() -> impl IntoView {
         }
     };
 
-    let on_undo_context = move |ev: leptos::ev::MouseEvent| {
-        ev.prevent_default();
+    let can_redo = move || undo_store.get().can_redo();
+
+    let redoable_actions = move || {
         let uid = current_user_id();
-        let actions = undo_store
+        undo_store
             .get()
-            .undoable_by_user(uid)
-            .into_iter()
+            .future
+            .iter()
+            .filter(|a| a.user_id == uid)
             .cloned()
-            .collect();
-        set_dropdown.set(Some((ev.client_x(), ev.client_y(), actions, false)));
+            .collect::<Vec<_>>()
     };
 
-    let on_redo_context = move |ev: leptos::ev::MouseEvent| {
-        ev.prevent_default();
-        let uid = current_user_id();
-        let actions = undo_store
-            .get()
-            .redoable_by_user(uid)
-            .into_iter()
-            .cloned()
-            .collect();
-        set_dropdown.set(Some((ev.client_x(), ev.client_y(), actions, true)));
-    };
-
-    let close_dropdown = move |_| {
-        set_dropdown.set(None);
-    };
-
-    let on_dropdown_action = move |action_id: uuid::Uuid, is_redo: bool| {
-        set_dropdown.set(None);
-        if is_redo {
-            if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
-                record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
-                app_store.update(|store| {
-                    apply_redo_side_effects(&redone, store);
-                });
-            }
-        } else {
-            if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
-                record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
-                app_store.update(|store| {
-                    apply_undo_side_effects(&undone, store);
-                });
-            }
-        }
-    };
-
-    let on_history_undo = move |action_id: uuid::Uuid| {
-        if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
-            record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
+    let on_history_redo = move |action_id: uuid::Uuid| {
+        if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
+            record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
             app_store.update(|store| {
-                apply_undo_side_effects(&undone, store);
+                apply_redo_side_effects(&redone, store);
             });
         }
     };
@@ -154,17 +111,55 @@ pub fn HistoryPage() -> impl IntoView {
                 />
             </div>
 
+            // Redo bar: per-item redo for actions currently in the future stack
+            {move || {
+                let reds = redoable_actions();
+                if reds.is_empty() {
+                    ().into_any()
+                } else {
+                    view! {
+                        <div class="history-redo-bar" role="region" aria-label="Redoable actions">
+                            <span class="history-redo-label">"Redo:"</span>
+                            <div class="history-redo-actions">
+                                {reds.into_iter().map(|a| {
+                                    let id = a.id;
+                                    let desc = a.description.clone();
+                                    view! {
+                                        <button
+                                            class="history-redo-btn"
+                                            on:click=move |_| on_history_redo(id)
+                                            title={format!("Redo: {}", desc)}
+                                            aria-label={format!("Redo: {}", desc)}
+                                        >
+                                            {format!("↻ {}", desc)}
+                                        </button>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        </div>
+                    }.into_any()
+                }
+            }}
+
             <div class="data-card">
                 <div class="card-header">
                     <span class="card-title">"Actions"</span>
-                    <div class="history-undo-redo">
-                        <button class="history-undo-btn" on:click=on_redo
-                            on:contextmenu=on_redo_context
-                            disabled={move || !can_redo()} title="Redo (hold for list)">"↻ Redo"</button>
-                        <button class="history-undo-btn" on:click=on_undo
-                            on:contextmenu=on_undo_context
-                            disabled={move || !can_undo()} title="Undo (hold for list)">"↺ Undo"</button>
-                    </div>
+                    <button
+                        class="card-action-btn"
+                        disabled={move || !can_redo()}
+                        on:click=move |_| {
+                            if let Some(redone) = undo_store.get().redo() {
+                                record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
+                                app_store.update(|store| {
+                                    apply_redo_side_effects(&redone, store);
+                                });
+                            }
+                        }
+                        title="Redo last undone action"
+                        aria-label="Redo last undone action"
+                    >
+                        "↻"
+                    </button>
                     <select
                         class="form-select"
                         style="width: auto; min-width: 120px;"
@@ -189,6 +184,8 @@ pub fn HistoryPage() -> impl IntoView {
                     set_type_filter={set_type_filter}
                     has_reason_only={has_reason_only}
                     set_has_reason_only={set_has_reason_only}
+                    severity_filter={severity_filter}
+                    set_severity_filter={set_severity_filter}
                 />
 
                 <HistoryList
@@ -197,12 +194,6 @@ pub fn HistoryPage() -> impl IntoView {
                     on_history_undo={Callback::new(move |id| on_history_undo(id))}
                 />
             </div>
-
-            <UndoRedoDropdown
-                dropdown={dropdown}
-                close_dropdown={Callback::new(move |_| close_dropdown(()))}
-                on_dropdown_action={Callback::new(move |(id, is_redo)| on_dropdown_action(id, is_redo))}
-            />
         </div>
     }
 }

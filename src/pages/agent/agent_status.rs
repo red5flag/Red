@@ -7,7 +7,7 @@ pub(crate) fn AgentStatus() -> impl IntoView {
             <div class="agent-topbar-left">
                 <div class="agent-avatar-sm">"🤖"</div>
                 <div>
-                    <div class="agent-topbar-title">"Farley Agent"</div>
+                    <div class="agent-topbar-title">"Red Agent"</div>
                     <div class="agent-topbar-status">"● Online"</div>
                 </div>
             </div>

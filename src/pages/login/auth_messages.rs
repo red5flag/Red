@@ -19,22 +19,17 @@ pub(crate) fn AuthMessages(
 
         // ── CHANGELOG ACCORDION ──
         <div class="lp-changelog">
-            <div class="lp-changelog-header">
-                <a
-                    class="lp-changelog-link"
-                    href="https://github.com/red5flag/Carly"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    "CHANGELOG"
-                </a>
-                <span
-                    class="lp-changelog-toggle"
-                    on:click=move |ev| on_toggle_changelog.run(ev)
-                >
+            <button
+                class="lp-changelog-header"
+                type="button"
+                aria-expanded={move || changelog_open.get()}
+                on:click=move |ev| on_toggle_changelog.run(ev)
+            >
+                <span class="lp-changelog-link">"CHANGELOG"</span>
+                <span class="lp-changelog-toggle">
                     {move || if changelog_open.get() { "▲" } else { "▼" }}
                 </span>
-            </div>
+            </button>
             {move || if changelog_open.get() {
                 view! {
                     <div class="lp-changelog-body">

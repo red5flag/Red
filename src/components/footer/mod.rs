@@ -45,7 +45,7 @@ pub fn Footer() -> impl IntoView {
     let on_contact = move |_| {
         notification_store.update(|store| {
             store.add_notification(
-                "Contact: support@farley.app".to_string(),
+                "Contact: support@red.app".to_string(),
                 crate::stores::NotificationType::Info,
             );
         });
@@ -74,7 +74,7 @@ pub fn Footer() -> impl IntoView {
                     href="https://github.com/red5flag/Carly"
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="View Carly repo and latest branch changes on GitHub"
+                    title="View Red repo and latest branch changes on GitHub"
                 >
                     "📜 Changelog"
                 </a>

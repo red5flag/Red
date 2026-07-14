@@ -66,10 +66,18 @@ pub(crate) fn PaymentForm(
                         }
                     }
                 >
-                    {contacts.clone().into_iter().map(|c| {
-                        let id = c.id.to_string();
-                        view! { <option value={id.clone()}>{format!("{} ({})", c.name, c.currency)}</option> }
-                    }).collect::<Vec<_>>()}
+                    {let contacts_for = contacts.clone();
+                    let contacts_memo = Memo::new(move |_| contacts_for.clone());
+                    view! {
+                        <For
+                            each=move || contacts_memo.get()
+                            key=|c| c.id
+                            children=move |c| {
+                                let id = c.id.to_string();
+                                view! { <option value={id.clone()}>{format!("{} ({})", c.name, c.currency)}</option> }
+                            }
+                        />
+                    }}
                 </select>
             </div>
             <div class="tx-form-row">
@@ -219,6 +227,15 @@ pub(crate) fn CreateTransactionRecord(
                 None
             },
             metadata: serde_json::json!({}),
+            submitted_by: None,
+            submitted_at: None,
+            approved_by: None,
+            approved_at: None,
+            rejected_by: None,
+            rejected_at: None,
+            rejection_reason: None,
+            approval_history: Vec::new(),
+            locked: false,
         };
         on_create.run(txn);
         set_amount.set(String::new());

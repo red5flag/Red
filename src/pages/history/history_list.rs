@@ -22,9 +22,10 @@ pub(crate) fn HistoryList(
             } else {
                 view! {
                     <div class="timeline">
-                        {actions_vec
-                            .into_iter()
-                            .map(|action| {
+                        <For
+                            each=move || actions_vec.clone()
+                            key=|action| action.id
+                            children=move |action| {
                                 view! {
                                     <HistoryCard
                                         action={action}
@@ -32,8 +33,8 @@ pub(crate) fn HistoryList(
                                         on_undo={Callback::new(move |id| on_history_undo.run(id))}
                                     />
                                 }
-                            })
-                            .collect::<Vec<_>>()}
+                            }
+                        />
                     </div>
                 }
                     .into_any()

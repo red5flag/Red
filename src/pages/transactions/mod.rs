@@ -15,7 +15,7 @@ pub mod transaction_summary;
 pub use page::TransactionsPage;
 
 /// Local card model for wallet display.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Card {
     pub id: Uuid,
     pub label: String,
@@ -23,7 +23,7 @@ pub struct Card {
 }
 
 /// Local wallet model for transaction page UI.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Wallet {
     pub id: Uuid,
     pub name: String,
@@ -34,7 +34,7 @@ pub struct Wallet {
 }
 
 /// Local contact model for payees/payers.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Contact {
     pub id: Uuid,
     pub name: String,
@@ -60,7 +60,7 @@ pub struct Payment {
 }
 
 /// Local invoice model.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Invoice {
     #[allow(dead_code)]
     pub id: Uuid,
@@ -182,5 +182,14 @@ pub(crate) fn create_mock_transaction(
         created_at: Utc::now(),
         executed_at: Some(Utc::now()),
         metadata: serde_json::json!({}),
+        submitted_by: None,
+        submitted_at: None,
+        approved_by: None,
+        approved_at: None,
+        rejected_by: None,
+        rejected_at: None,
+        rejection_reason: None,
+        approval_history: Vec::new(),
+        locked: false,
     }
 }

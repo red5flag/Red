@@ -13,3 +13,5 @@
 # OTher Accessibility support oriented settings, controls and templates.
 # Voice assistance agent
 # Eyesight controls
+=======
+# Red is a local channel management application for managing assets, inventory and accomodation rental channels intended for those with visual impairment

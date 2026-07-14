@@ -1,4 +1,4 @@
-use crate::types::ActionType;
+use crate::types::{ActionType, ChangeSeverity, ViewportContext};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -23,6 +23,14 @@ pub struct Action {
     pub navigated_to: Option<String>,
     pub metadata: serde_json::Value,
     pub reason: Option<String>,
+    #[serde(default)]
+    pub change_severity: ChangeSeverity,
+    #[serde(default)]
+    pub viewport_context: Option<ViewportContext>,
+    #[serde(default)]
+    pub notarised: bool,
+    #[serde(default)]
+    pub notarisation_hash: Option<String>,
 }
 
 impl Action {
@@ -33,6 +41,7 @@ impl Action {
         description: String,
         user_id: Uuid,
     ) -> Self {
+        let severity = ChangeSeverity::from_action_type(&action_type);
         Self {
             id: Uuid::new_v4(),
             action_type,
@@ -51,6 +60,10 @@ impl Action {
             navigated_to: None,
             metadata: serde_json::json!({}),
             reason: None,
+            change_severity: severity,
+            viewport_context: None,
+            notarised: false,
+            notarisation_hash: None,
         }
     }
 
@@ -76,12 +89,35 @@ impl Action {
         self.navigated_from = Some(from);
         self.navigated_to = Some(to);
         self.action_type = ActionType::Navigate;
+        self.change_severity = ChangeSeverity::from_action_type(&self.action_type);
         self
     }
 
     pub fn with_tab_context(mut self, tab: String) -> Self {
         self.tab_context = Some(tab);
         self
+    }
+
+    pub fn with_viewport_context(mut self, viewport_context: ViewportContext) -> Self {
+        self.viewport_context = Some(viewport_context);
+        self
+    }
+
+    /// Returns true if this action can be undone by a user.
+    /// Auth and undo/redo meta-actions are never undoable.
+    pub fn is_undoable(&self) -> bool {
+        !matches!(
+            self.action_type,
+            ActionType::Login | ActionType::Logout | ActionType::Undo | ActionType::Redo
+        )
+    }
+
+    /// Mark this action as notarised.
+    /// The actual cryptographic hash is deferred until a SHA-256 crate is added.
+    pub fn notarise(&mut self, _previous_hash: Option<&str>) {
+        self.notarised = true;
+        // Hash computation deferred: no SHA-256 crate is currently in the dependency tree.
+        self.notarisation_hash = None;
     }
 
     pub fn action_type_badge(&self) -> &'static str {

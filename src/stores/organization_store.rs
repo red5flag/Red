@@ -180,6 +180,35 @@ impl OrganizationStore {
         }
     }
 
+    pub fn drag_role(&mut self, org_id: Uuid, dragged_id: Uuid, target_id: Uuid) {
+        if dragged_id == target_id {
+            return;
+        }
+        if let Some(org) = self.get_organization_mut(org_id) {
+            let mut roles = org.roles.clone();
+            let Some(dragged_pos) = roles.iter().position(|r| r.id == dragged_id) else {
+                return;
+            };
+            let Some(target_pos) = roles.iter().position(|r| r.id == target_id) else {
+                return;
+            };
+            let mut dragged = roles.remove(dragged_pos);
+            let target_pos = if dragged_pos < target_pos {
+                target_pos - 1
+            } else {
+                target_pos
+            };
+            roles.insert(target_pos, dragged);
+
+            let base = 1000u32;
+            for (i, role) in roles.iter_mut().enumerate() {
+                role.rank = base.saturating_sub(i as u32 * 10);
+            }
+            org.roles = roles;
+            org.updated_at = chrono::Utc::now();
+        }
+    }
+
     pub fn toggle_role_permission(&mut self, org_id: Uuid, role_id: Uuid, perm: Perm) {
         if let Some(org) = self.get_organization_mut(org_id) {
             if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {

@@ -1,4 +1,7 @@
-use crate::models::{Asset, Organization, Portfolio, User};
+use crate::models::{
+    Asset, Booking, BookingSource, BookingStatus, CalendarEvent, Channel, Organization, Portfolio,
+    User,
+};
 use crate::stores::app_store::AppStore;
 use crate::stores::notifications::{NotificationStore, NotificationType};
 use crate::stores::OrganizationStore;
@@ -106,6 +109,49 @@ pub fn seed_red_family_data(
     ));
 
     seed_notred_data(app_store, organization_store, notification_store);
+
+    // Seed clearly labeled demo Test Channel and booking for the first asset in the first portfolio.
+    if let Some(first_portfolio) = app_store.portfolios.first_mut() {
+        if let Some(asset) = first_portfolio.assets.first_mut() {
+            let asset_id = asset.id;
+            let portfolio_id = Some(first_portfolio.id);
+            let channel = Channel::new_test_channel(
+                "Demo Test Channel".to_string(),
+                Some(asset_id),
+                portfolio_id,
+            );
+            let channel_id = channel.id;
+            let mut booking = Booking::new(
+                asset_id,
+                Some(channel_id),
+                BookingSource::TestChannel,
+                "Demo Guest".to_string(),
+                chrono::Utc::now() + chrono::Duration::days(5),
+                chrono::Utc::now() + chrono::Duration::days(8),
+                150.0,
+            );
+            booking.status = BookingStatus::Confirmed;
+
+            let event = CalendarEvent::for_booking(
+                format!(
+                    "{} - {} ({})",
+                    booking.guest_name, asset.name, "Test Channel"
+                ),
+                booking.start_datetime,
+                booking.end_datetime,
+                portfolio_id,
+                asset_id,
+                Some(channel_id),
+                booking.id,
+                "Test Channel",
+            );
+            booking.calendar_event_ids.push(event.id);
+
+            app_store.channels.push(channel);
+            app_store.bookings.push(booking);
+            asset.calendar_events.push(event);
+        }
+    }
 
     // Start Red as Owner of RedOrg; role updates when switching organizations.
     app_store.current_user.role = UserRole::Owner;
@@ -575,6 +621,67 @@ pub fn seed_portfolio_3(owner_id: Uuid) -> Portfolio {
     }
 
     p.asset_groups = groups;
+    p.recalculate_values();
+    p
+}
+
+/// Portfolio: only direct assets (4 assets, no groups).
+pub fn seed_direct_portfolio(owner_id: Uuid, org_id: Option<Uuid>) -> Portfolio {
+    let mut p = Portfolio::new(
+        "Single Assets Investments".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p.organization_id = org_id;
+    p.description = Some("Portfolio with only direct assets for single-asset viewport testing".to_string());
+    p.tags = vec!["direct-only".to_string(), "test".to_string()];
+    p.documents = vec![make_doc("Direct Portfolio Overview", "pdf")];
+
+    for i in 0..4 {
+        let mut a = gen_asset(i, "Direct Asset", 500_000.0);
+        a.organization_id = org_id;
+        p.assets.push(a);
+    }
+
+    p.assigned_users.push(owner_id);
+    p.recalculate_values();
+    p
+}
+
+/// Portfolio: only asset groups (2 groups, 4 assets each).
+pub fn seed_groups_only_portfolio(owner_id: Uuid, org_id: Option<Uuid>) -> Portfolio {
+    let mut p = Portfolio::new(
+        "Asset Groups Investments".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p.organization_id = org_id;
+    p.description = Some("Portfolio with only two asset groups for group viewport testing".to_string());
+    p.tags = vec!["groups-only".to_string(), "test".to_string()];
+    p.documents = vec![make_doc("Groups Portfolio Overview", "pdf")];
+
+    let group_specs: [(usize, &str, f64); 2] = [
+        (0, "Group Alpha", 300_000.0),
+        (1, "Group Beta", 350_000.0),
+    ];
+
+    let mut groups = Vec::new();
+    for (group_idx, name, base_value) in group_specs {
+        let mut g = crate::models::AssetGroup::new(name.to_string());
+        g.description = Some(format!("{} with 4 assets", name));
+        g.documents = vec![make_doc(&format!("{} Overview", name), "pdf")];
+        for i in 0..4 {
+            let idx = group_idx * 4 + i;
+            let mut a = gen_asset(idx, &format!("{} Asset", name), base_value);
+            a.organization_id = org_id;
+            g.assets.push(a);
+        }
+        g.recalculate_values();
+        groups.push(g);
+    }
+
+    p.asset_groups = groups;
+    p.assigned_users.push(owner_id);
     p.recalculate_values();
     p
 }

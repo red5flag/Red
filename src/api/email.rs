@@ -227,9 +227,9 @@ cfg_if! {
 
         /// Enqueue a 2FA email with a 6-digit code.
         pub async fn enqueue_2fa_email(email: String, username: String, code: String) {
-            let subject = format!("Farley - Your sign-in code for '{}'", username);
+            let subject = format!("Red - Your sign-in code for '{}'", username);
             let body = format!(
-                "Your Farley sign-in code is: {}\n\nThis code is valid for 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\n- Farley Team",
+                "Your Red sign-in code is: {}\n\nThis code is valid for 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\n- Red Team",
                 code
             );
             let email = ValidationEmail {
@@ -267,9 +267,9 @@ cfg_if! {
 
         /// Enqueue a simulated phone/SMS 2FA email (stored as email since no SMS gateway is integrated).
         pub async fn enqueue_phone_2fa_email(email: String, username: String, phone: String, code: String) {
-            let subject = format!("Farley - Phone verification code for '{}'", username);
+            let subject = format!("Red - Phone verification code for '{}'", username);
             let body = format!(
-                "Your Farley phone 2FA sign-in code is: {}\n\nThis code was sent to: {}\n\nValid for 10 minutes.\n\n- Farley Team",
+                "Your Red phone 2FA sign-in code is: {}\n\nThis code was sent to: {}\n\nValid for 10 minutes.\n\n- Red Team",
                 code, phone
             );
             let email = ValidationEmail {
@@ -302,9 +302,9 @@ impl ValidationEmail {
             to: to.clone(),
             username: username.clone(),
             validation_token: token.clone(),
-            subject: format!("Farley - Validate your email for user '{}'", username),
+            subject: format!("Red - Validate your email for user '{}'", username),
             body: format!(
-                "Welcome to Farley!\n\nPlease validate your email address for username '{}'.\n\nClick the link below to validate:\n/emailvalid?token={}\n\nIf you did not create an account, please ignore this email.\n\n- Farley Team",
+                "Welcome to Red!\n\nPlease validate your email address for username '{}'.\n\nClick the link below to validate:\n/emailvalid?token={}\n\nIf you did not create an account, please ignore this email.\n\n- Red Team",
                 username, token
             ),
             timestamp: chrono::Utc::now().to_rfc3339(),

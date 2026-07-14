@@ -1,6 +1,11 @@
-use crate::models::TransactionStatus;
+use crate::models::{ApprovalAction, TransactionStatus};
+use crate::pages::transactions::approval_panel::TransactionApprovalBar;
 use crate::pages::transactions::{format_dollars, Contact, Payment, Transaction, Wallet};
-use crate::types::{Currency, SortMode, TransactionType};
+use crate::stores::{
+    can_approve_transaction, can_execute_transaction, can_lock_transaction, can_reject_transaction,
+    can_submit_transaction, can_withdraw_transaction,
+};
+use crate::types::{Currency, SortMode, TransactionType, UserProfile};
 use leptos::prelude::*;
 
 pub(crate) fn status_label(status: &TransactionStatus) -> &'static str {
@@ -48,6 +53,8 @@ pub(crate) fn currency_label(currency: &Currency) -> String {
 pub(crate) fn TransactionList(
     transactions: Vec<Transaction>,
     sort_mode: SortMode,
+    current_user: UserProfile,
+    on_approval_action: Callback<(uuid::Uuid, ApprovalAction, Option<String>)>,
 ) -> impl IntoView {
     let mut items = transactions;
     items.sort_by(|a, b| match sort_mode {
@@ -81,14 +88,42 @@ pub(crate) fn TransactionList(
                         let status_label = status_label(&status);
                         let status_class = transaction_status_class(&status);
                         let amount = format_dollars(t.amount, &currency_label(&t.currency));
-                        let desc = t.description.unwrap_or_default();
+                        let desc = t.description.clone().unwrap_or_default();
                         let date = t.created_at.format("%d %b %Y").to_string();
+                        let tx_id = t.id;
+                        let user = current_user.clone();
+                        let rejection = t.rejection_reason.clone();
+                        let locked = t.locked;
+                        let on_action = on_approval_action.clone();
+                        let tx_ref = t.clone();
+                        let can_submit = can_submit_transaction(&tx_ref, user.id, &user.role);
+                        let can_approve = can_approve_transaction(&tx_ref, user.id, &user.role);
+                        let can_reject = can_reject_transaction(&tx_ref, user.id, &user.role);
+                        let can_withdraw = can_withdraw_transaction(&tx_ref, user.id, &user.role);
+                        let can_execute = can_execute_transaction(&tx_ref, user.id, &user.role);
+                        let can_lock = can_lock_transaction(&tx_ref, &user.role);
                         view! {
-                            <div class="tx-statement-row">
+                            <div class="tx-statement-row" aria-label={format!("Transaction {}: {}", status_label, desc.clone())}>
                                 <div class="tx-statement-icon">{icon}</div>
                                 <div class="tx-statement-main">
-                                    <div class="tx-statement-title">{desc}</div>
+                                    <div class="tx-statement-title">{desc.clone()}</div>
                                     <div class="tx-statement-meta">{format!("{} · {} → {}", date, t.from_entity.name, t.to_entity.name)}</div>
+                                    {if locked {
+                                        view! { <div class="tx-locked-indicator" aria-label="Locked">"🔒 Locked"</div> }.into_any()
+                                    } else { ().into_any() }}
+                                    {if let Some(reason) = rejection.clone() {
+                                        view! { <div class="tx-rejection-reason" aria-label="Rejection reason">{format!("Rejected: {}", reason)}</div> }.into_any()
+                                    } else { ().into_any() }}
+                                    <TransactionApprovalBar
+                                        tx_id={tx_id}
+                                        can_submit={can_submit}
+                                        can_approve={can_approve}
+                                        can_reject={can_reject}
+                                        can_withdraw={can_withdraw}
+                                        can_execute={can_execute}
+                                        can_lock={can_lock}
+                                        on_action={on_action}
+                                    />
                                 </div>
                                 <div class="tx-statement-right">
                                     <div class="tx-statement-amount">{amount}</div>

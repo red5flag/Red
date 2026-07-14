@@ -1,8 +1,8 @@
-use crate::models::{Asset, Portfolio};
-use crate::stores::use_app_store;
+use crate::models::{Asset, Channel, Portfolio};
+use crate::stores::{use_app_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{AssetDetailView, AssetGroupItem, AssetItem, AssetTarget, NotifTarget};
@@ -52,10 +52,10 @@ fn sort_mode_label(m: AssetSortMode) -> &'static str {
 #[component]
 pub(crate) fn AssetViewer(
     portfolio: Portfolio,
-    can_edit: bool,
-    can_edit_documents: bool,
-    view_mode: ViewMode,
-    show_add_group: Option<Uuid>,
+    #[prop(into)] can_edit: Signal<bool>,
+    #[prop(into)] can_edit_documents: Signal<bool>,
+    #[prop(into)] view_mode: Signal<ViewMode>,
+    #[prop(into)] show_add_group: Signal<Option<Uuid>>,
     #[allow(unused_variables)] set_show_add_group: WriteSignal<Option<Uuid>>,
     _new_group_name: ReadSignal<String>,
     set_new_group_name: WriteSignal<String>,
@@ -68,11 +68,12 @@ pub(crate) fn AssetViewer(
     set_new_asset_type: WriteSignal<AssetType>,
     new_asset_value: ReadSignal<String>,
     set_new_asset_value: WriteSignal<String>,
-    on_add_asset: Callback<AssetTarget>,
+    on_add_asset: Callback<AssetTarget, Option<Uuid>>,
     on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
 ) -> impl IntoView {
     let pid = portfolio.id;
     let app_store_inner = use_app_store();
+    let ui_store = use_ui_store();
     let current_user = app_store_inner.get().current_user.clone();
     let user_id = current_user.id;
     let can_view_all = current_user.can_view_all();
@@ -97,8 +98,12 @@ pub(crate) fn AssetViewer(
         }
     });
 
-    let (show_groups, set_show_groups) = signal(true);
+    let (show_groups, set_show_groups) = signal(false);
     let (show_direct_assets, set_show_direct_assets) = signal(false);
+
+    let (new_channel_name, set_new_channel_name) = signal(String::new());
+    let (new_channel_rate, set_new_channel_rate) = signal(String::new());
+    let (new_asset_id, set_new_asset_id) = signal(Option::<Uuid>::None);
 
     let (grid_columns, _set_grid_columns) = signal(3usize);
     let (selected_asset, set_selected_asset) = signal::<Option<Asset>>(None);
@@ -109,6 +114,44 @@ pub(crate) fn AssetViewer(
     let (direct_sort_open, set_direct_sort_open) = signal(false);
     let (direct_sort_mode, set_direct_sort_mode) = signal(AssetSortMode::Recent);
 
+    // Per-scope visible counts for Expand View + behavior.
+    // Scopes: "groups-{pid}", "direct-{pid}", "group-assets-{gid}".
+    // Each scope starts at the global view count and increments by that amount.
+    let (visible_counts, set_visible_counts) = signal(HashMap::<String, usize>::new());
+    let group_scope = format!("groups-{pid}");
+    let direct_scope = format!("direct-{pid}");
+
+    let page_size = move || {
+        ui_store
+            .get()
+            .portfolio_view_count(view_mode.get())
+            .as_usize()
+    };
+    let visible_for = move |scope: &str| {
+        visible_counts
+            .get()
+            .get(scope)
+            .copied()
+            .unwrap_or_else(page_size)
+    };
+    let expand_scope = Callback::new(move |scope: String| {
+        let increment = page_size();
+        set_visible_counts.update(|map| {
+            let current = map.get(&scope).copied().unwrap_or_else(|| page_size());
+            map.insert(scope, current.saturating_add(increment));
+        });
+    });
+
+    // Auto-expand the relevant section when an add form is targeted at this portfolio
+    Effect::new(move |_| {
+        if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
+            set_show_direct_assets.set(true);
+        }
+        if show_add_group.get() == Some(pid) {
+            set_show_groups.set(true);
+        }
+    });
+
     let on_select_asset = Callback::new(move |asset: Asset| {
         set_selected_asset.set(Some(asset));
     });
@@ -117,193 +160,164 @@ pub(crate) fn AssetViewer(
         set_selected_asset.set(None);
     });
 
-    let view_mode = view_mode.clone();
-    let view_mode_groups_title = view_mode.clone();
-    let view_mode_groups_content = view_mode.clone();
-    let view_mode_direct_title = view_mode.clone();
-    let view_mode_direct_content = view_mode.clone();
+    let view_mode_groups_content = view_mode;
+    let view_mode_direct_title = view_mode;
+    let view_mode_direct_content = view_mode;
     let portfolio_groups = portfolio.clone();
     let portfolio_direct = portfolio.clone();
     let portfolio_direct_sort = portfolio.clone();
 
-    view! {
-        <div class="asset-viewer">
-            // Asset Groups section
-            {if !portfolio_groups.asset_groups.is_empty() {
-                view! {
-            <div class="asset-section">
-                <div class="asset-section-title">
-                    <div class="asset-section-title-left"
-                        role="button"
-                        tabindex="0"
-                        aria-expanded={move || show_groups.get()}
-                        aria-controls="av-groups-content"
-                        aria-label={move || if show_groups.get() { "Collapse Asset Groups section" } else { "Expand Asset Groups section" }}
-                        on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                            if ev.key() == "Enter" || ev.key() == " " {
-                                ev.prevent_default();
-                                set_show_groups.update(|v| *v = !*v);
-                            }
-                        }
-                    >
-                        <span class="asset-section-arrow" aria-hidden="true">
-                            {move || if show_groups.get() { "▼" } else { "▶" }}
-                        </span>
-                        <span class="asset-section-label">"Asset Groups"</span>
-                    </div>
-                    <div class="section-title-right">
-                        {{
-                            let view_mode_groups_title = view_mode_groups_title.clone();
-                            move || if show_groups.get() && view_mode_groups_title == ViewMode::Grid {
-                                ().into_any()
-                            } else { ().into_any() }
-                        }}
-                    </div>
-                </div>
+    let has_groups = !portfolio_groups.asset_groups.is_empty();
+    let has_direct = !portfolio_direct.assets.is_empty();
 
-                {move || if show_groups.get() {
-                    let visible_groups: Vec<_> = portfolio_groups.asset_groups.clone().into_iter().filter(|g| portfolio_visible_to_user || g.is_visible_to(user_id, can_view_all)).collect();
-                    let vmg = view_mode_groups_content.clone();
-                    view! {
-                        <div id="av-groups-content">
-                            // Sort dropdown inside content area (grid mode only)
-                            {let vg_for_sort = visible_groups.clone();
-                            move || {
-                                if vmg == ViewMode::Grid && !vg_for_sort.is_empty() {
-                                    view! {
-                                        <div class="sort-dropdown-wrap sort-dropdown-inline">
-                                            <button class="sort-btn"
-                                                on:click=move |_| set_group_sort_open.update(|v| *v = !*v)
-                                            >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
-                                            {move || if group_sort_open.get() {
-                                                view! {
-                                                    <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                                        {[
-                                                            AssetSortMode::Recent,
-                                                            AssetSortMode::NameAsc,
-                                                            AssetSortMode::NameDesc,
-                                                            AssetSortMode::ValueHigh,
-                                                            AssetSortMode::ValueLow,
-                                                        ].iter().map(|&m| {
-                                                            let set_m = set_group_sort_mode;
-                                                            let close = set_group_sort_open;
-                                                            view! {
-                                                                <button class="sort-dropdown-item"
-                                                                    class:active={move || group_sort_mode.get() == m}
-                                                                    on:click=move |_| {
-                                                                        set_m.set(m);
-                                                                        close.set(false);
-                                                                    }
-                                                                >{sort_mode_label(m)}</button>
+    let portfolio_direct_sort_for_direct_view = portfolio_direct_sort.clone();
+
+    let groups_view = move |_standalone: bool| {
+        let portfolio_groups = portfolio_groups.clone();
+        let group_scope = group_scope.clone();
+        view! {
+            {let visible_groups: Vec<_> = portfolio_groups.asset_groups.clone().into_iter().filter(|g| portfolio_visible_to_user || g.is_visible_to(user_id, can_view_all)).collect();
+            let vmg = view_mode_groups_content.clone();
+            view! {
+                <div id="av-groups-content">
+                    // Sort dropdown inside content area (grid mode only)
+                    {let vg_for_sort = visible_groups.clone();
+                    move || {
+                        if vmg.get() == ViewMode::Grid && !vg_for_sort.is_empty() {
+                            view! {
+                                <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                    <button class="sort-btn"
+                                        on:click=move |_| set_group_sort_open.update(|v| *v = !*v)
+                                    >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
+                                    {move || if group_sort_open.get() {
+                                        view! {
+                                            <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                {[
+                                                    AssetSortMode::Recent,
+                                                    AssetSortMode::NameAsc,
+                                                    AssetSortMode::NameDesc,
+                                                    AssetSortMode::ValueHigh,
+                                                    AssetSortMode::ValueLow,
+                                                ].iter().map(|&m| {
+                                                    let set_m = set_group_sort_mode;
+                                                    let close = set_group_sort_open;
+                                                    view! {
+                                                        <button class="sort-dropdown-item"
+                                                            class:active={move || group_sort_mode.get() == m}
+                                                            on:click=move |_| {
+                                                                set_m.set(m);
+                                                                close.set(false);
                                                             }
-                                                        }).collect::<Vec<_>>()}
-                                                    </div>
-                                                }.into_any()
-                                            } else { ().into_any() }}
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }
-                            }}
+                                                        >{sort_mode_label(m)}</button>
+                                                    }
+                                                }).collect::<Vec<_>>()}
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }
+                    }}
 
-                            {move || show_add_group.map(|gp| {
-                                if gp == pid {
+                    {move || show_add_group.get().map(|gp| {
+                        if gp == pid {
+                            view! {
+                                <div class="add-form">
+                                    <input class="login-input" type="text" placeholder="Group name"
+                                        aria-label="Group name"
+                                        on:input=move |ev| set_new_group_name.set(event_target_value(&ev)) />
+                                    <button class="login-btn" on:click=move |_| on_add_group.run(pid)>
+                                        "Add Group"
+                                    </button>
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }
+                    })}
+
+                    {let total_groups = visible_groups.len();
+                    if visible_groups.is_empty() {
+                        view! {
+                            <div class="empty-state">
+                                <div class="empty-text">"No asset groups"</div>
+                            </div>
+                        }.into_any()
+                    } else {
+                        let portfolio_name = portfolio_groups.name.clone();
+                        let display_count = visible_for(&group_scope).min(total_groups);
+                        let remaining = total_groups.saturating_sub(display_count);
+                        let groups_to_show: Vec<_> = visible_groups.into_iter().take(display_count).collect();
+                        let group_scope_btn = group_scope.clone();
+                        let group_class = move || if view_mode_groups_content.get() == ViewMode::Grid { "grid-view".to_string() } else { "asset-list".to_string() };
+                        view! {
+                            <div class={group_class}>
+                                {groups_to_show.into_iter().enumerate().map(move |(idx, group)| {
+                                    let gid = group.id;
+                                    let pid2 = pid;
+                                    let is_expanded = Memo::new(move |_| expanded_groups.get().contains(&gid));
                                     view! {
-                                        <div class="add-form">
-                                            <input class="login-input" type="text" placeholder="Group name"
-                                                aria-label="Group name"
-                                                on:input=move |ev| set_new_group_name.set(event_target_value(&ev)) />
-                                            <button class="login-btn" on:click=move |_| on_add_group.run(pid)>
-                                                "Add Group"
-                                            </button>
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }
-                            })}
-
-                            {if visible_groups.is_empty() {
+                                        <AssetGroupItem
+                                            group={group}
+                                            can_edit={can_edit.get()}
+                                            can_edit_documents={can_edit_documents.get()}
+                                            pid={pid2}
+                                            gid={gid}
+                                            expanded={is_expanded}
+                                            view_mode={view_mode_groups_content.get()}
+                                            grid_columns={grid_columns.get()}
+                                            on_toggle={toggle_group}
+                                            show_add_asset={show_add_asset}
+                                            set_show_add_asset={set_show_add_asset}
+                                            _new_asset_name={new_asset_name}
+                                            set_new_asset_name={set_new_asset_name}
+                                            _new_asset_type={new_asset_type}
+                                            set_new_asset_type={set_new_asset_type}
+                                            _new_asset_value={new_asset_value}
+                                            set_new_asset_value={set_new_asset_value}
+                                            on_add_asset={on_add_asset}
+                                            on_select_asset={on_select_asset}
+                                            portfolio_name={portfolio_name.clone()}
+                                            tint_index={idx + 1}
+                                            on_open_notif_qs={on_open_notif_qs.clone()}
+                                            visible_counts={visible_counts}
+                                            set_visible_counts={set_visible_counts}
+                                        />
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                            {if remaining > 0 {
                                 view! {
-                                    <div class="empty-state">
-                                        <div class="empty-text">"No asset groups"</div>
-                                    </div>
+                                    <button class="pf-show-more-btn pf-expand-view-btn"
+                                        aria-label={format!("Expand view. Currently showing {} of {} asset groups", display_count, total_groups)}
+                                        on:click=move |_| expand_scope.run(group_scope_btn.clone())
+                                    >
+                                        {format!("Expand View + ({}/{}) ", display_count, total_groups)}
+                                    </button>
                                 }.into_any()
-                            } else {
-                                let group_class = if view_mode_groups_content == ViewMode::Grid { "grid-view" } else { "asset-list" };
-                                let view_mode_clone = view_mode_groups_content.clone();
-                                let portfolio_name = portfolio_groups.name.clone();
-                                view! {
-                                    <div class={group_class}>
-                                        {visible_groups.into_iter().enumerate().map(move |(idx, group)| {
-                                            let gid = group.id;
-                                            let pid2 = pid;
-                                            let is_expanded = Memo::new(move |_| expanded_groups.get().contains(&gid));
-                                            view! {
-                                                <AssetGroupItem
-                                                    group={group}
-                                                    can_edit={can_edit}
-                                                    can_edit_documents={can_edit_documents}
-                                                    pid={pid2}
-                                                    gid={gid}
-                                                    expanded={is_expanded}
-                                                    view_mode={view_mode_clone.clone()}
-                                                    grid_columns={grid_columns.get()}
-                                                    on_toggle={toggle_group}
-                                                    show_add_asset={show_add_asset}
-                                                    set_show_add_asset={set_show_add_asset}
-                                                    _new_asset_name={new_asset_name}
-                                                    set_new_asset_name={set_new_asset_name}
-                                                    _new_asset_type={new_asset_type}
-                                                    set_new_asset_type={set_new_asset_type}
-                                                    _new_asset_value={new_asset_value}
-                                                    set_new_asset_value={set_new_asset_value}
-                                                    on_add_asset={on_add_asset}
-                                                    on_select_asset={on_select_asset}
-                                                    portfolio_name={portfolio_name.clone()}
-                                                    tint_index={idx + 1}
-                                                    on_open_notif_qs={on_open_notif_qs.clone()}
-                                                />
-                                            }
-                                        }).collect::<Vec<_>>()}
-                                    </div>
-                                }.into_any()
-                            }}
-                        </div>
-                    }.into_any()
-                } else { ().into_any() }}
-            </div>
-                }.into_any()
-            } else { ().into_any() }}
+                            } else { ().into_any() }}
+                        }.into_any()
+                    }}
+                </div>
+            }.into_any()}
+        }.into_any()
+    };
 
-            // Direct Assets section — collapsible dropdown
-            <div class="asset-section">
-                <div class="asset-section-title">
-                    <div class="asset-section-title-left"
-                        role="button"
-                        tabindex="0"
-                        aria-expanded={move || show_direct_assets.get()}
-                        aria-controls="av-direct-content"
-                        aria-label={move || if show_direct_assets.get() { "Collapse Direct Assets section" } else { "Expand Direct Assets section" }}
-                        on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                            if ev.key() == "Enter" || ev.key() == " " {
-                                ev.prevent_default();
-                                set_show_direct_assets.update(|v| *v = !*v);
-                            }
-                        }
-                    >
-                        <span class="asset-section-arrow" aria-hidden="true">
-                            {move || if show_direct_assets.get() { "▼" } else { "▶" }}
-                        </span>
-                        <span class="asset-section-label">"Direct Assets"</span>
-                    </div>
+    let direct_view = move |standalone: bool| {
+        let portfolio_direct = portfolio_direct.clone();
+        let portfolio_direct_sort = portfolio_direct_sort_for_direct_view.clone();
+        let direct_scope = direct_scope.clone();
+        view! {
+            {if standalone {
+                view! {
                     <div class="section-title-right">
                         {move || {
-                            let vmd = view_mode_direct_title.clone();
-                            if show_direct_assets.get() && vmd == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
+                            if view_mode_direct_title.get() == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
                                 view! {
                                     <div class="sort-dropdown-wrap sort-dropdown-inline">
                                         <button class="sort-btn"
-                                            on:click=move |_| set_direct_sort_open.update(|v| *v = !*v)
+                                            on:click=move |ev: leptos::ev::MouseEvent| {
+                                                ev.stop_propagation();
+                                                set_direct_sort_open.update(|v| *v = !*v)
+                                            }
                                         >{format!("Sort: {} ↕", sort_mode_label(direct_sort_mode.get()))}</button>
                                         {move || if direct_sort_open.get() {
                                             view! {
@@ -335,88 +349,215 @@ pub(crate) fn AssetViewer(
                             } else { ().into_any() }
                         }}
                     </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            {let visible_direct_assets: Vec<_> = portfolio_direct.assets.clone().into_iter().filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
+            let visible_direct_assets = sort_assets(visible_direct_assets, direct_sort_mode.get());
+            view! {
+                <div id="av-direct-content">
+
+                    {move || {
+                        if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
+                            view! {
+                                <div class="add-form">
+                                    <input class="login-input" type="text" placeholder="Asset name"
+                                        aria-label="Asset name"
+                                        on:input=move |ev| set_new_asset_name.set(event_target_value(&ev)) />
+                                    <input class="login-input" type="text" list="asset-type-options-direct" placeholder="Asset type"
+                                        aria-label="Asset type"
+                                        prop:value={move || new_asset_type.get().to_input_string()}
+                                        on:input=move |ev| set_new_asset_type.set(AssetType::from_input(&event_target_value(&ev))) />
+                                    <datalist id="asset-type-options-direct">
+                                        <option value="RealEstate">"Real Estate"</option>
+                                        <option value="Vehicle">"Vehicle"</option>
+                                        <option value="Equipment">"Equipment"</option>
+                                        <option value="Stock">"Stock"</option>
+                                        <option value="Bond">"Bond"</option>
+                                        <option value="Commodity">"Commodity"</option>
+                                        <option value="Digital">"Digital"</option>
+                                        <option value="IntellectualProperty">"Intellectual Property"</option>
+                                        <option value="Channel">"Channel"</option>
+                                    </datalist>
+                                    <input class="login-input" type="number" placeholder="Value ($)"
+                                        aria-label="Value"
+                                        on:input=move |ev| set_new_asset_value.set(event_target_value(&ev)) />
+                                    <input class="login-input" type="text" placeholder="Channel name (optional)"
+                                        aria-label="Channel name"
+                                        prop:value={move || new_channel_name.get()}
+                                        on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) />
+                                    <input class="login-input" type="number" placeholder="Channel nightly rate (optional)"
+                                        aria-label="Channel nightly rate"
+                                        prop:value={move || new_channel_rate.get()}
+                                        on:input=move |ev| set_new_channel_rate.set(event_target_value(&ev)) />
+                                    <button class="login-btn" on:click=move |_| {
+                                        if let Some(asset_id) = on_add_asset.run(AssetTarget::PortfolioDirect(pid)) {
+                                            let name = new_channel_name.get();
+                                            if !name.trim().is_empty() {
+                                                let rate = new_channel_rate.get().parse::<f64>().ok();
+                                                let mut channel = Channel::new_test_channel(name, Some(asset_id), Some(pid));
+                                                channel.nightly_rate_override = rate;
+                                                app_store_inner.update(|s| s.add_channel(channel));
+                                            }
+                                            set_new_asset_id.set(Some(asset_id));
+                                            set_new_channel_name.set(String::new());
+                                            set_new_channel_rate.set(String::new());
+                                        }
+                                    }>
+                                        "Add Asset"
+                                    </button>
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }
+                    }}
+
+                    {let total_direct = visible_direct_assets.len();
+                    if visible_direct_assets.is_empty() {
+                        view! {
+                            <div class="empty-state">
+                                <div class="empty-text">"No direct assets"</div>
+                            </div>
+                        }.into_any()
+                    } else {
+                        let portfolio_name = portfolio_direct.name.clone();
+                        let display_direct = visible_for(&direct_scope).min(total_direct);
+                        let direct_remaining = total_direct.saturating_sub(display_direct);
+                        let direct_to_show: Vec<_> = visible_direct_assets.into_iter().take(display_direct).collect();
+                        let direct_scope_btn = direct_scope.clone();
+                        let direct_class = move || if view_mode_direct_content.get() == ViewMode::Grid {
+                            format!("grid-view-{}", grid_columns.get())
+                        } else {
+                            "asset-list".to_string()
+                        };
+                        view! {
+                            <div class={direct_class}>
+                                {direct_to_show.into_iter().enumerate().map(move |(idx, asset)| view! {
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_direct_content.get()} on_select={on_select_asset} can_edit={can_edit.get()} can_edit_documents={can_edit_documents.get()} tint_index={idx + 1} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
+                                }).collect::<Vec<_>>()}
+                            </div>
+                            {if direct_remaining > 0 {
+                                view! {
+                                    <button class="pf-show-more-btn pf-expand-view-btn"
+                                        aria-label={format!("Expand view. Currently showing {} of {} direct assets", display_direct, total_direct)}
+                                        on:click=move |_| expand_scope.run(direct_scope_btn.clone())
+                                    >
+                                        {format!("Expand View + ({}/{}) ", display_direct, total_direct)}
+                                    </button>
+                                }.into_any()
+                            } else { ().into_any() }}
+                        }.into_any()
+                    }}
                 </div>
+            }.into_any()}
+        }.into_any()
+    };
 
-                {move || if show_direct_assets.get() {
-                    let visible_direct_assets: Vec<_> = portfolio_direct.assets.clone().into_iter().filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
-                    let visible_direct_assets = sort_assets(visible_direct_assets, direct_sort_mode.get());
-                    let _vmd = view_mode_direct_content.clone();
-                    view! {
-                        <div id="av-direct-content">
-
-                            {move || {
-                                if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
-                                    view! {
-                                        <div class="add-form">
-                                            <input class="login-input" type="text" placeholder="Asset name"
-                                                aria-label="Asset name"
-                                                on:input=move |ev| set_new_asset_name.set(event_target_value(&ev)) />
-                                            <select class="login-input"
-                                                prop:value={move || format!("{:?}", new_asset_type.get())}
-                                                on:change=move |ev| {
-                                                    let v = event_target_value(&ev);
-                                                    let t = match v.as_str() {
-                                                        "RealEstate" => AssetType::RealEstate,
-                                                        "Vehicle" => AssetType::Vehicle,
-                                                        "Equipment" => AssetType::Equipment,
-                                                        "Stock" => AssetType::Stock,
-                                                        "Bond" => AssetType::Bond,
-                                                        "Commodity" => AssetType::Commodity,
-                                                        "Digital" => AssetType::Digital,
-                                                        "IntellectualProperty" => AssetType::IntellectualProperty,
-                                                        "Channel" => AssetType::Channel,
-                                                        _ => AssetType::RealEstate,
-                                                    };
-                                                    set_new_asset_type.set(t);
-                                                }
-                                            >
-                                                <option value="RealEstate">"Real Estate"</option>
-                                                <option value="Vehicle">"Vehicle"</option>
-                                                <option value="Equipment">"Equipment"</option>
-                                                <option value="Stock">"Stock"</option>
-                                                <option value="Bond">"Bond"</option>
-                                                <option value="Commodity">"Commodity"</option>
-                                                <option value="Digital">"Digital"</option>
-                                                <option value="IntellectualProperty">"IP"</option>
-                                                <option value="Channel">"Channel"</option>
-                                            </select>
-                                            <input class="login-input" type="number" placeholder="Value ($)"
-                                                aria-label="Value"
-                                                on:input=move |ev| set_new_asset_value.set(event_target_value(&ev)) />
-                                            <button class="login-btn" on:click=move |_| on_add_asset.run(AssetTarget::PortfolioDirect(pid))>
-                                                "Add Asset"
-                                            </button>
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }
-                            }}
-
-                            {if visible_direct_assets.is_empty() {
-                                view! {
-                                    <div class="empty-state">
-                                        <div class="empty-text">"No direct assets"</div>
-                                    </div>
-                                }.into_any()
-                            } else {
-                                let direct_class = if view_mode_direct_content == ViewMode::Grid {
-                                    format!("grid-view-{}", grid_columns.get())
-                                } else {
-                                    "asset-list".to_string()
-                                };
-                                let view_mode_clone = view_mode_direct_content.clone();
-                                let portfolio_name = portfolio_direct.name.clone();
-                                view! {
-                                    <div class={direct_class}>
-                                        {visible_direct_assets.into_iter().enumerate().map(move |(idx, asset)| view! {
-                                            <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_clone.clone()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={idx + 1} />
-                                        }).collect::<Vec<_>>()}
-                                    </div>
-                                }.into_any()
-                            }}
+    view! {
+        <div class="asset-viewer">
+            {if has_groups && has_direct {
+                view! {
+                    <div class="asset-section">
+                        <div class="asset-section-title">
+                            <div class="asset-section-title-left"
+                                role="button"
+                                tabindex="0"
+                                aria-expanded={move || show_groups.get()}
+                                aria-controls="av-groups-content"
+                                aria-label={move || if show_groups.get() { "Collapse Asset Groups section" } else { "Expand Asset Groups section" }}
+                                on:click=move |_| set_show_groups.update(|v| *v = !*v)
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Enter" || ev.key() == " " {
+                                        ev.prevent_default();
+                                        set_show_groups.update(|v| *v = !*v);
+                                    }
+                                }
+                            >
+                                <span class="asset-section-arrow" aria-hidden="true">
+                                    {move || if show_groups.get() { "▶" } else { "▼" }}
+                                </span>
+                                <span class="asset-section-label">"Asset Groups"</span>
+                            </div>
                         </div>
-                    }.into_any()
-                } else { ().into_any() }}
-            </div>
+
+                        {move || if show_groups.get() { groups_view(false) } else { ().into_any() }}
+                    </div>
+                }.into_any()
+            } else if has_groups {
+                groups_view(true)
+            } else { ().into_any() }}
+
+            {if has_direct && has_groups {
+                view! {
+                    <div class="asset-section">
+                        <div class="asset-section-title">
+                            <div class="asset-section-title-left"
+                                role="button"
+                                tabindex="0"
+                                aria-expanded={move || show_direct_assets.get()}
+                                aria-controls="av-direct-content"
+                                aria-label={move || if show_direct_assets.get() { "Collapse Direct Assets section" } else { "Expand Direct Assets section" }}
+                                on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Enter" || ev.key() == " " {
+                                        ev.prevent_default();
+                                        set_show_direct_assets.update(|v| *v = !*v);
+                                    }
+                                }
+                            >
+                                <span class="asset-section-arrow" aria-hidden="true">
+                                    {move || if show_direct_assets.get() { "▶" } else { "▼" }}
+                                </span>
+                                <span class="asset-section-label">"Direct Assets"</span>
+                            </div>
+                            <div class="section-title-right">
+                                {move || {
+                                    if show_direct_assets.get() && view_mode_direct_title.get() == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
+                                        view! {
+                                            <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                                <button class="sort-btn"
+                                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                                        ev.stop_propagation();
+                                                        set_direct_sort_open.update(|v| *v = !*v)
+                                                    }
+                                                >{format!("Sort: {} ↕", sort_mode_label(direct_sort_mode.get()))}</button>
+                                                {move || if direct_sort_open.get() {
+                                                    view! {
+                                                        <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                            {[
+                                                                AssetSortMode::Recent,
+                                                                AssetSortMode::NameAsc,
+                                                                AssetSortMode::NameDesc,
+                                                                AssetSortMode::ValueHigh,
+                                                                AssetSortMode::ValueLow,
+                                                            ].iter().map(|&m| {
+                                                                let set_m = set_direct_sort_mode;
+                                                                let close = set_direct_sort_open;
+                                                                view! {
+                                                                    <button class="sort-dropdown-item"
+                                                                        class:active={move || direct_sort_mode.get() == m}
+                                                                        on:click=move |_| {
+                                                                            set_m.set(m);
+                                                                            close.set(false);
+                                                                        }
+                                                                    >{sort_mode_label(m)}</button>
+                                                                }
+                                                            }).collect::<Vec<_>>()}
+                                                        </div>
+                                                    }.into_any()
+                                                } else { ().into_any() }}
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }
+                                }}
+                            </div>
+                        </div>
+
+                        {move || if show_direct_assets.get() { direct_view(false) } else { ().into_any() }}
+                    </div>
+                }.into_any()
+            } else if has_direct {
+                direct_view(true)
+            } else { ().into_any() }}
 
             {move || selected_asset.get().map(|asset| view! {
                 <AssetDetailView asset={asset} on_close={on_close_asset} />

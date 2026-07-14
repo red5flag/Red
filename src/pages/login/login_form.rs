@@ -44,7 +44,12 @@ pub(crate) fn LoginForm(
                         placeholder="Username"
                         prop:value=move || username.get()
                         on:input=move |ev| set_username.set(event_target_value(&ev))
-                        on:keydown=move |ev| { if ev.key() == "Enter" { on_login.run(()); } }
+                        on:keydown=move |ev| {
+                            if ev.key() == "Enter" {
+                                flash_press.run("login");
+                                on_login.run(());
+                            }
+                        }
                     />
                 }
             }}
@@ -69,7 +74,12 @@ pub(crate) fn LoginForm(
                         placeholder="Password"
                         prop:value={move || password.get()}
                         on:input=move |ev| set_password.set(event_target_value(&ev))
-                        on:keydown=move |ev| { if ev.key() == "Enter" { on_login.run(()); } }
+                        on:keydown=move |ev| {
+                            if ev.key() == "Enter" {
+                                flash_press.run("login");
+                                on_login.run(());
+                            }
+                        }
                     />
                 }
             }}

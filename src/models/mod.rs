@@ -1,13 +1,21 @@
 pub mod action;
+pub mod booking;
+pub mod business_validation;
+pub mod channel;
 pub mod messenger;
 pub mod portfolio;
 pub mod rule_engine;
+pub mod service_task;
 pub mod transaction;
 pub mod user;
 
 pub use action::*;
+pub use booking::*;
+pub use business_validation::*;
+pub use channel::*;
 pub use messenger::*;
 pub use portfolio::*;
 pub use rule_engine::*;
+pub use service_task::*;
 pub use transaction::*;
 pub use user::*;

@@ -1,10 +1,14 @@
-use crate::models::{Asset, AssetGroup};
+use crate::models::{Asset, AssetGroup, Channel};
 use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
+use std::collections::HashMap;
 use uuid::Uuid;
 
-use super::{detect_file_type, AssetItem, AssetTarget, DocModal, NotifTarget, UserAssignmentPanel};
+use super::{
+    detect_file_type, single_sentence, AssetItem, AssetTarget, DocModal, NotifTarget,
+    UserAssignmentPanel,
+};
 
 #[component]
 pub(crate) fn AssetGroupItem(
@@ -25,11 +29,13 @@ pub(crate) fn AssetGroupItem(
     set_new_asset_type: WriteSignal<AssetType>,
     _new_asset_value: ReadSignal<String>,
     set_new_asset_value: WriteSignal<String>,
-    on_add_asset: Callback<AssetTarget>,
+    on_add_asset: Callback<AssetTarget, Option<Uuid>>,
     on_select_asset: Callback<Asset>,
     portfolio_name: String,
     #[prop(default = 0)] tint_index: usize,
     on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
+    visible_counts: ReadSignal<HashMap<String, usize>>,
+    set_visible_counts: WriteSignal<HashMap<String, usize>>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let notification_store = use_notification_store();
@@ -54,9 +60,38 @@ pub(crate) fn AssetGroupItem(
     let (group_org_name, set_group_org_name) = signal(String::new());
     let (edit_name, set_edit_name) = signal(group.name.clone());
     let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
+    let (new_channel_name, set_new_channel_name) = signal(String::new());
+    let (new_channel_rate, set_new_channel_rate) = signal(String::new());
+    let (new_asset_id, set_new_asset_id) = signal(Option::<Uuid>::None);
+
+    // Per-scope visible count for this group's assets.
+    let assets_scope = format!("group-assets-{gid}");
+    let assets_scope_visible = assets_scope.clone();
+    let assets_scope_expand = assets_scope.clone();
+    let page_size = move || ui_store.get().portfolio_view_count(view_mode).as_usize();
+    let visible_for_scope = move || {
+        visible_counts
+            .get()
+            .get(&assets_scope_visible)
+            .copied()
+            .unwrap_or_else(page_size)
+    };
+    let expand_scope = move |_| {
+        let increment = page_size();
+        set_visible_counts.update(|map| {
+            let current = map
+                .get(&assets_scope_expand)
+                .copied()
+                .unwrap_or_else(page_size);
+            map.insert(
+                assets_scope_expand.clone(),
+                current.saturating_add(increment),
+            );
+        });
+    };
 
     let g_name = group.name.clone();
-    let g_desc = group.description.clone().unwrap_or_default();
+    let g_desc = single_sentence(&group.description.clone().unwrap_or_default());
     let g_name_for_modal = group.name.clone();
     let g_name_for_doc_btn = group.name.clone();
     let g_name_for_confirm = group.name.clone();
@@ -145,6 +180,7 @@ pub(crate) fn AssetGroupItem(
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 if can_edit_here {
                     ev.prevent_default();
+                    ev.stop_propagation();
                     set_group_context_menu.set(Some((ev.client_x(), ev.client_y())));
                 }
             }
@@ -174,12 +210,13 @@ pub(crate) fn AssetGroupItem(
                 }
             >
                 <span class="asset-group-arrow">
-                    {move || if expanded.get() { "▲" } else { "▼" }}
+                    {move || if expanded.get() { "▶" } else { "▼" }}
                 </span>
                 <div class="asset-group-icon">"📁"</div>
                 <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
                     {let g_name_header = g_name.clone();
                     let g_desc_header = g_desc.clone();
+                    let group_channel_ids = group.channel_ids.clone();
                     move || if is_editing.get() && can_edit_here {
                         view! {
                             <div class="asset-group-edit-form">
@@ -204,6 +241,15 @@ pub(crate) fn AssetGroupItem(
                                     view! { <div class="asset-group-desc">{g_desc_header.clone()}</div> }.into_any()
                                 } else { ().into_any() }}
                                 <div class="asset-group-count">{format!("{} assets", asset_count)}</div>
+                                {let channel_count = group_channel_ids.len();
+                                let channel_ids = group_channel_ids.clone();
+                                move || if !channel_ids.is_empty() {
+                                    view! {
+                                        <div class="ai-channel-badge" title={format!("{} channel(s)", channel_count)}>
+                                            "📡" {channel_count}
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }}
                             </div>
                         }.into_any()
                     }}
@@ -280,26 +326,11 @@ pub(crate) fn AssetGroupItem(
                             <input class="login-input" type="text" placeholder="Asset name"
                                 aria-label="Asset name"
                                 on:input=move |ev| set_new_asset_name.set(event_target_value(&ev)) />
-                            <select class="login-input"
+                            <input class="login-input" type="text" list="asset-type-options-group" placeholder="Asset type"
                                 aria-label="Asset type"
-                                prop:value={move || format!("{:?}", _new_asset_type.get())}
-                                on:change=move |ev| {
-                                    let v = event_target_value(&ev);
-                                    let t = match v.as_str() {
-                                        "RealEstate" => AssetType::RealEstate,
-                                        "Vehicle" => AssetType::Vehicle,
-                                        "Equipment" => AssetType::Equipment,
-                                        "Stock" => AssetType::Stock,
-                                        "Bond" => AssetType::Bond,
-                                        "Commodity" => AssetType::Commodity,
-                                        "Digital" => AssetType::Digital,
-                                        "IntellectualProperty" => AssetType::IntellectualProperty,
-                                        "Channel" => AssetType::Channel,
-                                        _ => AssetType::RealEstate,
-                                    };
-                                    set_new_asset_type.set(t);
-                                }
-                            >
+                                prop:value={move || _new_asset_type.get().to_input_string()}
+                                on:input=move |ev| set_new_asset_type.set(AssetType::from_input(&event_target_value(&ev))) />
+                            <datalist id="asset-type-options-group">
                                 <option value="RealEstate">"Real Estate"</option>
                                 <option value="Vehicle">"Vehicle"</option>
                                 <option value="Equipment">"Equipment"</option>
@@ -307,14 +338,35 @@ pub(crate) fn AssetGroupItem(
                                 <option value="Bond">"Bond"</option>
                                 <option value="Commodity">"Commodity"</option>
                                 <option value="Digital">"Digital"</option>
-                                <option value="IntellectualProperty">"IP"</option>
+                                <option value="IntellectualProperty">"Intellectual Property"</option>
                                 <option value="Channel">"Channel"</option>
-                            </select>
+                            </datalist>
                             <input class="login-input" type="number" placeholder="Value ($)"
                                 aria-label="Value"
                                 on:input=move |ev| set_new_asset_value.set(event_target_value(&ev)) />
+                            <input class="login-input" type="text" placeholder="Channel name (optional)"
+                                aria-label="Channel name"
+                                prop:value={move || new_channel_name.get()}
+                                on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) />
+                            <input class="login-input" type="number" placeholder="Channel nightly rate (optional)"
+                                aria-label="Channel nightly rate"
+                                prop:value={move || new_channel_rate.get()}
+                                on:input=move |ev| set_new_channel_rate.set(event_target_value(&ev)) />
                             <button class="login-btn"
-                                on:click=move |_| on_add_asset.run(AssetTarget::Group(pid, gid))>
+                                on:click=move |_| {
+                                    if let Some(asset_id) = on_add_asset.run(AssetTarget::Group(pid, gid)) {
+                                        let name = new_channel_name.get();
+                                        if !name.trim().is_empty() {
+                                            let rate = new_channel_rate.get().parse::<f64>().ok();
+                                            let mut channel = Channel::new_test_channel(name, Some(asset_id), Some(pid));
+                                            channel.nightly_rate_override = rate;
+                                            app_store.update(|s| s.add_channel(channel));
+                                        }
+                                        set_new_asset_id.set(Some(asset_id));
+                                        set_new_channel_name.set(String::new());
+                                        set_new_channel_rate.set(String::new());
+                                    }
+                                }>
                                 "Add Asset"
                             </button>
                         </div>
@@ -324,20 +376,34 @@ pub(crate) fn AssetGroupItem(
                 {{
                     let view_mode = view_mode.clone();
                     let group_assets: Vec<_> = group.assets.into_iter().filter(|a| group_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
+                    let total_assets = group_assets.len();
                     let class_str = if view_mode == ViewMode::Grid {
                         format!("asset-group-assets grid-view-{}", grid_columns)
                     } else {
                         "asset-group-assets asset-list".to_string()
                     };
+                    let display_assets = visible_for_scope().min(total_assets);
+                    let remaining_assets = total_assets.saturating_sub(display_assets);
+                    let assets_to_show: Vec<_> = group_assets.into_iter().take(display_assets).collect();
                     view! {
                         <div class={class_str}>
-                            {group_assets.into_iter().enumerate().map({
+                            {assets_to_show.into_iter().enumerate().map({
                                 let view_mode = view_mode.clone();
                                 move |(idx, asset)| view! {
-                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={Some(gid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} />
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={Some(gid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
                                 }
                             }).collect::<Vec<_>>()}
                         </div>
+                        {if remaining_assets > 0 {
+                            view! {
+                                <button class="pf-show-more-btn pf-expand-view-btn"
+                                    aria-label={format!("Expand view. Currently showing {} of {} assets in this group", display_assets, total_assets)}
+                                    on:click=expand_scope
+                                >
+                                    {format!("Expand View + ({}/{}) ", display_assets, total_assets)}
+                                </button>
+                            }.into_any()
+                        } else { ().into_any() }}
                     }
                 }}
             </div>
@@ -349,6 +415,12 @@ pub(crate) fn AssetGroupItem(
                 view! {
                     <div class="context-menu-overlay" on:click=move |_| set_group_context_menu.set(None)>
                         <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    set_show_add_asset.set(AssetTarget::Group(pid, gid));
+                                }
+                            >"➕ Add Asset"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);
@@ -367,6 +439,12 @@ pub(crate) fn AssetGroupItem(
                                     set_show_group_add_org.set(true);
                                 }
                             >"🏢 Add Organization"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    // TODO: Open channel selection modal
+                                }
+                            >"📡 Add to Channel"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);

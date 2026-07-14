@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+pub mod booking_report;
 pub mod page;
 pub mod report_filters;
 pub mod report_list;
@@ -33,6 +34,7 @@ pub(crate) enum ReportTab {
     Compliance,
     Transactions,
     ExportedRecords,
+    Bookings,
 }
 
 impl ReportTab {
@@ -51,6 +53,7 @@ impl ReportTab {
             ReportTab::Compliance => "Compliance",
             ReportTab::Transactions => "Transactions",
             ReportTab::ExportedRecords => "Exported Records",
+            ReportTab::Bookings => "Bookings & Channels",
         }
     }
 }

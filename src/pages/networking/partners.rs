@@ -1,10 +1,13 @@
-use crate::pages::networking::{ExternalContact, ExternalOrganization};
+use crate::pages::networking::{ExternalContact, ExternalOrganization, NetTab};
 use leptos::prelude::*;
 
 pub(crate) fn render_by_type(
     contacts: &[ExternalContact],
     orgs: &[ExternalOrganization],
     rel_type: &str,
+    tab: NetTab,
+    visible_count: Signal<usize>,
+    on_expand: Callback<NetTab>,
 ) -> impl IntoView {
     let filtered_contacts: Vec<_> = contacts
         .iter()
@@ -42,11 +45,12 @@ pub(crate) fn render_by_type(
                 view! {
                     <div>
                         {if !filtered_orgs.is_empty() {
+                            let org_total = filtered_orgs.len();
                             view! {
                                 <div class="net-section-title">"Organizations"</div>
                                 <div class="net-cards-list">
                                     <For
-                                        each=move || orgs_memo.get()
+                                        each=move || orgs_memo.get().into_iter().take(visible_count.get().min(org_total)).collect::<Vec<_>>()
                                         key=|o| o.id
                                         children=move |o| {
                                             let status_cls = o.status.css_class();
@@ -70,14 +74,25 @@ pub(crate) fn render_by_type(
                                         }
                                     />
                                 </div>
+                                {if visible_count.get().min(org_total) < org_total {
+                                    view! {
+                                        <button
+                                            class="pf-show-more-btn"
+                                            on:click=move |_| on_expand.run(tab)
+                                        >
+                                            {format!("Expand View + ({}/{}) ", visible_count.get().min(org_total), org_total)}
+                                        </button>
+                                    }.into_any()
+                                } else { ().into_any() }}
                             }.into_any()
                         } else { ().into_any() }}
                         {if !filtered_contacts.is_empty() {
+                            let contact_total = filtered_contacts.len();
                             view! {
                                 <div class="net-section-title">"Contacts"</div>
                                 <div class="net-cards-list">
                                     <For
-                                        each=move || contacts_memo.get()
+                                        each=move || contacts_memo.get().into_iter().take(visible_count.get().min(contact_total)).collect::<Vec<_>>()
                                         key=|c| c.id
                                         children=move |c| {
                                             let status_cls = c.status.css_class();
@@ -100,6 +115,16 @@ pub(crate) fn render_by_type(
                                         }
                                     />
                                 </div>
+                                {if visible_count.get().min(contact_total) < contact_total {
+                                    view! {
+                                        <button
+                                            class="pf-show-more-btn"
+                                            on:click=move |_| on_expand.run(tab)
+                                        >
+                                            {format!("Expand View + ({}/{}) ", visible_count.get().min(contact_total), contact_total)}
+                                        </button>
+                                    }.into_any()
+                                } else { ().into_any() }}
                             }.into_any()
                         } else { ().into_any() }}
                     </div>

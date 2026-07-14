@@ -246,24 +246,24 @@ pub fn Navbar() -> impl IntoView {
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&2)} on:click=on_undo
                         on:contextmenu=on_undo_context
                         disabled={move || !can_undo()} title="Undo (hold for list)">"↺"</button>
-                    <div class="nav-message-wrap" class:clicked={move || clicked.get().contains(&5)} on:click=on_message_click title="Open messages">
-                        <div class="nav-message-icon">"💬"</div>
+                    <button class="nav-btn" class:clicked={move || clicked.get().contains(&5)} on:click=on_message_click title="Open messages" aria-label="Open messages">
+                        <span aria-hidden="true">"💬"</span>
                         {move || {
                             let count = message_count();
                             if count > 0 {
-                                view! { <div class="nav-message-badge">{count}</div> }.into_any()
+                                view! { <span class="nav-message-badge">{count}</span> }.into_any()
                             } else { ().into_any() }
                         }}
-                    </div>
-                    <div class="nav-message-wrap" class:clicked={move || clicked.get().contains(&6)} on:click=on_notifications_click title="Notifications">
-                        <div class="nav-message-icon">"🔔"</div>
+                    </button>
+                    <button class="nav-btn" class:clicked={move || clicked.get().contains(&6)} on:click=on_notifications_click title="Notifications" aria-label="Notifications">
+                        <span aria-hidden="true">"🔔"</span>
                         {move || {
                             let count = notification_count();
                             if count > 0 {
-                                view! { <div class="nav-message-badge nav-notif-count-badge">{count}</div> }.into_any()
+                                view! { <span class="nav-message-badge nav-notif-count-badge">{count}</span> }.into_any()
                             } else { ().into_any() }
                         }}
-                    </div>
+                    </button>
                 </div>
             </div>
         </nav>
@@ -271,9 +271,11 @@ pub fn Navbar() -> impl IntoView {
         // Tabs drawer (left-side panel from ☰ button)
         {move || if is_tabs_drawer_open() {
             view! {
-                <div class="tabs-drawer">
-                    <div class="tabs-drawer-content">
-                        <TabList />
+                <div class="tabs-drawer-overlay" on:click=move |_| ui_store.update(|ui| ui.close_tabs_drawer())>
+                    <div class="tabs-drawer" on:click=|ev| ev.stop_propagation()>
+                        <div class="tabs-drawer-content">
+                            <TabList />
+                        </div>
                     </div>
                 </div>
             }.into_any()
@@ -320,91 +322,98 @@ pub fn Navbar() -> impl IntoView {
                                         </div>
                                     }.into_any()
                                 } else {
-                                    notifs.into_iter().rev().map(|n| {
-                                        let nid = n.id;
-                                        let n_for_nav = n.clone();
-                                        let n_for_nav2 = n.clone();
-                                        let icon = match n.notification_type {
-                                            crate::stores::NotificationType::Success => "✅",
-                                            crate::stores::NotificationType::Error => "❌",
-                                            crate::stores::NotificationType::Warning => "⚠️",
-                                            crate::stores::NotificationType::Info => "ℹ️",
-                                        };
-                                        let from = n.from_user.unwrap_or_else(|| "System".to_string());
-                                        let time = format!("{}", n.timestamp.format("%b %d, %H:%M"));
-                                        let msg = n.message.clone();
-                                        let target = n.target_tab.clone();
-                                        let target_for_map = target.clone();
-                                        let has_target = target.is_some();
-                                        let linked_doc = n.linked_doc_id;
-                                        let content_preview = n.content_preview.clone();
-                                        let has_linked_origin = n.linked_portfolio_id.is_some() || n.linked_doc_id.is_some();
-                                        let on_notif_click = {
-                                            let app_store = app_store;
-                                            let notification_store = notification_store;
-                                            let n_for_nav = n_for_nav.clone();
-                                            move |_| {
-                                                if has_linked_origin {
-                                                    app_store.update(|s| s.navigate_to_notification(&n_for_nav));
-                                                } else if let Some(tab) = target.clone() {
-                                                    app_store.update(|s| s.expand_tab(tab));
-                                                }
-                                                notification_store.update(|s| s.close_drawer());
-                                            }
-                                        };
-                                        let on_go_to_content = {
-                                            let app_store = app_store;
-                                            let notification_store = notification_store;
-                                            let n_for_nav = n_for_nav2.clone();
-                                            move |ev: leptos::ev::MouseEvent| {
-                                                ev.stop_propagation();
-                                                if has_linked_origin {
-                                                    app_store.update(|s| s.navigate_to_notification(&n_for_nav));
-                                                }
-                                                notification_store.update(|s| s.close_drawer());
-                                            }
-                                        };
-                                        view! {
-                                            <div class="notif-item"
-                                                class:clickable={has_target}
-                                                on:click=on_notif_click>
-                                                <div class="notif-item-icon">{icon}</div>
-                                                <div class="notif-item-content">
-                                                    <div class="notif-item-msg">{msg}</div>
-                                                    <div class="notif-item-meta">
-                                                        <span class="notif-item-from">{from}</span>
-                                                        <span class="notif-item-time">{time}</span>
-                                                    </div>
-                                                    {target_for_map.map(|t| view! {
-                                                        <div class="notif-item-tab">
-                                                            {format!("→ {} (click to open)", t.as_str())}
-                                                        </div>
-                                                    })}
-                                                    {linked_doc.map(|_| view! {
-                                                        <div class="notif-item-doc-badge">"📄 Linked document"</div>
-                                                    })}
-                                                    {content_preview.map(|preview| view! {
-                                                        <div class="notif-item-preview">
-                                                            <div class="notif-item-preview-label">"Notes:"</div>
-                                                            <pre class="notif-item-preview-text">{preview}</pre>
-                                                        </div>
-                                                    })}
-                                                    {if has_linked_origin {
-                                                        view! {
-                                                            <button class="notif-item-go-btn" on:click=on_go_to_content>
-                                                                "→ Go to content"
-                                                            </button>
-                                                        }.into_any()
-                                                    } else { ().into_any() }}
-                                                </div>
-                                                <button class="notif-item-dismiss"
-                                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                    let notifs_rev = notifs.into_iter().rev().collect::<Vec<_>>();
+                                    view! {
+                                        <For
+                                            each=move || notifs_rev.clone()
+                                            key=|n| n.id
+                                            children=move |n| {
+                                                let nid = n.id;
+                                                let n_for_nav = n.clone();
+                                                let n_for_nav2 = n.clone();
+                                                let icon = match n.notification_type {
+                                                    crate::stores::NotificationType::Success => "✅",
+                                                    crate::stores::NotificationType::Error => "❌",
+                                                    crate::stores::NotificationType::Warning => "⚠️",
+                                                    crate::stores::NotificationType::Info => "ℹ️",
+                                                };
+                                                let from = n.from_user.unwrap_or_else(|| "System".to_string());
+                                                let time = format!("{}", n.timestamp.format("%b %d, %H:%M"));
+                                                let msg = n.message.clone();
+                                                let target = n.target_tab.clone();
+                                                let target_for_map = target.clone();
+                                                let has_target = target.is_some();
+                                                let linked_doc = n.linked_doc_id;
+                                                let content_preview = n.content_preview.clone();
+                                                let has_linked_origin = n.linked_portfolio_id.is_some() || n.linked_doc_id.is_some();
+                                                let on_notif_click = {
+                                                    let app_store = app_store;
+                                                    let notification_store = notification_store;
+                                                    let n_for_nav = n_for_nav.clone();
+                                                    move |_| {
+                                                        if has_linked_origin {
+                                                            app_store.update(|s| s.navigate_to_notification(&n_for_nav));
+                                                        } else if let Some(tab) = target.clone() {
+                                                            app_store.update(|s| s.expand_tab(tab));
+                                                        }
+                                                        notification_store.update(|s| s.close_drawer());
+                                                    }
+                                                };
+                                                let on_go_to_content = {
+                                                    let app_store = app_store;
+                                                    let notification_store = notification_store;
+                                                    let n_for_nav = n_for_nav2.clone();
+                                                    move |ev: leptos::ev::MouseEvent| {
                                                         ev.stop_propagation();
-                                                        notification_store.update(|s| s.remove_notification(nid));
-                                                    }>"✕"</button>
-                                            </div>
-                                        }
-                                    }).collect::<Vec<_>>().into_any()
+                                                        if has_linked_origin {
+                                                            app_store.update(|s| s.navigate_to_notification(&n_for_nav));
+                                                        }
+                                                        notification_store.update(|s| s.close_drawer());
+                                                    }
+                                                };
+                                                view! {
+                                                    <div class="notif-item"
+                                                        class:clickable={has_target}
+                                                        on:click=on_notif_click>
+                                                        <div class="notif-item-icon">{icon}</div>
+                                                        <div class="notif-item-content">
+                                                            <div class="notif-item-msg">{msg}</div>
+                                                            <div class="notif-item-meta">
+                                                                <span class="notif-item-from">{from}</span>
+                                                                <span class="notif-item-time">{time}</span>
+                                                            </div>
+                                                            {target_for_map.map(|t| view! {
+                                                                <div class="notif-item-tab">
+                                                                    {format!("→ {} (click to open)", t.as_str())}
+                                                                </div>
+                                                            })}
+                                                            {linked_doc.map(|_| view! {
+                                                                <div class="notif-item-doc-badge">"📄 Linked document"</div>
+                                                            })}
+                                                            {content_preview.map(|preview| view! {
+                                                                <div class="notif-item-preview">
+                                                                    <div class="notif-item-preview-label">"Notes:"</div>
+                                                                    <pre class="notif-item-preview-text">{preview}</pre>
+                                                                </div>
+                                                            })}
+                                                            {if has_linked_origin {
+                                                                view! {
+                                                                    <button class="notif-item-go-btn" on:click=on_go_to_content>
+                                                                        "→ Go to content"
+                                                                    </button>
+                                                                }.into_any()
+                                                            } else { ().into_any() }}
+                                                        </div>
+                                                        <button class="notif-item-dismiss"
+                                                            on:click=move |ev: leptos::ev::MouseEvent| {
+                                                                ev.stop_propagation();
+                                                                notification_store.update(|s| s.remove_notification(nid));
+                                                            }>"✕"</button>
+                                                    </div>
+                                                }
+                                            }
+                                        />
+                                    }.into_any()
                                 }
                             }}
                         </div>
@@ -435,17 +444,22 @@ pub fn Navbar() -> impl IntoView {
                     {if actions.is_empty() {
                         view! { <div class="nav-dropdown-empty">"No actions"</div> }.into_any()
                     } else {
-                        actions.into_iter().map(|action| {
-                            let action_id = action.id;
-                            let desc = format!("{} {}", action.action_type_badge(), action.description);
-                            let is_redo = is_redo;
-                            view! {
-                                <div class="nav-dropdown-item"
-                                    on:click=move |_| on_dropdown_action(action_id, is_redo)>
-                                    {desc}
-                                </div>
-                            }
-                        }).collect::<Vec<_>>().into_any()
+                        view! {
+                            <For
+                                each=move || actions.clone()
+                                key=|action| action.id
+                                children=move |action| {
+                                    let action_id = action.id;
+                                    let desc = format!("{} {}", action.action_type_badge(), action.description);
+                                    view! {
+                                        <div class="nav-dropdown-item"
+                                            on:click=move |_| on_dropdown_action(action_id, is_redo)>
+                                            {desc}
+                                        </div>
+                                    }
+                                }
+                            />
+                        }.into_any()
                     }}
                 </div>
             }.into_any()
@@ -515,7 +529,7 @@ fn document_reader_view(
                         let preview = latest.content_preview.clone();
                         let from = latest.from_user.clone().unwrap_or_else(|| "System".to_string());
                         let time = format!("{}", latest.timestamp.format("%b %d, %H:%M"));
-                        let on_done = on_done.clone();
+                        let on_done_inner = on_done.clone();
                         view! {
                             <div class="doc-reader-card">
                                 <div class="doc-reader-card-header">
@@ -534,7 +548,7 @@ fn document_reader_view(
                                 <div class="doc-reader-actions">
                                     <button class="doc-reader-open-btn" on:click=move |_| {
                                         app_store.update(|s| s.navigate_to_notification(&latest));
-                                        on_done();
+                                        on_done_inner();
                                     }>"Open Document"</button>
                                     <button class="doc-reader-dismiss-btn" on:click=move |_| {
                                         notification_store.update(|s| s.remove_notification(nid));

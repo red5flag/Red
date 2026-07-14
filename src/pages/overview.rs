@@ -135,6 +135,86 @@ pub fn OverviewPage() -> impl IntoView {
         crate::types::TransactionType::Adjustment => "Adj",
     };
 
+    #[derive(Clone)]
+    struct ActivityItem {
+        icon: &'static str,
+        message: String,
+        time: chrono::DateTime<chrono::Utc>,
+    }
+
+    let recent_activity = Memo::new(move |_| {
+        let mut items: Vec<ActivityItem> = Vec::new();
+        let app = app_store.get();
+        let notifications = notification_store.get();
+        let txns = transaction_store.get();
+        let msgs = messenger_store.get();
+        let cal = calendar_store.get();
+
+        for n in &notifications.notifications {
+            let message = if n.message.len() > 40 {
+                format!("{}…", &n.message[..40])
+            } else {
+                n.message.clone()
+            };
+            items.push(ActivityItem {
+                icon: notif_icon(&n.notification_type),
+                message,
+                time: n.timestamp,
+            });
+        }
+
+        for t in &txns.transactions {
+            let label = txn_type_label(&t.transaction_type);
+            let desc = t.description.clone().unwrap_or_else(|| t.to_entity.name.clone());
+            let desc_short = if desc.len() > 24 {
+                format!("{}…", &desc[..24])
+            } else {
+                desc
+            };
+            let message = format!("{} ${:.0} · {}", label, t.amount, desc_short);
+            items.push(ActivityItem {
+                icon: "💰",
+                message,
+                time: t.created_at,
+            });
+        }
+
+        for m in &msgs.messages {
+            let sender = sender_name_for_message(&m);
+            let preview = if m.content.len() > 30 {
+                format!("{}…", &m.content[..30])
+            } else {
+                m.content.clone()
+            };
+            let message = format!("{}: {}", sender, preview);
+            items.push(ActivityItem {
+                icon: "💬",
+                message,
+                time: m.timestamp,
+            });
+        }
+
+        for e in &cal.calendar_events {
+            items.push(ActivityItem {
+                icon: "📅",
+                message: e.title.clone(),
+                time: e.start,
+            });
+        }
+
+        for st in &app.service_tasks {
+            let message = format!("{} task scheduled", st.task_type.display());
+            items.push(ActivityItem {
+                icon: "🛠",
+                message,
+                time: st.start_datetime,
+            });
+        }
+
+        items.sort_by(|a, b| b.time.cmp(&a.time));
+        items.into_iter().take(6).collect::<Vec<_>>()
+    });
+
     view! {
         <div class="overview-content">
             <div class="overview-greeting">
@@ -387,6 +467,39 @@ pub fn OverviewPage() -> impl IntoView {
                             view! { <div class="overview-square-empty">"No property overview available"</div> }.into_any()
                         }
                     }}
+                </div>
+
+                // Recent Activity (full width)
+                <div class="overview-square overview-square-wide">
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"🔔"</span>
+                        <span class="overview-square-label">"Recent Activity"</span>
+                        <span class="overview-square-count">{move || recent_activity.get().len()}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let activities = recent_activity.get();
+                            if activities.is_empty() {
+                                view! { <div class="overview-square-empty">"No recent activity"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {activities.into_iter().map(|a| {
+                                            let time = fmt_time(a.time);
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{format!("{} {}", a.icon, a.message)}</span>
+                                                        <span class="overview-message-time">{time}</span>
+                                                    </div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
                 </div>
             </div>
         </div>

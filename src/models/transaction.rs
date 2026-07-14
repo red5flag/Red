@@ -1,4 +1,4 @@
-use crate::types::{Currency, TransactionType};
+use crate::types::{Currency, TransactionType, UserRole};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -21,6 +21,24 @@ pub struct Transaction {
     pub created_at: DateTime<Utc>,
     pub executed_at: Option<DateTime<Utc>>,
     pub metadata: serde_json::Value,
+    #[serde(default)]
+    pub submitted_by: Option<Uuid>,
+    #[serde(default)]
+    pub submitted_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub approved_by: Option<Uuid>,
+    #[serde(default)]
+    pub approved_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub rejected_by: Option<Uuid>,
+    #[serde(default)]
+    pub rejected_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub rejection_reason: Option<String>,
+    #[serde(default)]
+    pub approval_history: Vec<ApprovalRecord>,
+    #[serde(default)]
+    pub locked: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +49,47 @@ pub enum TransactionStatus {
     Rejected,
     Executed,
     Cancelled,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ApprovalAction {
+    Submit,
+    Approve,
+    Reject,
+    Withdraw,
+    Execute,
+    Lock,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ApprovalRecord {
+    pub id: Uuid,
+    pub actor_id: Uuid,
+    pub actor_name: String,
+    pub actor_role: String,
+    pub action: ApprovalAction,
+    pub timestamp: DateTime<Utc>,
+    pub comment: Option<String>,
+}
+
+impl ApprovalRecord {
+    pub fn new(
+        actor_id: Uuid,
+        actor_name: String,
+        actor_role: String,
+        action: ApprovalAction,
+        comment: Option<String>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            actor_id,
+            actor_name,
+            actor_role,
+            action,
+            timestamp: Utc::now(),
+            comment,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -76,7 +135,50 @@ impl Transaction {
             created_at: Utc::now(),
             executed_at: None,
             metadata: serde_json::json!({}),
+            submitted_by: None,
+            submitted_at: None,
+            approved_by: None,
+            approved_at: None,
+            rejected_by: None,
+            rejected_at: None,
+            rejection_reason: None,
+            approval_history: Vec::new(),
+            locked: false,
         }
+    }
+
+    pub fn record_approval(&mut self, record: ApprovalRecord) {
+        match record.action {
+            ApprovalAction::Submit => {
+                self.status = TransactionStatus::Pending;
+                self.submitted_by = Some(record.actor_id);
+                self.submitted_at = Some(record.timestamp);
+            }
+            ApprovalAction::Approve => {
+                self.status = TransactionStatus::Approved;
+                self.approved_by = Some(record.actor_id);
+                self.approved_at = Some(record.timestamp);
+            }
+            ApprovalAction::Reject => {
+                self.status = TransactionStatus::Rejected;
+                self.rejected_by = Some(record.actor_id);
+                self.rejected_at = Some(record.timestamp);
+                self.rejection_reason = record.comment.clone();
+            }
+            ApprovalAction::Withdraw => {
+                self.status = TransactionStatus::Draft;
+                self.submitted_by = None;
+                self.submitted_at = None;
+            }
+            ApprovalAction::Execute => {
+                self.status = TransactionStatus::Executed;
+                self.executed_at = Some(record.timestamp);
+            }
+            ApprovalAction::Lock => {
+                self.locked = true;
+            }
+        }
+        self.approval_history.push(record);
     }
 
     pub fn approve(&mut self) {
@@ -86,13 +188,27 @@ impl Transaction {
     pub fn reject(&mut self, reason: Option<String>) {
         self.status = TransactionStatus::Rejected;
         if let Some(r) = reason {
-            self.metadata["rejection_reason"] = serde_json::json!(r);
+            self.rejection_reason = Some(r);
+            self.metadata["rejection_reason"] = serde_json::json!(self.rejection_reason.clone());
         }
     }
 
     pub fn execute(&mut self) {
         self.status = TransactionStatus::Executed;
         self.executed_at = Some(Utc::now());
+    }
+
+    /// Returns true if the given actor can edit this transaction.
+    /// Locked transactions are not editable; only drafts are editable,
+    /// and own-drafts can only be edited by the creator unless the actor has broader permission.
+    pub fn can_edit(&self, actor_id: Uuid, actor_role: &UserRole, _can_edit_any: bool) -> bool {
+        if self.locked || !matches!(self.status, TransactionStatus::Draft) {
+            return false;
+        }
+        if _can_edit_any {
+            return true;
+        }
+        self.executed_by == actor_id || matches!(actor_role, UserRole::Owner | UserRole::Director)
     }
 }
 

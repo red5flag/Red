@@ -1,84 +1,110 @@
-error[E0277]: can't compare `Channel` with `Channel`
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0277]: can't compare `Channel` with `Channel`
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-warning: unused variable: `orgs_memo`
-warning: unused variable: `contacts_memo`
+error: expected identifier, found keyword `move`
+error: expected one of `async`, `|`, or `||`, found `}`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error: expected one of `async`, `|`, or `||`, found `}`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error: expected one of `async`, `|`, or `||`, found `}`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error: expected one of `async`, `|`, or `||`, found `}`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error: expected `,`
+error: invalid tag name or attribute key
+error: tokens was ignored during parsing
+error: wrong close tag found
+error: ␛[1;34m[␛[0m␛[1;36mhelp␛[0m␛[1;34m] ␛[0m␛[1;39mopen tag that should be closed; it's started here␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: expected identifier, found keyword `move`
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+error[E0425]: cannot find value `o` in this scope
+warning: unused import: `super::contact_card::render_contact_card`
+warning: unused import: `super::contact_card::render_contact_card`
+error[E0507]: cannot move out of a shared reference
+error[E0507]: cannot move out of a shared reference
+error[E0599]: no method named `r#move` found for struct `leptos::prelude::ForPropsBuilder<IF, I, T, EF, N, KF, K, TypedBuilderFields>` in the current scope
+error[E0599]: no method named `r#move` found for struct `leptos::prelude::ForPropsBuilder<IF, I, T, EF, N, KF, K, TypedBuilderFields>` in the current scope
+error[E0599]: no method named `r#move` found for struct `leptos::prelude::ForPropsBuilder<IF, I, T, EF, N, KF, K, TypedBuilderFields>` in the current scope
+error[E0599]: no method named `r#move` found for struct `leptos::prelude::ForPropsBuilder<IF, I, T, EF, N, KF, K, TypedBuilderFields>` in the current scope
+error[E0277]: can't compare `ActivityItem` with `ActivityItem`
+error[E0277]: can't compare `ActivityItem` with `ActivityItem`
+warning: variable does not need to be mutable
 warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
-warning: unused variable: `orgs_memo`
-warning: unused variable: `contacts_memo`
+error: could not compile `farley` (lib) due to 51 previous errors; 2 warnings emitted
+warning: variable does not need to be mutable
 warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Integration` with `Integration`
-warning: unused variable: `contacts_memo`
-warning: unused variable: `contacts_memo`
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error: could not compile `farley` (lib) due to 4 previous errors
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error: could not compile `farley` (lib) due to 4 previous errors
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `Channel` with `Channel`
-error[E0277]: can't compare `Integration` with `Integration`
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error[E0277]: can't compare `RelationshipEvent` with `RelationshipEvent`
-error: could not compile `farley` (lib) due to 4 previous errors
+error: could not compile `farley` (lib) due to 51 previous errors; 2 warnings emitted

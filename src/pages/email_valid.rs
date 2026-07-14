@@ -51,7 +51,7 @@ cfg_if! {
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Farley - Email Validation</title>
+    <title>Red - Email Validation</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 40px; max-width: 900px; }
         h1 { color: #64ffda; }
@@ -79,7 +79,7 @@ cfg_if! {
     </style>
 </head>
 <body>
-    <h1>Farley Email Validation - Test Inbox</h1>
+    <h1>Red Email Validation - Test Inbox</h1>
     <p>This page shows pending validation emails and registrations for testing purposes.</p>
 "#);
 
@@ -346,7 +346,7 @@ cfg_if! {
         ) -> Result<AxumJson<EnableTotpResponse>, (StatusCode, String)> {
             match email::check_validated_user(&req.username, &req.password).await {
                 Some(user) => {
-                    match email::generate_totp_secret(&user.username, "Farley") {
+                    match email::generate_totp_secret(&user.username, "Red") {
                         Ok((secret, uri)) => Ok(AxumJson(EnableTotpResponse {
                             success: true,
                             message: "Scan the QR code or enter the secret in Google Authenticator".to_string(),

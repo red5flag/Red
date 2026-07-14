@@ -1,4 +1,4 @@
-use crate::types::ActionType;
+use crate::types::{ActionType, ChangeSeverity};
 use leptos::prelude::*;
 
 #[component]
@@ -9,6 +9,8 @@ pub(crate) fn HistoryFilters(
     set_type_filter: WriteSignal<Option<ActionType>>,
     #[allow(unused_variables)] has_reason_only: ReadSignal<bool>,
     set_has_reason_only: WriteSignal<bool>,
+    #[allow(unused_variables)] severity_filter: ReadSignal<Option<ChangeSeverity>>,
+    set_severity_filter: WriteSignal<Option<ChangeSeverity>>,
 ) -> impl IntoView {
     view! {
         <div class="history-filter-bar">
@@ -46,6 +48,24 @@ pub(crate) fn HistoryFilters(
                 <option value="search">"Search"</option>
                 <option value="login">"Login"</option>
                 <option value="logout">"Logout"</option>
+            </select>
+            <select
+                class="history-filter-select"
+                on:change=move |ev| {
+                    let v = event_target_value(&ev);
+                    let f = match v.as_str() {
+                        "major" => Some(ChangeSeverity::Major),
+                        "minor" => Some(ChangeSeverity::Minor),
+                        "system" => Some(ChangeSeverity::System),
+                        _ => None,
+                    };
+                    set_severity_filter.set(f);
+                }
+            >
+                <option value="">"All severities"</option>
+                <option value="major">"Major"</option>
+                <option value="minor">"Minor"</option>
+                <option value="system">"System"</option>
             </select>
             <label class="history-filter-check">
                 <input

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::pages::settings::{
     accessibility_settings, account_settings, data_settings, display_settings,
-    notification_settings, security_settings,
+    notification_settings, preset_selector, security_settings,
 };
 
 #[cfg(feature = "hydrate")]
@@ -269,6 +269,7 @@ pub fn SettingsPage() -> impl IntoView {
     view! {
         <div class="home-screen">
             <account_settings::AccountSettings />
+            <preset_selector::PresetSelector />
             <display_settings::DisplaySettings />
             <accessibility_settings::AccessibilitySettings />
             <notification_settings::NotificationSettings />

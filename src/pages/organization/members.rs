@@ -1,5 +1,6 @@
 use crate::models::{OrgRole, User};
 use crate::pages::organization::{member_card::MemberCard, role_display, role_from_str};
+use crate::stores::AppStore;
 use crate::types::UserRole;
 use leptos::prelude::*;
 use std::collections::HashSet;
@@ -25,6 +26,9 @@ pub(crate) fn MembersSection(
     #[prop(into)] expanded_members: ReadSignal<HashSet<(Uuid, Uuid)>>,
     on_toggle_member: Callback<(Uuid, Uuid), ()>,
     #[prop(into)] portfolios: Vec<crate::models::Portfolio>,
+    #[prop(into)] on_empty_add_member: Callback<(), ()>,
+    app_store: RwSignal<AppStore>,
+    #[prop(into)] on_create_test_member: Callback<(Uuid, UserRole), ()>,
 ) -> impl IntoView {
     let mems = members.clone();
     let indexed_mems = Memo::new(move |_| mems.iter().cloned().enumerate().collect::<Vec<_>>());
@@ -33,12 +37,24 @@ pub(crate) fn MembersSection(
             <span class="org-sub-tab-title">"Members"</span>
             {if can_edit {
                 view! {
-                    <button class="add-btn-small"
-                        on:click=move |_| {
-                            set_show_add_member.set(Some(org_id));
-                        }>
-                        "+ Member"
-                    </button>
+                    <div style="display:flex;gap:6px;">
+                        <button class="add-btn-small"
+                            on:click=move |_| {
+                                set_show_add_member.set(Some(org_id));
+                            }>
+                            "+ Member"
+                        </button>
+                        {move || if app_store.get().developer_mode {
+                            view! {
+                                <button class="add-btn-small"
+                                    on:click=move |_| {
+                                        on_create_test_member.run((org_id, member_role.get()));
+                                    }>
+                                    "+ Test Member"
+                                </button>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
                 }.into_any()
             } else { ().into_any() }}
         </div>
@@ -72,7 +88,28 @@ pub(crate) fn MembersSection(
         })}
 
         {if indexed_mems.get().is_empty() {
-            view! { <div class="empty-state"><div class="empty-text">"No members."</div></div> }.into_any()
+            view! {
+                <div class="empty-state org-section-empty"
+                    on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                        if can_edit {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            on_empty_add_member.run(());
+                        }
+                    }>
+                    <div class="empty-text">"No members."</div>
+                    {if can_edit {
+                        view! {
+                            <div class="org-section-empty-actions">
+                                <button class="add-btn-small"
+                                    on:click=move |_| on_empty_add_member.run(())>
+                                    "+ Add Member"
+                                </button>
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
+                </div>
+            }.into_any()
         } else {
             view! {
                 <div class="org-member-list">

@@ -56,6 +56,26 @@ pub(crate) fn AccessibilitySettings() -> impl IntoView {
                 </div>
                 <div class="list-item">
                     <div class="list-item-left">
+                        <div class="list-item-title">"TalkBack / Accessibility Hints"</div>
+                        <div class="list-item-desc">"Increase screen-reader labelling and visible focus hints across the interface."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <label class="settings-toggle">
+                            <input
+                                type="checkbox"
+                                aria-label="Toggle TalkBack accessibility hints"
+                                prop:checked={move || ui_store.get().talkback_enabled}
+                                on:change=move |ev| {
+                                    let checked = event_target_checked(&ev);
+                                    ui_store.update(|s| s.set_talkback_enabled(checked));
+                                }
+                            />
+                            <span class="settings-toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
                         <label class="list-item-title" for="settings-language">"Language"</label>
                         <div class="list-item-desc">"Choose the display language for the interface."</div>
                     </div>

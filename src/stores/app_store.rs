@@ -1,9 +1,15 @@
-use crate::models::{Document, Portfolio};
+use crate::models::{
+    Booking, BookingStatus, Channel, Document, Portfolio, ServiceTask, ServiceTaskStatus,
+};
 use crate::stores::credentials::{CredentialStore, StoredCredential};
 use crate::stores::notifications::{Notification, NotificationStore, NotificationType};
-use crate::stores::seed_data::seed_portfolio_2;
+use crate::stores::portfolio_store::PortfolioStore;
+use crate::stores::seed_data::{
+    seed_default_portfolio, seed_direct_portfolio, seed_groups_only_portfolio, seed_portfolio_2,
+};
 use crate::types::{TabType, UserProfile, UserRole};
 use crate::utils::crypto;
+use chrono::{DateTime, Utc};
 use leptos::prelude::*;
 #[cfg(feature = "hydrate")]
 use serde::Serialize;
@@ -21,8 +27,12 @@ pub struct AppStore {
     pub edit_mode_tabs: HashSet<TabType>,
     // All portfolios
     pub portfolios: Vec<Portfolio>,
+    // Asset/channel booking layer
+    pub channels: Vec<Channel>,
+    pub bookings: Vec<Booking>,
+    pub service_tasks: Vec<ServiceTask>,
     // Selected portfolio/asset IDs
-    pub selected_portfolio_id: Option<Uuid>,
+    pub selected_portfolio_ids: HashSet<Uuid>,
     pub selected_asset_group_id: Option<Uuid>,
     pub selected_asset_id: Option<Uuid>,
     /// When set, PortfoliosPage should expand this portfolio, expand the group,
@@ -87,7 +97,10 @@ impl Default for AppStore {
             active_tabs: vec![TabType::Overview],
             edit_mode_tabs: HashSet::new(),
             portfolios: Vec::new(),
-            selected_portfolio_id: None,
+            channels: Vec::new(),
+            bookings: Vec::new(),
+            service_tasks: Vec::new(),
+            selected_portfolio_ids: HashSet::new(),
             selected_asset_group_id: None,
             selected_asset_id: None,
             pending_nav_target: None,
@@ -194,11 +207,11 @@ impl AppStore {
     }
 
     pub fn get_portfolio(&self, id: Uuid) -> Option<&Portfolio> {
-        self.portfolios.iter().find(|p| p.id == id)
+        PortfolioStore::get_portfolio(&self.portfolios, id)
     }
 
     pub fn get_portfolio_mut(&mut self, id: Uuid) -> Option<&mut Portfolio> {
-        self.portfolios.iter_mut().find(|p| p.id == id)
+        PortfolioStore::get_portfolio_mut(&mut self.portfolios, id)
     }
 
     pub fn set_portfolio_name(
@@ -223,40 +236,15 @@ impl AppStore {
     }
 
     pub fn remove_portfolio(&mut self, id: Uuid) -> Option<Portfolio> {
-        if let Some(pos) = self.portfolios.iter().position(|p| p.id == id) {
-            Some(self.portfolios.remove(pos))
-        } else {
-            None
-        }
+        PortfolioStore::remove_portfolio(&mut self.portfolios, id)
     }
 
     pub fn remove_asset_group(&mut self, portfolio_id: Uuid, group_id: Uuid) -> bool {
-        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
-            let before = p.asset_groups.len();
-            p.asset_groups.retain(|g| g.id != group_id);
-            p.asset_groups.len() < before
-        } else {
-            false
-        }
+        PortfolioStore::remove_asset_group(&mut self.portfolios, portfolio_id, group_id)
     }
 
     pub fn remove_asset(&mut self, portfolio_id: Uuid, asset_id: Uuid) -> bool {
-        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
-            let before = p.assets.len();
-            p.assets.retain(|a| a.id != asset_id);
-            let removed_direct = p.assets.len() < before;
-            let mut removed_from_group = false;
-            for g in &mut p.asset_groups {
-                let g_before = g.assets.len();
-                g.assets.retain(|a| a.id != asset_id);
-                if g.assets.len() < g_before {
-                    removed_from_group = true;
-                }
-            }
-            removed_direct || removed_from_group
-        } else {
-            false
-        }
+        PortfolioStore::remove_asset(&mut self.portfolios, portfolio_id, asset_id)
     }
 
     pub fn remove_document_from_asset(
@@ -265,25 +253,12 @@ impl AppStore {
         asset_id: Uuid,
         doc_id: Uuid,
     ) -> bool {
-        if let Some(p) = self.get_portfolio_mut(portfolio_id) {
-            for a in &mut p.assets {
-                if a.id == asset_id {
-                    let before = a.documents.len();
-                    a.documents.retain(|d| d.id != doc_id);
-                    return a.documents.len() < before;
-                }
-            }
-            for g in &mut p.asset_groups {
-                for a in &mut g.assets {
-                    if a.id == asset_id {
-                        let before = a.documents.len();
-                        a.documents.retain(|d| d.id != doc_id);
-                        return a.documents.len() < before;
-                    }
-                }
-            }
-        }
-        false
+        PortfolioStore::remove_document_from_asset(
+            &mut self.portfolios,
+            portfolio_id,
+            asset_id,
+            doc_id,
+        )
     }
 
     pub fn add_document_to_portfolio(
@@ -441,31 +416,12 @@ impl AppStore {
 
     /// Mark a portfolio as recently accessed.
     pub fn touch_portfolio(&mut self, id: Uuid) {
-        let now = chrono::Utc::now();
-        if let Some(p) = self.get_portfolio_mut(id) {
-            p.last_accessed_at = now;
-        }
+        PortfolioStore::touch_portfolio(&mut self.portfolios, id);
     }
 
     /// Mark an asset as recently accessed.
     pub fn touch_asset(&mut self, id: Uuid) {
-        let now = chrono::Utc::now();
-        for p in self.portfolios.iter_mut() {
-            for a in p.assets.iter_mut() {
-                if a.id == id {
-                    a.last_accessed_at = now;
-                    return;
-                }
-            }
-            for g in p.asset_groups.iter_mut() {
-                for a in g.assets.iter_mut() {
-                    if a.id == id {
-                        a.last_accessed_at = now;
-                        return;
-                    }
-                }
-            }
-        }
+        PortfolioStore::touch_asset(&mut self.portfolios, id);
     }
 
     // Portfolio-level calendar event synchronization helpers.
@@ -610,37 +566,11 @@ impl AppStore {
         portfolio_id: Uuid,
         notifications: &[Notification],
     ) -> usize {
-        let doc_ids: std::collections::HashSet<Uuid> =
-            if let Some(p) = self.portfolios.iter().find(|p| p.id == portfolio_id) {
-                let mut ids: std::collections::HashSet<Uuid> =
-                    p.documents.iter().map(|d| d.id).collect();
-                for g in &p.asset_groups {
-                    for d in &g.documents {
-                        ids.insert(d.id);
-                    }
-                    for a in &g.assets {
-                        for d in &a.documents {
-                            ids.insert(d.id);
-                        }
-                    }
-                }
-                for a in &p.assets {
-                    for d in &a.documents {
-                        ids.insert(d.id);
-                    }
-                }
-                ids
-            } else {
-                std::collections::HashSet::new()
-            };
-        notifications
-            .iter()
-            .filter(|n| {
-                n.linked_doc_id
-                    .map(|id| doc_ids.contains(&id))
-                    .unwrap_or(false)
-            })
-            .count()
+        PortfolioStore::doc_notifications_for_portfolio(
+            &self.portfolios,
+            portfolio_id,
+            notifications,
+        )
     }
 
     /// Count notifications linked to any document within an asset group.
@@ -650,31 +580,12 @@ impl AppStore {
         group_id: Uuid,
         notifications: &[Notification],
     ) -> usize {
-        let doc_ids: std::collections::HashSet<Uuid> =
-            if let Some(p) = self.portfolios.iter().find(|p| p.id == portfolio_id) {
-                if let Some(g) = p.asset_groups.iter().find(|g| g.id == group_id) {
-                    let mut ids: std::collections::HashSet<Uuid> =
-                        g.documents.iter().map(|d| d.id).collect();
-                    for a in &g.assets {
-                        for d in &a.documents {
-                            ids.insert(d.id);
-                        }
-                    }
-                    ids
-                } else {
-                    std::collections::HashSet::new()
-                }
-            } else {
-                std::collections::HashSet::new()
-            };
-        notifications
-            .iter()
-            .filter(|n| {
-                n.linked_doc_id
-                    .map(|id| doc_ids.contains(&id))
-                    .unwrap_or(false)
-            })
-            .count()
+        PortfolioStore::doc_notifications_for_group(
+            &self.portfolios,
+            portfolio_id,
+            group_id,
+            notifications,
+        )
     }
 
     /// Count notifications linked to any document within an asset.
@@ -683,75 +594,24 @@ impl AppStore {
         asset_id: Uuid,
         notifications: &[Notification],
     ) -> usize {
-        let doc_ids: std::collections::HashSet<Uuid> = {
-            let mut ids = std::collections::HashSet::new();
-            for p in &self.portfolios {
-                for a in &p.assets {
-                    if a.id == asset_id {
-                        for d in &a.documents {
-                            ids.insert(d.id);
-                        }
-                    }
-                }
-                for g in &p.asset_groups {
-                    for a in &g.assets {
-                        if a.id == asset_id {
-                            for d in &a.documents {
-                                ids.insert(d.id);
-                            }
-                        }
-                    }
-                }
-            }
-            ids
-        };
-        notifications
-            .iter()
-            .filter(|n| {
-                n.linked_doc_id
-                    .map(|id| doc_ids.contains(&id))
-                    .unwrap_or(false)
-            })
-            .count()
+        PortfolioStore::doc_notifications_for_asset(&self.portfolios, asset_id, notifications)
     }
 
     /// Find a document by ID across all portfolios, groups, and assets.
     pub fn find_document(&self, doc_id: Uuid) -> Option<Document> {
-        for p in &self.portfolios {
-            if let Some(d) = p.documents.iter().find(|d| d.id == doc_id) {
-                return Some(d.clone());
-            }
-            for g in &p.asset_groups {
-                if let Some(d) = g.documents.iter().find(|d| d.id == doc_id) {
-                    return Some(d.clone());
-                }
-                for a in &g.assets {
-                    if let Some(d) = a.documents.iter().find(|d| d.id == doc_id) {
-                        return Some(d.clone());
-                    }
-                }
-            }
-            for a in &p.assets {
-                if let Some(d) = a.documents.iter().find(|d| d.id == doc_id) {
-                    return Some(d.clone());
-                }
-            }
-        }
-        None
+        PortfolioStore::find_document(&self.portfolios, doc_id)
     }
 
     // ── Entity notification settings ──────────────────────────────
+    // Logic extracted to PortfolioStore; AppStore keeps thin wrappers
+    // so consumers do not need to change during Stages 1A/1B.
 
     /// Get notification settings for a portfolio.
     pub fn portfolio_notification_settings(
         &self,
         pid: Uuid,
     ) -> Vec<crate::models::EntityNotificationSetting> {
-        self.portfolios
-            .iter()
-            .find(|p| p.id == pid)
-            .map(|p| p.notification_settings.clone())
-            .unwrap_or_default()
+        PortfolioStore::portfolio_notification_settings(&self.portfolios, pid)
     }
 
     /// Get notification settings for an asset group.
@@ -760,12 +620,7 @@ impl AppStore {
         pid: Uuid,
         gid: Uuid,
     ) -> Vec<crate::models::EntityNotificationSetting> {
-        self.portfolios
-            .iter()
-            .find(|p| p.id == pid)
-            .and_then(|p| p.asset_groups.iter().find(|g| g.id == gid))
-            .map(|g| g.notification_settings.clone())
-            .unwrap_or_default()
+        PortfolioStore::group_notification_settings(&self.portfolios, pid, gid)
     }
 
     /// Add a notification setting to a portfolio.
@@ -774,10 +629,7 @@ impl AppStore {
         pid: Uuid,
         setting: crate::models::EntityNotificationSetting,
     ) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            p.notification_settings.push(setting);
-            p.updated_at = chrono::Utc::now();
-        }
+        PortfolioStore::add_portfolio_notification_setting(&mut self.portfolios, pid, setting);
     }
 
     /// Add a notification setting to an asset group.
@@ -787,60 +639,45 @@ impl AppStore {
         gid: Uuid,
         setting: crate::models::EntityNotificationSetting,
     ) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
-                g.notification_settings.push(setting);
-                g.updated_at = chrono::Utc::now();
-            }
-        }
+        PortfolioStore::add_group_notification_setting(&mut self.portfolios, pid, gid, setting);
     }
 
     /// Toggle the enabled state of a notification setting on a portfolio.
     pub fn toggle_portfolio_notification_setting(&mut self, pid: Uuid, setting_id: Uuid) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            if let Some(s) = p
-                .notification_settings
-                .iter_mut()
-                .find(|s| s.id == setting_id)
-            {
-                s.enabled = !s.enabled;
-            }
-            p.updated_at = chrono::Utc::now();
-        }
+        PortfolioStore::toggle_portfolio_notification_setting(
+            &mut self.portfolios,
+            pid,
+            setting_id,
+        );
     }
 
     /// Toggle the enabled state of a notification setting on a group.
     pub fn toggle_group_notification_setting(&mut self, pid: Uuid, gid: Uuid, setting_id: Uuid) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
-                if let Some(s) = g
-                    .notification_settings
-                    .iter_mut()
-                    .find(|s| s.id == setting_id)
-                {
-                    s.enabled = !s.enabled;
-                }
-                g.updated_at = chrono::Utc::now();
-            }
-        }
+        PortfolioStore::toggle_group_notification_setting(
+            &mut self.portfolios,
+            pid,
+            gid,
+            setting_id,
+        );
     }
 
     /// Remove a notification setting from a portfolio.
     pub fn remove_portfolio_notification_setting(&mut self, pid: Uuid, setting_id: Uuid) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            p.notification_settings.retain(|s| s.id != setting_id);
-            p.updated_at = chrono::Utc::now();
-        }
+        PortfolioStore::remove_portfolio_notification_setting(
+            &mut self.portfolios,
+            pid,
+            setting_id,
+        );
     }
 
     /// Remove a notification setting from a group.
     pub fn remove_group_notification_setting(&mut self, pid: Uuid, gid: Uuid, setting_id: Uuid) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
-                g.notification_settings.retain(|s| s.id != setting_id);
-                g.updated_at = chrono::Utc::now();
-            }
-        }
+        PortfolioStore::remove_group_notification_setting(
+            &mut self.portfolios,
+            pid,
+            gid,
+            setting_id,
+        );
     }
 
     /// Update a notification setting on a portfolio.
@@ -849,16 +686,7 @@ impl AppStore {
         pid: Uuid,
         setting: crate::models::EntityNotificationSetting,
     ) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            if let Some(s) = p
-                .notification_settings
-                .iter_mut()
-                .find(|s| s.id == setting.id)
-            {
-                *s = setting;
-            }
-            p.updated_at = chrono::Utc::now();
-        }
+        PortfolioStore::update_portfolio_notification_setting(&mut self.portfolios, pid, setting);
     }
 
     /// Update a notification setting on a group.
@@ -868,18 +696,7 @@ impl AppStore {
         gid: Uuid,
         setting: crate::models::EntityNotificationSetting,
     ) {
-        if let Some(p) = self.get_portfolio_mut(pid) {
-            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
-                if let Some(s) = g
-                    .notification_settings
-                    .iter_mut()
-                    .find(|s| s.id == setting.id)
-                {
-                    *s = setting;
-                }
-                g.updated_at = chrono::Utc::now();
-            }
-        }
+        PortfolioStore::update_group_notification_setting(&mut self.portfolios, pid, gid, setting);
     }
 
     /// Check if the current user can manage notification recipients (requires ManageUsers or ManageRoles).
@@ -1018,6 +835,7 @@ impl AppStore {
 
         // Set user profile
         self.is_authenticated = true;
+        self.current_user.username = username.to_string();
         self.current_user.name = display_name.clone();
         self.current_user.email = email.clone();
         self.current_user.role = UserRole::Owner;
@@ -1029,6 +847,8 @@ impl AppStore {
             // path that still needs it passed in.
             // For now, skip seeding here — the caller should use login() instead.
             // Mixed Investments is NOT part of any organization
+            self.portfolios
+                .push(seed_default_portfolio(self.current_user.id));
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
         }
 
@@ -1064,6 +884,11 @@ impl AppStore {
             );
             // Mixed Investments is NOT part of any organization
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
+            let red_org_id = organization_store.current_organization_id;
+            self.portfolios
+                .push(seed_direct_portfolio(self.current_user.id, red_org_id));
+            self.portfolios
+                .push(seed_groups_only_portfolio(self.current_user.id, red_org_id));
         }
 
         // Navigate to Overview after login
@@ -1074,7 +899,7 @@ impl AppStore {
         self.is_authenticated = false;
         self.current_user = UserProfile::default();
         self.collapse_all_tabs();
-        self.selected_portfolio_id = None;
+        self.selected_portfolio_ids.clear();
         self.selected_asset_group_id = None;
         self.selected_asset_id = None;
         self.pending_nav_target = None;
@@ -1220,6 +1045,7 @@ impl AppStore {
     ) {
         // Set user profile
         self.is_authenticated = true;
+        self.current_user.username = username.to_string();
         self.current_user.name = display_name.to_string();
         self.current_user.email = email.to_string();
         self.current_user.role = UserRole::Owner;
@@ -1240,6 +1066,11 @@ impl AppStore {
             );
             // Mixed Investments is NOT part of any organization
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
+            let red_org_id = organization_store.current_organization_id;
+            self.portfolios
+                .push(seed_direct_portfolio(self.current_user.id, red_org_id));
+            self.portfolios
+                .push(seed_groups_only_portfolio(self.current_user.id, red_org_id));
         }
 
         // Navigate to Overview after login
@@ -1253,7 +1084,7 @@ impl AppStore {
             match tab {
                 TabType::Overview => "Overview".to_string(),
                 TabType::Portfolios => {
-                    if let Some(id) = self.selected_portfolio_id {
+                    if let Some(id) = self.selected_portfolio_ids.iter().next().copied() {
                         if let Some(p) = self.get_portfolio(id) {
                             return format!("Portfolio: {}", p.name);
                         }
@@ -1273,6 +1104,171 @@ impl AppStore {
         } else {
             "Home".to_string()
         }
+    }
+}
+
+impl AppStore {
+    // ── Channels ─────────────────────────────────────────────────────────────
+    pub fn channels_for_asset(&self, asset_id: Uuid) -> Vec<&Channel> {
+        self.channels
+            .iter()
+            .filter(|c| c.linked_asset_id == Some(asset_id))
+            .collect()
+    }
+
+    pub fn get_channel(&self, id: Uuid) -> Option<&Channel> {
+        self.channels.iter().find(|c| c.id == id)
+    }
+
+    pub fn get_channel_mut(&mut self, id: Uuid) -> Option<&mut Channel> {
+        self.channels.iter_mut().find(|c| c.id == id)
+    }
+
+    pub fn add_channel(&mut self, channel: Channel) {
+        self.channels.push(channel);
+    }
+
+    pub fn remove_channel(&mut self, id: Uuid) -> Option<Channel> {
+        if let Some(pos) = self.channels.iter().position(|c| c.id == id) {
+            Some(self.channels.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    // ── Bookings ─────────────────────────────────────────────────────────────
+    pub fn bookings_for_asset(&self, asset_id: Uuid) -> Vec<&Booking> {
+        self.bookings
+            .iter()
+            .filter(|b| b.asset_id == asset_id)
+            .collect()
+    }
+
+    pub fn bookings_for_channel(&self, channel_id: Uuid) -> Vec<&Booking> {
+        self.bookings
+            .iter()
+            .filter(|b| b.channel_id == Some(channel_id))
+            .collect()
+    }
+
+    pub fn get_booking(&self, id: Uuid) -> Option<&Booking> {
+        self.bookings.iter().find(|b| b.id == id)
+    }
+
+    pub fn get_booking_mut(&mut self, id: Uuid) -> Option<&mut Booking> {
+        self.bookings.iter_mut().find(|b| b.id == id)
+    }
+
+    pub fn add_booking(&mut self, booking: Booking) {
+        self.bookings.push(booking);
+    }
+
+    pub fn remove_booking(&mut self, id: Uuid) -> Option<Booking> {
+        if let Some(pos) = self.bookings.iter().position(|b| b.id == id) {
+            Some(self.bookings.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    pub fn overlapping_bookings(
+        &self,
+        asset_id: Uuid,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        exclude_id: Option<Uuid>,
+    ) -> Vec<&Booking> {
+        self.bookings
+            .iter()
+            .filter(|b| {
+                b.asset_id == asset_id
+                    && b.overlaps(start, end)
+                    && exclude_id.map_or(true, |id| b.id != id)
+            })
+            .collect()
+    }
+
+    /// Local simulation of an external booking change for the Test Channel.
+    pub fn simulate_booking_change(
+        &mut self,
+        booking_id: Uuid,
+        start: Option<DateTime<Utc>>,
+        end: Option<DateTime<Utc>>,
+        cost_per_night: Option<f64>,
+        status: Option<BookingStatus>,
+    ) -> Option<Booking> {
+        let b = self.get_booking_mut(booking_id)?;
+        if let Some(s) = start {
+            b.start_datetime = s;
+        }
+        if let Some(e) = end {
+            b.end_datetime = e;
+        }
+        if let Some(c) = cost_per_night {
+            b.cost_per_night = c;
+        }
+        if let Some(st) = status {
+            b.status = st;
+        }
+        b.recalculate_total();
+        b.mark_changed("Test Channel (simulated)");
+        self.get_booking(booking_id).cloned()
+    }
+
+    // ── Service Tasks ────────────────────────────────────────────────────────
+    pub fn service_tasks_for_asset(&self, asset_id: Uuid) -> Vec<&ServiceTask> {
+        self.service_tasks
+            .iter()
+            .filter(|t| t.asset_id == asset_id)
+            .collect()
+    }
+
+    pub fn get_service_task(&self, id: Uuid) -> Option<&ServiceTask> {
+        self.service_tasks.iter().find(|t| t.id == id)
+    }
+
+    pub fn get_service_task_mut(&mut self, id: Uuid) -> Option<&mut ServiceTask> {
+        self.service_tasks.iter_mut().find(|t| t.id == id)
+    }
+
+    pub fn add_service_task(&mut self, task: ServiceTask) {
+        self.service_tasks.push(task);
+    }
+
+    pub fn remove_service_task(&mut self, id: Uuid) -> Option<ServiceTask> {
+        if let Some(pos) = self.service_tasks.iter().position(|t| t.id == id) {
+            Some(self.service_tasks.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    /// Create a default cleaning task at checkout time for a booking.
+    pub fn add_cleaning_task_for_booking(
+        &mut self,
+        booking_id: Uuid,
+        duration_hours: i64,
+    ) -> Option<ServiceTask> {
+        let booking = self.get_booking(booking_id)?.clone();
+        let end = booking.end_datetime;
+        let start = end;
+        let task = ServiceTask::new(
+            booking.asset_id,
+            Some(booking.id),
+            crate::models::ServiceTaskType::Cleaning,
+            start,
+            end + chrono::Duration::hours(duration_hours),
+        );
+        let task_clone = task.clone();
+        self.add_service_task(task);
+        Some(task_clone)
+    }
+
+    pub fn mark_service_task_done(&mut self, id: Uuid) -> Option<&ServiceTask> {
+        let t = self.get_service_task_mut(id)?;
+        t.status = ServiceTaskStatus::Done;
+        t.updated_at = Utc::now();
+        self.get_service_task(id)
     }
 }
 

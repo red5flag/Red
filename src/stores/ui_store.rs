@@ -1,4 +1,7 @@
-use crate::types::{ReportSortMode, SortMode, Theme, ViewMode};
+use crate::types::{
+    ButtonStyle, Density, EdgeStyle, ReportSortMode, SettingsPreset, SortMode, Theme, ViewCount,
+    ViewMode,
+};
 use leptos::prelude::*;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -23,6 +26,8 @@ pub struct UiStore {
     // Portfolio layout
     pub portfolio_view_mode: ViewMode,
     pub portfolio_grid_columns: usize,
+    pub portfolio_list_view_count: ViewCount,
+    pub portfolio_grid_view_count: ViewCount,
     // Portfolio add-form toggles
     pub show_add_portfolio: bool,
     pub show_top_add_group: bool,
@@ -39,12 +44,20 @@ pub struct UiStore {
     pub net_sort_ascending: bool,
     // Networking add member tab
     pub networking_add_member_open: bool,
+    // Networking view count
+    pub net_view_count: ViewCount,
     // Display/accessibility preferences
     pub theme: Theme,
     pub blind_mode: bool,
     pub font_size: String,
     pub reduced_motion: bool,
     pub language: String,
+    pub edge_style: EdgeStyle,
+    pub button_style: ButtonStyle,
+    pub density: Density,
+    pub accent_color: String,
+    pub talkback_enabled: bool,
+    pub custom_presets: Vec<SettingsPreset>,
 }
 
 /// Modal types tracked by the global UI state.
@@ -85,6 +98,8 @@ impl Default for UiStore {
             is_loading: false,
             portfolio_view_mode: ViewMode::List,
             portfolio_grid_columns: 2,
+            portfolio_list_view_count: ViewCount::V10,
+            portfolio_grid_view_count: ViewCount::V10,
             show_add_portfolio: false,
             show_top_add_group: false,
             show_top_add_asset: false,
@@ -96,11 +111,18 @@ impl Default for UiStore {
             net_sort_mode: 0,
             net_sort_ascending: true,
             networking_add_member_open: false,
+            net_view_count: ViewCount::V50,
             theme: Theme::default(),
             blind_mode: false,
             font_size: "default".to_string(),
             reduced_motion: false,
             language: "en-AU".to_string(),
+            edge_style: EdgeStyle::default(),
+            button_style: ButtonStyle::default(),
+            density: Density::default(),
+            accent_color: "#3b82f6".to_string(),
+            talkback_enabled: false,
+            custom_presets: Vec::new(),
         }
     }
 }
@@ -169,10 +191,86 @@ impl UiStore {
         self.theme = theme;
     }
 
+    pub fn set_edge_style(&mut self, edge_style: EdgeStyle) {
+        self.edge_style = edge_style;
+    }
+
+    pub fn set_button_style(&mut self, button_style: ButtonStyle) {
+        self.button_style = button_style;
+    }
+
+    pub fn set_density(&mut self, density: Density) {
+        self.density = density;
+    }
+
+    pub fn set_accent_color(&mut self, accent_color: String) {
+        self.accent_color = accent_color;
+    }
+
+    pub fn set_talkback_enabled(&mut self, talkback_enabled: bool) {
+        self.talkback_enabled = talkback_enabled;
+    }
+
+    pub fn apply_preset(&mut self, preset: &SettingsPreset) {
+        self.theme = preset.theme.clone();
+        self.edge_style = preset.edge_style.clone();
+        self.button_style = preset.button_style.clone();
+        self.density = preset.density.clone();
+        self.accent_color = preset.accent_color.clone();
+    }
+
+    pub fn save_current_as_preset(&mut self, name: String) {
+        let preset = SettingsPreset {
+            name,
+            theme: self.theme.clone(),
+            edge_style: self.edge_style.clone(),
+            button_style: self.button_style.clone(),
+            density: self.density.clone(),
+            accent_color: self.accent_color.clone(),
+        };
+        self.custom_presets.push(preset);
+    }
+
+    pub fn reset_display_preferences(&mut self) {
+        self.theme = Theme::default();
+        self.edge_style = EdgeStyle::default();
+        self.button_style = ButtonStyle::default();
+        self.density = Density::default();
+        self.accent_color = "#3b82f6".to_string();
+        self.blind_mode = false;
+        self.font_size = "default".to_string();
+        self.reduced_motion = false;
+        self.language = "en-AU".to_string();
+        self.talkback_enabled = false;
+    }
+
     // Portfolio grid column count
     pub fn set_portfolio_grid_columns(&mut self, columns: usize) {
         let allowed = [1, 2, 3, 4, 6, 8, 12];
         self.portfolio_grid_columns = allowed.iter().copied().find(|&c| c == columns).unwrap_or(2);
+    }
+
+    // Portfolio view count per mode (List / Grid)
+    pub fn portfolio_view_count(&self, mode: ViewMode) -> ViewCount {
+        match mode {
+            ViewMode::Grid => self.portfolio_grid_view_count,
+            _ => self.portfolio_list_view_count,
+        }
+    }
+
+    pub fn set_portfolio_view_count(&mut self, mode: ViewMode, count: ViewCount) {
+        match mode {
+            ViewMode::Grid => self.portfolio_grid_view_count = count,
+            _ => self.portfolio_list_view_count = count,
+        }
+    }
+
+    pub fn net_view_count(&self) -> ViewCount {
+        self.net_view_count
+    }
+
+    pub fn set_net_view_count(&mut self, count: ViewCount) {
+        self.net_view_count = count;
     }
 
     // Portfolio sort direction

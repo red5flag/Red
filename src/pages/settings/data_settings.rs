@@ -44,13 +44,82 @@ pub(crate) fn DataSettings(
     view! {
         <div class="data-card">
             <div class="card-header">
+                <span class="card-title">"Storage Options"</span>
+            </div>
+            <div class="settings-list">
+                {move || {
+                    let username = app_store.get().current_user.username.clone();
+                    if username.is_empty() {
+                        view! {
+                            <div class="list-item">
+                                <div class="list-item-left">
+                                    <div class="list-item-title">"Not signed in"</div>
+                                    <div class="list-item-desc">"Sign in to manage storage options for your account."</div>
+                                </div>
+                            </div>
+                        }.into_any()
+                    } else {
+                        let (store_local, store_cloud) = app_store.get().credentials.get_storage_options(&username);
+                        let username_local = username.clone();
+                        let username_cloud = username.clone();
+                        view! {
+                            <div class="list-item">
+                                <div class="list-item-left">
+                                    <div class="list-item-title">"Local Storage"</div>
+                                    <div class="list-item-desc">"Store credentials and data locally on this device."</div>
+                                </div>
+                                <div class="list-item-right">
+                                    <label class="lp-storage-option" class:active={move || store_local}>
+                                        <input
+                                            type="checkbox"
+                                            checked={move || store_local}
+                                            on:change={move |ev| {
+                                                let checked = event_target_checked(&ev);
+                                                app_store.update(|s| {
+                                                    s.set_storage_options(&username_local, checked, store_cloud);
+                                                });
+                                            }}
+                                        />
+                                        "Local"
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="list-item">
+                                <div class="list-item-left">
+                                    <div class="list-item-title">"Cloud Storage"</div>
+                                    <div class="list-item-desc">"Sync credentials and data with the server."</div>
+                                </div>
+                                <div class="list-item-right">
+                                    <label class="lp-storage-option" class:active={move || store_cloud}>
+                                        <input
+                                            type="checkbox"
+                                            checked={move || store_cloud}
+                                            on:change={move |ev| {
+                                                let checked = event_target_checked(&ev);
+                                                app_store.update(|s| {
+                                                    s.set_storage_options(&username_cloud, store_local, checked);
+                                                });
+                                            }}
+                                        />
+                                        "Cloud"
+                                    </label>
+                                </div>
+                            </div>
+                        }.into_any()
+                    }
+                }}
+            </div>
+        </div>
+
+        <div class="data-card">
+            <div class="card-header">
                 <span class="card-title">"Developer Mode"</span>
             </div>
             <div class="settings-list">
                 <div class="list-item">
                     <div class="list-item-left">
                         <div class="list-item-title">"Enable Developer Mode"</div>
-                        <div class="list-item-desc">"Toggle on to access developer tools for testing notifications and other features."</div>
+                        <div class="list-item-desc">"Toggle on to access developer tools for testing notifications, creating test members, and other features."</div>
                     </div>
                     <div class="list-item-right">
                         <input type="checkbox" prop:checked={move || app_store.get().developer_mode}
@@ -370,11 +439,7 @@ pub(crate) fn DataSettings(
                             aria-label="Reset all settings to defaults"
                             on:click=move |_| {
                                 ui_store.update(|s| {
-                                    s.theme = crate::types::Theme::default();
-                                    s.blind_mode = false;
-                                    s.font_size = "default".to_string();
-                                    s.reduced_motion = false;
-                                    s.language = "en-AU".to_string();
+                                    s.reset_display_preferences();
                                 });
                                 app_store.update(|s| {
                                     s.developer_mode = false;

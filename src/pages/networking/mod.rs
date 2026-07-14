@@ -14,7 +14,7 @@ pub use networking_forms::AddTeamMemberPage;
 pub use page::NetworkingPage;
 
 /// Active tab in the networking page.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum NetTab {
     Contacts,
     ExternalOrgs,
@@ -128,7 +128,7 @@ impl NetSort {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Channel {
     #[allow(dead_code)]
     pub id: Uuid,
@@ -174,7 +174,7 @@ pub(crate) struct ExternalOrganization {
     pub avatar_url: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Integration {
     #[allow(dead_code)]
     pub id: Uuid,
@@ -185,7 +185,7 @@ pub(crate) struct Integration {
     pub description: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct RelationshipEvent {
     #[allow(dead_code)]
     pub id: Uuid,

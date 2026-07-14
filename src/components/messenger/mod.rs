@@ -108,16 +108,20 @@ pub fn MessageDrawer() -> impl IntoView {
                                         {contact.as_ref().map(|c| c.name.clone()).unwrap_or_default()}
                                     </div>
                                     <div class="messenger-messages">
-                                        {thread.into_iter().map(|m| {
-                                            let is_me = m.sender_id == current_user_id;
-                                            let cls = if is_me { "messenger-message messenger-message-me" } else { "messenger-message" };
-                                            view! {
-                                                <div class={cls}>
-                                                    <div class="messenger-message-text">{m.content}</div>
-                                                    <div class="messenger-message-meta">{format!("{:?}", m.timestamp.format("%H:%M"))}</div>
-                                                </div>
+                                        <For
+                                            each=move || thread.clone()
+                                            key=|m| m.id
+                                            children=move |m| {
+                                                let is_me = m.sender_id == current_user_id;
+                                                let cls = if is_me { "messenger-message messenger-message-me" } else { "messenger-message" };
+                                                view! {
+                                                    <div class={cls}>
+                                                        <div class="messenger-message-text">{m.content}</div>
+                                                        <div class="messenger-message-meta">{format!("{:?}", m.timestamp.format("%H:%M"))}</div>
+                                                    </div>
+                                                }
                                             }
-                                        }).collect::<Vec<_>>()}
+                                        />
                                     </div>
                                     <div class="messenger-composer">
                                         <input
@@ -144,27 +148,32 @@ pub fn MessageDrawer() -> impl IntoView {
                                         if section_contacts.is_empty() {
                                             ().into_any()
                                         } else {
+                                            let section_contacts_for = section_contacts.clone();
                                             view! {
                                                 <div class="messenger-section">
                                                     <div class="messenger-section-title">{*title}</div>
-                                                    {section_contacts.into_iter().map(|c| {
-                                                        let id = c.id;
-                                                        let name = c.name.clone();
-                                                        let sub = c.phone.clone().or(c.email.clone()).unwrap_or_else(|| match c.source {
-                                                            ContactSource::Bot => "PQC-secured test bot".to_string(),
-                                                            ContactSource::Recommended => "Recommended for you".to_string(),
-                                                            _ => "Organization member".to_string(),
-                                                        });
-                                                        view! {
-                                                            <div class="messenger-contact" on:click=move |_| set_selected_contact(Some(id))>
-                                                                <div class="messenger-contact-avatar">{name.chars().next().unwrap_or('?').to_string()}</div>
-                                                                <div class="messenger-contact-info">
-                                                                    <div class="messenger-contact-name">{name}</div>
-                                                                    <div class="messenger-contact-sub">{sub}</div>
+                                                    <For
+                                                        each=move || section_contacts_for.clone()
+                                                        key=|c| c.id
+                                                        children=move |c| {
+                                                            let id = c.id;
+                                                            let name = c.name.clone();
+                                                            let sub = c.phone.clone().or(c.email.clone()).unwrap_or_else(|| match c.source {
+                                                                ContactSource::Bot => "PQC-secured test bot".to_string(),
+                                                                ContactSource::Recommended => "Recommended for you".to_string(),
+                                                                _ => "Organization member".to_string(),
+                                                            });
+                                                            view! {
+                                                                <div class="messenger-contact" on:click=move |_| set_selected_contact(Some(id))>
+                                                                    <div class="messenger-contact-avatar">{name.chars().next().unwrap_or('?').to_string()}</div>
+                                                                    <div class="messenger-contact-info">
+                                                                        <div class="messenger-contact-name">{name}</div>
+                                                                        <div class="messenger-contact-sub">{sub}</div>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
+                                                            }
                                                         }
-                                                    }).collect::<Vec<_>>()}
+                                                    />
                                                 </div>
                                             }.into_any()
                                         }

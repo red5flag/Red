@@ -35,9 +35,6 @@ pub fn LoginPage() -> impl IntoView {
     let (remember_me, set_remember_me) = signal(true);
     let (remember_password, set_remember_password) = signal(false);
     let (remember_30_days, set_remember_30_days) = signal(false);
-    let (login_store_local, set_login_store_local) = signal(true);
-    let (login_store_cloud, set_login_store_cloud) = signal(false);
-
     let (show_profiles, set_show_profiles) = signal(false);
     let (totp_stub_code, set_totp_stub_code) = signal(String::new());
     let (profile_2fa, set_profile_2fa) = signal(Option::<String>::None);
@@ -52,8 +49,6 @@ pub fn LoginPage() -> impl IntoView {
     let (su_password, set_su_password) = signal(String::new());
     let (su_confirm, set_su_confirm) = signal(String::new());
     let (su_email, set_su_email) = signal(String::new());
-    let (su_store_local, set_su_store_local) = signal(true);
-    let (su_store_cloud, set_su_store_cloud) = signal(false);
     let (su_error, set_su_error) = signal(String::new());
     let (su_success, set_su_success) = signal(String::new());
 
@@ -228,17 +223,13 @@ pub fn LoginPage() -> impl IntoView {
                         None,
                     ));
                 });
-                let local = login_store_local.get();
-                let cloud = login_store_cloud.get();
-                app_store.update(|s| {
-                    s.set_storage_options(&u, local, cloud);
-                });
                 if remember_password.get() {
                     app_store.update(|s| {
                         s.save_password_to_credentials(&u, &p, true);
                     });
                 }
-                if cloud {
+                let (_, login_cloud) = app_store.get().credentials.get_storage_options(&u);
+                if login_cloud {
                     sync_credentials_to_cloud(u.clone());
                 }
                 return;
@@ -279,10 +270,8 @@ pub fn LoginPage() -> impl IntoView {
                             if let Ok(login_resp) = r.json::<LoginResponse>().await {
                                 if login_resp.success {
                                     if let (Some(name), Some(email)) = (login_resp.display_name, login_resp.email) {
-                                        let local = login_store_local.get();
-                                        let cloud = login_store_cloud.get();
                                         app_store.update(|store| {
-                                            store.upsert_credential_from_login(&u_clone, &p_clone, &name, &email, true, local, cloud);
+                                            store.upsert_credential_from_login(&u_clone, &p_clone, &name, &email, true, true, false);
                                         });
                                         if remember_password_clone.get() {
                                             app_store.update(|s| {
@@ -290,9 +279,6 @@ pub fn LoginPage() -> impl IntoView {
                                             });
                                         }
                                         finish_login(u_clone.clone(), name, email, "Owner".to_string());
-                                        if cloud {
-                                            sync_credentials_to_cloud(u_clone.clone());
-                                        }
                                     }
                                 } else if login_resp.requires_totp || login_resp.requires_email_2fa || login_resp.requires_phone_2fa {
                                     set_pending_username_clone.set(u_clone.clone());
@@ -369,15 +355,10 @@ pub fn LoginPage() -> impl IntoView {
                             if let Ok(v) = serde_json::from_str::<GenericVerifyResponse>(&body) {
                                 if v.success {
                                     if let (Some(name), Some(email)) = (v.display_name, v.email) {
-                                        let local = login_store_local.get();
-                                        let cloud = login_store_cloud.get();
                                         app_store.update(|store| {
-                                            store.upsert_credential_from_login(&u, &p, &name, &email, true, local, cloud);
+                                            store.upsert_credential_from_login(&u, &p, &name, &email, true, true, false);
                                         });
                                         finish_login_clone(u.clone(), name, email, "Owner".to_string());
-                                        if cloud {
-                                            sync_credentials_to_cloud(u.clone());
-                                        }
                                         set_fa_mode_clone.set(None);
                                     }
                                 } else {
@@ -449,10 +430,8 @@ pub fn LoginPage() -> impl IntoView {
                         Ok(r) => {
                             if let Ok(signup_resp) = r.json::<SignupResponse>().await {
                                 if signup_resp.success {
-                                    let su_local = su_store_local.get();
-                                    let su_cloud = su_store_cloud.get();
                                     app_store_for_signup.update(|store| {
-                                        let _ = store.register_user(&u, &p, &email_for_msg, su_local, su_cloud);
+                                        let _ = store.register_user(&u, &p, &email_for_msg, true, false);
                                     });
                                     set_succ.set(format!(
                                         "Account created! A validation email has been sent to {}. Check /emailvalid to validate and then sign in.",
@@ -554,7 +533,15 @@ pub fn LoginPage() -> impl IntoView {
     view! {
         <div class="lp-screen">
             <div class="lp-header">
-                <div class="lp-logo">"λ"</div>
+                <a
+                    class="lp-logo-link"
+                    href="WEBSITE_URL_HERE"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Open Red website"
+                >
+                    <div class="lp-logo">"λ"</div>
+                </a>
                 <div class="lp-title">"LOGIN"</div>
                 <div class="lp-version">"0.01"</div>
             </div>
@@ -564,10 +551,6 @@ pub fn LoginPage() -> impl IntoView {
                 set_show_profiles={set_show_profiles}
                 set_username={set_username}
                 set_password={set_password}
-                login_store_local={login_store_local}
-                set_login_store_local={set_login_store_local}
-                login_store_cloud={login_store_cloud}
-                set_login_store_cloud={set_login_store_cloud}
                 set_profile_2fa={set_profile_2fa}
                 set_totp_stub_code={set_totp_stub_code}
             />
@@ -594,14 +577,6 @@ pub fn LoginPage() -> impl IntoView {
                 pressed_btn={pressed_btn}
                 flash_press={flash_press}
                 on_login={on_login_cb}
-            />
-
-            <auth_messages::AuthMessages
-                error={error}
-                changelog_open={changelog_open}
-                commits={commits}
-                commits_loading={commits_loading}
-                on_toggle_changelog={on_toggle_changelog}
             />
 
             <two_factor::TwoFactor
@@ -647,6 +622,14 @@ pub fn LoginPage() -> impl IntoView {
                     on:click=move |_| flash_press.run("oauth-2fa")>"2FA"</button>
             </div>
 
+            <auth_messages::AuthMessages
+                error={error}
+                changelog_open={changelog_open}
+                commits={commits}
+                commits_loading={commits_loading}
+                on_toggle_changelog={on_toggle_changelog}
+            />
+
             // ── FOOTER ──
             <div class="lp-footer">
                 <button class="lp-footer-btn"
@@ -672,10 +655,6 @@ pub fn LoginPage() -> impl IntoView {
             set_su_password={set_su_password}
             set_su_confirm={set_su_confirm}
             set_su_email={set_su_email}
-            su_store_local={su_store_local}
-            set_su_store_local={set_su_store_local}
-            su_store_cloud={su_store_cloud}
-            set_su_store_cloud={set_su_store_cloud}
             su_error={su_error}
             su_success={su_success}
             su_show_pass={su_show_pass}

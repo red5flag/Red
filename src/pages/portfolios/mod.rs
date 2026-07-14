@@ -57,6 +57,34 @@ pub(crate) fn shorthand_name(name: &str) -> String {
     }
 }
 
+/// Truncate text to the first sentence and append an ellipsis if there is more.
+pub(crate) fn single_sentence(text: &str) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    let mut end = 0;
+    for (idx, ch) in trimmed.char_indices() {
+        if ch == '.' || ch == '?' || ch == '!' {
+            end = idx + ch.len_utf8();
+            break;
+        }
+    }
+
+    if end == 0 {
+        return trimmed.to_string();
+    }
+
+    let first = &trimmed[..end];
+    let rest = trimmed[end..].trim();
+    if rest.is_empty() {
+        first.to_string()
+    } else {
+        format!("{}...", first)
+    }
+}
+
 #[component]
 pub(crate) fn UserAssignmentPanel(
     assigned: Vec<Uuid>,
@@ -69,21 +97,29 @@ pub(crate) fn UserAssignmentPanel(
             {if users.is_empty() {
                 view! { <div class="assignment-empty">"No users available"</div> }.into_any()
             } else {
-                users.into_iter().map(move |u| {
-                    let checked = assigned.contains(&u.id);
-                    let uid = u.id;
-                    view! {
-                        <label class="assignment-row">
-                            <input type="checkbox" checked=checked on:change=move |_| on_toggle.run(uid) />
-                            <span>{format!("{} ({:?})", u.name, u.role)}</span>
-                        </label>
-                    }
-                }).collect::<Vec<_>>().into_any()
+                let assigned_for_for = assigned.clone();
+                view! {
+                    <For
+                        each=move || users.clone()
+                        key=|u| u.id
+                        children=move |u| {
+                            let checked = assigned_for_for.contains(&u.id);
+                            let uid = u.id;
+                            view! {
+                                <label class="assignment-row">
+                                    <input type="checkbox" checked=checked on:change=move |_| on_toggle.run(uid) />
+                                    <span>{format!("{} ({:?})", u.name, u.role)}</span>
+                                </label>
+                            }
+                        }
+                    />
+                }.into_any()
             }}
         </div>
     }
 }
 
+mod asset_channels;
 mod asset_group;
 mod asset_item;
 mod asset_viewer;
@@ -92,6 +128,7 @@ mod notifications;
 mod page;
 mod portfolio_list;
 
+pub(crate) use asset_channels::{AssetChannelManagement, AssetChannelsSection};
 pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetDetailView, AssetItem};
 pub(crate) use asset_viewer::AssetViewer;

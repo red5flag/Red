@@ -67,17 +67,29 @@ pub fn App() -> impl IntoView {
             "false".to_string()
         }
     });
+    let talkback_enabled_attr = Memo::new(move |_| {
+        if ui_store.get().talkback_enabled {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }
+    });
+    let edge_style_attr = Memo::new(move |_| ui_store.get().edge_style.as_str().to_string());
+    let button_style_attr = Memo::new(move |_| ui_store.get().button_style.as_str().to_string());
+    let density_attr = Memo::new(move |_| ui_store.get().density.as_str().to_string());
+    let accent_color_style =
+        Memo::new(move |_| format!("--accent-color: {}", ui_store.get().accent_color));
 
     view! {
         <Show
             when=move || is_authenticated.get()
             fallback=move || view! {
-                <div class="app-container" data-theme={move || theme_attr.get()} data-font-size={move || font_size_attr.get()} data-reduced-motion={move || reduced_motion_attr.get()}>
+                <div class="app-container" data-theme={move || theme_attr.get()} data-font-size={move || font_size_attr.get()} data-reduced-motion={move || reduced_motion_attr.get()} data-talkback-enabled={move || talkback_enabled_attr.get()} data-edge-style={move || edge_style_attr.get()} data-button-style={move || button_style_attr.get()} data-density={move || density_attr.get()} style={move || accent_color_style.get()}>
                     <LoginPage />
                 </div>
             }
         >
-            <div class="app-container" data-theme={move || theme_attr.get()} data-font-size={move || font_size_attr.get()} data-reduced-motion={move || reduced_motion_attr.get()}>
+            <div class="app-container" data-theme={move || theme_attr.get()} data-font-size={move || font_size_attr.get()} data-reduced-motion={move || reduced_motion_attr.get()} data-talkback-enabled={move || talkback_enabled_attr.get()} data-edge-style={move || edge_style_attr.get()} data-button-style={move || button_style_attr.get()} data-density={move || density_attr.get()} style={move || accent_color_style.get()}>
                 // Main content area with collapsible tabs
                 <main class="main-content">
                     <TabsContainer />

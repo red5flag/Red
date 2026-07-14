@@ -31,8 +31,12 @@ fn sort_mode_label(m: OrgSortMode) -> &'static str {
 fn sort_organizations(mut orgs: Vec<Organization>, mode: OrgSortMode) -> Vec<Organization> {
     match mode {
         OrgSortMode::Recent => orgs.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
-        OrgSortMode::NameAsc => orgs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
-        OrgSortMode::NameDesc => orgs.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase())),
+        OrgSortMode::NameAsc => {
+            orgs.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        }
+        OrgSortMode::NameDesc => {
+            orgs.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase()))
+        }
         OrgSortMode::Members => orgs.sort_by(|a, b| b.members.len().cmp(&a.members.len())),
         OrgSortMode::Roles => orgs.sort_by(|a, b| b.roles.len().cmp(&a.roles.len())),
     }
@@ -60,10 +64,17 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_role_rank, set_edit_role_rank) = signal(50u32);
     let (edit_role_color, set_edit_role_color) = signal(String::new());
     let (edit_role_scope, set_edit_role_scope) =
-        signal(crate::models::RoleScope::EntireOrganization);
+        signal(crate::models::RoleScope::entire());
     let (show_add_org, set_show_add_org) = signal(false);
+    let (show_add_import_menu, set_show_add_import_menu) = signal(false);
     let (new_org_name, set_new_org_name) = signal(String::new());
     let (new_org_desc, set_new_org_desc) = signal(String::new());
+    let (new_org_abn, set_new_org_abn) = signal(String::new());
+    let (new_org_lei, set_new_org_lei) = signal(String::new());
+    let (new_org_business_type, set_new_org_business_type) = signal(String::new());
+    let (new_org_business_address, set_new_org_business_address) = signal(String::new());
+    let (new_org_business_phone, set_new_org_business_phone) = signal(String::new());
+    let (new_org_business_email, set_new_org_business_email) = signal(String::new());
     let (show_add_member, set_show_add_member) = signal(Option::<Uuid>::None);
     let (member_name, set_member_name) = signal(String::new());
     let (member_email, set_member_email) = signal(String::new());
@@ -72,6 +83,12 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_name, set_edit_name) = signal(String::new());
     let (edit_desc, set_edit_desc) = signal(String::new());
     let (edit_color, set_edit_color) = signal(String::new());
+    let (edit_abn, set_edit_abn) = signal(String::new());
+    let (edit_lei, set_edit_lei) = signal(String::new());
+    let (edit_business_type, set_edit_business_type) = signal(String::new());
+    let (edit_business_address, set_edit_business_address) = signal(String::new());
+    let (edit_business_phone, set_edit_business_phone) = signal(String::new());
+    let (edit_business_email, set_edit_business_email) = signal(String::new());
     let (context_menu, set_context_menu) = signal(Option::<(i32, i32, Uuid)>::None);
     let (role_context_menu, set_role_context_menu) = signal(Option::<(i32, i32, Uuid, Uuid)>::None);
     let (org_sort_mode, set_org_sort_mode) = signal(OrgSortMode::Recent);
@@ -129,9 +146,45 @@ pub fn OrganizationPage() -> impl IntoView {
         } else {
             Some(new_org_desc.get())
         };
+        org.abn = if new_org_abn.get().trim().is_empty() {
+            None
+        } else {
+            Some(new_org_abn.get())
+        };
+        org.lei = if new_org_lei.get().trim().is_empty() {
+            None
+        } else {
+            Some(new_org_lei.get())
+        };
+        org.business_type = if new_org_business_type.get().trim().is_empty() {
+            None
+        } else {
+            Some(new_org_business_type.get())
+        };
+        org.business_address = if new_org_business_address.get().trim().is_empty() {
+            None
+        } else {
+            Some(new_org_business_address.get())
+        };
+        org.business_phone = if new_org_business_phone.get().trim().is_empty() {
+            None
+        } else {
+            Some(new_org_business_phone.get())
+        };
+        org.business_email = if new_org_business_email.get().trim().is_empty() {
+            None
+        } else {
+            Some(new_org_business_email.get())
+        };
         organization_store.update(|s| s.add_organization(org));
         set_new_org_name.set(String::new());
         set_new_org_desc.set(String::new());
+        set_new_org_abn.set(String::new());
+        set_new_org_lei.set(String::new());
+        set_new_org_business_type.set(String::new());
+        set_new_org_business_address.set(String::new());
+        set_new_org_business_phone.set(String::new());
+        set_new_org_business_email.set(String::new());
         set_show_add_org.set(false);
     };
 
@@ -141,13 +194,27 @@ pub fn OrganizationPage() -> impl IntoView {
         });
     };
 
-    let on_start_edit =
-        move |id: Uuid, name: String, desc: Option<String>, color: Option<String>| {
-            set_edit_name.set(name);
-            set_edit_desc.set(desc.unwrap_or_default());
-            set_edit_color.set(color.unwrap_or_default());
-            set_editing_org.set(Some(id));
-        };
+    let on_start_edit = move |id: Uuid,
+                              name: String,
+                              desc: Option<String>,
+                              color: Option<String>,
+                              abn: Option<String>,
+                              lei: Option<String>,
+                              business_type: Option<String>,
+                              business_address: Option<String>,
+                              business_phone: Option<String>,
+                              business_email: Option<String>| {
+        set_edit_name.set(name);
+        set_edit_desc.set(desc.unwrap_or_default());
+        set_edit_color.set(color.unwrap_or_default());
+        set_edit_abn.set(abn.unwrap_or_default());
+        set_edit_lei.set(lei.unwrap_or_default());
+        set_edit_business_type.set(business_type.unwrap_or_default());
+        set_edit_business_address.set(business_address.unwrap_or_default());
+        set_edit_business_phone.set(business_phone.unwrap_or_default());
+        set_edit_business_email.set(business_email.unwrap_or_default());
+        set_editing_org.set(Some(id));
+    };
 
     let on_save_edit = move |id: Uuid| {
         let name = edit_name.get();
@@ -167,6 +234,36 @@ pub fn OrganizationPage() -> impl IntoView {
                     None
                 } else {
                     Some(color)
+                };
+                org.abn = if edit_abn.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(edit_abn.get())
+                };
+                org.lei = if edit_lei.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(edit_lei.get())
+                };
+                org.business_type = if edit_business_type.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(edit_business_type.get())
+                };
+                org.business_address = if edit_business_address.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(edit_business_address.get())
+                };
+                org.business_phone = if edit_business_phone.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(edit_business_phone.get())
+                };
+                org.business_email = if edit_business_email.get().trim().is_empty() {
+                    None
+                } else {
+                    Some(edit_business_email.get())
                 };
                 org.updated_at = chrono::Utc::now();
             }
@@ -223,7 +320,7 @@ pub fn OrganizationPage() -> impl IntoView {
         set_edit_role_desc.set(String::new());
         set_edit_role_rank.set(50);
         set_edit_role_color.set(String::new());
-        set_edit_role_scope.set(crate::models::RoleScope::EntireOrganization);
+        set_edit_role_scope.set(crate::models::RoleScope::entire());
         set_editing_role.set(Some((oid, Uuid::nil())));
     };
 
@@ -308,28 +405,103 @@ pub fn OrganizationPage() -> impl IntoView {
         }
     };
 
+    let add_import_dropdown = move || {
+        let any_manage = organization_store.get().organizations.iter().any(|o| {
+            let role = organization_store.get().current_user_role_in_org(
+                o.id,
+                app_store.get().current_user.id,
+                app_store.get().current_user.role.clone(),
+            );
+            matches!(
+                role,
+                UserRole::Owner | UserRole::Director | UserRole::SeniorManager | UserRole::Manager
+            )
+        });
+        if any_manage {
+            view! {
+                <div class="org-add-import-wrap">
+                    <button class="org-add-import-btn"
+                        aria-haspopup="menu"
+                        aria-expanded={move || show_add_import_menu.get()}
+                        aria-label="Add or import organization"
+                        on:click=move |_| set_show_add_import_menu.update(|v| *v = !*v)>
+                        "+ Add / Import Organization"
+                    </button>
+                    {move || if show_add_import_menu.get() {
+                        view! {
+                            <div class="org-add-import-menu">
+                                <button class="org-add-import-item"
+                                    on:click=move |_| {
+                                        set_show_add_import_menu.set(false);
+                                        set_show_add_org.set(true);
+                                    }>
+                                    "\u{2795} Add Organization"
+                                </button>
+                                <button class="org-add-import-item" disabled>
+                                    "\u{1F4E5} Import Organization (coming soon)"
+                                </button>
+                                <button class="org-add-import-item" disabled>
+                                    "\u{1F517} LinkedIn Import (coming soon)"
+                                </button>
+                                <button class="org-add-import-item" disabled>
+                                    "\u{1F916} Assisted Setup (coming soon)"
+                                </button>
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
+                </div>
+            }
+            .into_any()
+        } else {
+            ().into_any()
+        }
+    };
+
     view! {
         <div class="home-screen">
             {blind_add_button}
 
-            <div class="org-quick-tabs" role="tablist" aria-label="Organization sort options">
-                {[OrgSortMode::Recent, OrgSortMode::NameAsc, OrgSortMode::NameDesc, OrgSortMode::Members, OrgSortMode::Roles]
-                    .iter().map(|&mode| {
-                        let mode_for_click = mode;
-                        let label = sort_mode_label(mode);
-                        view! {
-                            <button
-                                class="org-quick-tab"
-                                class:active={move || org_sort_mode.get() == mode_for_click}
-                                role="tab"
-                                aria-selected={move || org_sort_mode.get() == mode_for_click}
-                                on:click=move |_| set_org_sort_mode.set(mode_for_click)
-                            >
-                                {label}
-                            </button>
-                        }
-                    }).collect::<Vec<_>>()}
+            {add_import_dropdown}
+
+            <div class="org-top-controls">
+                <div class="org-quick-tabs" role="tablist" aria-label="Organization sort options">
+                    {[OrgSortMode::Members, OrgSortMode::Roles, OrgSortMode::Recent, OrgSortMode::NameAsc, OrgSortMode::NameDesc]
+                        .iter().map(|&mode| {
+                            let mode_for_click = mode;
+                            let label = sort_mode_label(mode);
+                            view! {
+                                <button
+                                    class="org-quick-tab"
+                                    class:active={move || org_sort_mode.get() == mode_for_click}
+                                    role="tab"
+                                    aria-selected={move || org_sort_mode.get() == mode_for_click}
+                                    on:click=move |_| set_org_sort_mode.set(mode_for_click)
+                                >
+                                    {label}
+                                </button>
+                            }
+                        }).collect::<Vec<_>>()}
+                </div>
             </div>
+
+            {move || if organizations.get().is_empty() && !show_add_org.get() && !show_add_import_menu.get() {
+                view! {
+                    <div class="org-empty-state">
+                        <div class="org-empty-icon">"🏢"</div>
+                        <div class="org-empty-title">"No organizations yet"</div>
+                        <div class="org-empty-subtitle">"Create your first organization to manage members, roles, and permissions."</div>
+                        <div class="org-empty-actions">
+                            <button class="org-empty-add-btn"
+                                on:click=move |_| set_show_add_org.set(true)>
+                                "\u{2795} Add Organization"
+                            </button>
+                            <button class="org-empty-add-btn" disabled>
+                                "\u{1F4E5} Import Organization (coming soon)"
+                            </button>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
 
             <AddOrgForm
                 show={show_add_org}
@@ -338,6 +510,18 @@ pub fn OrganizationPage() -> impl IntoView {
                 set_name={set_new_org_name}
                 desc={new_org_desc}
                 set_desc={set_new_org_desc}
+                abn={new_org_abn}
+                set_abn={set_new_org_abn}
+                lei={new_org_lei}
+                set_lei={set_new_org_lei}
+                business_type={new_org_business_type}
+                set_business_type={set_new_org_business_type}
+                business_address={new_org_business_address}
+                set_business_address={set_new_org_business_address}
+                business_phone={new_org_business_phone}
+                set_business_phone={set_new_org_business_phone}
+                business_email={new_org_business_email}
+                set_business_email={set_new_org_business_email}
                 on_add={Callback::new(move |_| on_add_org(()))}
             />
 
@@ -358,8 +542,20 @@ pub fn OrganizationPage() -> impl IntoView {
                         set_edit_desc={set_edit_desc}
                         edit_color={edit_color}
                         set_edit_color={set_edit_color}
+                        edit_abn={edit_abn}
+                        set_edit_abn={set_edit_abn}
+                        edit_lei={edit_lei}
+                        set_edit_lei={set_edit_lei}
+                        edit_business_type={edit_business_type}
+                        set_edit_business_type={set_edit_business_type}
+                        edit_business_address={edit_business_address}
+                        set_edit_business_address={set_edit_business_address}
+                        edit_business_phone={edit_business_phone}
+                        set_edit_business_phone={set_edit_business_phone}
+                        edit_business_email={edit_business_email}
+                        set_edit_business_email={set_edit_business_email}
                         set_editing_org={set_editing_org}
-                        on_start_edit={Callback::new(move |(id, name, desc, color): (Uuid, String, Option<String>, Option<String>)| on_start_edit(id, name, desc, color))}
+                        on_start_edit={Callback::new(move |(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
                         on_save_edit={Callback::new(move |v: Uuid| on_save_edit(v))}
                         on_delete_org={Callback::new(move |v: Uuid| on_delete_org(v))}
                         get_org_tab={Callback::new(move |v: Uuid| get_org_tab(v))}
@@ -418,7 +614,7 @@ pub fn OrganizationPage() -> impl IntoView {
                 set_show_add_member={set_show_add_member}
                 set_expanded_orgs={set_expanded_orgs}
                 set_org_tab={Callback::new(move |(oid, tab): (Uuid, &'static str)| set_org_tab(oid, tab))}
-                on_start_edit={Callback::new(move |(id, name, desc, color): (Uuid, String, Option<String>, Option<String>)| on_start_edit(id, name, desc, color))}
+                on_start_edit={Callback::new(move |(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
                 on_start_new_role={Callback::new(move |v: Uuid| on_start_new_role(v))}
                 on_delete_org={Callback::new(move |v: Uuid| on_delete_org(v))}
             />

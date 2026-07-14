@@ -142,6 +142,36 @@ pub enum AssetType {
     Custom(String),
 }
 
+impl AssetType {
+    /// Display the asset type as it should appear in the typeahead input.
+    /// Known variants use their debug name; custom variants use the user text.
+    pub fn to_input_string(&self) -> String {
+        match self {
+            AssetType::Custom(name) => name.clone(),
+            other => format!("{:?}", other),
+        }
+    }
+
+    /// Parse a typed-in or selected asset type string.
+    /// Known variants are recognised case/space-insensitively; anything else
+    /// becomes a custom type.
+    pub fn from_input(s: &str) -> Self {
+        let normalized = s.trim().replace(' ', "").to_lowercase();
+        match normalized.as_str() {
+            "realestate" => AssetType::RealEstate,
+            "vehicle" => AssetType::Vehicle,
+            "equipment" => AssetType::Equipment,
+            "stock" => AssetType::Stock,
+            "bond" => AssetType::Bond,
+            "commodity" => AssetType::Commodity,
+            "digital" => AssetType::Digital,
+            "intellectualproperty" => AssetType::IntellectualProperty,
+            "channel" => AssetType::Channel,
+            _ => AssetType::Custom(s.trim().to_string()),
+        }
+    }
+}
+
 // Transaction types
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransactionType {
@@ -158,7 +188,7 @@ pub enum TransactionType {
 }
 
 // View modes for display
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ViewMode {
     List,
     Grid,
@@ -168,6 +198,50 @@ pub enum ViewMode {
 impl Default for ViewMode {
     fn default() -> Self {
         ViewMode::List
+    }
+}
+
+// View-count page size for paginated lists/grids
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ViewCount {
+    V1,
+    V10,
+    V20,
+    V50,
+    V100,
+    Custom(usize),
+}
+
+impl ViewCount {
+    pub fn all() -> [ViewCount; 5] {
+        [
+            ViewCount::V1,
+            ViewCount::V10,
+            ViewCount::V20,
+            ViewCount::V50,
+            ViewCount::V100,
+        ]
+    }
+
+    pub fn as_usize(self) -> usize {
+        match self {
+            ViewCount::V1 => 1,
+            ViewCount::V10 => 10,
+            ViewCount::V20 => 20,
+            ViewCount::V50 => 50,
+            ViewCount::V100 => 100,
+            ViewCount::Custom(n) => n,
+        }
+    }
+
+    pub fn label(self) -> String {
+        format!("{}", self.as_usize())
+    }
+}
+
+impl Default for ViewCount {
+    fn default() -> Self {
+        ViewCount::V10
     }
 }
 
@@ -246,6 +320,81 @@ pub enum ActionType {
     Logout,
 }
 
+// Severity classification for audit/history actions
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ChangeSeverity {
+    Major,
+    #[default]
+    Minor,
+    System,
+}
+
+impl ChangeSeverity {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ChangeSeverity::Major => "major",
+            ChangeSeverity::Minor => "minor",
+            ChangeSeverity::System => "system",
+        }
+    }
+
+    /// Map an action type to its default severity.
+    /// Major actions create, delete, or have significant side effects.
+    /// Minor actions are reads, updates, or low-impact settings.
+    /// System actions are auth, undo, redo, and other internal bookkeeping.
+    pub fn from_action_type(action_type: &ActionType) -> Self {
+        match action_type {
+            ActionType::Create | ActionType::Delete => ChangeSeverity::Major,
+            ActionType::Update
+            | ActionType::View
+            | ActionType::Navigate
+            | ActionType::Setting
+            | ActionType::Search => ChangeSeverity::Minor,
+            ActionType::Payment | ActionType::Notification => ChangeSeverity::Minor,
+            ActionType::Undo | ActionType::Redo | ActionType::Login | ActionType::Logout => {
+                ChangeSeverity::System
+            }
+        }
+    }
+}
+
+// Viewport / navigation context captured with an action for audit and replay
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ViewportContext {
+    pub page: String,
+    pub entity_type: String,
+    pub entity_id: Option<Uuid>,
+    pub scroll_position: Option<f64>,
+    pub tab: Option<String>,
+}
+
+impl ViewportContext {
+    pub fn new(page: impl Into<String>, entity_type: impl Into<String>) -> Self {
+        Self {
+            page: page.into(),
+            entity_type: entity_type.into(),
+            entity_id: None,
+            scroll_position: None,
+            tab: None,
+        }
+    }
+
+    pub fn with_entity_id(mut self, entity_id: Uuid) -> Self {
+        self.entity_id = Some(entity_id);
+        self
+    }
+
+    pub fn with_scroll_position(mut self, scroll_position: f64) -> Self {
+        self.scroll_position = Some(scroll_position);
+        self
+    }
+
+    pub fn with_tab(mut self, tab: impl Into<String>) -> Self {
+        self.tab = Some(tab.into());
+        self
+    }
+}
+
 // Theme/accessibility options
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Theme {
@@ -290,6 +439,147 @@ impl Theme {
             Theme::LowVision => "low-vision",
         }
     }
+}
+
+// Visual edge style for controls and cards
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EdgeStyle {
+    Square,
+    Rounded,
+    Pill,
+}
+
+impl Default for EdgeStyle {
+    fn default() -> Self {
+        EdgeStyle::Square
+    }
+}
+
+impl EdgeStyle {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            EdgeStyle::Square => "square",
+            EdgeStyle::Rounded => "rounded",
+            EdgeStyle::Pill => "pill",
+        }
+    }
+}
+
+// Button fill style for the UI surface
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ButtonStyle {
+    Filled,
+    Outline,
+    Ghost,
+}
+
+impl Default for ButtonStyle {
+    fn default() -> Self {
+        ButtonStyle::Filled
+    }
+}
+
+impl ButtonStyle {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ButtonStyle::Filled => "filled",
+            ButtonStyle::Outline => "outline",
+            ButtonStyle::Ghost => "ghost",
+        }
+    }
+}
+
+// UI density / spacing scale
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Density {
+    Compact,
+    Comfortable,
+    Spacious,
+}
+
+impl Default for Density {
+    fn default() -> Self {
+        Density::Comfortable
+    }
+}
+
+impl Density {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Density::Compact => "compact",
+            Density::Comfortable => "comfortable",
+            Density::Spacious => "spacious",
+        }
+    }
+}
+
+// Named preset that bundles theme, edges, buttons, density, and accent colour.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingsPreset {
+    pub name: String,
+    pub theme: Theme,
+    pub edge_style: EdgeStyle,
+    pub button_style: ButtonStyle,
+    pub density: Density,
+    pub accent_color: String,
+}
+
+impl SettingsPreset {
+    pub fn new(
+        name: impl Into<String>,
+        theme: Theme,
+        edge_style: EdgeStyle,
+        button_style: ButtonStyle,
+        density: Density,
+        accent_color: impl Into<String>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            theme,
+            edge_style,
+            button_style,
+            density,
+            accent_color: accent_color.into(),
+        }
+    }
+}
+
+/// Built-in display presets.
+pub fn default_presets() -> Vec<SettingsPreset> {
+    vec![
+        SettingsPreset::new(
+            "Classic",
+            Theme::Light,
+            EdgeStyle::Square,
+            ButtonStyle::Filled,
+            Density::Comfortable,
+            "#3b82f6",
+        ),
+        SettingsPreset::new(
+            "Compact",
+            Theme::Dark,
+            EdgeStyle::Square,
+            ButtonStyle::Outline,
+            Density::Compact,
+            "#10b981",
+        ),
+        SettingsPreset::new(
+            "Accessible",
+            Theme::HighContrast,
+            EdgeStyle::Rounded,
+            ButtonStyle::Filled,
+            Density::Spacious,
+            "#f59e0b",
+        ),
+        SettingsPreset::new(
+            "Minimal",
+            Theme::Light,
+            EdgeStyle::Pill,
+            ButtonStyle::Ghost,
+            Density::Comfortable,
+            "#6366f1",
+        ),
+    ]
 }
 
 // Tab types
@@ -358,6 +648,7 @@ pub struct OrganizationSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserProfile {
     pub id: Uuid,
+    pub username: String,
     pub name: String,
     pub email: String,
     pub role: UserRole,
@@ -379,6 +670,7 @@ impl Default for UserProfile {
     fn default() -> Self {
         Self {
             id: Uuid::new_v4(),
+            username: String::new(),
             name: "Guest".to_string(),
             email: String::new(),
             role: UserRole::Worker,

@@ -28,7 +28,7 @@ pub fn ReportingPage() -> impl IntoView {
                 crate::models::EntityReference {
                     entity_type: crate::models::EntityType::Organization,
                     entity_id: Uuid::new_v4(),
-                    name: "Carly".to_string(),
+                    name: "Red".to_string(),
                 },
                 user,
             );
@@ -37,6 +37,7 @@ pub fn ReportingPage() -> impl IntoView {
     };
 
     let tabs = [
+        ReportTab::CamScan,
         ReportTab::Sales,
         ReportTab::Purchases,
         ReportTab::Bills,
@@ -49,6 +50,7 @@ pub fn ReportingPage() -> impl IntoView {
         ReportTab::Compliance,
         ReportTab::Transactions,
         ReportTab::ExportedRecords,
+        ReportTab::Bookings,
     ];
 
     let tabs_container_ref = NodeRef::<leptos::html::Div>::new();
@@ -103,18 +105,7 @@ pub fn ReportingPage() -> impl IntoView {
 
     view! {
         <div class="reporting-page">
-            // CamScan at top of page
-            <crate::pages::camscan::CamScanView app_store />
-
-            <div class="reporting-actions">
-                <button class="reporting-btn" on:click=seed_demo>"+ Seed Demo Sale"</button>
-            </div>
-
-            <div class="reporting-tab-title-bar">
-                {move || active_tab.get().label()}
-            </div>
-
-            <div class="reporting-tabs-outer">
+            <div class="reporting-tabs-outer reporting-tabs-top">
                 <button
                     class="reporting-tab-arrow"
                     title="Scroll left"
@@ -128,11 +119,14 @@ pub fn ReportingPage() -> impl IntoView {
                 <div class="reporting-tabs" node_ref=tabs_container_ref>
                     {tabs.iter().map(|tab| {
                         let t = *tab;
+                        let is_camscan = t == ReportTab::CamScan;
                         view! {
                             <button
                                 class="reporting-tab"
+                                class:reporting-tab-camscan={is_camscan}
                                 class:active={move || active_tab.get() == t}
                                 on:click=move |_| set_active_tab.set(t)
+                                aria-label={t.label()}
                             >
                                 {t.label()}
                             </button>
@@ -149,6 +143,14 @@ pub fn ReportingPage() -> impl IntoView {
                     on:touchstart=scroll_tabs_right_hold_touch
                     on:touchend=stop_scroll_touch
                 >"→"</button>
+            </div>
+
+            <div class="reporting-actions">
+                {move || if app_store.get().developer_mode {
+                    view! {
+                        <button class="reporting-btn" on:click=seed_demo>"+ Seed Demo Sale"</button>
+                    }.into_any()
+                } else { ().into_any() }}
             </div>
 
             <div class="reporting-controls-bar">
@@ -169,7 +171,12 @@ pub fn ReportingPage() -> impl IntoView {
                     ReportTab::Compliance => super::report_list::compliance_view(&app_store).into_any(),
                     ReportTab::Transactions => super::report_list::transactions_view(&app_store).into_any(),
                     ReportTab::ExportedRecords => super::report_summary::exported_records_view(&app_store).into_any(),
-                    ReportTab::CamScan => ().into_any(),
+                    ReportTab::Bookings => super::booking_report::bookings_view().into_any(),
+                    ReportTab::CamScan => view! {
+                        <div class="reporting-camscan-wrap">
+                            <crate::pages::camscan::CamScanView app_store />
+                        </div>
+                    }.into_any(),
                 }}
             </div>
         </div>

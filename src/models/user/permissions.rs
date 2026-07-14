@@ -91,13 +91,15 @@ pub fn default_permissions_for_role(role: &UserRole) -> Vec<Permission> {
 }
 
 /// Permission groups for the role editor.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PermGroup {
     Organization,
     Portfolio,
     Networking,
     Reporting,
     Calendar,
+    Booking,
+    ServiceTasks,
     Transaction,
     History,
 }
@@ -110,6 +112,8 @@ impl PermGroup {
             PermGroup::Networking => "Networking Controls",
             PermGroup::Reporting => "Reporting Controls",
             PermGroup::Calendar => "Calendar Controls",
+            PermGroup::Booking => "Booking Controls",
+            PermGroup::ServiceTasks => "Service Task Controls",
             PermGroup::Transaction => "Transaction Controls",
             PermGroup::History => "History Controls",
         }
@@ -122,6 +126,8 @@ impl PermGroup {
             PermGroup::Networking,
             PermGroup::Reporting,
             PermGroup::Calendar,
+            PermGroup::Booking,
+            PermGroup::ServiceTasks,
             PermGroup::Transaction,
             PermGroup::History,
         ]
@@ -221,6 +227,22 @@ pub enum Perm {
     ManageReminders,
     ViewPrivateCalendar,
     ManageSharedCalendarVisibility,
+    // Booking
+    ViewBookings,
+    CreateBookings,
+    EditBookings,
+    CancelBookings,
+    CompleteBookings,
+    ManageBookings,
+    ViewBookingFinancials,
+    // Service Tasks
+    ViewServiceTasks,
+    CreateServiceTasks,
+    EditServiceTasks,
+    CancelServiceTasks,
+    CompleteServiceTasks,
+    AssignServiceTasks,
+    ManageServiceTasks,
     // Transaction
     ViewTransactions,
     CreateTransactions,
@@ -334,6 +356,20 @@ impl Perm {
             Perm::ManageReminders => "Manage reminders",
             Perm::ViewPrivateCalendar => "View private/internal calendar items",
             Perm::ManageSharedCalendarVisibility => "Manage shared calendar visibility",
+            Perm::ViewBookings => "View bookings",
+            Perm::CreateBookings => "Create bookings",
+            Perm::EditBookings => "Edit bookings",
+            Perm::CancelBookings => "Cancel bookings",
+            Perm::CompleteBookings => "Complete bookings",
+            Perm::ManageBookings => "Manage all bookings",
+            Perm::ViewBookingFinancials => "View booking financial details",
+            Perm::ViewServiceTasks => "View service tasks",
+            Perm::CreateServiceTasks => "Create service tasks",
+            Perm::EditServiceTasks => "Edit service tasks",
+            Perm::CancelServiceTasks => "Cancel service tasks",
+            Perm::CompleteServiceTasks => "Complete service tasks",
+            Perm::AssignServiceTasks => "Assign service tasks",
+            Perm::ManageServiceTasks => "Manage all service tasks",
             Perm::ViewTransactions => "View transactions",
             Perm::CreateTransactions => "Create transactions",
             Perm::EditOwnDraftTransactions => "Edit own draft transactions",
@@ -449,6 +485,22 @@ impl Perm {
             | Perm::ManageReminders
             | Perm::ViewPrivateCalendar
             | Perm::ManageSharedCalendarVisibility => PermGroup::Calendar,
+
+            Perm::ViewBookings
+            | Perm::CreateBookings
+            | Perm::EditBookings
+            | Perm::CancelBookings
+            | Perm::CompleteBookings
+            | Perm::ManageBookings
+            | Perm::ViewBookingFinancials => PermGroup::Booking,
+
+            Perm::ViewServiceTasks
+            | Perm::CreateServiceTasks
+            | Perm::EditServiceTasks
+            | Perm::CancelServiceTasks
+            | Perm::CompleteServiceTasks
+            | Perm::AssignServiceTasks
+            | Perm::ManageServiceTasks => PermGroup::ServiceTasks,
 
             Perm::ViewTransactions
             | Perm::CreateTransactions
@@ -568,6 +620,22 @@ impl Perm {
             Perm::ManageReminders,
             Perm::ViewPrivateCalendar,
             Perm::ManageSharedCalendarVisibility,
+            // Booking
+            Perm::ViewBookings,
+            Perm::CreateBookings,
+            Perm::EditBookings,
+            Perm::CancelBookings,
+            Perm::CompleteBookings,
+            Perm::ManageBookings,
+            Perm::ViewBookingFinancials,
+            // Service Tasks
+            Perm::ViewServiceTasks,
+            Perm::CreateServiceTasks,
+            Perm::EditServiceTasks,
+            Perm::CancelServiceTasks,
+            Perm::CompleteServiceTasks,
+            Perm::AssignServiceTasks,
+            Perm::ManageServiceTasks,
             // Transaction
             Perm::ViewTransactions,
             Perm::CreateTransactions,

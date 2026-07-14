@@ -145,118 +145,127 @@ pub(crate) fn NotificationQuickSettings(
                                 <div class="notif-qs-empty">"No notification rules yet. Add one below."</div>
                             }.into_any()
                         } else {
-                            items.into_iter().map(|s| {
-                                let sid = s.id;
-                                let sid_toggle = sid;
-                                let sid_remove = sid;
-                                let s_enabled = s.enabled;
-                                let s_label = trigger_label(&s.trigger);
-                                let s_types = s.notification_types.clone();
-                                let s_recipients = s.recipients.clone();
-                                let s_roles = s.recipient_roles.clone();
-                                let s_condition = s.condition.clone();
-                                let target_toggle = target.clone();
-                                let target_remove = target.clone();
+                            let target_for_children = target.clone();
+                            let all_notif_types_for_children = all_notif_types.clone();
+                            let org_users_for_children = org_users.clone();
+                            view! {
+                                <For
+                                    each=move || settings.get()
+                                    key=|s| s.id
+                                    children=move |s| {
+                                        let sid = s.id;
+                                        let sid_toggle = sid;
+                                        let sid_remove = sid;
+                                        let s_enabled = s.enabled;
+                                        let s_label = trigger_label(&s.trigger);
+                                        let s_types = s.notification_types.clone();
+                                        let s_recipients = s.recipients.clone();
+                                        let s_roles = s.recipient_roles.clone();
+                                        let s_condition = s.condition.clone();
+                                        let target_toggle = target_for_children.clone();
+                                        let target_remove = target_for_children.clone();
 
-                                let all_nt = all_notif_types.clone();
-                                let target_for_nt = target.clone();
-                                let sid_for_nt = sid;
+                                        let all_nt = all_notif_types_for_children.clone();
+                                        let target_for_nt = target_for_children.clone();
+                                        let sid_for_nt = sid;
 
-                                view! {
-                                    <div class="notif-qs-rule" class:disabled={!s_enabled}>
-                                        <div class="notif-qs-rule-top">
-                                            <label class="notif-qs-toggle">
-                                                <input type="checkbox" checked=s_enabled
-                                                    on:change=move |_| {
-                                                        match &target_toggle {
-                                                            NotifTarget::Portfolio(pid) => app_store.update(|s| s.toggle_portfolio_notification_setting(*pid, sid_toggle)),
-                                                            NotifTarget::Group(pid, gid) => app_store.update(|s| s.toggle_group_notification_setting(*pid, *gid, sid_toggle)),
-                                                        }
-                                                    } />
-                                                <span class="notif-qs-rule-name">{s_label.clone()}</span>
-                                            </label>
-                                            <button class="notif-qs-rule-remove"
-                                                aria-label={format!("Remove {} rule", s_label)}
-                                                on:click=move |_| {
-                                                    match &target_remove {
-                                                        NotifTarget::Portfolio(pid) => app_store.update(|s| s.remove_portfolio_notification_setting(*pid, sid_remove)),
-                                                        NotifTarget::Group(pid, gid) => app_store.update(|s| s.remove_group_notification_setting(*pid, *gid, sid_remove)),
-                                                    }
-                                                }>"🗑"</button>
-                                        </div>
-                                        // Notification type badges
-                                        <div class="notif-qs-rule-types">
-                                            {all_nt.iter().map(|nt| {
-                                                let nt_label = notif_type_label(nt);
-                                                let is_on = s_types.contains(nt);
-                                                let target_nt = target_for_nt.clone();
-                                                let sid_nt = sid_for_nt;
-                                                let nt_clone = nt.clone();
-                                                view! {
-                                                    <button class="notif-qs-type-chip"
-                                                        class:active=is_on
+                                        view! {
+                                            <div class="notif-qs-rule" class:disabled={!s_enabled}>
+                                                <div class="notif-qs-rule-top">
+                                                    <label class="notif-qs-toggle">
+                                                        <input type="checkbox" checked=s_enabled
+                                                            on:change=move |_| {
+                                                                match &target_toggle {
+                                                                    NotifTarget::Portfolio(pid) => app_store.update(|s| s.toggle_portfolio_notification_setting(*pid, sid_toggle)),
+                                                                    NotifTarget::Group(pid, gid) => app_store.update(|s| s.toggle_group_notification_setting(*pid, *gid, sid_toggle)),
+                                                                }
+                                                            } />
+                                                        <span class="notif-qs-rule-name">{s_label.clone()}</span>
+                                                    </label>
+                                                    <button class="notif-qs-rule-remove"
+                                                        aria-label={format!("Remove {} rule", s_label)}
                                                         on:click=move |_| {
-                                                            match &target_nt {
-                                                                NotifTarget::Portfolio(pid) => app_store.update(|s| {
-                                                                    if let Some(p) = s.get_portfolio_mut(*pid) {
-                                                                        if let Some(st) = p.notification_settings.iter_mut().find(|st| st.id == sid_nt) {
-                                                                            if st.notification_types.contains(&nt_clone) {
-                                                                                st.notification_types.retain(|t| t != &nt_clone);
-                                                                            } else {
-                                                                                st.notification_types.push(nt_clone.clone());
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }),
-                                                                NotifTarget::Group(pid, gid) => app_store.update(|s| {
-                                                                    if let Some(p) = s.get_portfolio_mut(*pid) {
-                                                                        if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
-                                                                            if let Some(st) = g.notification_settings.iter_mut().find(|st| st.id == sid_nt) {
-                                                                                if st.notification_types.contains(&nt_clone) {
-                                                                                    st.notification_types.retain(|t| t != &nt_clone);
-                                                                                } else {
-                                                                                    st.notification_types.push(nt_clone.clone());
+                                                            match &target_remove {
+                                                                NotifTarget::Portfolio(pid) => app_store.update(|s| s.remove_portfolio_notification_setting(*pid, sid_remove)),
+                                                                NotifTarget::Group(pid, gid) => app_store.update(|s| s.remove_group_notification_setting(*pid, *gid, sid_remove)),
+                                                            }
+                                                        }>"🗑"</button>
+                                                </div>
+                                                // Notification type badges
+                                                <div class="notif-qs-rule-types">
+                                                    {all_nt.iter().map(|nt| {
+                                                        let nt_label = notif_type_label(nt);
+                                                        let is_on = s_types.contains(nt);
+                                                        let target_nt = target_for_nt.clone();
+                                                        let sid_nt = sid_for_nt;
+                                                        let nt_clone = nt.clone();
+                                                        view! {
+                                                            <button class="notif-qs-type-chip"
+                                                                class:active=is_on
+                                                                on:click=move |_| {
+                                                                    match &target_nt {
+                                                                        NotifTarget::Portfolio(pid) => app_store.update(|s| {
+                                                                            if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                                                if let Some(st) = p.notification_settings.iter_mut().find(|st| st.id == sid_nt) {
+                                                                                    if st.notification_types.contains(&nt_clone) {
+                                                                                        st.notification_types.retain(|t| t != &nt_clone);
+                                                                                    } else {
+                                                                                        st.notification_types.push(nt_clone.clone());
+                                                                                    }
                                                                                 }
                                                                             }
-                                                                        }
+                                                                        }),
+                                                                        NotifTarget::Group(pid, gid) => app_store.update(|s| {
+                                                                            if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                                                if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
+                                                                                    if let Some(st) = g.notification_settings.iter_mut().find(|st| st.id == sid_nt) {
+                                                                                        if st.notification_types.contains(&nt_clone) {
+                                                                                            st.notification_types.retain(|t| t != &nt_clone);
+                                                                                        } else {
+                                                                                            st.notification_types.push(nt_clone.clone());
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }),
                                                                     }
-                                                                }),
-                                                            }
-                                                        }>
-                                                        {nt_label}
-                                                    </button>
-                                                }
-                                            }).collect::<Vec<_>>()}
-                                        </div>
-                                        // Recipients (if can manage)
-                                        {if can_manage_recipients {
-                                            let recipient_names: Vec<String> = s_recipients.iter().filter_map(|uid| {
-                                                org_users.iter().find(|u| u.id == *uid).map(|u| u.name.clone())
-                                            }).collect();
-                                            let role_names: Vec<&'static str> = s_roles.iter().map(role_label).collect();
-                                            let info = if recipient_names.is_empty() && role_names.is_empty() {
-                                                "Just me".to_string()
-                                            } else {
-                                                let mut parts = Vec::new();
-                                                if !recipient_names.is_empty() {
-                                                    parts.push(format!("Users: {}", recipient_names.join(", ")));
-                                                }
-                                                if !role_names.is_empty() {
-                                                    parts.push(format!("Roles: {}", role_names.join(", ")));
-                                                }
-                                                parts.join(" · ")
-                                            };
-                                            view! {
-                                                <div class="notif-qs-rule-recipients">{info}</div>
-                                            }.into_any()
-                                        } else { ().into_any() }}
-                                        // Condition
-                                        {s_condition.map(|c| view! {
-                                            <div class="notif-qs-rule-condition">"Condition: " {c}</div>
-                                        })}
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>().into_any()
+                                                                }>
+                                                                {nt_label}
+                                                            </button>
+                                                        }
+                                                    }).collect::<Vec<_>>()}
+                                                </div>
+                                                // Recipients (if can manage)
+                                                {if can_manage_recipients {
+                                                    let recipient_names: Vec<String> = s_recipients.iter().filter_map(|uid| {
+                                                        org_users_for_children.iter().find(|u| u.id == *uid).map(|u| u.name.clone())
+                                                    }).collect();
+                                                    let role_names: Vec<&'static str> = s_roles.iter().map(role_label).collect();
+                                                    let info = if recipient_names.is_empty() && role_names.is_empty() {
+                                                        "Just me".to_string()
+                                                    } else {
+                                                        let mut parts = Vec::new();
+                                                        if !recipient_names.is_empty() {
+                                                            parts.push(format!("Users: {}", recipient_names.join(", ")));
+                                                        }
+                                                        if !role_names.is_empty() {
+                                                            parts.push(format!("Roles: {}", role_names.join(", ")));
+                                                        }
+                                                        parts.join(" · ")
+                                                    };
+                                                    view! {
+                                                        <div class="notif-qs-rule-recipients">{info}</div>
+                                                    }.into_any()
+                                                } else { ().into_any() }}
+                                                // Condition
+                                                {s_condition.map(|c| view! {
+                                                    <div class="notif-qs-rule-condition">"Condition: " {c}</div>
+                                                })}
+                                            </div>
+                                        }
+                                    }
+                                />
+                            }.into_any()
                         }
                     }}
                 </div>
@@ -355,29 +364,20 @@ pub(crate) fn NotificationQuickSettings(
                             </div>
                             <div class="notif-qs-section-label" style="margin-top: 8px;">"Recipient Users (applies to most recent rule)"</div>
                             <div class="notif-qs-users-row">
-                                {users_for_select.iter().map(|u| {
-                                    let uname = u.name.clone();
-                                    let uid = u.id;
-                                    let target_u = target_for_recipients.clone();
-                                    view! {
-                                        <button class="notif-qs-user-chip"
-                                            on:click=move |_| {
-                                                match &target_u {
-                                                    NotifTarget::Portfolio(pid) => app_store.update(|s| {
-                                                        if let Some(p) = s.get_portfolio_mut(*pid) {
-                                                            if let Some(last) = p.notification_settings.last_mut() {
-                                                                if last.recipients.contains(&uid) {
-                                                                    last.recipients.retain(|id| id != &uid);
-                                                                } else {
-                                                                    last.recipients.push(uid);
-                                                                }
-                                                            }
-                                                        }
-                                                    }),
-                                                    NotifTarget::Group(pid, gid) => app_store.update(|s| {
-                                                        if let Some(p) = s.get_portfolio_mut(*pid) {
-                                                            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
-                                                                if let Some(last) = g.notification_settings.last_mut() {
+                                <For
+                                    each=move || users_for_select.clone()
+                                    key=|u| u.id
+                                    children=move |u| {
+                                        let uname = u.name.clone();
+                                        let uid = u.id;
+                                        let target_u = target_for_recipients.clone();
+                                        view! {
+                                            <button class="notif-qs-user-chip"
+                                                on:click=move |_| {
+                                                    match &target_u {
+                                                        NotifTarget::Portfolio(pid) => app_store.update(|s| {
+                                                            if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                                if let Some(last) = p.notification_settings.last_mut() {
                                                                     if last.recipients.contains(&uid) {
                                                                         last.recipients.retain(|id| id != &uid);
                                                                     } else {
@@ -385,14 +385,27 @@ pub(crate) fn NotificationQuickSettings(
                                                                     }
                                                                 }
                                                             }
-                                                        }
-                                                    }),
-                                                }
-                                            }>
-                                            {uname}
-                                        </button>
+                                                        }),
+                                                        NotifTarget::Group(pid, gid) => app_store.update(|s| {
+                                                            if let Some(p) = s.get_portfolio_mut(*pid) {
+                                                                if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == *gid) {
+                                                                    if let Some(last) = g.notification_settings.last_mut() {
+                                                                        if last.recipients.contains(&uid) {
+                                                                            last.recipients.retain(|id| id != &uid);
+                                                                        } else {
+                                                                            last.recipients.push(uid);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }),
+                                                    }
+                                                }>
+                                                {uname}
+                                            </button>
+                                        }
                                     }
-                                }).collect::<Vec<_>>()}
+                                />
                             </div>
                         </div>
                     }
@@ -492,49 +505,56 @@ pub(crate) fn NotificationContentView(
                 <div class="notif-qs-body">
                     {move || {
                         let notifs = entity_notifs.get();
+                        let on_close_for_children = on_close.clone();
                         if notifs.is_empty() {
                             view! {
                                 <div class="notif-qs-empty">"No notifications for this entity."</div>
                             }.into_any()
                         } else {
-                            notifs.into_iter().map(|n| {
-                                let nid = n.id;
-                                let n_for_nav = n.clone();
-                                let msg = n.message.clone();
-                                let from = n.from_user.clone().unwrap_or_else(|| "System".to_string());
-                                let time = format!("{}", n.timestamp.format("%b %d, %H:%M"));
-                                let preview = n.content_preview.clone();
-                                let has_doc = n.linked_doc_id.is_some();
-                                let on_close = on_close.clone();
-                                view! {
-                                    <div class="notif-content-item">
-                                        <div class="notif-content-msg">{msg}</div>
-                                        <div class="notif-content-meta">
-                                            <span>{from}</span>
-                                            <span>{time}</span>
-                                        </div>
-                                        {preview.map(|p| view! {
-                                            <div class="notif-content-preview">
-                                                <pre>{p}</pre>
+                            view! {
+                                <For
+                                    each=move || notifs.clone()
+                                    key=|n| n.id
+                                    children=move |n| {
+                                        let nid = n.id;
+                                        let n_for_nav = n.clone();
+                                        let msg = n.message.clone();
+                                        let from = n.from_user.clone().unwrap_or_else(|| "System".to_string());
+                                        let time = format!("{}", n.timestamp.format("%b %d, %H:%M"));
+                                        let preview = n.content_preview.clone();
+                                        let has_doc = n.linked_doc_id.is_some();
+                                        let on_close_open = on_close_for_children.clone();
+                                        view! {
+                                            <div class="notif-content-item">
+                                                <div class="notif-content-msg">{msg}</div>
+                                                <div class="notif-content-meta">
+                                                    <span>{from}</span>
+                                                    <span>{time}</span>
+                                                </div>
+                                                {preview.map(|p| view! {
+                                                    <div class="notif-content-preview">
+                                                        <pre>{p}</pre>
+                                                    </div>
+                                                }.into_any())}
+                                                <div class="notif-content-actions">
+                                                    {if has_doc {
+                                                        view! {
+                                                            <button class="notif-content-open-btn" on:click=move |_| {
+                                                                app_store.update(|s| s.navigate_to_notification(&n_for_nav));
+                                                                notification_store.update(|s| s.close_drawer());
+                                                                on_close_open();
+                                                            }>"Open"</button>
+                                                        }.into_any()
+                                                    } else { ().into_any() }}
+                                                    <button class="notif-content-dismiss-btn" on:click=move |_| {
+                                                        notification_store.update(|s| s.remove_notification(nid));
+                                                    }>"Dismiss"</button>
+                                                </div>
                                             </div>
-                                        }.into_any())}
-                                        <div class="notif-content-actions">
-                                            {if has_doc {
-                                                view! {
-                                                    <button class="notif-content-open-btn" on:click=move |_| {
-                                                        app_store.update(|s| s.navigate_to_notification(&n_for_nav));
-                                                        notification_store.update(|s| s.close_drawer());
-                                                        on_close();
-                                                    }>"Open"</button>
-                                                }.into_any()
-                                            } else { ().into_any() }}
-                                            <button class="notif-content-dismiss-btn" on:click=move |_| {
-                                                notification_store.update(|s| s.remove_notification(nid));
-                                            }>"Dismiss"</button>
-                                        </div>
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>().into_any()
+                                        }
+                                    }
+                                />
+                            }.into_any()
                         }
                     }}
                 </div>

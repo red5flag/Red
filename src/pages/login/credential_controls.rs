@@ -7,10 +7,6 @@ pub(crate) fn CredentialControls(
     set_show_profiles: WriteSignal<bool>,
     set_username: WriteSignal<String>,
     set_password: WriteSignal<String>,
-    login_store_local: ReadSignal<bool>,
-    set_login_store_local: WriteSignal<bool>,
-    login_store_cloud: ReadSignal<bool>,
-    set_login_store_cloud: WriteSignal<bool>,
     set_profile_2fa: WriteSignal<Option<String>>,
     set_totp_stub_code: WriteSignal<String>,
 ) -> impl IntoView {
@@ -70,27 +66,6 @@ pub(crate) fn CredentialControls(
                     }.into_any()
                 }
             } else { ().into_any() }}
-        </div>
-
-        // ── LOGIN STORAGE OPTION ──
-        <div class="lp-storage-row">
-            <div class="lp-storage-label">"STORAGE:"</div>
-            <label class="lp-storage-option" class:active={move || login_store_local.get()}>
-                <input
-                    type="checkbox"
-                    checked={move || login_store_local.get()}
-                    on:change=move |ev| set_login_store_local.set(event_target_checked(&ev))
-                />
-                "Local"
-            </label>
-            <label class="lp-storage-option" class:active={move || login_store_cloud.get()}>
-                <input
-                    type="checkbox"
-                    checked={move || login_store_cloud.get()}
-                    on:change=move |ev| set_login_store_cloud.set(event_target_checked(&ev))
-                />
-                "Cloud"
-            </label>
         </div>
     }
 }

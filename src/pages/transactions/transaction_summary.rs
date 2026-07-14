@@ -1,5 +1,5 @@
 use crate::pages::transactions::{
-    currency_symbol, format_dollars, Contact, Invoice, InvoiceStatus, Wallet,
+    currency_symbol, format_dollars, Card, Contact, Invoice, InvoiceStatus, Wallet,
 };
 use leptos::prelude::*;
 
@@ -84,74 +84,100 @@ pub(crate) fn SummaryCards(
 
 #[component]
 pub(crate) fn PayeeList(contacts: Vec<Contact>) -> impl IntoView {
+    let contacts_for = contacts.clone();
+    let contacts_memo = Memo::new(move |_| contacts_for.clone());
     view! {
         <div class="data-card">
             <div class="card-header"><span class="card-title">"Payees"</span></div>
-            {contacts.into_iter().map(|c| view! {
-                <div class="list-item">
-                    <div class="list-item-left">
-                        <div class="list-item-title">{c.name}</div>
-                        <div class="list-item-subtitle">{c.account}</div>
+            <For
+                each=move || contacts_memo.get()
+                key=|c| c.id
+                children=move |c| view! {
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">{c.name}</div>
+                            <div class="list-item-subtitle">{c.account}</div>
+                        </div>
+                        <div class="list-item-right"><div class="list-item-subtitle">{c.currency}</div></div>
                     </div>
-                    <div class="list-item-right"><div class="list-item-subtitle">{c.currency}</div></div>
-                </div>
-            }).collect::<Vec<_>>()}
+                }
+            />
         </div>
     }
 }
 
 #[component]
 pub(crate) fn PayerList(contacts: Vec<Contact>) -> impl IntoView {
+    let contacts_for = contacts.clone();
+    let contacts_memo = Memo::new(move |_| contacts_for.clone());
     view! {
         <div class="data-card">
             <div class="card-header"><span class="card-title">"Payers"</span></div>
-            {contacts.into_iter().map(|c| view! {
-                <div class="list-item">
-                    <div class="list-item-left">
-                        <div class="list-item-title">{c.name}</div>
-                        <div class="list-item-subtitle">{c.account}</div>
+            <For
+                each=move || contacts_memo.get()
+                key=|c| c.id
+                children=move |c| view! {
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">{c.name}</div>
+                            <div class="list-item-subtitle">{c.account}</div>
+                        </div>
+                        <div class="list-item-right"><div class="list-item-subtitle">{c.currency}</div></div>
                     </div>
-                    <div class="list-item-right"><div class="list-item-subtitle">{c.currency}</div></div>
-                </div>
-            }).collect::<Vec<_>>()}
+                }
+            />
         </div>
     }
 }
 
 #[component]
 pub(crate) fn WalletCards(wallets: Vec<Wallet>) -> impl IntoView {
+    let wallet_cards: Vec<(Wallet, Card)> = wallets
+        .into_iter()
+        .flat_map(|w| {
+            let w2 = w.clone();
+            w.cards.into_iter().map(move |c| (w2.clone(), c))
+        })
+        .collect();
+    let wallet_cards_for = wallet_cards.clone();
+    let wallet_cards_memo = Memo::new(move |_| wallet_cards_for.clone());
     view! {
         <div class="dcard-strip">
-            {wallets.into_iter().flat_map(|w| {
-                let w2 = w.clone();
-                w.cards.into_iter().map(move |c| {
-                    let w3 = w2.clone();
-                    let c2 = c.clone();
+            <For
+                each=move || wallet_cards_memo.get()
+                key=|(_, c)| c.id
+                children=move |(w, c)| {
                     view! {
-                        <super::transaction_card::DigitalCard wallet={w3.clone()} card={c2} on_click=move |_, _| {} />
+                        <super::transaction_card::DigitalCard wallet={w} card={c} on_click=move |_, _| {} />
                     }
-                })
-            }).collect::<Vec<_>>()}
+                }
+            />
         </div>
     }
 }
 
 #[component]
 pub(crate) fn WalletDetails(wallets: Vec<Wallet>) -> impl IntoView {
+    let wallets_for = wallets.clone();
+    let wallets_memo = Memo::new(move |_| wallets_for.clone());
     view! {
         <div class="data-card">
             <div class="card-header"><span class="card-title">"Wallet Details"</span></div>
-            {wallets.into_iter().map(|w| view! {
-                <div class="list-item">
-                    <div class="list-item-left">
-                        <div class="list-item-title">{format!("{} ({})", w.name, w.wallet_type)}</div>
-                        <div class="list-item-subtitle">{format!("{} card{}", w.cards.len(), if w.cards.len() == 1 { "" } else { "s" })}</div>
+            <For
+                each=move || wallets_memo.get()
+                key=|w| w.id
+                children=move |w| view! {
+                    <div class="list-item">
+                        <div class="list-item-left">
+                            <div class="list-item-title">{format!("{} ({})", w.name, w.wallet_type)}</div>
+                            <div class="list-item-subtitle">{format!("{} card{}", w.cards.len(), if w.cards.len() == 1 { "" } else { "s" })}</div>
+                        </div>
+                        <div class="list-item-right">
+                            <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&w.currency), w.balance, w.currency)}</div>
+                        </div>
                     </div>
-                    <div class="list-item-right">
-                        <div class="list-item-value">{format!("{}{:.2} {}", currency_symbol(&w.currency), w.balance, w.currency)}</div>
-                    </div>
-                </div>
-            }).collect::<Vec<_>>()}
+                }
+            />
         </div>
     }
 }

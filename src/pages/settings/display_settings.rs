@@ -61,6 +61,109 @@ pub(crate) fn DisplaySettings() -> impl IntoView {
                 </div>
                 <div class="list-item">
                     <div class="list-item-left">
+                        <label class="list-item-title" for="settings-edge-style">"Edge Style"</label>
+                        <div class="list-item-desc">"Square, rounded, or pill-shaped controls."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <select
+                            id="settings-edge-style"
+                            class="form-select"
+                            aria-label="Select edge style"
+                            prop:value={move || ui_store.get().edge_style.as_str().to_string()}
+                            on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                let edge_style = match value.as_str() {
+                                    "square" => crate::types::EdgeStyle::Square,
+                                    "rounded" => crate::types::EdgeStyle::Rounded,
+                                    "pill" => crate::types::EdgeStyle::Pill,
+                                    _ => crate::types::EdgeStyle::Square,
+                                };
+                                ui_store.update(|s| s.set_edge_style(edge_style));
+                            }
+                        >
+                            <option value="square">"Square"</option>
+                            <option value="rounded">"Rounded"</option>
+                            <option value="pill">"Pill"</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <label class="list-item-title" for="settings-button-style">"Button Style"</label>
+                        <div class="list-item-desc">"Filled, outline, or ghost buttons."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <select
+                            id="settings-button-style"
+                            class="form-select"
+                            aria-label="Select button style"
+                            prop:value={move || ui_store.get().button_style.as_str().to_string()}
+                            on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                let button_style = match value.as_str() {
+                                    "filled" => crate::types::ButtonStyle::Filled,
+                                    "outline" => crate::types::ButtonStyle::Outline,
+                                    "ghost" => crate::types::ButtonStyle::Ghost,
+                                    _ => crate::types::ButtonStyle::Filled,
+                                };
+                                ui_store.update(|s| s.set_button_style(button_style));
+                            }
+                        >
+                            <option value="filled">"Filled"</option>
+                            <option value="outline">"Outline"</option>
+                            <option value="ghost">"Ghost"</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <label class="list-item-title" for="settings-density">"Density"</label>
+                        <div class="list-item-desc">"Compact, comfortable, or spacious spacing."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <select
+                            id="settings-density"
+                            class="form-select"
+                            aria-label="Select density"
+                            prop:value={move || ui_store.get().density.as_str().to_string()}
+                            on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                let density = match value.as_str() {
+                                    "compact" => crate::types::Density::Compact,
+                                    "comfortable" => crate::types::Density::Comfortable,
+                                    "spacious" => crate::types::Density::Spacious,
+                                    _ => crate::types::Density::Comfortable,
+                                };
+                                ui_store.update(|s| s.set_density(density));
+                            }
+                        >
+                            <option value="compact">"Compact"</option>
+                            <option value="comfortable">"Comfortable"</option>
+                            <option value="spacious">"Spacious"</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <label class="list-item-title" for="settings-accent-color">"Accent Color"</label>
+                        <div class="list-item-desc">"Choose the primary accent colour used for active and selected states."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <input
+                            id="settings-accent-color"
+                            type="color"
+                            class="form-input settings-color-input"
+                            aria-label="Select accent color"
+                            prop:value={move || ui_store.get().accent_color.clone()}
+                            on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                ui_store.update(|s| s.set_accent_color(value));
+                            }
+                        />
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
                         <div class="list-item-title">"Blind Mode"</div>
                         <div class="list-item-desc">"Show explicit Add, Edit, and Remove buttons for screen readers and accessibility needs."</div>
                     </div>

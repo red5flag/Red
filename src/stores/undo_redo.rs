@@ -1,5 +1,5 @@
 use crate::models::Action;
-use crate::types::{ActionType, TabType};
+use crate::types::{ActionType, ChangeSeverity, TabType};
 use chrono::{DateTime, Utc};
 use leptos::prelude::*;
 use std::collections::VecDeque;
@@ -28,6 +28,10 @@ pub fn create_action(
     .with_user(user_name.to_string(), user_role.to_string(), org_id);
     if let Some(r) = reason {
         action = action.with_reason(r);
+    }
+    // Mark major actions for notarisation; actual cryptographic hash is deferred.
+    if action.change_severity == ChangeSeverity::Major {
+        action.notarise(None);
     }
     action
 }
@@ -112,7 +116,9 @@ impl UndoRedoStore {
 
     // Check if undo is available for a specific user
     pub fn can_undo_by_user(&self, user_id: Uuid) -> bool {
-        self.past.iter().any(|a| a.user_id == user_id)
+        self.past
+            .iter()
+            .any(|a| a.user_id == user_id && a.is_undoable())
     }
 
     // Check if redo is available for a specific user
@@ -122,7 +128,11 @@ impl UndoRedoStore {
 
     // Undo the most recent action performed by a specific user
     pub fn undo_by_user(&mut self, user_id: Uuid) -> Option<Action> {
-        if let Some(pos) = self.past.iter().rposition(|a| a.user_id == user_id) {
+        if let Some(pos) = self
+            .past
+            .iter()
+            .rposition(|a| a.user_id == user_id && a.is_undoable())
+        {
             let action = self.past.remove(pos)?;
             self.future.push_front(action.clone());
             Some(action)
@@ -144,7 +154,11 @@ impl UndoRedoStore {
 
     // Undo a specific action by its ID (used by dropdown / history selection)
     pub fn undo_action_by_id(&mut self, action_id: Uuid) -> Option<Action> {
-        if let Some(pos) = self.past.iter().position(|a| a.id == action_id) {
+        if let Some(pos) = self
+            .past
+            .iter()
+            .position(|a| a.id == action_id && a.is_undoable())
+        {
             let action = self.past.remove(pos)?;
             self.future.push_front(action.clone());
             Some(action)
@@ -168,7 +182,7 @@ impl UndoRedoStore {
     pub fn undoable_by_user(&self, user_id: Uuid) -> Vec<&Action> {
         self.past
             .iter()
-            .filter(|a| a.user_id == user_id)
+            .filter(|a| a.user_id == user_id && a.is_undoable())
             .rev()
             .collect()
     }
@@ -278,6 +292,9 @@ impl UndoRedoStore {
                             .map(|s| !s.trim().is_empty())
                             .unwrap_or(false);
                 }
+                if let Some(ref severity) = query.severity {
+                    keep = keep && a.change_severity == *severity;
+                }
                 keep
             })
             .collect()
@@ -324,6 +341,7 @@ pub struct HistoryQuery {
     pub date_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
     pub tab_context: Option<String>,
     pub has_reason_only: bool,
+    pub severity: Option<ChangeSeverity>,
 }
 
 // Create a signal-based store for Leptos

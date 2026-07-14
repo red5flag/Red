@@ -201,15 +201,17 @@ pub fn TabList() -> impl IntoView {
         <div class="tab-list">
             {move || {
                 let items = tab_items();
-                items
-                    .into_iter()
-                    .map(|item| {
-                        view! {
-                            <TabItem tab_type=item.tab_type title=item.title />
-                        }.into_any()
-                    })
-                    .collect_view()
-                    .into_any()
+                view! {
+                    <For
+                        each=move || items.clone()
+                        key=|item| item.tab_type.clone()
+                        children=move |item| {
+                            view! {
+                                <TabItem tab_type=item.tab_type title=item.title />
+                            }.into_any()
+                        }
+                    />
+                }.into_any()
             }}
         </div>
     }
@@ -227,10 +229,13 @@ pub fn TabsContainer() -> impl IntoView {
                     if tabs.is_empty() {
                         ().into_any()
                     } else {
-                        tabs.into_iter()
-                            .map(|tab| view! { <TabContent tab_type=tab /> }.into_any())
-                            .collect_view()
-                            .into_any()
+                        view! {
+                            <For
+                                each=move || tabs.clone()
+                                key=|tab| tab.clone()
+                                children=move |tab| view! { <TabContent tab_type=tab /> }.into_any()
+                            />
+                        }.into_any()
                     }
                 }}
             </div>

@@ -8,10 +8,6 @@ pub(crate) fn RegisterForm(
     set_su_password: WriteSignal<String>,
     set_su_confirm: WriteSignal<String>,
     set_su_email: WriteSignal<String>,
-    su_store_local: ReadSignal<bool>,
-    set_su_store_local: WriteSignal<bool>,
-    su_store_cloud: ReadSignal<bool>,
-    set_su_store_cloud: WriteSignal<bool>,
     su_error: ReadSignal<String>,
     su_success: ReadSignal<String>,
     su_show_pass: ReadSignal<bool>,
@@ -92,27 +88,6 @@ pub(crate) fn RegisterForm(
                                 view! { <div class="lp-success">{s}</div> }.into_any()
                             }
                         }}
-
-                        // Storage option
-                        <div class="lp-storage-row">
-                            <div class="lp-storage-label">"STORAGE:"</div>
-                            <label class="lp-storage-option" class:active={move || su_store_local.get()}>
-                                <input
-                                    type="checkbox"
-                                    checked={move || su_store_local.get()}
-                                    on:change=move |ev| set_su_store_local.set(event_target_checked(&ev))
-                                />
-                                "Local"
-                            </label>
-                            <label class="lp-storage-option" class:active={move || su_store_cloud.get()}>
-                                <input
-                                    type="checkbox"
-                                    checked={move || su_store_cloud.get()}
-                                    on:change=move |ev| set_su_store_cloud.set(event_target_checked(&ev))
-                                />
-                                "Cloud"
-                            </label>
-                        </div>
 
                         // Action row
                         <div class="lp-action-row">

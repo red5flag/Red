@@ -254,4 +254,12 @@ impl CredentialStore {
             cred.store_cloud = store_cloud;
         }
     }
+
+    /// Get local and cloud storage preferences for a user, defaulting to (true, false).
+    pub fn get_storage_options(&self, username: &str) -> (bool, bool) {
+        self.credentials
+            .get(username)
+            .map(|cred| (cred.store_local, cred.store_cloud))
+            .unwrap_or((true, false))
+    }
 }

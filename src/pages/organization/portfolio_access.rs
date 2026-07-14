@@ -1,18 +1,161 @@
 use crate::models::Portfolio;
+use crate::stores::AppStore;
+use crate::types::Currency;
 use leptos::prelude::*;
+use uuid::Uuid;
 
 #[component]
-pub(crate) fn PortfolioAccessList(#[prop(into)] portfolios: Vec<Portfolio>) -> impl IntoView {
-    let portfolios_for = portfolios.clone();
-    let indexed_portfolios = Memo::new(move |_| portfolios_for.iter().cloned().enumerate().collect::<Vec<_>>());
+pub(crate) fn PortfolioAccessList(
+    #[prop(into)] org_id: Uuid,
+    app_store: RwSignal<AppStore>,
+    #[prop(into)] can_edit: bool,
+) -> impl IntoView {
+    let portfolios = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .filter(|p| p.organization_id == Some(org_id))
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+
+    let unassigned_portfolios = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .filter(|p| p.organization_id != Some(org_id))
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+
+    let (new_portfolio_name, set_new_portfolio_name) = signal(String::new());
+    let (show_create, set_show_create) = signal(false);
+    let (selected_portfolio_id, set_selected_portfolio_id) = signal(Uuid::nil());
+    let (show_assign, set_show_assign) = signal(false);
+
+    let create_portfolio = move |_| {
+        let name = new_portfolio_name.get().trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        app_store.update(|s| {
+            let mut p = Portfolio::new(name, s.current_user.id, Currency::USD);
+            p.organization_id = Some(org_id);
+            s.portfolios.push(p);
+        });
+        set_new_portfolio_name.set(String::new());
+        set_show_create.set(false);
+    };
+
+    let assign_portfolio = move |_| {
+        let pid = selected_portfolio_id.get();
+        if pid == Uuid::nil() {
+            return;
+        }
+        app_store.update(|s| {
+            if let Some(p) = s.get_portfolio_mut(pid) {
+                p.organization_id = Some(org_id);
+            }
+        });
+        set_selected_portfolio_id.set(Uuid::nil());
+        set_show_assign.set(false);
+    };
+
     view! {
-        {if portfolios.is_empty() {
-            view! { <div class="empty-state"><div class="empty-text">"No portfolios."</div></div> }.into_any()
+        <div class="org-sub-tab-header">
+            <span class="org-sub-tab-title">"Portfolios"</span>
+            {if can_edit {
+                view! {
+                    <div style="display:flex;gap:6px;">
+                        <button class="add-btn-small"
+                            on:click=move |_| set_show_assign.update(|v| *v = !*v)>
+                            "+ Assign Portfolio"
+                        </button>
+                        <button class="add-btn-small"
+                            on:click=move |_| set_show_create.update(|v| *v = !*v)>
+                            "+ Create Portfolio"
+                        </button>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+        </div>
+
+        {move || if show_assign.get() {
+            let opts = unassigned_portfolios.get();
+            view! {
+                <div class="add-form" style="margin:0;border-radius:0;border-left:none;border-right:none;">
+                    {if opts.is_empty() {
+                        view! {
+                            <div class="empty-text">"No unassigned portfolios available."</div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            <select class="login-input"
+                                prop:value={move || selected_portfolio_id.get().to_string()}
+                                on:change=move |ev| {
+                                    if let Ok(id) = event_target_value(&ev).parse::<Uuid>() {
+                                        set_selected_portfolio_id.set(id);
+                                    }
+                                }>
+                                <option value={Uuid::nil().to_string()}>"Select portfolio to assign"</option>
+                                {opts.into_iter().map(|p| {
+                                    let id = p.id;
+                                    let name = p.name.clone();
+                                    view! {
+                                        <option value={id.to_string()}>{name}</option>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </select>
+                            <div style="display:flex;gap:6px;">
+                                <button class="login-btn" style="flex:1;" on:click=assign_portfolio>"Assign"</button>
+                                <button class="view-btn" style="flex:1;" on:click=move |_| set_show_assign.set(false)>"Cancel"</button>
+                            </div>
+                        }.into_any()
+                    }}
+                </div>
+            }.into_any()
+        } else { ().into_any() }}
+
+        {move || if show_create.get() {
+            view! {
+                <div class="add-form" style="margin:0;border-radius:0;border-left:none;border-right:none;">
+                    <input class="login-input" type="text" placeholder="New portfolio name"
+                        prop:value={move || new_portfolio_name.get()}
+                        on:input=move |ev| set_new_portfolio_name.set(event_target_value(&ev)) />
+                    <div style="display:flex;gap:6px;">
+                        <button class="login-btn" style="flex:1;" on:click=create_portfolio>"Create"</button>
+                        <button class="view-btn" style="flex:1;" on:click=move |_| set_show_create.set(false)>"Cancel"</button>
+                    </div>
+                </div>
+            }.into_any()
+        } else { ().into_any() }}
+
+        {move || if portfolios.get().is_empty() {
+            view! {
+                <div class="empty-state org-section-empty">
+                    <div class="empty-text">"No portfolios."</div>
+                    {if can_edit {
+                        view! {
+                            <div class="org-section-empty-actions">
+                                <button class="add-btn-small" on:click=move |_| set_show_assign.set(true)>
+                                    "+ Assign Portfolio"
+                                </button>
+                                <button class="add-btn-small" on:click=move |_| set_show_create.set(true)>
+                                    "+ Create Portfolio"
+                                </button>
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
+                </div>
+            }.into_any()
         } else {
+            let indexed = portfolios.get().into_iter().enumerate().collect::<Vec<_>>();
             view! {
                 <div class="asset-list">
                 <For
-                    each=move || indexed_portfolios.get()
+                    each=move || indexed.clone()
                     key=|(_, p)| p.id
                     children=move |(idx, p)| {
                         let total = p.total_value;

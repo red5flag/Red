@@ -1,4 +1,4 @@
-use crate::models::{Permission, RoleScope};
+use crate::models::Permission;
 use crate::types::UserRole;
 
 pub mod member_card;
@@ -67,18 +67,6 @@ pub(crate) fn role_display(role: &UserRole) -> &'static str {
     }
 }
 
-pub(crate) fn scope_from_str(s: &str) -> RoleScope {
-    match s {
-        "EntireOrganization" => RoleScope::EntireOrganization,
-        "ReportingOnly" => RoleScope::ReportingOnly,
-        "CalendarOnly" => RoleScope::CalendarOnly,
-        "TransactionsOnly" => RoleScope::TransactionsOnly,
-        "NetworkingOnly" => RoleScope::NetworkingOnly,
-        "HistoryOnly" => RoleScope::HistoryOnly,
-        _ => RoleScope::EntireOrganization,
-    }
-}
-
-pub(crate) fn scope_display(s: &RoleScope) -> &'static str {
+pub(crate) fn scope_display(s: &crate::models::RoleScope) -> String {
     s.display()
 }

@@ -8,7 +8,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, document_icon, shorthand_name, DocModal, DocumentViewer, UserAssignmentPanel,
+    detect_file_type, document_icon, shorthand_name, AssetChannelManagement, AssetChannelsSection,
+    DocModal, DocumentViewer, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -43,6 +44,8 @@ pub(crate) fn AssetItem(
     #[prop(default = false)] can_edit: bool,
     #[prop(default = false)] can_edit_documents: bool,
     #[prop(default = 0)] tint_index: usize,
+    #[prop(default = false)] collapsible: bool,
+    #[prop(default = None)] highlight: Option<Signal<Option<Uuid>>>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let notification_store = use_notification_store();
@@ -54,9 +57,32 @@ pub(crate) fn AssetItem(
         .cloned()
         .unwrap_or_else(|| asset_placeholder_url(&asset.asset_type, &asset.name));
 
+    let asset_id = asset.id;
+    let asset_for_highlight = asset.clone();
     let (expanded_detail, set_expanded_detail) = signal(false);
-    let (_editing, set_editing) = signal(false);
+    let (collapsed, set_collapsed) = signal(collapsible);
+    let (editing, set_editing) = signal(false);
     let (asset_context_menu, set_asset_context_menu) = signal(Option::<(i32, i32)>::None);
+    let item_ref = NodeRef::<leptos::html::Div>::new();
+
+    // When the parent marks this asset as highlighted, open it in the view:
+    // expand the list item and scroll it into view, or select it in grid view.
+    Effect::new(move |_| {
+        if let Some(h) = highlight {
+            if let Some(id) = h.get() {
+                if id == asset_id {
+                    if view_mode == ViewMode::List {
+                        set_collapsed.set(false);
+                    } else {
+                        on_select.run(asset_for_highlight.clone());
+                    }
+                    if let Some(el) = item_ref.get() {
+                        el.scroll_into_view();
+                    }
+                }
+            }
+        }
+    });
     let (show_add_user, set_show_add_user) = signal(false);
     let (show_add_role, set_show_add_role) = signal(false);
     let (show_add_org, set_show_add_org) = signal(false);
@@ -269,27 +295,79 @@ pub(crate) fn AssetItem(
         let asset_for_click = asset.clone();
         let short_name = shorthand_name(&a_name);
         view! {
-            <div class="asset-grid-card" style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())>
+            <div class="asset-grid-card" node_ref=item_ref style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())>
                 <img class="asset-grid-image" src={image_url.clone()} alt={a_name.clone()} />
                 <div class="asset-grid-name">{short_name}</div>
             </div>
         }.into_any()
     } else {
+        let asset_id_for_toggle = asset_id;
+        let content_id = format!("ai-content-{}", asset_id);
+        let content_id_for_header = content_id.clone();
+        let a_name_header = a_name.clone();
+        let a_type_header = a_type_grid.clone();
+        let a_val_header = a_current_val;
+        let image_url_header = image_url.clone();
+        let asset_name_for_channels = a_name.clone();
         view! {
-        <div class="ai-item" class:ai-item-expanded={move || expanded_detail.get()} style={tint_style.clone()}
+        <div class="ai-item"
+            node_ref=item_ref
+            class:ai-item-expanded={move || expanded_detail.get()}
+            class:ai-item-collapsible={collapsible}
+            class:ai-item-collapsed={move || collapsed.get()}
+            style={tint_style.clone()}
             aria-label={format!("Asset {}. Type {}. In {}. {}", a_name, a_type_grid, pname, if a_addr.is_empty() { "No address set" } else { a_addr.as_str() })}
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 if can_edit_here {
                     ev.prevent_default();
+                    ev.stop_propagation();
                     set_asset_context_menu.set(Some((ev.client_x(), ev.client_y())));
                 }
             }
         >
-            <div class="ai-list-card">
+            {move || if collapsible {
+                view! {
+                    <div class="ai-collapsible-header"
+                        id={format!("ai-header-{}", asset_id_for_toggle)}
+                        role="button"
+                        tabindex="0"
+                        aria-expanded={move || !collapsed.get()}
+                        aria-controls={content_id_for_header.clone()}
+                        aria-label={format!("Asset {}. Type {}. {}", a_name_header, a_type_header, if collapsed.get() { "Collapsed" } else { "Expanded" })}
+                        on:click=move |_| if !editing.get() { set_collapsed.update(|v| *v = !*v) }
+                        on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_editing.set(true); set_collapsed.set(false); } }
+                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                            if ev.key() == "Enter" || ev.key() == " " {
+                                ev.prevent_default();
+                                if !editing.get() { set_collapsed.update(|v| *v = !*v); }
+                            }
+                        }
+                    >
+                        <img class="ai-list-image" src={image_url_header.clone()} alt={a_name_header.clone()} />
+                        <div class="ai-collapsible-summary">
+                            <div class="ai-collapsible-name">{a_name_header.clone()}</div>
+                            <div class="ai-collapsible-meta">{format!("{} · ${:.2}", a_type_header, a_val_header)}</div>
+                            {let channel_count = asset.channel_ids.len();
+                            let channel_ids = asset.channel_ids.clone();
+                            move || if !channel_ids.is_empty() {
+                                view! {
+                                    <div class="ai-channel-badge" title={format!("{} channel(s)", channel_count)}>
+                                        "📡" {channel_count}
+                                    </div>
+                                }.into_any()
+                            } else { ().into_any() }}
+                        </div>
+                        <span class="ai-collapsible-arrow" aria-hidden="true">
+                            {move || if collapsed.get() { "▼" } else { "▶" }}
+                        </span>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+            <div class="ai-list-card" id={content_id.clone()}>
                 <img class="ai-list-image" src={image_url.clone()} alt={a_name.clone()} />
                 <div class="ai-list-body">
                     <div class="ai-list-portfolio">{pname.clone()}</div>
-                    {move || if can_edit_here {
+                    {move || if can_edit_here && editing.get() {
                         view! {
                             <div class="ai-edit-stack">
                                 <input class="pf-edit-input" placeholder="Asset name"
@@ -329,6 +407,12 @@ pub(crate) fn AssetItem(
                             <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
                         </div>
                     </div>
+                    <AssetChannelManagement
+                        asset_id={asset_id}
+                        asset_name={asset_name_for_channels.clone()}
+                        portfolio_id={portfolio_id}
+                        can_edit={can_edit_here}
+                    />
                     // Horizontal document slider with + Document card
                     <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
                         // + Document card (always first)
@@ -339,9 +423,10 @@ pub(crate) fn AssetItem(
                             <div class="ai-doc-slider-name">"+ Document"</div>
                             <div class="ai-doc-slider-type">"ADD"</div>
                         </div>
-                        {move || {
-                            let asset_docs = asset_docs_reactive.get();
-                            asset_docs.into_iter().map(|doc| {
+                        <For
+                            each=move || asset_docs_reactive.get()
+                            key=|doc| doc.id
+                            children=move |doc| {
                                 let icon = document_icon(&doc.file_type);
                                 let ft = doc.file_type.to_uppercase();
                                 let dname = doc.name.clone();
@@ -432,8 +517,8 @@ pub(crate) fn AssetItem(
                                         }.into_any()
                                     } else { ().into_any() }}
                                 }
-                            }).collect::<Vec<_>>().into_any()
-                        }}
+                            }
+                        />
                     </div>
                 </div>
             </div>
@@ -460,6 +545,18 @@ pub(crate) fn AssetItem(
                 view! {
                     <div class="context-menu-overlay" on:click=move |_| set_asset_context_menu.set(None)>
                         <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    // TODO: Open channel selection modal
+                                }
+                            >"📡 Add Channel"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    // TODO: Open channel selection modal
+                                }
+                            >"📡 Add to Channel"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
@@ -802,6 +899,7 @@ pub(crate) fn AssetItem(
                                         <button class="pf-edit-cancel" on:click=move |_| { set_expanded_detail.set(false); }>"✕ Cancel"</button>
                                     </div>
                                     <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
+                                    <AssetChannelsSection asset_id={asset_id} asset_name={asset_name_for_channels.clone()} portfolio_id={portfolio_id} can_edit={can_edit_here} />
                                 </div>
                             </div>
                         </div>

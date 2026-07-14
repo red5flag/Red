@@ -62,7 +62,7 @@ impl AgentTab {
 
     pub(crate) fn greeting(&self) -> &'static str {
         match self {
-            AgentTab::Chat       => "Hello! I'm your Farley AI assistant. How can I help you today?",
+            AgentTab::Chat       => "Hello! I'm your Red AI assistant. How can I help you today?",
             AgentTab::Portfolios => "I can help you analyse portfolios, assets, and investment performance. What would you like to know?",
             AgentTab::Analytics  => "I can generate analytics, P&L reports, and trend summaries. What data are you looking for?",
             AgentTab::Documents  => "I can help find, summarise, or generate documents. What do you need?",
@@ -117,7 +117,7 @@ pub(crate) fn simulate_agent_reply(
         }
         AgentTab::Portfolios => {
             if input_lower.contains("value") || input_lower.contains("worth") {
-                "To get portfolio valuations, connect to your Farley data source. \
+                "To get portfolio valuations, connect to your Red data source. \
                 I'll summarise total value, P&L, and asset breakdown across all portfolios.".to_string()
             } else {
                 format!("Portfolio query received: \"{}\". I'll analyse your assets when connected.", input)

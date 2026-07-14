@@ -50,7 +50,7 @@ Page 1 of 1  |  CONFIDENTIAL",
         "docx" => format!(
             "{name}
 
-Prepared by: Carly Asset Management
+Prepared by: Red Asset Management
 Date: 22 June 2025
 Version: 1.0
 
@@ -216,24 +216,29 @@ pub fn DocModal(
                         <span class="dv-tab-name">"List"</span>
                     </div>
                     // Open document tabs
-                    {move || open_tabs.get().into_iter().map(|(tid, doc)| {
-                        let icon  = document_icon(&doc.file_type);
-                        let dname = shorthand_name(&doc.name);
-                        view! {
-                            <div class="dv-tab"
-                                class:dv-tab-active=move || active_tab.get() == tid
-                                on:click=move |_| set_active_tab.set(tid)>
-                                <span class="dv-tab-icon">{icon}</span>
-                                <span class="dv-tab-name">{dname.clone()}</span>
-                                <button class="dv-tab-close"
-                                    aria-label={format!("Close tab for {}", dname)}
-                                    on:click=move |ev| {
-                                        ev.stop_propagation();
-                                        close_tab(tid);
-                                    }>"✕"</button>
-                            </div>
+                    <For
+                        each=move || open_tabs.get()
+                        key=|tab| tab.0
+                        children=move |(tid, doc)| {
+                            let icon = document_icon(&doc.file_type);
+                            let dname = shorthand_name(&doc.name);
+                            let close_tab_c = close_tab.clone();
+                            view! {
+                                <div class="dv-tab"
+                                    class:dv-tab-active=move || active_tab.get() == tid
+                                    on:click=move |_| set_active_tab.set(tid)>
+                                    <span class="dv-tab-icon">{icon}</span>
+                                    <span class="dv-tab-name">{dname.clone()}</span>
+                                    <button class="dv-tab-close"
+                                        aria-label={format!("Close tab for {}", dname)}
+                                        on:click=move |ev| {
+                                            ev.stop_propagation();
+                                            close_tab_c(tid);
+                                        }>"✕"</button>
+                                </div>
+                            }
                         }
-                    }).collect::<Vec<_>>()}
+                    />
                 </div>
 
                 // ── Panel: list view (tab 0) ───────────────────────────
@@ -242,109 +247,113 @@ pub fn DocModal(
                     view! {
                         <div class="doc-modal-body">
                             <div class="doc-modal-list">
-                                {docs.get().into_iter().map(|doc| {
-                                    let icon = document_icon(&doc.file_type);
-                                    let ft   = doc.file_type.to_uppercase();
-                                    let current_user = app_store.get().current_user.clone();
-                                    let can_edit_doc = can_edit && current_user.can_edit_document(&doc);
-                                    let doc_for_open = doc.clone();
-                                    let doc_for_tap = doc.clone();
-                                    let doc_id = doc.id;
-                                    let doc_name_for_label = doc.name.clone();
-                                    let (editing_name, set_editing_name) = signal(false);
-                                    let (edit_name, set_edit_name) = signal(doc.name.clone());
-                                    view! {
-                                        <div class="doc-modal-row">
-                                            <div class="doc-modal-icon-wrap">
-                                                <span class="doc-modal-icon">{icon}</span>
-                                            </div>
-                                            <div class="doc-modal-info"
-                                                class:doc-modal-info-tap=can_edit_doc
-                                                on:click=move |ev: leptos::ev::MouseEvent| {
-                                                    if can_edit_doc && !editing_name.get() {
-                                                        ev.stop_propagation();
-                                                        open_doc_tab(doc_for_tap.clone());
+                                <For
+                                    each=move || docs.get()
+                                    key=|doc| doc.id
+                                    children=move |doc| {
+                                        let icon = document_icon(&doc.file_type);
+                                        let ft   = doc.file_type.to_uppercase();
+                                        let current_user = app_store.get().current_user.clone();
+                                        let can_edit_doc = can_edit && current_user.can_edit_document(&doc);
+                                        let doc_for_open = doc.clone();
+                                        let doc_for_tap = doc.clone();
+                                        let doc_id = doc.id;
+                                        let doc_name_for_label = doc.name.clone();
+                                        let (editing_name, set_editing_name) = signal(false);
+                                        let (edit_name, set_edit_name) = signal(doc.name.clone());
+                                        view! {
+                                            <div class="doc-modal-row">
+                                                <div class="doc-modal-icon-wrap">
+                                                    <span class="doc-modal-icon">{icon}</span>
+                                                </div>
+                                                <div class="doc-modal-info"
+                                                    class:doc-modal-info-tap=can_edit_doc
+                                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                                        if can_edit_doc && !editing_name.get() {
+                                                            ev.stop_propagation();
+                                                            open_doc_tab(doc_for_tap.clone());
+                                                        }
                                                     }
-                                                }
-                                            >
-                                                {move || if editing_name.get() {
-                                                    view! {
-                                                        <input
-                                                            class="doc-modal-edit-input"
-                                                            aria-label="Document name"
-                                                            prop:value=move || edit_name.get()
-                                                            on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                                            on:blur=move |_| {
-                                                                let n = edit_name.get();
-                                                                if !n.trim().is_empty() {
-                                                                    app_store.update(|s| s.update_document_name(doc_id, n, &mut notification_store.get_untracked()));
+                                                >
+                                                    {move || if editing_name.get() {
+                                                        view! {
+                                                            <input
+                                                                class="doc-modal-edit-input"
+                                                                aria-label="Document name"
+                                                                prop:value=move || edit_name.get()
+                                                                on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                                                                on:blur=move |_| {
+                                                                    let n = edit_name.get();
+                                                                    if !n.trim().is_empty() {
+                                                                        app_store.update(|s| s.update_document_name(doc_id, n, &mut notification_store.get_untracked()));
+                                                                    }
+                                                                    set_editing_name.set(false);
                                                                 }
-                                                                set_editing_name.set(false);
-                                                            }
-                                                        />
-                                                    }.into_any()
-                                                } else {
+                                                            />
+                                                        }.into_any()
+                                                    } else {
+                                                        view! {
+                                                            <span class="doc-modal-name">{doc.name.clone()}</span>
+                                                            <span class="doc-modal-ft">{ft.clone()}</span>
+                                                        }.into_any()
+                                                    }}
+                                                </div>
+                                                {move || if can_edit_doc && !editing_name.get() {
                                                     view! {
-                                                        <span class="doc-modal-name">{doc.name.clone()}</span>
-                                                        <span class="doc-modal-ft">{ft.clone()}</span>
-                                                    }.into_any()
-                                                }}
-                                            </div>
-                                            {move || if can_edit_doc && !editing_name.get() {
-                                                view! {
-                                                    <button class="doc-modal-edit-btn"
-                                                        aria-label={format!("Rename document {}", doc_name_for_label)}
-                                                        on:click=move |_| set_editing_name.set(true)>
-                                                        "✎"
-                                                    </button>
-                                                }.into_any()
-                                            } else { ().into_any() }}
-                                            {move || {
-                                                let notifs = notification_store.get().notifications_list_for_doc(doc_id);
-                                                if notifs.is_empty() {
-                                                    ().into_any()
-                                                } else {
-                                                    let n = notifs[0].clone();
-                                                    let _nid = n.id;
-                                                    let from_user = n.from_user.clone().unwrap_or_else(|| "System".to_string());
-                                                    let preview = n.content_preview.clone();
-                                                    // Truncate note to less than a sentence (~60 chars)
-                                                    let short_note = preview.as_ref().map(|p| {
-                                                        let truncated = if p.len() > 60 {
-                                                            // Find a good break point
-                                                            let slice = &p[..60];
-                                                            if let Some(idx) = slice.rfind(|c: char| c == ' ' || c == ',' || c == '.') {
-                                                                &p[..idx]
-                                                            } else {
-                                                                slice
-                                                            }
-                                                        } else {
-                                                            p.as_str()
-                                                        };
-                                                        format!("— {}", truncated)
-                                                    }).unwrap_or_default();
-                                                    view! {
-                                                        <span class="doc-notif-label">
-                                                            "Linked (Document) by " <strong>{from_user}</strong> " " {short_note}
-                                                        </span>
-                                                        <button class="doc-notif-view-btn"
-                                                            on:click=move |ev: leptos::ev::MouseEvent| {
-                                                                ev.stop_propagation();
-                                                                app_store.update(|s| s.navigate_to_notification(&n));
-                                                                notification_store.update(|s| s.close_drawer());
-                                                            }>
-                                                            "View Content"
+                                                        <button class="doc-modal-edit-btn"
+                                                            aria-label={format!("Rename document {}", doc_name_for_label)}
+                                                            on:click=move |_| set_editing_name.set(true)>
+                                                            "✎"
                                                         </button>
                                                     }.into_any()
-                                                }
-                                            }}
-                                            <button class="doc-modal-open-btn"
-                                                on:click=move |_| open_doc_tab(doc_for_open.clone())>
-                                                "Open"
-                                            </button>
-                                        </div>
+                                                } else { ().into_any() }}
+                                                {move || {
+                                                    let notifs = notification_store.get().notifications_list_for_doc(doc_id);
+                                                    if notifs.is_empty() {
+                                                        ().into_any()
+                                                    } else {
+                                                        let n = notifs[0].clone();
+                                                        let _nid = n.id;
+                                                        let from_user = n.from_user.clone().unwrap_or_else(|| "System".to_string());
+                                                        let preview = n.content_preview.clone();
+                                                        // Truncate note to less than a sentence (~60 chars)
+                                                        let short_note = preview.as_ref().map(|p| {
+                                                            let truncated = if p.len() > 60 {
+                                                                // Find a good break point
+                                                                let slice = &p[..60];
+                                                                if let Some(idx) = slice.rfind(|c: char| c == ' ' || c == ',' || c == '.') {
+                                                                    &p[..idx]
+                                                                } else {
+                                                                    slice
+                                                                }
+                                                            } else {
+                                                                p.as_str()
+                                                            };
+                                                            format!("— {}", truncated)
+                                                        }).unwrap_or_default();
+                                                        view! {
+                                                            <span class="doc-notif-label">
+                                                                "Linked (Document) by " <strong>{from_user}</strong> " " {short_note}
+                                                            </span>
+                                                            <button class="doc-notif-view-btn"
+                                                                on:click=move |ev: leptos::ev::MouseEvent| {
+                                                                    ev.stop_propagation();
+                                                                    app_store.update(|s| s.navigate_to_notification(&n));
+                                                                    notification_store.update(|s| s.close_drawer());
+                                                                }>
+                                                                "View Content"
+                                                            </button>
+                                                        }.into_any()
+                                                    }
+                                                }}
+                                                <button class="doc-modal-open-btn"
+                                                    on:click=move |_| open_doc_tab(doc_for_open.clone())>
+                                                    "Open"
+                                                </button>
+                                            </div>
+                                        }
                                     }
-                                }).collect::<Vec<_>>()}
+                                />
                             </div>
                             {if can_edit {
                                 view! {
@@ -580,7 +589,7 @@ pub fn DocumentViewer(
                     <button class="docviewer-ft dv-type-btn"
                         on:click=move |_| set_show_type_dropdown.update(|v| *v = !*v)>
                         {move || file_type.get().to_uppercase()}
-                        <span class="dv-type-arrow">{move || if show_type_dropdown.get() { "▲" } else { "▼" }}</span>
+                        <span class="dv-type-arrow">{move || if show_type_dropdown.get() { "▶" } else { "▼" }}</span>
                     </button>
                     {move || if show_type_dropdown.get() {
                         let type_options = ["pdf", "docx", "txt", "odt", "rtf", "xlsx", "csv", "pptx", "md",

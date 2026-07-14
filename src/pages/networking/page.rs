@@ -9,9 +9,10 @@ use crate::pages::networking::{
     RelationshipEvent, RelationshipStatus, RiskLevel,
 };
 use crate::stores::{use_app_store, use_messenger_store, use_search_store, use_ui_store};
-use crate::types::TabType;
+use crate::types::{TabType, ViewCount};
 use chrono::Utc;
 use leptos::prelude::*;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 fn mock_contacts() -> Vec<ExternalContact> {
@@ -179,6 +180,7 @@ fn mock_external_orgs() -> Vec<ExternalOrganization> {
     ]
 }
 
+#[allow(dead_code)]
 fn mock_channels() -> Vec<Channel> {
     vec![
         Channel {
@@ -359,6 +361,40 @@ pub fn NetworkingPage() -> impl IntoView {
     let (selected_org, set_selected_org) = signal::<Option<ExternalOrganization>>(None);
     let (_edit_mode, _set_edit_mode) = signal(false);
 
+    let tabs_scroll_ref = NodeRef::<leptos::html::Div>::new();
+    let (can_scroll_left, set_can_scroll_left) = signal(false);
+    let (can_scroll_right, set_can_scroll_right) = signal(true);
+
+    let update_scroll_state = move || {
+        if let Some(el) = tabs_scroll_ref.get() {
+            let left = el.scroll_left() as f64;
+            let client = el.client_width() as f64;
+            let width = el.scroll_width() as f64;
+            set_can_scroll_left.set(left > 0.0);
+            set_can_scroll_right.set(left + client < width - 1.0);
+        }
+    };
+
+    let scroll_tabs_left = move || {
+        if let Some(el) = tabs_scroll_ref.get() {
+            let _ = el.scroll_by_with_x_and_y(-120.0, 0.0);
+        }
+        update_scroll_state();
+    };
+
+    let scroll_tabs_right = move || {
+        if let Some(el) = tabs_scroll_ref.get() {
+            let _ = el.scroll_by_with_x_and_y(120.0, 0.0);
+        }
+        update_scroll_state();
+    };
+
+    Effect::new(move |_| {
+        let _ = active_tab.get();
+        let _ = tabs_scroll_ref.get();
+        update_scroll_state();
+    });
+
     let sort_mode = move || match ui_store.get().net_sort_mode {
         0 => NetSort::Name,
         1 => NetSort::Company,
@@ -371,14 +407,20 @@ pub fn NetworkingPage() -> impl IntoView {
 
     let contacts = StoredValue::new(mock_contacts());
     let external_orgs = StoredValue::new(mock_external_orgs());
-    let channels = StoredValue::new(mock_channels());
     let integrations = StoredValue::new(mock_integrations());
     let events = StoredValue::new(mock_relationship_events());
 
-    let contacts_count = contacts.get_value().len();
-    let orgs_count = external_orgs.get_value().len();
-    let channels_count = channels.get_value().len();
-    let integrations_count = integrations.get_value().len();
+    let (expand_counts, set_expand_counts) = signal(HashMap::<NetTab, usize>::new());
+    let page_size = move || ui_store.get().net_view_count().as_usize();
+    let visible_for = move |tab: NetTab| {
+        let expands = expand_counts.get().get(&tab).copied().unwrap_or(0);
+        page_size() * (expands + 1)
+    };
+    let expand_scope = Callback::new(move |tab: NetTab| {
+        set_expand_counts.update(|map| {
+            *map.entry(tab).or_insert(0) += 1;
+        });
+    });
 
     let filtered_contacts = Memo::new(move |_| {
         let q = search_store.get().query.to_lowercase();
@@ -447,14 +489,16 @@ pub fn NetworkingPage() -> impl IntoView {
         list
     });
 
-    let all_tabs = [
+    let primary_tabs = [
         NetTab::Contacts,
         NetTab::ExternalOrgs,
         NetTab::Channels,
+        NetTab::Integrations,
+    ];
+    let secondary_tabs = [
         NetTab::Partners,
         NetTab::Clients,
         NetTab::Suppliers,
-        NetTab::Integrations,
         NetTab::RelationshipMap,
         NetTab::RelationshipHistory,
     ];
@@ -463,26 +507,31 @@ pub fn NetworkingPage() -> impl IntoView {
         let tab = active_tab.get();
         match tab {
             NetTab::Contacts => {
-                render_contacts(filtered_contacts.get(), set_selected_contact).into_any()
+                let visible_count = Signal::derive(move || visible_for(NetTab::Contacts));
+                render_contacts(filtered_contacts.get(), set_selected_contact, visible_count, expand_scope)
+                    .into_any()
             }
             NetTab::ExternalOrgs => {
-                render_external_orgs(filtered_orgs.get(), set_selected_org).into_any()
+                let visible_count = Signal::derive(move || visible_for(NetTab::ExternalOrgs));
+                render_external_orgs(filtered_orgs.get(), set_selected_org, visible_count, expand_scope)
+                    .into_any()
             }
-            NetTab::Channels => render_channels(&channels.get_value()).into_any(),
+            NetTab::Channels => render_channels().into_any(),
             NetTab::Partners => {
-                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Partner")
+                let visible_count = Signal::derive(move || visible_for(NetTab::Partners));
+                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Partner", NetTab::Partners, visible_count, expand_scope)
                     .into_any()
             }
             NetTab::Clients => {
-                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Client")
+                let visible_count = Signal::derive(move || visible_for(NetTab::Clients));
+                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Client", NetTab::Clients, visible_count, expand_scope)
                     .into_any()
             }
-            NetTab::Suppliers => render_by_type(
-                &contacts.get_value(),
-                &external_orgs.get_value(),
-                "Supplier",
-            )
-            .into_any(),
+            NetTab::Suppliers => {
+                let visible_count = Signal::derive(move || visible_for(NetTab::Suppliers));
+                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Supplier", NetTab::Suppliers, visible_count, expand_scope)
+                    .into_any()
+            }
             NetTab::Integrations => render_integrations(&integrations.get_value()).into_any(),
             NetTab::RelationshipMap => {
                 crate::pages::networking::relationship_history::render_relationship_map(
@@ -497,53 +546,171 @@ pub fn NetworkingPage() -> impl IntoView {
         }
     };
 
+    let primary_tabs_for_button = primary_tabs.to_vec();
+
+    // Sort dropdown state
+    let (sort_dropdown_open, set_sort_dropdown_open) = signal(false);
+
+    let render_tab_button = move |t: &NetTab| {
+        let tab = t.clone();
+        let tab_for_click = t.clone();
+        let label = t.label().to_string();
+        let label_for_aria = label.clone();
+        let is_primary = primary_tabs_for_button.contains(t);
+        view! {
+            <button
+                class="net-quick-tab"
+                class:net-quick-tab-primary={is_primary}
+                class:active={move || active_tab.get() == tab}
+                on:click=move |_| set_active_tab.set(tab_for_click.clone())
+                aria-label={label_for_aria}
+            >
+                {label}
+            </button>
+        }
+    };
+
     view! {
         <div class="home-screen">
-            // Quick filter tabs
-            <div class="net-quick-tabs">
-                {all_tabs.iter().map(|t| {
-                    let tab = t.clone();
-                    let tab_for_click = t.clone();
-                    let label = t.label().to_string();
-                    let label_for_aria = label.clone();
-                    view! {
-                        <button
-                            class="net-quick-tab"
-                            class:active={move || active_tab.get() == tab}
-                            on:click=move |_| set_active_tab.set(tab_for_click.clone())
-                            aria-label={label_for_aria}
-                        >
-                            {label}
+            // Top navigation / controls bar
+            <div class="net-top-controls">
+                // Quick filter tabs
+                <div class="net-quick-tabs-outer">
+                    <button
+                        class="net-scroll-arrow net-scroll-arrow-left"
+                        class:hidden={move || !can_scroll_left.get()}
+                        title="Scroll left"
+                        aria-label="Scroll left"
+                        on:click=move |_| scroll_tabs_left()
+                    >"<"</button>
+                    <div
+                        class="net-quick-tabs"
+                        role="tablist"
+                        aria-label="Networking views"
+                        node_ref=tabs_scroll_ref
+                        on:scroll=move |_| update_scroll_state()
+                    >
+                        {primary_tabs.iter().map(&render_tab_button).collect::<Vec<_>>()}
+                        {secondary_tabs.iter().map(&render_tab_button).collect::<Vec<_>>()}
+                    </div>
+                    <button
+                        class="net-scroll-arrow net-scroll-arrow-right"
+                        class:hidden={move || !can_scroll_right.get()}
+                        title="Scroll right"
+                        aria-label="Scroll right"
+                        on:click=move |_| scroll_tabs_right()
+                    >">"</button>
+                </div>
+
+                // Action bar
+                <div class="net-action-bar">
+                    <button class="net-action-btn" on:click=move |_| ui_store.update(|s| s.toggle_networking_add_member())>"Add Contact"</button>
+                    <button class="net-action-btn" on:click=move |_| messenger_store.update(|s| s.set_message_drawer(true))>"Messages"</button>
+                    <select
+                        class="net-action-btn net-view-select"
+                        aria-label="View amount"
+                        prop:value={move || {
+                            match ui_store.get().net_view_count() {
+                                ViewCount::V1 => "view_1",
+                                ViewCount::V10 => "view_10",
+                                ViewCount::V20 => "view_20",
+                                ViewCount::V50 => "view_50",
+                                ViewCount::V100 => "view_100",
+                                ViewCount::Custom(_) => "view_custom",
+                            }.to_string()
+                        }}
+                        on:change=move |ev| {
+                            let v = event_target_value(&ev);
+                            let vc = match v.as_str() {
+                                "view_1" => ViewCount::V1,
+                                "view_10" => ViewCount::V10,
+                                "view_20" => ViewCount::V20,
+                                "view_50" => ViewCount::V50,
+                                "view_100" => ViewCount::V100,
+                                "view_custom" => ViewCount::Custom(50),
+                                _ => ViewCount::V50,
+                            };
+                            ui_store.update(|s| s.set_net_view_count(vc));
+                        }
+                    >
+                        <option value="view_1">"View: 1"</option>
+                        <option value="view_10">"View: 10"</option>
+                        <option value="view_20">"View: 20"</option>
+                        <option value="view_50">"View: 50"</option>
+                        <option value="view_100">"View: 100"</option>
+                        <option value="view_custom">"..."</option>
+                    </select>
+                    {move || if matches!(ui_store.get().net_view_count(), ViewCount::Custom(_)) {
+                        view! {
+                            <input
+                                class="net-action-btn net-view-input"
+                                type="number"
+                                min="1"
+                                step="1"
+                                aria-label="Custom view count"
+                                prop:value={move || match ui_store.get().net_view_count() {
+                                    ViewCount::Custom(n) => n.to_string(),
+                                    _ => "50".to_string(),
+                                }}
+                                on:input=move |ev| {
+                                    let val = event_target_value(&ev);
+                                    if let Ok(n) = val.parse::<usize>() {
+                                        let n = n.max(1);
+                                        ui_store.update(|s| s.set_net_view_count(ViewCount::Custom(n)));
+                                    }
+                                }
+                            />
+                        }.into_any()
+                    } else { ().into_any() }}
+                    <div class="net-sort-btn-wrap">
+                        <button class="net-sort-btn" aria-haspopup="menu" aria-expanded={move || sort_dropdown_open.get()} on:click=move |_| set_sort_dropdown_open.update(|v| *v = !*v)>
+                            <span class="net-sort-label">{format!("Sort: {}", sort_mode().label())}</span>
+                            <span class="net-sort-arrow">{if sort_ascending() { "↑" } else { "↓" }}</span>
                         </button>
-                    }
-                }).collect::<Vec<_>>()}
-            </div>
-
-            // Metrics bar
-            <div class="org-metrics-bar">
-                <div class="org-metric">
-                    <div class="org-metric-value">{contacts_count}</div>
-                    <div class="org-metric-label">"Contacts"</div>
+                    {move || if sort_dropdown_open.get() {
+                        view! {
+                            <div class="net-sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                <div class="net-sort-dropdown-header">
+                                    <span>"SORT BY"</span>
+                                    <button class="net-sort-toggle" on:click=move |_| ui_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
+                                        {if ui_store.get().net_sort_ascending { "↑ Asc" } else { "↓ Desc" }}
+                                    </button>
+                                </div>
+                                {[
+                                    (0, "Name"),
+                                    (1, "Company"),
+                                    (2, "Status"),
+                                    (3, "Risk"),
+                                    (4, "Type"),
+                                    (5, "Transactions"),
+                                ].iter().map(|(idx, label)| {
+                                    let is_active = ui_store.get().net_sort_mode == *idx as u8;
+                                    let label_text = *label;
+                                    view! {
+                                        <button class="net-sort-option" class:net-sort-option-active={is_active}
+                                            on:click=move |_| {
+                                                ui_store.update(|s| {
+                                                    if s.net_sort_mode == *idx as u8 {
+                                                        s.net_sort_ascending = !s.net_sort_ascending;
+                                                    } else {
+                                                        s.net_sort_mode = *idx as u8;
+                                                    }
+                                                });
+                                                set_sort_dropdown_open.set(false);
+                                            }
+                                        >
+                                            {label_text}
+                                            {if is_active {
+                                                Some(view! { <span class="net-sort-option-arrow">{if ui_store.get().net_sort_ascending { "↑" } else { "↓" }}</span> })
+                                            } else { None }}
+                                        </button>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
+                    </div>
                 </div>
-                <div class="org-metric">
-                    <div class="org-metric-value">{orgs_count}</div>
-                    <div class="org-metric-label">"Organizations"</div>
-                </div>
-                <div class="org-metric">
-                    <div class="org-metric-value">{channels_count}</div>
-                    <div class="org-metric-label">"Channels"</div>
-                </div>
-                <div class="org-metric">
-                    <div class="org-metric-value">{integrations_count}</div>
-                    <div class="org-metric-label">"Integrations"</div>
-                </div>
-            </div>
-
-            // Action bar
-            <div class="net-action-bar">
-                <button class="net-action-btn" on:click=move |_| ui_store.update(|s| s.toggle_networking_add_member())>"Add Contact"</button>
-                <button class="net-action-btn" on:click=move |_| ui_store.update(|s| s.open_search())>"Search"</button>
-                <button class="net-action-btn" on:click=move |_| messenger_store.update(|s| s.set_message_drawer(true))>"Messages"</button>
             </div>
 
             // Tab content

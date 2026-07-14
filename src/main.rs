@@ -16,7 +16,7 @@ cfg_if! {
         async fn main() {
             tracing_subscriber::fmt().init();
 
-            info!("Starting Farley server...");
+            info!("Starting Red server...");
 
             let conf = get_configuration(None).unwrap();
             let addr = conf.leptos_options.site_addr;

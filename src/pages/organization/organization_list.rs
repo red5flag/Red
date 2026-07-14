@@ -21,8 +21,34 @@ pub(crate) fn OrganizationList(
     #[prop(into)] set_edit_desc: WriteSignal<String>,
     #[prop(into)] edit_color: ReadSignal<String>,
     #[prop(into)] set_edit_color: WriteSignal<String>,
+    #[prop(into)] edit_abn: ReadSignal<String>,
+    #[prop(into)] set_edit_abn: WriteSignal<String>,
+    #[prop(into)] edit_lei: ReadSignal<String>,
+    #[prop(into)] set_edit_lei: WriteSignal<String>,
+    #[prop(into)] edit_business_type: ReadSignal<String>,
+    #[prop(into)] set_edit_business_type: WriteSignal<String>,
+    #[prop(into)] edit_business_address: ReadSignal<String>,
+    #[prop(into)] set_edit_business_address: WriteSignal<String>,
+    #[prop(into)] edit_business_phone: ReadSignal<String>,
+    #[prop(into)] set_edit_business_phone: WriteSignal<String>,
+    #[prop(into)] edit_business_email: ReadSignal<String>,
+    #[prop(into)] set_edit_business_email: WriteSignal<String>,
     #[prop(into)] set_editing_org: WriteSignal<Option<Uuid>>,
-    on_start_edit: Callback<(Uuid, String, Option<String>, Option<String>), ()>,
+    on_start_edit: Callback<
+        (
+            Uuid,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ),
+        (),
+    >,
     on_save_edit: Callback<Uuid, ()>,
     on_delete_org: Callback<Uuid, ()>,
     #[prop(into)] get_org_tab: Callback<Uuid, &'static str>,
@@ -94,6 +120,18 @@ pub(crate) fn OrganizationList(
                                 set_edit_desc={set_edit_desc}
                                 edit_color={edit_color}
                                 set_edit_color={set_edit_color}
+                                edit_abn={edit_abn}
+                                set_edit_abn={set_edit_abn}
+                                edit_lei={edit_lei}
+                                set_edit_lei={set_edit_lei}
+                                edit_business_type={edit_business_type}
+                                set_edit_business_type={set_edit_business_type}
+                                edit_business_address={edit_business_address}
+                                set_edit_business_address={set_edit_business_address}
+                                edit_business_phone={edit_business_phone}
+                                set_edit_business_phone={set_edit_business_phone}
+                                edit_business_email={edit_business_email}
+                                set_edit_business_email={set_edit_business_email}
                                 set_editing_org={set_editing_org}
                                 on_start_edit={on_start_edit}
                                 on_save_edit={on_save_edit}
