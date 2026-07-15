@@ -122,7 +122,7 @@ pub fn SearchFilters() -> impl IntoView {
         let context_tab = app_snapshot
             .active_tabs
             .iter()
-            .find(|&&t| matches!(t, TabType::Networking | TabType::NetworkingAddMember))
+            .find(|&t| matches!(t, TabType::Networking | TabType::NetworkingAddMember))
             .cloned()
             .or_else(|| app_snapshot.active_tabs.first().cloned())
             .unwrap_or(TabType::Overview);

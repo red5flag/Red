@@ -135,7 +135,7 @@ pub fn OverviewPage() -> impl IntoView {
         crate::types::TransactionType::Adjustment => "Adj",
     };
 
-    #[derive(Clone)]
+    #[derive(Clone, PartialEq)]
     struct ActivityItem {
         icon: &'static str,
         message: String,

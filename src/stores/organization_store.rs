@@ -192,7 +192,7 @@ impl OrganizationStore {
             let Some(target_pos) = roles.iter().position(|r| r.id == target_id) else {
                 return;
             };
-            let mut dragged = roles.remove(dragged_pos);
+            let dragged = roles.remove(dragged_pos);
             let target_pos = if dragged_pos < target_pos {
                 target_pos - 1
             } else {

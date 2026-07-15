@@ -1,6 +1,8 @@
 use crate::models::User;
 use leptos::prelude::*;
 use uuid::Uuid;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, PartialEq)]
 pub enum NotifTarget {
@@ -82,6 +84,39 @@ pub(crate) fn single_sentence(text: &str) -> String {
         first.to_string()
     } else {
         format!("{}...", first)
+    }
+}
+
+/// Read the first image file from a file input change event and return its data URL.
+pub(crate) fn read_image_as_data_url(
+    ev: &leptos::ev::Event,
+    on_data_url: impl FnOnce(String) + 'static,
+) {
+    let input = ev
+        .target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+        .expect("file input target");
+    if let Some(files) = input.files() {
+        if let Some(file) = files.get(0) {
+            let reader = match web_sys::FileReader::new() {
+                Ok(r) => r,
+                Err(_) => return,
+            };
+            let onload = Closure::once(Box::new(move |e: web_sys::Event| {
+                if let Some(target) = e.target() {
+                    if let Ok(reader) = target.dyn_into::<web_sys::FileReader>() {
+                        if let Ok(result) = reader.result() {
+                            if let Some(data_url) = result.as_string() {
+                                on_data_url(data_url);
+                            }
+                        }
+                    }
+                }
+            }) as Box<dyn FnOnce(web_sys::Event)>);
+            reader.set_onload(Some(onload.as_ref().unchecked_ref()));
+            let _ = reader.read_as_data_url(&file);
+            onload.forget();
+        }
     }
 }
 

@@ -32,6 +32,8 @@ pub struct Portfolio {
     pub assigned_users: Vec<Uuid>,
     pub notification_settings: Vec<EntityNotificationSetting>,
     pub channel_ids: Vec<Uuid>,
+    pub image_url: Option<String>,
+    pub emoji: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +72,8 @@ impl Portfolio {
             assigned_users: Vec::new(),
             notification_settings: Vec::new(),
             channel_ids: Vec::new(),
+            image_url: None,
+            emoji: None,
         }
     }
 

@@ -6,8 +6,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, AssetTarget, NotifTarget, NotificationContentView,
-    NotificationQuickSettings, PortfolioListItem,
+    asset_placeholder_url, read_image_as_data_url, AssetTarget, NotifTarget,
+    NotificationContentView, NotificationQuickSettings, PortfolioListItem,
 };
 
 /// Compare two portfolio lists by their ids in order.
@@ -132,6 +132,8 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Form signals for add portfolio
     let (new_name, set_new_name) = signal(String::new());
     let (new_desc, set_new_desc) = signal(String::new());
+    let (new_image_url, set_new_image_url) = signal(Option::<String>::None);
+    let (new_emoji, set_new_emoji) = signal(String::new());
 
     // Form signals for add asset group
     let (show_add_group, set_show_add_group) = signal(Option::<Uuid>::None);
@@ -219,9 +221,14 @@ pub fn PortfoliosPage() -> impl IntoView {
         } else {
             Some(new_desc.get())
         };
+        p.image_url = new_image_url.get();
+        let emoji = new_emoji.get().trim().to_string();
+        p.emoji = if emoji.is_empty() { None } else { Some(emoji) };
         app_store.update(|s| s.add_portfolio(p, &mut notification_store.get_untracked()));
         set_new_name.set(String::new());
         set_new_desc.set(String::new());
+        set_new_image_url.set(None);
+        set_new_emoji.set(String::new());
         ui_store.update(|s| s.show_add_portfolio = false);
     };
 
@@ -526,6 +533,32 @@ pub fn PortfoliosPage() -> impl IntoView {
                         aria-label="Description (optional)"
                         on:input=move |ev| set_new_desc.set(event_target_value(&ev))
                     />
+                    <input
+                        class="login-input"
+                        type="file"
+                        accept="image/*"
+                        aria-label="Portfolio image (optional)"
+                        on:change=move |ev| read_image_as_data_url(&ev, move |url| set_new_image_url.set(Some(url)))
+                    />
+                    <select
+                        class="login-input"
+                        aria-label="Portfolio emoji"
+                        prop:value={move || new_emoji.get()}
+                        on:change=move |ev| set_new_emoji.set(event_target_value(&ev))
+                    >
+                        <option value="">"Default 🏢"</option>
+                        <option value="🏢">"🏢 Office"</option>
+                        <option value="🏠">"🏠 Property"</option>
+                        <option value="🚗">"🚗 Vehicle"</option>
+                        <option value="💼">"💼 Business"</option>
+                        <option value="💰">"💰 Finance"</option>
+                        <option value="📈">"📈 Growth"</option>
+                        <option value="🏭">"🏭 Industrial"</option>
+                        <option value="🌐">"🌐 Global"</option>
+                        <option value="🎨">"🎨 Creative"</option>
+                        <option value="🔬">"🔬 Research"</option>
+                        <option value="⚡">"⚡ Energy"</option>
+                    </select>
                     <button class="login-btn" on:click=on_add_portfolio>"Create Portfolio"</button>
                 </div>
             })}

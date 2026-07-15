@@ -32,6 +32,16 @@ pub(crate) fn render_by_type(
     let contacts_for = filtered_contacts.clone();
     let contacts_memo = Memo::new(move |_| contacts_for.clone());
     let rel_type = rel_type.to_string();
+    let org_total = filtered_orgs.len();
+    let contact_total = filtered_contacts.len();
+    let visible_orgs = Memo::new(move |_| {
+        let visible = visible_count.get().min(org_total);
+        orgs_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+    });
+    let visible_contacts = Memo::new(move |_| {
+        let visible = visible_count.get().min(contact_total);
+        contacts_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+    });
 
     view! {
         <div class="net-tab-content">
@@ -45,13 +55,12 @@ pub(crate) fn render_by_type(
                 view! {
                     <div>
                         {if !filtered_orgs.is_empty() {
-                            let org_total = filtered_orgs.len();
                             view! {
                                 <div class="net-section-title">"Organizations"</div>
                                 <div class="net-cards-list">
                                     <For
-                                        each=move || orgs_memo.get().into_iter().take(visible_count.get().min(org_total)).collect::<Vec<_>>()
-                                        key=|o| o.id
+                                        each=move || visible_orgs.get()
+                                        key=|o: &ExternalOrganization| o.id
                                         children=move |o| {
                                             let status_cls = o.status.css_class();
                                             let initial = o.name.chars().next().unwrap_or('A');
@@ -87,13 +96,12 @@ pub(crate) fn render_by_type(
                             }.into_any()
                         } else { ().into_any() }}
                         {if !filtered_contacts.is_empty() {
-                            let contact_total = filtered_contacts.len();
                             view! {
                                 <div class="net-section-title">"Contacts"</div>
                                 <div class="net-cards-list">
                                     <For
-                                        each=move || contacts_memo.get().into_iter().take(visible_count.get().min(contact_total)).collect::<Vec<_>>()
-                                        key=|c| c.id
+                                        each=move || visible_contacts.get()
+                                        key=|c: &ExternalContact| c.id
                                         children=move |c| {
                                             let status_cls = c.status.css_class();
                                             view! {

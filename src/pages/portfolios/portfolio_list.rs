@@ -4,8 +4,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, single_sentence, AssetTarget, AssetViewer, DocModal, NotifTarget,
-    UserAssignmentPanel,
+    detect_file_type, read_image_as_data_url, single_sentence, AssetTarget, AssetViewer, DocModal,
+    NotifTarget, UserAssignmentPanel,
 };
 
 /// Portfolio list row — accordion style matching AssetGroupItem.
@@ -43,6 +43,8 @@ pub(crate) fn PortfolioListItem(
     let (is_editing_org, set_is_editing_org) = signal(false);
     let (edit_name, set_edit_name) = signal(portfolio.name.clone());
     let (edit_desc, set_edit_desc) = signal(portfolio.description.clone().unwrap_or_default());
+    let (edit_image_url, set_edit_image_url) = signal(portfolio.image_url.clone());
+    let (edit_emoji, set_edit_emoji) = signal(portfolio.emoji.clone().unwrap_or_default());
     let pid = portfolio.id;
     let doc_count = portfolio.documents.len();
     let name = portfolio.name.clone();
@@ -50,6 +52,8 @@ pub(crate) fn PortfolioListItem(
     let name_for_doc_btn = portfolio.name.clone();
     let desc = single_sentence(&portfolio.description.clone().unwrap_or_default());
     let asset_count = portfolio.get_all_assets().len();
+    let portfolio_image_url = portfolio.image_url.clone();
+    let portfolio_emoji = portfolio.emoji.clone().unwrap_or_else(|| "🏢".to_string());
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
     let organization_store = use_organization_store();
@@ -75,12 +79,14 @@ pub(crate) fn PortfolioListItem(
 
     let (portfolio_context_menu, set_portfolio_context_menu) = signal(Option::<(i32, i32)>::None);
 
-    let save_edit = move |_: leptos::ev::FocusEvent| {
+    let do_save = move || {
         let n = edit_name.get();
         let d = edit_desc.get();
         if n.trim().is_empty() {
             return;
         }
+        let img = edit_image_url.get();
+        let emoji = edit_emoji.get().trim().to_string();
         app_store.update(|s| {
             if let Some(p) = s.get_portfolio_mut(pid) {
                 p.name = n.clone();
@@ -89,33 +95,17 @@ pub(crate) fn PortfolioListItem(
                 } else {
                     Some(d.clone())
                 };
+                p.image_url = img;
+                p.emoji = if emoji.is_empty() { None } else { Some(emoji) };
                 p.updated_at = chrono::Utc::now();
             }
         });
         set_is_editing_name.set(false);
         set_is_editing_desc.set(false);
     };
-
-    let save_edit_now = move || {
-        let n = edit_name.get();
-        let d = edit_desc.get();
-        if n.trim().is_empty() {
-            return;
-        }
-        app_store.update(|s| {
-            if let Some(p) = s.get_portfolio_mut(pid) {
-                p.name = n.clone();
-                p.description = if d.trim().is_empty() {
-                    None
-                } else {
-                    Some(d.clone())
-                };
-                p.updated_at = chrono::Utc::now();
-            }
-        });
-        set_is_editing_name.set(false);
-        set_is_editing_desc.set(false);
-    };
+    let save_edit = move |_: leptos::ev::FocusEvent| do_save();
+    let save_edit_now = move || do_save();
+    let save_edit_callback = Callback::new(move |_| do_save());
 
     let save_org_edit = move |ev: leptos::ev::Event| {
         let v = event_target_value(&ev);
@@ -209,7 +199,13 @@ pub(crate) fn PortfolioListItem(
                 <span class="asset-group-arrow">
                     {move || if expanded.get() { "▶" } else { "▼" }}
                 </span>
-                <div class="asset-group-icon">"🏢"</div>
+                <div class="asset-group-icon">
+                    {move || if let Some(ref url) = portfolio_image_url {
+                        view! { <img class="pf-header-image" src={url.clone()} alt="Portfolio image" /> }.into_any()
+                    } else {
+                        view! { <span>{portfolio_emoji.clone()}</span> }.into_any()
+                    }}
+                </div>
                 <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
                     {let name_header = name.clone();
                     let desc_header = desc.clone();
@@ -297,6 +293,50 @@ pub(crate) fn PortfolioListItem(
                                 <div class="asset-group-desc"
                                     on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); } }
                                 >{desc_header.clone()}</div>
+                            }.into_any());
+                        }
+                        // Image + emoji editor
+                        if (is_editing_name.get() || is_editing_desc.get()) && can_edit_here.get() {
+                            let save_cb = save_edit_callback.clone();
+                            let save_for_file = save_edit_callback.clone();
+                            parts.push(view! {
+                                <input
+                                    class="pf-edit-input"
+                                    type="file"
+                                    accept="image/*"
+                                    aria-label="Portfolio image"
+                                    on:change=move |ev| {
+                                        read_image_as_data_url(&ev, {
+                                            let save = save_for_file.clone();
+                                            move |url| {
+                                                set_edit_image_url.set(Some(url));
+                                                save.run(());
+                                            }
+                                        });
+                                    }
+                                />
+                                <select
+                                    class="pf-edit-input"
+                                    aria-label="Portfolio emoji"
+                                    prop:value={move || edit_emoji.get()}
+                                    on:change=move |ev| {
+                                        set_edit_emoji.set(event_target_value(&ev));
+                                        save_cb.run(());
+                                    }
+                                >
+                                    <option value="">"Default 🏢"</option>
+                                    <option value="🏢">"🏢 Office"</option>
+                                    <option value="🏠">"🏠 Property"</option>
+                                    <option value="🚗">"🚗 Vehicle"</option>
+                                    <option value="💼">"💼 Business"</option>
+                                    <option value="💰">"💰 Finance"</option>
+                                    <option value="📈">"📈 Growth"</option>
+                                    <option value="🏭">"🏭 Industrial"</option>
+                                    <option value="🌐">"🌐 Global"</option>
+                                    <option value="🎨">"🎨 Creative"</option>
+                                    <option value="🔬">"🔬 Research"</option>
+                                    <option value="⚡">"⚡ Energy"</option>
+                                </select>
                             }.into_any());
                         }
                         // Asset count — double-click to expand

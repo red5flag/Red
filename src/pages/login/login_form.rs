@@ -10,16 +10,10 @@ pub(crate) fn LoginForm(
     set_remember_me: WriteSignal<bool>,
     remember_password: ReadSignal<bool>,
     set_remember_password: WriteSignal<bool>,
-    remember_30_days: ReadSignal<bool>,
-    set_remember_30_days: WriteSignal<bool>,
     show_username: ReadSignal<bool>,
     set_show_username: WriteSignal<bool>,
     show_password: ReadSignal<bool>,
     set_show_password: WriteSignal<bool>,
-    profile_2fa: ReadSignal<Option<String>>,
-    set_profile_2fa: WriteSignal<Option<String>>,
-    totp_stub_code: ReadSignal<String>,
-    set_totp_stub_code: WriteSignal<String>,
     pressed_btn: ReadSignal<Option<&'static str>>,
     flash_press: Callback<&'static str>,
     on_login: Callback<()>,
@@ -114,65 +108,5 @@ pub(crate) fn LoginForm(
             } else { ().into_any() }}
         </div>
 
-        // ── PROFILE 2FA MODAL ──
-        {move || profile_2fa.get().map(|profile_name| {
-            view! {
-                <div class="lp-2fa-modal-overlay" on:click=move |_| set_profile_2fa.set(None)>
-                    <div class="lp-2fa-modal" on:click=|ev| ev.stop_propagation()>
-                        <div class="lp-2fa-modal-header">
-                            <span class="lp-2fa-modal-title">"🔐 2FA Verification"</span>
-                            <button class="lp-2fa-modal-close" on:click=move |_| set_profile_2fa.set(None)>"✕"</button>
-                        </div>
-                        <div class="lp-2fa-modal-body">
-                            <div class="lp-2fa-modal-profile">
-                                <span class="lp-2fa-modal-profile-icon">"👤"</span>
-                                <span class="lp-2fa-modal-profile-name">{profile_name.clone()}</span>
-                            </div>
-                            <div class="lp-2fa-modal-message">"Enter the 6-digit code from your authenticator app to continue"</div>
-                            <input
-                                type="text"
-                                class="lp-2fa-modal-input"
-                                placeholder="000000"
-                                maxlength="6"
-                                inputmode="numeric"
-                                prop:value={move || totp_stub_code.get()}
-                                on:input=move |ev| {
-                                    let v = event_target_value(&ev);
-                                    let filtered: String = v.chars().filter(|c| c.is_ascii_digit()).take(6).collect();
-                                    set_totp_stub_code.set(filtered);
-                                }
-                                on:keydown=move |ev| {
-                                    if ev.key() == "Enter" {
-                                        set_profile_2fa.set(None);
-                                        on_login.run(());
-                                    }
-                                }
-                            />
-                            <label class="lp-2fa-modal-remember">
-                                <input
-                                    type="checkbox"
-                                    checked={move || remember_30_days.get()}
-                                    on:change=move |ev| set_remember_30_days.set(event_target_checked(&ev))
-                                />
-                                "Remember me for 30 days"
-                            </label>
-                            <div class="lp-2fa-modal-actions">
-                                <button class="lp-action-btn lp-register"
-                                    on:click=move |_| set_profile_2fa.set(None)>
-                                    "CANCEL"
-                                </button>
-                                <button class="lp-action-btn lp-login"
-                                    on:click=move |_| {
-                                        set_profile_2fa.set(None);
-                                        on_login.run(());
-                                    }>
-                                    "VERIFY & LOGIN"
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }.into_any()
-        })}
     }
 }

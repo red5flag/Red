@@ -2,12 +2,69 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+use base64::Engine as _;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 fn default_true() -> bool {
     true
+}
+
+// Obfuscation key for locally-stored remembered passwords.
+// This is compile-time static obfuscation, not a user-provided secret.
+#[cfg(any(feature = "ssr", feature = "hydrate"))]
+const REMEMBERED_PASSWORD_KEY: [u8; 32] = *b"farley-local-remember-password!!";
+
+#[cfg(any(feature = "ssr", feature = "hydrate"))]
+pub fn encrypt_remembered_password(plain: &str) -> Option<String> {
+    use chacha20poly1305::aead::{Aead, KeyInit};
+    use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+    if plain.is_empty() {
+        return None;
+    }
+    let cipher = ChaCha20Poly1305::new_from_slice(&REMEMBERED_PASSWORD_KEY).ok()?;
+    let mut nonce_bytes = [0u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher.encrypt(nonce, plain.as_bytes()).ok()?;
+    let mut out = Vec::with_capacity(nonce_bytes.len() + ciphertext.len());
+    out.extend_from_slice(&nonce_bytes);
+    out.extend_from_slice(&ciphertext);
+    Some(base64::engine::general_purpose::STANDARD.encode(&out))
+}
+
+#[cfg(any(feature = "ssr", feature = "hydrate"))]
+pub fn decrypt_remembered_password(encoded: &str) -> Option<String> {
+    use chacha20poly1305::aead::{Aead, KeyInit};
+    use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    if bytes.len() < 12 {
+        // Fall back to treating the value as a legacy plaintext password.
+        return Some(encoded.to_string());
+    }
+    let (nonce_bytes, ciphertext) = bytes.split_at(12);
+    let cipher = ChaCha20Poly1305::new_from_slice(&REMEMBERED_PASSWORD_KEY).ok()?;
+    let nonce = Nonce::from_slice(nonce_bytes);
+    match cipher.decrypt(nonce, ciphertext) {
+        Ok(plain) => String::from_utf8(plain).ok(),
+        Err(_) => {
+            // Legacy plaintext fallback.
+            Some(encoded.to_string())
+        }
+    }
+}
+
+#[cfg(not(any(feature = "ssr", feature = "hydrate")))]
+fn encrypt_remembered_password(_plain: &str) -> Option<String> {
+    None
+}
+
+#[cfg(not(any(feature = "ssr", feature = "hydrate")))]
+fn decrypt_remembered_password(encoded: &str) -> Option<String> {
+    Some(encoded.to_string())
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -118,8 +175,12 @@ impl CredentialStore {
         validated: bool,
         store_local: bool,
         store_cloud: bool,
+        remembered_password: Option<String>,
     ) {
         if let Ok(hash) = Self::hash_password(password) {
+            let remembered_password = remembered_password
+                .as_deref()
+                .and_then(encrypt_remembered_password);
             self.credentials.insert(
                 username.to_string(),
                 StoredCredential {
@@ -133,7 +194,7 @@ impl CredentialStore {
                     email_2fa_enabled: false,
                     store_local,
                     store_cloud,
-                    remembered_password: None,
+                    remembered_password,
                 },
             );
         }
@@ -152,10 +213,13 @@ impl CredentialStore {
         remembered_password: Option<String>,
     ) {
         if let Ok(hash) = Self::hash_password(password) {
+            let encrypted_remembered = remembered_password
+                .as_deref()
+                .and_then(encrypt_remembered_password);
             if let Some(cred) = self.credentials.get_mut(username) {
                 cred.password_hash = hash;
-                if remembered_password.is_some() {
-                    cred.remembered_password = remembered_password;
+                if encrypted_remembered.is_some() {
+                    cred.remembered_password = encrypted_remembered;
                 }
             } else {
                 self.credentials.insert(
@@ -171,7 +235,7 @@ impl CredentialStore {
                         email_2fa_enabled: false,
                         store_local: true,
                         store_cloud: false,
-                        remembered_password,
+                        remembered_password: encrypted_remembered,
                     },
                 );
             }
@@ -220,6 +284,7 @@ impl CredentialStore {
             false,
             store_local,
             store_cloud,
+            Some(password.to_string()),
         );
         Ok(())
     }

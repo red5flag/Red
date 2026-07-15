@@ -34,10 +34,7 @@ pub fn LoginPage() -> impl IntoView {
     let (show_signup, set_show_signup) = signal(false);
     let (remember_me, set_remember_me) = signal(true);
     let (remember_password, set_remember_password) = signal(false);
-    let (remember_30_days, set_remember_30_days) = signal(false);
     let (show_profiles, set_show_profiles) = signal(false);
-    let (totp_stub_code, set_totp_stub_code) = signal(String::new());
-    let (profile_2fa, set_profile_2fa) = signal(Option::<String>::None);
 
     let (pending_username, set_pending_username) = signal(String::new());
     let (pending_password, set_pending_password) = signal(String::new());
@@ -177,18 +174,6 @@ pub fn LoginPage() -> impl IntoView {
             save_last_username(u.clone());
         }
 
-        if remember_30_days.get() {
-            #[cfg(feature = "hydrate")]
-            if let Some(window) = window() {
-                if let Ok(Some(storage)) = window.local_storage() {
-                    let expiry = chrono::Utc::now().timestamp() + 30 * 24 * 60 * 60;
-                    let token = format!("{}:{}", u, expiry);
-                    let _ = storage.set_item("farley_remember_30", &token);
-                }
-            }
-            let _ = &u;
-        }
-
         let password_matches = app_store.get().check_password(&u, &p);
 
         if password_matches {
@@ -223,11 +208,9 @@ pub fn LoginPage() -> impl IntoView {
                         None,
                     ));
                 });
-                if remember_password.get() {
-                    app_store.update(|s| {
-                        s.save_password_to_credentials(&u, &p, true);
-                    });
-                }
+                app_store.update(|s| {
+                    s.save_password_to_credentials(&u, &p);
+                });
                 let (_, login_cloud) = app_store.get().credentials.get_storage_options(&u);
                 if login_cloud {
                     sync_credentials_to_cloud(u.clone());
@@ -252,7 +235,7 @@ pub fn LoginPage() -> impl IntoView {
         let set_pending_username_clone = set_pending_username;
         let set_pending_password_clone = set_pending_password;
         let set_fa_code_clone = set_fa_code;
-        let remember_password_clone = remember_password;
+        let _remember_password_clone = remember_password;
         spawn_local(async move {
             let req = LoginRequest {
                 username: u_clone.clone(),
@@ -273,11 +256,9 @@ pub fn LoginPage() -> impl IntoView {
                                         app_store.update(|store| {
                                             store.upsert_credential_from_login(&u_clone, &p_clone, &name, &email, true, true, false);
                                         });
-                                        if remember_password_clone.get() {
-                                            app_store.update(|s| {
-                                                s.save_password_to_credentials(&u_clone, &p_clone, true);
-                                            });
-                                        }
+                                        app_store.update(|s| {
+                                            s.save_password_to_credentials(&u_clone, &p_clone);
+                                        });
                                         finish_login(u_clone.clone(), name, email, "Owner".to_string());
                                     }
                                 } else if login_resp.requires_totp || login_resp.requires_email_2fa || login_resp.requires_phone_2fa {
@@ -312,11 +293,58 @@ pub fn LoginPage() -> impl IntoView {
                     }
                 } else {
                     let _ = (req, _app_store_clone, set_error_clone, set_login_pressed_clone, set_fa_mode_clone, set_fa_message_clone,
-                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone, remember_password_clone);
+                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone);
                 }
             }
         });
     };
+
+    let on_select_profile = Callback::new(move |()| {
+        let u = username.get();
+        let p = password.get();
+        if u.trim().is_empty() || p.trim().is_empty() {
+            set_error.set("Saved profile is missing username or password".to_string());
+            return;
+        }
+        let mut result: Option<Result<(String, String), String>> = None;
+        app_store.update(|store| {
+            result = Some(store.login_saved_profile(
+                &u,
+                &p,
+                &mut notification_store.get_untracked(),
+                &mut organization_store.get_untracked(),
+            ));
+        });
+        match result {
+            Some(Ok((name, role_str))) => {
+                set_error.set(String::new());
+                notification_store.update(|store| {
+                    store.add_notification(
+                        format!("Welcome, {}!", name),
+                        crate::stores::NotificationType::Success,
+                    );
+                });
+                let user_id = app_store.get().current_user.id;
+                let org_id = app_store.get().current_user.organization_id;
+                undo_store.update(|undo| {
+                    undo.record_action(create_action(
+                        ActionType::Login,
+                        "Auth",
+                        &format!("User '{}' logged in", name),
+                        user_id,
+                        &name,
+                        &role_str,
+                        org_id,
+                        None,
+                    ));
+                });
+            }
+            Some(Err(e)) => {
+                set_error.set(e);
+            }
+            None => {}
+        }
+    });
 
     let on_verify_2fa = move |mode: &'static str| {
         let u = pending_username.get();
@@ -551,8 +579,7 @@ pub fn LoginPage() -> impl IntoView {
                 set_show_profiles={set_show_profiles}
                 set_username={set_username}
                 set_password={set_password}
-                set_profile_2fa={set_profile_2fa}
-                set_totp_stub_code={set_totp_stub_code}
+                on_select_profile={on_select_profile}
             />
 
             <login_form::LoginForm
@@ -564,16 +591,10 @@ pub fn LoginPage() -> impl IntoView {
                 set_remember_me={set_remember_me}
                 remember_password={remember_password}
                 set_remember_password={set_remember_password}
-                remember_30_days={remember_30_days}
-                set_remember_30_days={set_remember_30_days}
                 show_username={show_username}
                 set_show_username={set_show_username}
                 show_password={show_password}
                 set_show_password={set_show_password}
-                profile_2fa={profile_2fa}
-                set_profile_2fa={set_profile_2fa}
-                totp_stub_code={totp_stub_code}
-                set_totp_stub_code={set_totp_stub_code}
                 pressed_btn={pressed_btn}
                 flash_press={flash_press}
                 on_login={on_login_cb}

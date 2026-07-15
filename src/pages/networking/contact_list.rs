@@ -10,6 +10,11 @@ pub(crate) fn render_contacts(
 ) -> impl IntoView {
     let items_for = contacts.clone();
     let items_memo = Memo::new(move |_| items_for.clone());
+    let visible_items = Memo::new(move |_| {
+        let total = items_memo.get().len();
+        let visible = visible_count.get().min(total);
+        items_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+    });
     view! {
         <div class="net-tab-content">
             {move || {
@@ -26,8 +31,8 @@ pub(crate) fn render_contacts(
                     view! {
                         <div>
                             <For
-                                each=move || items_memo.get().into_iter().take(visible).collect::<Vec<_>>()
-                                key=|c| c.id
+                                each=move || visible_items.get()
+                                key=|c: &ExternalContact| c.id
                                 children=move |c| render_contact_card(c, set_selected)
                             />
                             {if remaining > 0 {

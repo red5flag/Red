@@ -758,8 +758,8 @@ html, body {
     justify-content: center;
     font-size: 14px;
     color: var(--text-secondary);
-    pointer-events: none;
-    cursor: default;
+    pointer-events: auto;
+    cursor: pointer;
     user-select: none;
     border-right: 2px solid var(--border-color);
     background: var(--accent-bg);
@@ -780,6 +780,7 @@ html, body {
     flex: 0 1 auto;
     cursor: pointer;
     min-height: var(--bar-h);
+    padding-left: 8px;
 }
 
 /* Contextual add dropdown (on portfolio/group items) */
@@ -1234,6 +1235,7 @@ html, body {
 .asset-viewer {
     width: 100%;
     margin-top: 0;
+    padding-bottom: 8px;
 }
 
 .asset-section {
@@ -1250,11 +1252,13 @@ html, body {
     padding: 0 16px 0 var(--bar-h);
     min-height: var(--bar-h);
     background: var(--accent-bg);
-    border: 2px solid var(--border-color);
-    margin-bottom: 0;
+    border: none;
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: -2px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    cursor: pointer;
 }
 
 .asset-list {
@@ -1291,6 +1295,10 @@ html, body {
     position: relative;
 }
 
+.asset-group-header .pf-list-actions {
+    align-self: stretch;
+}
+
 .asset-group-arrow {
     position: absolute;
     left: 0;
@@ -1310,6 +1318,18 @@ html, body {
 
 .asset-group-icon {
     font-size: 24px;
+}
+
+.pf-accordion > .asset-group > .asset-group-header .asset-group-icon {
+    margin-left: 8px;
+}
+
+.asset-group-icon .pf-header-image {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--primary-bg);
 }
 
 .pf-notif-badge {
@@ -1351,6 +1371,15 @@ html, body {
 
 .pf-notif-badge-clickable:hover {
     background: rgba(255, 255, 255, 0.1);
+}
+
+/* Action-strip badges must be flush and centered with action buttons */
+.pf-list-actions .pf-notif-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    height: 100%;
 }
 
 /* ── Notification Quick Settings popover ─────────────────────── */
@@ -1745,6 +1774,7 @@ html, body {
 }
 
 .grid-view .asset-group-header .pf-list-actions {
+    align-self: center;
     margin-left: 0;
     border-left: none;
     justify-content: center;
@@ -2261,7 +2291,9 @@ html, body {
 .asset-grid-image {
     width: 100%;
     aspect-ratio: 1 / 1;
-    object-fit: cover;
+    object-fit: contain;
+    padding: 8px;
+    box-sizing: border-box;
     border-bottom: 2px solid var(--border-color);
     background: var(--primary-bg);
 }
@@ -3524,6 +3556,8 @@ html, body {
 .grid-view {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    padding: 8px;
     border: 2px solid var(--border-color);
 }
 
@@ -5983,8 +6017,8 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 200px;
     height: var(--bar-h);
     min-height: var(--bar-h);
     padding: 0 16px;
@@ -6013,7 +6047,7 @@ html, body {
     align-items: center;
     flex: 1 1 0;
     min-width: 0;
-    width: 100%;
+    width: auto;
     padding: 0;
     position: relative;
 }
@@ -6081,8 +6115,8 @@ html, body {
 .grid-view-6,
 .grid-view-12 {
     display: grid;
-    gap: 16px;
-    padding: 12px;
+    gap: 8px;
+    padding: 8px;
 }
 
 .grid-view-3 {
@@ -6230,6 +6264,13 @@ html, body {
 /* Asset group assets container */
 .asset-group-assets {
     padding: 0;
+}
+
+.asset-group-assets.asset-list > .asset-group,
+#av-groups-content .asset-list > .asset-group {
+    border-left: none;
+    border-right: none;
+    border-top: none;
 }
 
 /* Show more pagination button — outline of portfolio/asset template */
@@ -8265,21 +8306,33 @@ html, body {
    ═══════════════════════════════════════════ */
 .asset-section-title {
     justify-content: space-between;
+    gap: 8px;
 }
 .section-title-right {
     display: flex;
     align-items: center;
-    flex: 1 1 0;
+    flex: 0 0 auto;
+    justify-content: flex-end;
     min-width: 0;
     gap: 0;
 }
 
 .section-title-right .sort-dropdown-inline {
     border-right: 1px solid var(--border-color);
+    width: 100%;
 }
 
 .section-title-right .sort-dropdown-inline:last-child {
     border-right: none;
+}
+
+.section-title-right .sort-btn {
+    min-width: 200px;
+}
+
+#av-groups-content,
+#av-direct-content {
+    padding-top: 0;
 }
 
 .toggle-btn {

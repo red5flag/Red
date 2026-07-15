@@ -858,6 +858,49 @@ impl AppStore {
         Ok((display_name, format!("{:?}", self.current_user.role)))
     }
 
+    /// Log in a saved profile using locally-stored credentials.
+    /// Skips email-validation and 2FA checks so saved profiles can sign in directly.
+    pub fn login_saved_profile(
+        &mut self,
+        username: &str,
+        password: &str,
+        notification_store: &mut NotificationStore,
+        organization_store: &mut crate::stores::OrganizationStore,
+    ) -> Result<(String, String), String> {
+        let cred = self
+            .credentials
+            .verify(username, password)
+            .ok_or("Invalid username or password")?;
+
+        let display_name = cred.display_name.clone();
+        let email = cred.email.clone();
+
+        self.is_authenticated = true;
+        self.current_user.username = username.to_string();
+        self.current_user.name = display_name.clone();
+        self.current_user.email = email.clone();
+        self.current_user.role = UserRole::Owner;
+
+        // Seed demo organizations and portfolios if none exist
+        if self.portfolios.is_empty() {
+            crate::stores::seed_data::seed_red_family_data(
+                self,
+                organization_store,
+                notification_store,
+            );
+            self.portfolios.push(seed_portfolio_2(self.current_user.id));
+            let red_org_id = organization_store.current_organization_id;
+            self.portfolios
+                .push(seed_direct_portfolio(self.current_user.id, red_org_id));
+            self.portfolios
+                .push(seed_groups_only_portfolio(self.current_user.id, red_org_id));
+        }
+
+        self.expand_tab(TabType::Overview);
+
+        Ok((display_name, format!("{:?}", self.current_user.role)))
+    }
+
     pub fn set_user_name(&mut self, name: String) {
         self.current_user.name = name;
     }
@@ -970,23 +1013,16 @@ impl AppStore {
     }
 
     /// Save password to credential store (for "Remember Password" feature).
-    /// 2FA requirement is stubbed — for now, password is saved without 2FA.
-    /// When remember_password is true, the plain password is also retained so saved profiles can auto-fill it.
+    /// The remembered password is always encrypted locally so saved profiles can auto-fill it.
     pub fn save_password_to_credentials(
         &mut self,
         username: &str,
         password: &str,
-        remember_password: bool,
     ) {
         let display_name = self.current_user.name.clone();
         let email = self.current_user.email.clone();
-        let remembered = if remember_password {
-            Some(password.to_string())
-        } else {
-            None
-        };
         self.credentials
-            .save_password(username, password, &display_name, &email, remembered);
+            .save_password(username, password, &display_name, &email, Some(password.to_string()));
         #[cfg(feature = "hydrate")]
         self.credentials.save_to_local_storage();
     }
@@ -1011,6 +1047,8 @@ impl AppStore {
         let store_local = store_local || existing_store_local;
         let store_cloud = store_cloud || existing_store_cloud;
         if let Ok(hash) = CredentialStore::hash_password(password) {
+            let remembered_password = existing_remembered
+                .or_else(|| crate::stores::credentials::encrypt_remembered_password(password));
             let cred = StoredCredential {
                 username: username.to_string(),
                 password_hash: hash,
@@ -1022,7 +1060,7 @@ impl AppStore {
                 email_2fa_enabled: false,
                 store_local,
                 store_cloud,
-                remembered_password: existing_remembered,
+                remembered_password,
             };
             self.credentials
                 .credentials

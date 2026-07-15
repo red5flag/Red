@@ -9,6 +9,11 @@ pub(crate) fn render_external_orgs(
 ) -> impl IntoView {
     let items_for = orgs.clone();
     let items_memo = Memo::new(move |_| items_for.clone());
+    let visible_items = Memo::new(move |_| {
+        let total = items_memo.get().len();
+        let visible = visible_count.get().min(total);
+        items_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+    });
     view! {
         <div class="net-tab-content">
             {move || {
@@ -25,8 +30,8 @@ pub(crate) fn render_external_orgs(
                     view! {
                         <div>
                             <For
-                                each=move || items_memo.get().into_iter().take(visible).collect::<Vec<_>>()
-                                key=|o| o.id
+                                each=move || visible_items.get()
+                                key=|o: &ExternalOrganization| o.id
                                 children=move |o| {
                             let o_for_click = o.clone();
                             let o_for_btn = o.clone();

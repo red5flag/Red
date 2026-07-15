@@ -39,6 +39,29 @@ fn sort_assets(mut assets: Vec<Asset>, mode: AssetSortMode) -> Vec<Asset> {
     assets
 }
 
+fn sort_groups(mut groups: Vec<crate::models::AssetGroup>, mode: AssetSortMode) -> Vec<crate::models::AssetGroup> {
+    match mode {
+        AssetSortMode::Recent => groups.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
+        AssetSortMode::NameAsc => {
+            groups.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        }
+        AssetSortMode::NameDesc => {
+            groups.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase()))
+        }
+        AssetSortMode::ValueHigh => groups.sort_by(|a, b| {
+            b.total_value
+                .partial_cmp(&a.total_value)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }),
+        AssetSortMode::ValueLow => groups.sort_by(|a, b| {
+            a.total_value
+                .partial_cmp(&b.total_value)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }),
+    }
+    groups
+}
+
 fn sort_mode_label(m: AssetSortMode) -> &'static str {
     match m {
         AssetSortMode::Recent => "Recent",
@@ -72,6 +95,8 @@ pub(crate) fn AssetViewer(
     on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
 ) -> impl IntoView {
     let pid = portfolio.id;
+    let portfolio_name_groups = portfolio.name.clone();
+    let portfolio_name_direct = portfolio.name.clone();
     let app_store_inner = use_app_store();
     let ui_store = use_ui_store();
     let current_user = app_store_inner.get().current_user.clone();
@@ -113,6 +138,32 @@ pub(crate) fn AssetViewer(
     let (group_sort_mode, set_group_sort_mode) = signal(AssetSortMode::Recent);
     let (direct_sort_open, set_direct_sort_open) = signal(false);
     let (direct_sort_mode, set_direct_sort_mode) = signal(AssetSortMode::Recent);
+
+    // Reactive sorted lists so the sort dropdowns actually re-order items
+    let portfolio_for_group_sort = portfolio.clone();
+    let sorted_groups = Memo::new(move |_| {
+        sort_groups(
+            portfolio_for_group_sort
+                .asset_groups
+                .clone()
+                .into_iter()
+                .filter(|g| portfolio_visible_to_user || g.is_visible_to(user_id, can_view_all))
+                .collect(),
+            group_sort_mode.get(),
+        )
+    });
+    let portfolio_for_direct_sort = portfolio.clone();
+    let sorted_direct_assets = Memo::new(move |_| {
+        sort_assets(
+            portfolio_for_direct_sort
+                .assets
+                .clone()
+                .into_iter()
+            .filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all))
+                .collect(),
+            direct_sort_mode.get(),
+        )
+    });
 
     // Per-scope visible counts for Expand View + behavior.
     // Scopes: "groups-{pid}", "direct-{pid}", "group-assets-{gid}".
@@ -163,61 +214,62 @@ pub(crate) fn AssetViewer(
     let view_mode_groups_content = view_mode;
     let view_mode_direct_title = view_mode;
     let view_mode_direct_content = view_mode;
-    let portfolio_groups = portfolio.clone();
-    let portfolio_direct = portfolio.clone();
-    let portfolio_direct_sort = portfolio.clone();
+    let portfolio_groups_for_header = portfolio.clone();
+    let portfolio_for_group_count = portfolio.clone();
+    let portfolio_for_direct_count = portfolio.clone();
 
-    let has_groups = !portfolio_groups.asset_groups.is_empty();
-    let has_direct = !portfolio_direct.assets.is_empty();
+    let has_groups = !portfolio_for_group_count.asset_groups.is_empty();
+    let has_direct = !portfolio_for_direct_count.assets.is_empty();
 
-    let portfolio_direct_sort_for_direct_view = portfolio_direct_sort.clone();
-
-    let groups_view = move |_standalone: bool| {
-        let portfolio_groups = portfolio_groups.clone();
+    let groups_view = move |standalone: bool| {
         let group_scope = group_scope.clone();
         view! {
-            {let visible_groups: Vec<_> = portfolio_groups.asset_groups.clone().into_iter().filter(|g| portfolio_visible_to_user || g.is_visible_to(user_id, can_view_all)).collect();
+            {let visible_groups = sorted_groups.get();
             let vmg = view_mode_groups_content.clone();
             view! {
                 <div id="av-groups-content">
-                    // Sort dropdown inside content area (grid mode only)
+                    // Sort dropdown inside content area (grid mode only) only when this view is standalone
                     {let vg_for_sort = visible_groups.clone();
-                    move || {
-                        if vmg.get() == ViewMode::Grid && !vg_for_sort.is_empty() {
-                            view! {
-                                <div class="sort-dropdown-wrap sort-dropdown-inline">
-                                    <button class="sort-btn"
-                                        on:click=move |_| set_group_sort_open.update(|v| *v = !*v)
-                                    >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
-                                    {move || if group_sort_open.get() {
-                                        view! {
-                                            <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                                {[
-                                                    AssetSortMode::Recent,
-                                                    AssetSortMode::NameAsc,
-                                                    AssetSortMode::NameDesc,
-                                                    AssetSortMode::ValueHigh,
-                                                    AssetSortMode::ValueLow,
-                                                ].iter().map(|&m| {
-                                                    let set_m = set_group_sort_mode;
-                                                    let close = set_group_sort_open;
-                                                    view! {
-                                                        <button class="sort-dropdown-item"
-                                                            class:active={move || group_sort_mode.get() == m}
-                                                            on:click=move |_| {
-                                                                set_m.set(m);
-                                                                close.set(false);
+                    if standalone {
+                        view! {
+                            {move || {
+                                if vmg.get() == ViewMode::Grid && !vg_for_sort.is_empty() {
+                                    view! {
+                                        <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                            <button class="sort-btn"
+                                                on:click=move |_| set_group_sort_open.update(|v| *v = !*v)
+                                            >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
+                                            {move || if group_sort_open.get() {
+                                                view! {
+                                                    <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                        {[
+                                                            AssetSortMode::Recent,
+                                                            AssetSortMode::NameAsc,
+                                                            AssetSortMode::NameDesc,
+                                                            AssetSortMode::ValueHigh,
+                                                            AssetSortMode::ValueLow,
+                                                        ].iter().map(|&m| {
+                                                            let set_m = set_group_sort_mode;
+                                                            let close = set_group_sort_open;
+                                                            view! {
+                                                                <button class="sort-dropdown-item"
+                                                                    class:active={move || group_sort_mode.get() == m}
+                                                                    on:click=move |_| {
+                                                                        set_m.set(m);
+                                                                        close.set(false);
+                                                                    }
+                                                                >{sort_mode_label(m)}</button>
                                                             }
-                                                        >{sort_mode_label(m)}</button>
-                                                    }
-                                                }).collect::<Vec<_>>()}
-                                            </div>
-                                        }.into_any()
-                                    } else { ().into_any() }}
-                                </div>
-                            }.into_any()
-                        } else { ().into_any() }
-                    }}
+                                                        }).collect::<Vec<_>>()}
+                                                    </div>
+                                                }.into_any()
+                                            } else { ().into_any() }}
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }
+                            }}
+                        }.into_any()
+                    } else { ().into_any() }}
 
                     {move || show_add_group.get().map(|gp| {
                         if gp == pid {
@@ -242,7 +294,7 @@ pub(crate) fn AssetViewer(
                             </div>
                         }.into_any()
                     } else {
-                        let portfolio_name = portfolio_groups.name.clone();
+                        let portfolio_name = portfolio_name_groups.clone();
                         let display_count = visible_for(&group_scope).min(total_groups);
                         let remaining = total_groups.saturating_sub(display_count);
                         let groups_to_show: Vec<_> = visible_groups.into_iter().take(display_count).collect();
@@ -302,15 +354,13 @@ pub(crate) fn AssetViewer(
     };
 
     let direct_view = move |standalone: bool| {
-        let portfolio_direct = portfolio_direct.clone();
-        let portfolio_direct_sort = portfolio_direct_sort_for_direct_view.clone();
         let direct_scope = direct_scope.clone();
         view! {
             {if standalone {
                 view! {
                     <div class="section-title-right">
                         {move || {
-                            if view_mode_direct_title.get() == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
+                            if view_mode_direct_title.get() == ViewMode::Grid && !sorted_direct_assets.get().is_empty() {
                                 view! {
                                     <div class="sort-dropdown-wrap sort-dropdown-inline">
                                         <button class="sort-btn"
@@ -352,8 +402,7 @@ pub(crate) fn AssetViewer(
                 }.into_any()
             } else { ().into_any() }}
 
-            {let visible_direct_assets: Vec<_> = portfolio_direct.assets.clone().into_iter().filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
-            let visible_direct_assets = sort_assets(visible_direct_assets, direct_sort_mode.get());
+            {let visible_direct_assets = sorted_direct_assets.get();
             view! {
                 <div id="av-direct-content">
 
@@ -419,7 +468,7 @@ pub(crate) fn AssetViewer(
                             </div>
                         }.into_any()
                     } else {
-                        let portfolio_name = portfolio_direct.name.clone();
+                        let portfolio_name = portfolio_name_direct.clone();
                         let display_direct = visible_for(&direct_scope).min(total_direct);
                         let direct_remaining = total_direct.saturating_sub(display_direct);
                         let direct_to_show: Vec<_> = visible_direct_assets.into_iter().take(display_direct).collect();
@@ -457,25 +506,66 @@ pub(crate) fn AssetViewer(
             {if has_groups && has_direct {
                 view! {
                     <div class="asset-section">
-                        <div class="asset-section-title">
-                            <div class="asset-section-title-left"
-                                role="button"
-                                tabindex="0"
-                                aria-expanded={move || show_groups.get()}
-                                aria-controls="av-groups-content"
-                                aria-label={move || if show_groups.get() { "Collapse Asset Groups section" } else { "Expand Asset Groups section" }}
-                                on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                    if ev.key() == "Enter" || ev.key() == " " {
-                                        ev.prevent_default();
-                                        set_show_groups.update(|v| *v = !*v);
-                                    }
+                        <div class="asset-section-title"
+                            role="button"
+                            tabindex="0"
+                            aria-expanded={move || show_groups.get()}
+                            aria-controls="av-groups-content"
+                            aria-label={move || if show_groups.get() { "Collapse Asset Groups section" } else { "Expand Asset Groups section" }}
+                            on:click=move |_| set_show_groups.update(|v| *v = !*v)
+                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                if ev.key() == "Enter" || ev.key() == " " {
+                                    ev.prevent_default();
+                                    set_show_groups.update(|v| *v = !*v);
                                 }
-                            >
+                            }
+                        >
+                            <div class="asset-section-title-left">
                                 <span class="asset-section-arrow" aria-hidden="true">
                                     {move || if show_groups.get() { "▶" } else { "▼" }}
                                 </span>
                                 <span class="asset-section-label">"Asset Groups"</span>
+                            </div>
+                            <div class="section-title-right">
+                                {move || {
+                                    if show_groups.get() && view_mode_groups_content.get() == ViewMode::Grid && !portfolio_groups_for_header.asset_groups.is_empty() {
+                                        view! {
+                                            <div class="sort-dropdown-wrap sort-dropdown-inline">
+                                                <button class="sort-btn"
+                                                    on:click=move |ev: leptos::ev::MouseEvent| {
+                                                        ev.stop_propagation();
+                                                        set_group_sort_open.update(|v| *v = !*v)
+                                                    }
+                                                >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
+                                                {move || if group_sort_open.get() {
+                                                    view! {
+                                                        <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                                            {[
+                                                                AssetSortMode::Recent,
+                                                                AssetSortMode::NameAsc,
+                                                                AssetSortMode::NameDesc,
+                                                                AssetSortMode::ValueHigh,
+                                                                AssetSortMode::ValueLow,
+                                                            ].iter().map(|&m| {
+                                                                let set_m = set_group_sort_mode;
+                                                                let close = set_group_sort_open;
+                                                                view! {
+                                                                    <button class="sort-dropdown-item"
+                                                                        class:active={move || group_sort_mode.get() == m}
+                                                                        on:click=move |_| {
+                                                                            set_m.set(m);
+                                                                            close.set(false);
+                                                                        }
+                                                                    >{sort_mode_label(m)}</button>
+                                                                }
+                                                            }).collect::<Vec<_>>()}
+                                                        </div>
+                                                    }.into_any()
+                                                } else { ().into_any() }}
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }
+                                }}
                             </div>
                         </div>
 
@@ -489,21 +579,21 @@ pub(crate) fn AssetViewer(
             {if has_direct && has_groups {
                 view! {
                     <div class="asset-section">
-                        <div class="asset-section-title">
-                            <div class="asset-section-title-left"
-                                role="button"
-                                tabindex="0"
-                                aria-expanded={move || show_direct_assets.get()}
-                                aria-controls="av-direct-content"
-                                aria-label={move || if show_direct_assets.get() { "Collapse Direct Assets section" } else { "Expand Direct Assets section" }}
-                                on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                    if ev.key() == "Enter" || ev.key() == " " {
-                                        ev.prevent_default();
-                                        set_show_direct_assets.update(|v| *v = !*v);
-                                    }
+                        <div class="asset-section-title"
+                            role="button"
+                            tabindex="0"
+                            aria-expanded={move || show_direct_assets.get()}
+                            aria-controls="av-direct-content"
+                            aria-label={move || if show_direct_assets.get() { "Collapse Direct Assets section" } else { "Expand Direct Assets section" }}
+                            on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
+                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                if ev.key() == "Enter" || ev.key() == " " {
+                                    ev.prevent_default();
+                                    set_show_direct_assets.update(|v| *v = !*v);
                                 }
-                            >
+                            }
+                        >
+                            <div class="asset-section-title-left">
                                 <span class="asset-section-arrow" aria-hidden="true">
                                     {move || if show_direct_assets.get() { "▶" } else { "▼" }}
                                 </span>
@@ -511,7 +601,7 @@ pub(crate) fn AssetViewer(
                             </div>
                             <div class="section-title-right">
                                 {move || {
-                                    if show_direct_assets.get() && view_mode_direct_title.get() == ViewMode::Grid && !portfolio_direct_sort.assets.is_empty() {
+                                    if show_direct_assets.get() && view_mode_direct_title.get() == ViewMode::Grid && !sorted_direct_assets.get().is_empty() {
                                         view! {
                                             <div class="sort-dropdown-wrap sort-dropdown-inline">
                                                 <button class="sort-btn"

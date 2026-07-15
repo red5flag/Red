@@ -70,7 +70,7 @@ gloo-net = { version = "0.5", features = ["http"], optional = true }
 
 [features]
 default = []
-hydrate = ["leptos/hydrate", "gloo-net"]
+hydrate = ["leptos/hydrate", "gloo-net", "chacha20poly1305"]
 ssr = ["leptos/ssr", "leptos_axum", "leptos_router/ssr", "leptos_meta/ssr", "axum", "tower", "tower-http", "tokio-stream", "bcrypt", "jsonwebtoken", "meilisearch-sdk", "reqwest", "parking_lot", "dashmap", "sled", "zstd", "tracing-subscriber", "tokio", "tokio/rt-multi-thread", "tokio/net", "totp-rs", "printpdf", "chacha20poly1305"]
 csr = ["leptos/csr"]
 

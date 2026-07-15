@@ -1,3 +1,4 @@
+use crate::stores::credentials::decrypt_remembered_password;
 use crate::stores::use_app_store;
 use leptos::prelude::*;
 
@@ -7,8 +8,7 @@ pub(crate) fn CredentialControls(
     set_show_profiles: WriteSignal<bool>,
     set_username: WriteSignal<String>,
     set_password: WriteSignal<String>,
-    set_profile_2fa: WriteSignal<Option<String>>,
-    set_totp_stub_code: WriteSignal<String>,
+    on_select_profile: Callback<()>,
 ) -> impl IntoView {
     let app_store = use_app_store();
 
@@ -22,7 +22,10 @@ pub(crate) fn CredentialControls(
             </button>
             {move || if show_profiles.get() {
                 let creds = app_store.get().credentials.credentials.clone();
-                let profiles: Vec<_> = creds.iter().collect::<Vec<_>>();
+                let profiles: Vec<_> = creds
+                    .iter()
+                    .filter(|(_, cred)| cred.remembered_password.is_some())
+                    .collect();
                 if profiles.is_empty() {
                     view! {
                         <div class="lp-profiles-menu">
@@ -38,15 +41,17 @@ pub(crate) fn CredentialControls(
                                 let _email = cred.email.clone();
                                 let validated = cred.validated;
                                 let uname_for_click = uname.clone();
-                                let remembered_password = cred.remembered_password.clone();
+                                let remembered_password = cred
+                                    .remembered_password
+                                    .as_deref()
+                                    .and_then(decrypt_remembered_password);
                                 view! {
                                     <button class="lp-profile-item"
                                         on:click=move |_| {
                                             set_username.set(uname_for_click.clone());
                                             set_password.set(remembered_password.clone().unwrap_or_default());
                                             set_show_profiles.set(false);
-                                            set_totp_stub_code.set(String::new());
-                                            set_profile_2fa.set(Some(uname_for_click.clone()));
+                                            on_select_profile.run(());
                                         }>
                                         <div class="lp-profile-item-info">
                                             <div class="lp-profile-item-name">{display_name.clone()}</div>
