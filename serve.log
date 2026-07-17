@@ -1,20 +1,9 @@
-[38;5;214m      Assets[0m source [38;5;241mpublic[0m does not exist, skipping copying assets.
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Blocking waiting for file lock on package cache
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.23s
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.24s
-[38;5;77m       Cargo[0m finished [38;5;241mcargo build --package=farley --lib --target-dir=/home/red/Rust/Carly/target/front --target=wasm32-unknown-unknown --no-default-features --features=hydrate[0m
-[38;5;77m       Front[0m generating JS/WASM with wasm-bindgen
-[38;5;77m       Using[0m wasm-bindgen version 0.2.126 detected in project
-[38;5;77m       Cargo[0m finished [38;5;241mcargo build --package=farley --bin=farley --no-default-features --features=ssr[0m
-[38;5;77m    Finished[0m generating JS/WASM for front in 3.765255866s
-[38;5;77m     Serving[0m at http://0.0.0.0:3000 (with graceful shutdown)
-[2m2026-07-14T23:52:54.203843Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
-[2m2026-07-14T23:52:54.242537Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://0.0.0.0:3000
-[2m2026-07-14T23:52:54.242563Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://0.0.0.0:3000/emailvalid
-[38;5;77m    Received[0m 'SIGINT' shutdown signal. Shutting down...
-SERVE_EXIT:0
+[2m2026-07-16T10:02:02.137340Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
+[2m2026-07-16T10:02:02.181047Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://127.0.0.1:3000
+[2m2026-07-16T10:02:02.181112Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://127.0.0.1:3000/emailvalid
+[2m2026-07-16T11:12:46.811435Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
+[2m2026-07-16T11:12:46.849558Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://127.0.0.1:3000
+[2m2026-07-16T11:12:46.849592Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://127.0.0.1:3000/emailvalid
+[2m2026-07-16T11:15:21.795212Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
+[2m2026-07-16T11:15:21.840474Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://127.0.0.1:3000
+[2m2026-07-16T11:15:21.840542Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://127.0.0.1:3000/emailvalid

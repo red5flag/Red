@@ -1,6 +1,9 @@
 use crate::components::tabs::use_tab_edit_mode;
 use crate::models::{Asset, AssetGroup, AssetStatus, Channel, Portfolio};
-use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
+use crate::stores::{
+    use_app_store, use_notification_store, use_organization_store, use_ui_store,
+    NotificationDrawerFilter,
+};
 use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
 use leptos::prelude::*;
 use uuid::Uuid;
@@ -740,7 +743,22 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     ev.stop_propagation();
                                     set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
                                 }
-                                on_open_notif_qs={Callback::new(move |(target, name, is_settings)| if is_settings { set_notif_qs_target.set(Some((target, name))) } else { set_notif_content_target.set(Some((target, name))) })}
+                                on_open_notif_qs={Callback::new(move |(target, name, is_settings)| {
+                                    if is_settings {
+                                        set_notif_qs_target.set(Some((target, name)));
+                                    } else {
+                                        // Open the global notification drawer scoped to the entity.
+                                        notification_store.update(|s| {
+                                            s.clear_drawer_scope();
+                                            s.set_drawer_filter(NotificationDrawerFilter::Portfolios);
+                                            match target {
+                                                NotifTarget::Portfolio(pid) => s.scope_drawer_to_portfolio(pid),
+                                                NotifTarget::Group(pid, gid) => s.scope_drawer_to_group(pid, gid),
+                                            }
+                                            s.open_drawer();
+                                        });
+                                    }
+                                })}
                                 show_add_group={show_add_group}
                                 set_show_add_group={set_show_add_group}
                                 _new_group_name={new_group_name}

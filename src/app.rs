@@ -57,6 +57,16 @@ pub fn App() -> impl IntoView {
     provide_context(ui_store);
     provide_context(undo_store);
 
+    // Merge credentials from localStorage after hydration to avoid
+    // structural mismatch between server-rendered and client-hydrated DOM.
+    #[cfg(feature = "hydrate")]
+    {
+        let app_store = app_store;
+        leptos::task::spawn_local(async move {
+            app_store.update(|s| s.credentials.merge_from_local_storage());
+        });
+    }
+
     let is_authenticated = Memo::new(move |_| app_store.get().is_authenticated);
     let theme_attr = Memo::new(move |_| ui_store.get().theme.as_str().to_string());
     let font_size_attr = Memo::new(move |_| ui_store.get().font_size.clone());

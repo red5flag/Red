@@ -53,6 +53,7 @@ argon2 = { version = "0.5", features = ["password-hash"] }
 base64 = "0.22"
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
+getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 chacha20poly1305 = { version = "0.10", optional = true }
 totp-rs = { version = "5.6", optional = true, features = ["gen_secret", "otpauth"] }
 

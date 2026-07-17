@@ -35,8 +35,10 @@ cfg_if! {
                 .route("/api/toggle_email_2fa", axum::routing::post(api_toggle_email_2fa))
                 .route("/api/toggle_phone_2fa", axum::routing::post(api_toggle_phone_2fa))
                 .route("/api/verify_phone_2fa", axum::routing::post(api_verify_phone_2fa))
-                .route("/api/credentials/sync", axum::routing::post(api_sync_credentials))
-                .route("/api/credentials/sync", axum::routing::get(api_load_credentials))
+                .route(
+                    "/api/credentials/sync",
+                    axum::routing::post(api_sync_credentials).get(api_load_credentials),
+                )
                 .route("/api/stats", axum::routing::get(api_stats))
                 .leptos_routes(&leptos_options, routes, {
                     let leptos_options = leptos_options.clone();

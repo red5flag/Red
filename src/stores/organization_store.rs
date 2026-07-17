@@ -130,6 +130,28 @@ impl OrganizationStore {
             .unwrap_or(fallback_role)
     }
 
+    /// Collect all `Perm` values from every `OrgRole` the user is a member of
+    /// in the given organization. Returns an empty set if the org or user is
+    /// not found.
+    pub fn user_perms_in_org(&self, org_id: Uuid, user_id: Uuid) -> std::collections::HashSet<Perm> {
+        let mut perms = std::collections::HashSet::new();
+        if let Some(org) = self.get_organization(org_id) {
+            for role in &org.roles {
+                if role.member_ids.contains(&user_id) {
+                    for p in &role.permissions {
+                        perms.insert(p.clone());
+                    }
+                }
+            }
+        }
+        perms
+    }
+
+    /// Check if a user has a specific `Perm` in the given organization.
+    pub fn user_has_perm_in_org(&self, org_id: Uuid, user_id: Uuid, perm: &Perm) -> bool {
+        self.user_perms_in_org(org_id, user_id).contains(perm)
+    }
+
     // Discord-style role management
 
     pub fn add_role_to_org(&mut self, org_id: Uuid, role: OrgRole) {

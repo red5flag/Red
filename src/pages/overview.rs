@@ -1,4 +1,5 @@
 use crate::components::editable_text::EditableText;
+use crate::models::ConnectionStatus;
 use crate::stores::{
     use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
     use_organization_store, use_transaction_store,
@@ -215,11 +216,263 @@ pub fn OverviewPage() -> impl IntoView {
         items.into_iter().take(6).collect::<Vec<_>>()
     });
 
+    // Organization summary
+    let org_summary = move || {
+        let orgs = organization_store.get();
+        let total_orgs = orgs.organizations.len();
+        let total_members = orgs.organization_users.len();
+        let current_org = orgs
+            .current_organization_id
+            .and_then(|id| orgs.organizations.iter().find(|o| o.id == id));
+        let current_org_name = current_org.map(|o| o.name.clone()).unwrap_or_else(|| "None".to_string());
+        let current_org_type = current_org
+            .and_then(|o| o.business_type.clone())
+            .unwrap_or_else(|| "—".to_string());
+        let total_roles: usize = current_org.map(|o| o.roles.len()).unwrap_or(0);
+        (total_orgs, total_members, current_org_name, current_org_type, total_roles)
+    };
+
+    // Portfolio stats
+    let portfolio_stats = move || {
+        let store = app_store.get();
+        let portfolios = &store.portfolios;
+        let total_value: f64 = portfolios.iter().map(|p| p.total_value).sum();
+        let total_assets: usize = portfolios.iter().map(|p| p.get_all_assets().len()).sum();
+        let total_groups: usize = portfolios.iter().map(|p| p.asset_groups.len()).sum();
+        let total_docs: usize = portfolios.iter().map(|p| p.documents.len()).sum();
+        (portfolios.len(), total_value, total_assets, total_groups, total_docs)
+    };
+
+    // Channel stats
+    let channel_stats = move || {
+        let store = app_store.get();
+        let channels = &store.channels;
+        let connected = channels.iter().filter(|c| c.connection_status == ConnectionStatus::Connected).count();
+        let disconnected = channels.iter().filter(|c| c.connection_status == ConnectionStatus::Disconnected).count();
+        let errors = channels.iter().filter(|c| c.connection_status == ConnectionStatus::Error).count();
+        let enabled = channels.iter().filter(|c| c.enabled).count();
+        (channels.len(), connected, disconnected, errors, enabled)
+    };
+
+    // Service task stats
+    let service_task_stats = move || {
+        let store = app_store.get();
+        let total = store.service_tasks.len();
+        let pending = store.service_tasks.iter().filter(|t| t.status != crate::models::ServiceTaskStatus::Done && t.status != crate::models::ServiceTaskStatus::Cancelled).count();
+        let completed = store.service_tasks.iter().filter(|t| t.status == crate::models::ServiceTaskStatus::Done).count();
+        (total, pending, completed)
+    };
+
+    // Bottom section data lists
+    let organizations_list = move || {
+        let orgs = organization_store.get();
+        orgs.organizations
+            .iter()
+            .map(|o| {
+                let member_count = orgs
+                    .organization_users
+                    .iter()
+                    .filter(|u| u.organization_id == Some(o.id))
+                    .count();
+                (
+                    o.name.clone(),
+                    o.business_type.clone().unwrap_or_else(|| "—".to_string()),
+                    member_count,
+                    o.roles.len(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let top_portfolios_by_value = move || {
+        let mut portfolios: Vec<_> = app_store
+            .get()
+            .portfolios
+            .iter()
+            .map(|p| {
+                (
+                    p.name.clone(),
+                    p.total_value,
+                    p.get_all_assets().len(),
+                    format!("{:?}", p.status),
+                )
+            })
+            .collect();
+        portfolios.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        portfolios.into_iter().take(4).collect::<Vec<_>>()
+    };
+
+    let top_assets_by_value = move || {
+        let app = app_store.get();
+        let mut assets: Vec<_> = Vec::new();
+        for p in &app.portfolios {
+            for a in p.get_all_assets() {
+                assets.push((
+                    a.name.clone(),
+                    a.current_value,
+                    a.asset_type.to_input_string(),
+                    p.name.clone(),
+                ));
+            }
+        }
+        assets.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        assets.into_iter().take(4).collect::<Vec<_>>()
+    };
+
+    let channels_list = move || {
+        app_store
+            .get()
+            .channels
+            .iter()
+            .map(|c| {
+                let status_icon = match c.connection_status {
+                    ConnectionStatus::Connected => "🟢",
+                    ConnectionStatus::Disconnected => "⚪",
+                    ConnectionStatus::Error => "🔴",
+                };
+                let type_label = match &c.channel_type {
+                    crate::models::ChannelType::Airbnb => "Airbnb",
+                    crate::models::ChannelType::BookingCom => "Booking.com",
+                    crate::models::ChannelType::Expedia => "Expedia",
+                    crate::models::ChannelType::Vrbo => "Vrbo",
+                    crate::models::ChannelType::LinkedIn => "LinkedIn",
+                    crate::models::ChannelType::Test => "Test",
+                    crate::models::ChannelType::Other(s) => s.as_str(),
+                };
+                let sync_time = c
+                    .last_sync_at
+                    .map(|t| fmt_time(t))
+                    .unwrap_or_else(|| "never".to_string());
+                (
+                    c.name.clone(),
+                    status_icon.to_string(),
+                    type_label.to_string(),
+                    c.enabled,
+                    sync_time,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+
+    let upcoming_bookings = move || {
+        let now = chrono::Utc::now();
+        let mut events: Vec<_> = calendar_store
+            .get()
+            .calendar_events
+            .iter()
+            .filter(|e| e.start >= now)
+            .cloned()
+            .collect();
+        events.sort_by(|a, b| a.start.cmp(&b.start));
+        events
+            .into_iter()
+            .take(4)
+            .map(|e| (e.title.clone(), e.start, e.all_day))
+            .collect::<Vec<_>>()
+    };
+
+    let top_transactions_by_amount = move || {
+        let mut txns: Vec<_> = transaction_store
+            .get()
+            .transactions
+            .iter()
+            .map(|t| (t.transaction_type.clone(), t.amount, t.to_entity.name.clone(), t.created_at))
+            .collect();
+        txns.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        txns.into_iter().take(4).collect::<Vec<_>>()
+    };
+
+    let on_open_organization = move |_| {
+        app_store.update(|s| s.expand_tab(crate::types::TabType::Organization));
+    };
+
+    let on_open_networking = move |_| {
+        app_store.update(|s| s.expand_tab(crate::types::TabType::Networking));
+    };
+
     view! {
         <div class="overview-content">
             <div class="overview-greeting">
                 "Welcome, "
                 <EditableText value=Signal::derive(user_name) on_commit=on_name_commit />
+            </div>
+
+            // Organization + Portfolio detail row
+            <div class="overview-detail-row">
+                <div class="overview-detail-card clickable" on:click=on_open_organization>
+                    <div class="overview-detail-header">
+                        <span class="overview-detail-icon">"🏢"</span>
+                        <span class="overview-detail-title">"Current Organization"</span>
+                    </div>
+                    <div class="overview-detail-body">
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Name"</span>
+                            <span class="overview-detail-val">{move || org_summary().2}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Type"</span>
+                            <span class="overview-detail-val">{move || org_summary().3}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Members"</span>
+                            <span class="overview-detail-val">{move || org_summary().1}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Roles"</span>
+                            <span class="overview-detail-val">{move || org_summary().4}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-detail-card clickable" on:click=on_open_portfolios>
+                    <div class="overview-detail-header">
+                        <span class="overview-detail-icon">"📊"</span>
+                        <span class="overview-detail-title">"Portfolio Summary"</span>
+                    </div>
+                    <div class="overview-detail-body">
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Total Value"</span>
+                            <span class="overview-detail-val">{move || format!("${:.2}M", portfolio_stats().1 / 1_000_000.0)}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Asset Groups"</span>
+                            <span class="overview-detail-val">{move || portfolio_stats().3}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Documents"</span>
+                            <span class="overview-detail-val">{move || portfolio_stats().4}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Service Tasks"</span>
+                            <span class="overview-detail-val">{move || format!("{} pending", service_task_stats().1)}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overview-detail-card clickable" on:click=on_open_networking>
+                    <div class="overview-detail-header">
+                        <span class="overview-detail-icon">"📡"</span>
+                        <span class="overview-detail-title">"Channel Status"</span>
+                    </div>
+                    <div class="overview-detail-body">
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Connected"</span>
+                            <span class="overview-detail-val overview-detail-val-good">{move || channel_stats().1}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Disconnected"</span>
+                            <span class="overview-detail-val">{move || channel_stats().2}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Errors"</span>
+                            <span class="overview-detail-val" class:overview-detail-val-bad={move || channel_stats().3 > 0}>{move || channel_stats().3}</span>
+                        </div>
+                        <div class="overview-detail-row-item">
+                            <span class="overview-detail-key">"Enabled"</span>
+                            <span class="overview-detail-val">{move || channel_stats().4}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="overview-square-grid">
@@ -492,6 +745,209 @@ pub fn OverviewPage() -> impl IntoView {
                                                         <span class="overview-message-sender">{format!("{} {}", a.icon, a.message)}</span>
                                                         <span class="overview-message-time">{time}</span>
                                                     </div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+            </div>
+
+            // Linked-content continuation
+            <div class="overview-square-grid">
+                // Organizations (wide rectangle)
+                <div class="overview-square overview-square-wide clickable" on:click=on_open_organization>
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"🏢"</span>
+                        <span class="overview-square-label">"Organizations"</span>
+                        <span class="overview-square-count">{move || organization_store.get().organizations.len()}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let orgs = organizations_list();
+                            if orgs.is_empty() {
+                                view! { <div class="overview-square-empty">"No organizations"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {orgs.into_iter().map(|(name, biz_type, members, roles)| {
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{name}</span>
+                                                        <span class="overview-message-time">{format!("{} members", members)}</span>
+                                                    </div>
+                                                    <div class="overview-message-preview">{format!("{} · {} roles", biz_type, roles)}</div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+
+                // Top Portfolios
+                <div class="overview-square clickable" on:click=on_open_portfolios>
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"📊"</span>
+                        <span class="overview-square-label">"Top Portfolios"</span>
+                        <span class="overview-square-count">{move || app_store.get().portfolios.len()}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let portfolios = top_portfolios_by_value();
+                            if portfolios.is_empty() {
+                                view! { <div class="overview-square-empty">"No portfolios"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {portfolios.into_iter().map(|(name, value, asset_count, status)| {
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{name}</span>
+                                                        <span class="overview-message-time">{status}</span>
+                                                    </div>
+                                                    <div class="overview-message-preview">{format!("${:.2}M · {} assets", value / 1_000_000.0, asset_count)}</div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+
+                // Top Assets
+                <div class="overview-square clickable" on:click=on_open_portfolios>
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"🏠"</span>
+                        <span class="overview-square-label">"Top Assets"</span>
+                        <span class="overview-square-count">{move || portfolio_stats().2}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let assets = top_assets_by_value();
+                            if assets.is_empty() {
+                                view! { <div class="overview-square-empty">"No assets"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {assets.into_iter().map(|(name, value, asset_type, portfolio_name)| {
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{name}</span>
+                                                        <span class="overview-message-time">{asset_type}</span>
+                                                    </div>
+                                                    <div class="overview-message-preview">{format!("${:.2}M · {}", value / 1_000_000.0, portfolio_name)}</div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+
+                // Channels (wide rectangle)
+                <div class="overview-square overview-square-wide clickable" on:click=on_open_networking>
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"📡"</span>
+                        <span class="overview-square-label">"Channels"</span>
+                        <span class="overview-square-count">{move || channel_stats().0}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let channels = channels_list();
+                            if channels.is_empty() {
+                                view! { <div class="overview-square-empty">"No channels"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {channels.into_iter().map(|(name, status_icon, type_label, enabled, sync_time)| {
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{status_icon} " " {name}</span>
+                                                        <span class="overview-message-time">{if enabled { "enabled" } else { "disabled" }}</span>
+                                                    </div>
+                                                    <div class="overview-message-preview">{format!("{} · sync {}", type_label, sync_time)}</div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+
+                // Upcoming Bookings
+                <div class="overview-square clickable" on:click=on_open_bookings>
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"📅"</span>
+                        <span class="overview-square-label">"Upcoming Bookings"</span>
+                        <span class="overview-square-count">{move || calendar_store.get().calendar_events.len()}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let events = upcoming_bookings();
+                            if events.is_empty() {
+                                view! { <div class="overview-square-empty">"No upcoming bookings"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {events.into_iter().map(|(title, start, all_day)| {
+                                            let time = if all_day { start.format("%d %b").to_string() } else { start.format("%d %b %H:%M").to_string() };
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{title}</span>
+                                                        <span class="overview-message-time">{time}</span>
+                                                    </div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            }
+                        }}
+                    </div>
+                </div>
+
+                // Top Transactions
+                <div class="overview-square clickable" on:click=on_open_transactions>
+                    <div class="overview-square-header">
+                        <span class="overview-square-icon">"💰"</span>
+                        <span class="overview-square-label">"Top Transactions"</span>
+                        <span class="overview-square-count">{move || transaction_store.get().transactions.len()}</span>
+                    </div>
+                    <div class="overview-square-messages">
+                        {move || {
+                            let txns = top_transactions_by_amount();
+                            if txns.is_empty() {
+                                view! { <div class="overview-square-empty">"No transactions"</div> }.into_any()
+                            } else {
+                                view! {
+                                    <div class="overview-message-list-compact">
+                                        {txns.into_iter().map(|(txn_type, amount, to_name, created_at)| {
+                                            let label = txn_type_label(&txn_type);
+                                            let time = fmt_time(created_at);
+                                            view! {
+                                                <div class="overview-message-row-compact">
+                                                    <div class="overview-message-row-top">
+                                                        <span class="overview-message-sender">{format!("{} · ${:.0}", label, amount)}</span>
+                                                        <span class="overview-message-time">{time}</span>
+                                                    </div>
+                                                    <div class="overview-message-preview">{to_name}</div>
                                                 </div>
                                             }
                                         }).collect::<Vec<_>>()}

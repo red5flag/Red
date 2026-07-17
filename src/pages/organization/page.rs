@@ -66,7 +66,6 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_role_scope, set_edit_role_scope) =
         signal(crate::models::RoleScope::entire());
     let (show_add_org, set_show_add_org) = signal(false);
-    let (show_add_import_menu, set_show_add_import_menu) = signal(false);
     let (new_org_name, set_new_org_name) = signal(String::new());
     let (new_org_desc, set_new_org_desc) = signal(String::new());
     let (new_org_abn, set_new_org_abn) = signal(String::new());
@@ -377,92 +376,8 @@ pub fn OrganizationPage() -> impl IntoView {
         organization_store.update(|s| s.remove_member_from_role(oid, rid, uid));
     };
 
-    let blind_add_button = move || {
-        let blind = ui_store.get().blind_mode;
-        let any_manage = organization_store.get().organizations.iter().any(|o| {
-            let role = organization_store.get().current_user_role_in_org(
-                o.id,
-                app_store.get().current_user.id,
-                app_store.get().current_user.role.clone(),
-            );
-            matches!(
-                role,
-                UserRole::Owner | UserRole::Director | UserRole::SeniorManager | UserRole::Manager
-            )
-        });
-        if any_manage && blind {
-            view! {
-                <div class="view-toggle">
-                    <button class="view-btn" class:active=show_add_org
-                        on:click=move |_| set_show_add_org.update(|v| *v = !*v)>
-                        "+ Add Organization"
-                    </button>
-                </div>
-            }
-            .into_any()
-        } else {
-            ().into_any()
-        }
-    };
-
-    let add_import_dropdown = move || {
-        let any_manage = organization_store.get().organizations.iter().any(|o| {
-            let role = organization_store.get().current_user_role_in_org(
-                o.id,
-                app_store.get().current_user.id,
-                app_store.get().current_user.role.clone(),
-            );
-            matches!(
-                role,
-                UserRole::Owner | UserRole::Director | UserRole::SeniorManager | UserRole::Manager
-            )
-        });
-        if any_manage {
-            view! {
-                <div class="org-add-import-wrap">
-                    <button class="org-add-import-btn"
-                        aria-haspopup="menu"
-                        aria-expanded={move || show_add_import_menu.get()}
-                        aria-label="Add or import organization"
-                        on:click=move |_| set_show_add_import_menu.update(|v| *v = !*v)>
-                        "+ Add / Import Organization"
-                    </button>
-                    {move || if show_add_import_menu.get() {
-                        view! {
-                            <div class="org-add-import-menu">
-                                <button class="org-add-import-item"
-                                    on:click=move |_| {
-                                        set_show_add_import_menu.set(false);
-                                        set_show_add_org.set(true);
-                                    }>
-                                    "\u{2795} Add Organization"
-                                </button>
-                                <button class="org-add-import-item" disabled>
-                                    "\u{1F4E5} Import Organization (coming soon)"
-                                </button>
-                                <button class="org-add-import-item" disabled>
-                                    "\u{1F517} LinkedIn Import (coming soon)"
-                                </button>
-                                <button class="org-add-import-item" disabled>
-                                    "\u{1F916} Assisted Setup (coming soon)"
-                                </button>
-                            </div>
-                        }.into_any()
-                    } else { ().into_any() }}
-                </div>
-            }
-            .into_any()
-        } else {
-            ().into_any()
-        }
-    };
-
     view! {
         <div class="home-screen">
-            {blind_add_button}
-
-            {add_import_dropdown}
-
             <div class="org-top-controls">
                 <div class="org-quick-tabs" role="tablist" aria-label="Organization sort options">
                     {[OrgSortMode::Members, OrgSortMode::Roles, OrgSortMode::Recent, OrgSortMode::NameAsc, OrgSortMode::NameDesc]
@@ -484,7 +399,7 @@ pub fn OrganizationPage() -> impl IntoView {
                 </div>
             </div>
 
-            {move || if organizations.get().is_empty() && !show_add_org.get() && !show_add_import_menu.get() {
+            {move || if organizations.get().is_empty() && !show_add_org.get() {
                 view! {
                     <div class="org-empty-state">
                         <div class="org-empty-icon">"🏢"</div>
@@ -586,6 +501,7 @@ pub fn OrganizationPage() -> impl IntoView {
                         on_update_member_role={Callback::new(move |v: (Uuid, UserRole)| on_update_member_role(v.0, v.1))}
                         on_context_menu={Callback::new(move |v: (i32, i32, Uuid)| set_context_menu.set(Some(v)))}
                         on_role_context_menu={Callback::new(move |v: (i32, i32, Uuid, Uuid)| set_role_context_menu.set(Some(v)))}
+                        on_add_org={Callback::new(move |_| set_show_add_org.set(true))}
                     />
                 }
             }}

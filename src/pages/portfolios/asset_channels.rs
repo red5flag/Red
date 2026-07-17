@@ -377,15 +377,16 @@ pub(crate) fn AssetChannelsSection(
     }
 }
 
+/// Asset Linking Controls — channel linking panel (connect/disconnect/sync/edit channels).
+/// Role-ready: respects `can_link` permission flag independently from booking controls.
 #[component]
-pub(crate) fn AssetChannelManagement(
+pub(crate) fn AssetLinkingControls(
     asset_id: Uuid,
     asset_name: String,
     portfolio_id: Option<Uuid>,
-    can_edit: bool,
+    can_link: bool,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let calendar_store = use_calendar_store();
     let (asset_name_signal, _) = signal(asset_name);
 
     let channels_for_asset = Memo::new(move |_| {
@@ -397,20 +398,59 @@ pub(crate) fn AssetChannelManagement(
             .collect::<Vec<_>>()
     });
 
-    let bookings_for_asset = Memo::new(move |_| {
-        app_store
-            .get()
-            .bookings_for_asset(asset_id)
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>()
+    let (editing_channel, set_editing_channel) = signal(Option::<Uuid>::None);
+    let on_close_channel_window = Callback::new(move |_| set_editing_channel.set(None));
+
+    let link_test_channel = Callback::new(move |_| {
+        let name = format!("Test Channel - {}", asset_name_signal.get_untracked());
+        let channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
+        app_store.update(|s| s.add_channel(channel));
+    });
+
+    let connect_channel = Callback::new(move |channel_id: Uuid| {
+        app_store.update(|s| {
+            if let Some(c) = s.get_channel_mut(channel_id) {
+                c.connect();
+            }
+        });
+    });
+
+    let disconnect_channel = Callback::new(move |channel_id: Uuid| {
+        app_store.update(|s| {
+            if let Some(c) = s.get_channel_mut(channel_id) {
+                c.disconnect();
+            }
+        });
+    });
+
+    let check_channel = Callback::new(move |channel_id: Uuid| {
+        app_store.update(|s| {
+            if let Some(c) = s.get_channel_mut(channel_id) {
+                c.check_connection();
+            }
+        });
+    });
+
+    let sync_channel = Callback::new(move |channel_id: Uuid| {
+        app_store.update(|s| {
+            if let Some(c) = s.get_channel_mut(channel_id) {
+                c.last_sync_at = Some(Utc::now());
+                c.last_sync_status = Some("Test channel sync completed (local)".to_string());
+                c.sync_errors.clear();
+            }
+        });
     });
 
     let channel_stats = Memo::new(move |_| {
         let now = Utc::now();
         let window_end = now + Duration::days(365);
         let channels = channels_for_asset.get();
-        let bookings = bookings_for_asset.get();
+        let bookings: Vec<_> = app_store
+            .get()
+            .bookings_for_asset(asset_id)
+            .into_iter()
+            .cloned()
+            .collect();
 
         let price_per_day = if channels.is_empty() {
             "—".to_string()
@@ -447,17 +487,126 @@ pub(crate) fn AssetChannelManagement(
             .sum::<u32>();
 
         let unbooked_days = 365u32.saturating_sub(booked_days);
-
         (price_per_day, booked_days, unbooked_days, channels.len())
     });
 
-    let (editing_channel, set_editing_channel) = signal(Option::<Uuid>::None);
-    let on_close_channel_window = Callback::new(move |_| set_editing_channel.set(None));
+    view! {
+        <div class="ai-channel-management ai-linking-controls">
+            <div class="ai-channel-management-header">
+                <span class="ai-channel-management-title">"Linking Controls"</span>
+                {move || if can_link {
+                    view! {
+                        <button class="pf-small-btn" on:click=move |_| link_test_channel.run(())>"Link Test Channel"</button>
+                    }.into_any()
+                } else { ().into_any() }}
+            </div>
 
-    let link_test_channel = Callback::new(move |_| {
-        let name = format!("Test Channel - {}", asset_name_signal.get_untracked());
-        let channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
-        app_store.update(|s| s.add_channel(channel));
+            {move || {
+                let (price, booked, unbooked, count) = channel_stats.get();
+                view! {
+                    <div class="ai-channel-stats">
+                        <div class="ai-channel-stat">
+                            <span class="ai-channel-stat-label">"Price / day"</span>
+                            <span class="ai-channel-stat-value">{price}</span>
+                        </div>
+                        <div class="ai-channel-stat">
+                            <span class="ai-channel-stat-label">"Booked days"</span>
+                            <span class="ai-channel-stat-value">{booked.to_string()}</span>
+                        </div>
+                        <div class="ai-channel-stat">
+                            <span class="ai-channel-stat-label">"Unbooked days"</span>
+                            <span class="ai-channel-stat-value">{unbooked.to_string()}</span>
+                        </div>
+                        <div class="ai-channel-stat">
+                            <span class="ai-channel-stat-label">"Channels"</span>
+                            <span class="ai-channel-stat-value">{count.to_string()}</span>
+                        </div>
+                    </div>
+                }.into_any()
+            }}
+
+            {move || {
+                let channels = channels_for_asset.get();
+                if channels.is_empty() {
+                    view! { <div class="ai-channel-management-empty">"No channels linked."</div> }.into_any()
+                } else {
+                    view! {
+                        <div class="ai-channel-management-chips">
+                            {channels.into_iter().map(|c| {
+                                let status = format!("{:?}", c.connection_status);
+                                let status_icon = match c.connection_status {
+                                    ConnectionStatus::Connected => "🟢",
+                                    ConnectionStatus::Disconnected => "⚪",
+                                    ConnectionStatus::Error => "🔴",
+                                };
+                                let cid = c.id;
+                                view! {
+                                    <div class="ai-channel-management-chip"
+                                        class:ai-channel-management-chip-editable={can_link}
+                                        title={format!("{} — {}", c.name, status)}
+                                        on:click=move |_| if can_link { set_editing_channel.set(Some(cid)) }
+                                    >
+                                        {status_icon} " " {c.name.clone()}
+                                    </div>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    }.into_any()
+                }
+            }}
+
+            {move || if can_link {
+                let channels = channels_for_asset.get();
+                if channels.is_empty() {
+                    ().into_any()
+                } else {
+                    view! {
+                        <div class="ai-channel-actions">
+                            {channels.into_iter().map(|c| {
+                                let cid = c.id;
+                                view! {
+                                    <span class="ai-channel-action-group">
+                                        <button class="pf-small-btn" on:click=move |_| connect_channel.run(cid)>"Connect"</button>
+                                        <button class="pf-small-btn" on:click=move |_| disconnect_channel.run(cid)>"Disconnect"</button>
+                                        <button class="pf-small-btn" on:click=move |_| check_channel.run(cid)>"Check"</button>
+                                        <button class="pf-small-btn" on:click=move |_| sync_channel.run(cid)>"Sync"</button>
+                                    </span>
+                                }
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    }.into_any()
+                }
+            } else { ().into_any() }}
+
+            {move || if let Some(cid) = editing_channel.get() {
+                view! {
+                    <ChannelManagementWindow channel_id={cid} on_close={on_close_channel_window} />
+                }.into_any()
+            } else { ().into_any() }}
+        </div>
+    }
+}
+
+/// Asset Booking Controls — booking management panel (create/list/cancel bookings).
+/// Role-ready: respects `can_book` permission flag independently from linking controls.
+#[component]
+pub(crate) fn AssetBookingControls(
+    asset_id: Uuid,
+    asset_name: String,
+    portfolio_id: Option<Uuid>,
+    can_book: bool,
+) -> impl IntoView {
+    let app_store = use_app_store();
+    let calendar_store = use_calendar_store();
+    let (asset_name_signal, _) = signal(asset_name);
+
+    let bookings_for_asset = Memo::new(move |_| {
+        app_store
+            .get()
+            .bookings_for_asset(asset_id)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>()
     });
 
     let (show_booking_form, set_show_booking_form) = signal(false);
@@ -465,8 +614,8 @@ pub(crate) fn AssetChannelManagement(
     let (start_date, set_start_date) = signal(String::new());
     let (end_date, set_end_date) = signal(String::new());
     let (cost_per_night, set_cost_per_night) = signal(String::from("100"));
-    let (form_error, set_form_error) = signal(Option::<String>::None);
     let (conflict_msg, set_conflict_msg) = signal(Option::<String>::None);
+    let (form_error, set_form_error) = signal(Option::<String>::None);
 
     let create_booking = Callback::new(move |_| {
         let guest = guest_name.get();
@@ -559,80 +708,75 @@ pub(crate) fn AssetChannelManagement(
         set_form_error.set(None);
     });
 
+    let add_cleaning_for_booking = Callback::new(move |booking_id: Uuid| {
+        app_store.update(|s| {
+            if let Some(task) = s.add_cleaning_task_for_booking(booking_id, 4) {
+                let task_clone = task.clone();
+                let asset_name_clone = asset_name_signal.get_untracked();
+                calendar_store.update(|cs| {
+                    cs.sync_service_task_event(&task_clone, &asset_name_clone, portfolio_id);
+                });
+            }
+        });
+    });
+
+    let cancel_booking = Callback::new(move |booking_id: Uuid| {
+        app_store.update(|s| {
+            if let Some(b) = s.get_booking_mut(booking_id) {
+                b.mark_cancelled("Manual");
+                let b = b.clone();
+                let asset_name_clone = asset_name_signal.get_untracked();
+                let channel_name = b
+                    .channel_id
+                    .and_then(|cid| s.get_channel(cid))
+                    .map(|c| c.name.clone());
+                calendar_store.update(|cs| {
+                    cs.sync_booking_event(
+                        &b,
+                        &asset_name_clone,
+                        channel_name.as_deref(),
+                        portfolio_id,
+                    );
+                });
+            }
+        });
+    });
+
+    let simulate_change = Callback::new(move |booking_id: Uuid| {
+        app_store.update(|s| {
+            let start = Some(Utc::now() + Duration::days(2));
+            let end = Some(Utc::now() + Duration::days(5));
+            if let Some(b) = s.simulate_booking_change(booking_id, start, end, Some(120.0), None) {
+                let b = b.clone();
+                let asset_name_clone = asset_name_signal.get_untracked();
+                let channel_name = b
+                    .channel_id
+                    .and_then(|cid| s.get_channel(cid))
+                    .map(|c| c.name.clone());
+                calendar_store.update(|cs| {
+                    cs.sync_booking_event(
+                        &b,
+                        &asset_name_clone,
+                        channel_name.as_deref(),
+                        portfolio_id,
+                    );
+                });
+            }
+        });
+    });
+
     view! {
-        <div class="ai-channel-management">
+        <div class="ai-channel-management ai-booking-controls">
             <div class="ai-channel-management-header">
-                <span class="ai-channel-management-title">"Channel Management"</span>
-                {move || if can_edit {
-                    view! {
-                        <button class="pf-small-btn" on:click=move |_| link_test_channel.run(())>"Link Test Channel"</button>
-                    }.into_any()
-                } else { ().into_any() }}
-            </div>
-
-            {move || {
-                let (price, booked, unbooked, count) = channel_stats.get();
-                view! {
-                    <div class="ai-channel-stats">
-                        <div class="ai-channel-stat">
-                            <span class="ai-channel-stat-label">"Price / day"</span>
-                            <span class="ai-channel-stat-value">{price}</span>
-                        </div>
-                        <div class="ai-channel-stat">
-                            <span class="ai-channel-stat-label">"Booked days"</span>
-                            <span class="ai-channel-stat-value">{booked.to_string()}</span>
-                        </div>
-                        <div class="ai-channel-stat">
-                            <span class="ai-channel-stat-label">"Unbooked days"</span>
-                            <span class="ai-channel-stat-value">{unbooked.to_string()}</span>
-                        </div>
-                        <div class="ai-channel-stat">
-                            <span class="ai-channel-stat-label">"Channels"</span>
-                            <span class="ai-channel-stat-value">{count.to_string()}</span>
-                        </div>
-                    </div>
-                }.into_any()
-            }}
-
-            {move || {
-                let channels = channels_for_asset.get();
-                if channels.is_empty() {
-                    view! { <div class="ai-channel-management-empty">"No channels linked."</div> }.into_any()
-                } else {
-                    view! {
-                        <div class="ai-channel-management-chips">
-                            {channels.into_iter().map(|c| {
-                                let status = format!("{:?}", c.connection_status);
-                                let status_icon = match c.connection_status {
-                                    ConnectionStatus::Connected => "🟢",
-                                    ConnectionStatus::Disconnected => "⚪",
-                                    ConnectionStatus::Error => "🔴",
-                                };
-                                let cid = c.id;
-                                view! {
-                                    <div class="ai-channel-management-chip"
-                                        class:ai-channel-management-chip-editable={can_edit}
-                                        title={format!("{} — {}", c.name, status)}
-                                        on:click=move |_| if can_edit { set_editing_channel.set(Some(cid)) }
-                                    >
-                                        {status_icon} " " {c.name.clone()}
-                                    </div>
-                                }
-                            }).collect::<Vec<_>>()}
-                        </div>
-                    }.into_any()
-                }
-            }}
-
-            {move || if can_edit { view! {
-                <div class="ai-channel-management-actions">
+                <span class="ai-channel-management-title">"Booking Controls"</span>
+                {move || if can_book { view! {
                     <button class="pf-small-btn" on:click=move |_| set_show_booking_form.update(|v| *v = !*v)>
                         {move || if show_booking_form.get() { "Close" } else { "+ Add Booking" }}
                     </button>
-                </div>
-            }.into_any() } else { ().into_any() }}
+                }.into_any() } else { ().into_any() }}
+            </div>
 
-            {move || if show_booking_form.get() { view! {
+            {move || if show_booking_form.get() && can_book { view! {
                 <div class="ai-channel-management-form">
                     {move || form_error.get().map(|m| view! { <div class="ai-form-error">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
                     {move || conflict_msg.get().map(|m| view! { <div class="ai-form-warning">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
@@ -652,11 +796,47 @@ pub(crate) fn AssetChannelManagement(
                 </div>
             }.into_any() } else { ().into_any() }}
 
-            {move || if let Some(cid) = editing_channel.get() {
-                view! {
-                    <ChannelManagementWindow channel_id={cid} on_close={on_close_channel_window} />
-                }.into_any()
-            } else { ().into_any() }}
+            <div class="ai-bookings-list">
+                {move || {
+                    let bookings = bookings_for_asset.get();
+                    if bookings.is_empty() {
+                        view! { <div class="ai-bookings-empty">"No bookings yet."</div> }.into_any()
+                    } else {
+                        view! {
+                            <div>
+                                {bookings.into_iter().map(|b| {
+                                    let bid = b.id;
+                                    let status = format!("{:?}", b.status);
+                                    let source = b.channel_label();
+                                    let nights = b.nights;
+                                    let total = format!("${:.2}", b.total);
+                                    let start = b.start_datetime.format("%d %b %Y").to_string();
+                                    let end = b.end_datetime.format("%d %b %Y").to_string();
+                                    view! {
+                                        <div class="ai-booking-row">
+                                            <div class="ai-booking-guest">{b.guest_name.clone()}</div>
+                                            <div class="ai-booking-meta">
+                                                <span>{start}" → "{end}</span>
+                                                <span>{nights}" nights"</span>
+                                                <span>"Total: "{total}</span>
+                                                <span>"Source: "{source}</span>
+                                                <span>"Status: "{status}</span>
+                                            </div>
+                                            {if can_book { view! {
+                                                <div class="ai-booking-actions">
+                                                    <button class="pf-small-btn" on:click=move |_| add_cleaning_for_booking.run(bid)>"Add Cleaning"</button>
+                                                    <button class="pf-small-btn" on:click=move |_| simulate_change.run(bid)>"Simulate Change"</button>
+                                                    <button class="pf-small-btn" on:click=move |_| cancel_booking.run(bid)>"Cancel"</button>
+                                                </div>
+                                            }.into_any() } else { ().into_any() }}
+                                        </div>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    }
+                }}
+            </div>
         </div>
     }
 }

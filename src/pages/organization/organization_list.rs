@@ -79,6 +79,7 @@ pub(crate) fn OrganizationList(
     on_update_member_role: Callback<(Uuid, UserRole), ()>,
     on_context_menu: Callback<(i32, i32, Uuid), ()>,
     on_role_context_menu: Callback<(i32, i32, Uuid, Uuid), ()>,
+    #[prop(into)] on_add_org: Callback<(), ()>,
 ) -> impl IntoView {
     let orgs = organizations.clone();
     let orgs_memo = Memo::new(move |_| orgs.clone());
@@ -168,6 +169,15 @@ pub(crate) fn OrganizationList(
                         }
                     }
                 />
+                    // Empty organization outline to add a new organization
+                    <button
+                        class="org-empty-outline"
+                        aria-label="Add a new organization"
+                        on:click=move |_| on_add_org.run(())
+                    >
+                        <span class="org-empty-outline-icon">"+"</span>
+                        <span class="org-empty-outline-text">"Add Organization"</span>
+                    </button>
                 </div>
             }.into_any()
         }}

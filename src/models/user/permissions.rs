@@ -96,6 +96,7 @@ pub enum PermGroup {
     Organization,
     Portfolio,
     Networking,
+    AssetLinking,
     Reporting,
     Calendar,
     Booking,
@@ -110,6 +111,7 @@ impl PermGroup {
             PermGroup::Organization => "Organization Controls",
             PermGroup::Portfolio => "Portfolio Controls",
             PermGroup::Networking => "Networking Controls",
+            PermGroup::AssetLinking => "Asset Linking Controls",
             PermGroup::Reporting => "Reporting Controls",
             PermGroup::Calendar => "Calendar Controls",
             PermGroup::Booking => "Booking Controls",
@@ -124,6 +126,7 @@ impl PermGroup {
             PermGroup::Organization,
             PermGroup::Portfolio,
             PermGroup::Networking,
+            PermGroup::AssetLinking,
             PermGroup::Reporting,
             PermGroup::Calendar,
             PermGroup::Booking,
@@ -177,14 +180,23 @@ pub enum Perm {
     CreateExternalOrganizations,
     EditExternalOrganizations,
     DeleteExternalOrganizations,
-    ViewChannels,
-    CreateChannels,
-    EditChannels,
-    DeleteChannels,
     ManagePartners,
     ManageSuppliers,
     ManageIntegrations,
     LinkContactsToPortfolios,
+    // Asset Linking (channel linking controls per scope)
+    ViewChannels,
+    CreateChannels,
+    EditChannels,
+    DeleteChannels,
+    ViewDirectAssetLinking,
+    EditDirectAssetLinking,
+    ViewAssetGroupLinking,
+    EditAssetGroupLinking,
+    ViewPortfolioLinking,
+    EditPortfolioLinking,
+    ViewOrgLinking,
+    EditOrgLinking,
     // Reporting
     ViewReports,
     CreateReports,
@@ -235,6 +247,23 @@ pub enum Perm {
     CompleteBookings,
     ManageBookings,
     ViewBookingFinancials,
+    // Booking — scoped per asset hierarchy level
+    ViewDirectAssetBookings,
+    CreateDirectAssetBookings,
+    EditDirectAssetBookings,
+    CancelDirectAssetBookings,
+    ViewAssetGroupBookings,
+    CreateAssetGroupBookings,
+    EditAssetGroupBookings,
+    CancelAssetGroupBookings,
+    ViewPortfolioBookings,
+    CreatePortfolioBookings,
+    EditPortfolioBookings,
+    CancelPortfolioBookings,
+    ViewOrgBookings,
+    CreateOrgBookings,
+    EditOrgBookings,
+    CancelOrgBookings,
     // Service Tasks
     ViewServiceTasks,
     CreateServiceTasks,
@@ -313,6 +342,14 @@ impl Perm {
             Perm::CreateChannels => "Create channels",
             Perm::EditChannels => "Edit channels",
             Perm::DeleteChannels => "Delete channels",
+            Perm::ViewDirectAssetLinking => "View direct asset linking",
+            Perm::EditDirectAssetLinking => "Edit direct asset linking",
+            Perm::ViewAssetGroupLinking => "View asset group linking",
+            Perm::EditAssetGroupLinking => "Edit asset group linking",
+            Perm::ViewPortfolioLinking => "View portfolio linking",
+            Perm::EditPortfolioLinking => "Edit portfolio linking",
+            Perm::ViewOrgLinking => "View organization linking",
+            Perm::EditOrgLinking => "Edit organization linking",
             Perm::ManagePartners => "Manage partners",
             Perm::ManageSuppliers => "Manage partners/suppliers/vendors",
             Perm::ManageIntegrations => "Manage integrations",
@@ -363,6 +400,22 @@ impl Perm {
             Perm::CompleteBookings => "Complete bookings",
             Perm::ManageBookings => "Manage all bookings",
             Perm::ViewBookingFinancials => "View booking financial details",
+            Perm::ViewDirectAssetBookings => "View direct asset bookings",
+            Perm::CreateDirectAssetBookings => "Create direct asset bookings",
+            Perm::EditDirectAssetBookings => "Edit direct asset bookings",
+            Perm::CancelDirectAssetBookings => "Cancel direct asset bookings",
+            Perm::ViewAssetGroupBookings => "View asset group bookings",
+            Perm::CreateAssetGroupBookings => "Create asset group bookings",
+            Perm::EditAssetGroupBookings => "Edit asset group bookings",
+            Perm::CancelAssetGroupBookings => "Cancel asset group bookings",
+            Perm::ViewPortfolioBookings => "View portfolio bookings",
+            Perm::CreatePortfolioBookings => "Create portfolio bookings",
+            Perm::EditPortfolioBookings => "Edit portfolio bookings",
+            Perm::CancelPortfolioBookings => "Cancel portfolio bookings",
+            Perm::ViewOrgBookings => "View organization bookings",
+            Perm::CreateOrgBookings => "Create organization bookings",
+            Perm::EditOrgBookings => "Edit organization bookings",
+            Perm::CancelOrgBookings => "Cancel organization bookings",
             Perm::ViewServiceTasks => "View service tasks",
             Perm::CreateServiceTasks => "Create service tasks",
             Perm::EditServiceTasks => "Edit service tasks",
@@ -436,14 +489,23 @@ impl Perm {
             | Perm::CreateExternalOrganizations
             | Perm::EditExternalOrganizations
             | Perm::DeleteExternalOrganizations
-            | Perm::ViewChannels
-            | Perm::CreateChannels
-            | Perm::EditChannels
-            | Perm::DeleteChannels
             | Perm::ManagePartners
             | Perm::ManageSuppliers
             | Perm::ManageIntegrations
             | Perm::LinkContactsToPortfolios => PermGroup::Networking,
+
+            Perm::ViewChannels
+            | Perm::CreateChannels
+            | Perm::EditChannels
+            | Perm::DeleteChannels
+            | Perm::ViewDirectAssetLinking
+            | Perm::EditDirectAssetLinking
+            | Perm::ViewAssetGroupLinking
+            | Perm::EditAssetGroupLinking
+            | Perm::ViewPortfolioLinking
+            | Perm::EditPortfolioLinking
+            | Perm::ViewOrgLinking
+            | Perm::EditOrgLinking => PermGroup::AssetLinking,
 
             Perm::ViewReports
             | Perm::CreateReports
@@ -492,7 +554,23 @@ impl Perm {
             | Perm::CancelBookings
             | Perm::CompleteBookings
             | Perm::ManageBookings
-            | Perm::ViewBookingFinancials => PermGroup::Booking,
+            | Perm::ViewBookingFinancials
+            | Perm::ViewDirectAssetBookings
+            | Perm::CreateDirectAssetBookings
+            | Perm::EditDirectAssetBookings
+            | Perm::CancelDirectAssetBookings
+            | Perm::ViewAssetGroupBookings
+            | Perm::CreateAssetGroupBookings
+            | Perm::EditAssetGroupBookings
+            | Perm::CancelAssetGroupBookings
+            | Perm::ViewPortfolioBookings
+            | Perm::CreatePortfolioBookings
+            | Perm::EditPortfolioBookings
+            | Perm::CancelPortfolioBookings
+            | Perm::ViewOrgBookings
+            | Perm::CreateOrgBookings
+            | Perm::EditOrgBookings
+            | Perm::CancelOrgBookings => PermGroup::Booking,
 
             Perm::ViewServiceTasks
             | Perm::CreateServiceTasks
@@ -570,14 +648,23 @@ impl Perm {
             Perm::CreateExternalOrganizations,
             Perm::EditExternalOrganizations,
             Perm::DeleteExternalOrganizations,
-            Perm::ViewChannels,
-            Perm::CreateChannels,
-            Perm::EditChannels,
-            Perm::DeleteChannels,
             Perm::ManagePartners,
             Perm::ManageSuppliers,
             Perm::ManageIntegrations,
             Perm::LinkContactsToPortfolios,
+            // Asset Linking
+            Perm::ViewChannels,
+            Perm::CreateChannels,
+            Perm::EditChannels,
+            Perm::DeleteChannels,
+            Perm::ViewDirectAssetLinking,
+            Perm::EditDirectAssetLinking,
+            Perm::ViewAssetGroupLinking,
+            Perm::EditAssetGroupLinking,
+            Perm::ViewPortfolioLinking,
+            Perm::EditPortfolioLinking,
+            Perm::ViewOrgLinking,
+            Perm::EditOrgLinking,
             // Reporting
             Perm::ViewReports,
             Perm::CreateReports,
@@ -628,6 +715,23 @@ impl Perm {
             Perm::CompleteBookings,
             Perm::ManageBookings,
             Perm::ViewBookingFinancials,
+            // Booking — scoped per asset hierarchy level
+            Perm::ViewDirectAssetBookings,
+            Perm::CreateDirectAssetBookings,
+            Perm::EditDirectAssetBookings,
+            Perm::CancelDirectAssetBookings,
+            Perm::ViewAssetGroupBookings,
+            Perm::CreateAssetGroupBookings,
+            Perm::EditAssetGroupBookings,
+            Perm::CancelAssetGroupBookings,
+            Perm::ViewPortfolioBookings,
+            Perm::CreatePortfolioBookings,
+            Perm::EditPortfolioBookings,
+            Perm::CancelPortfolioBookings,
+            Perm::ViewOrgBookings,
+            Perm::CreateOrgBookings,
+            Perm::EditOrgBookings,
+            Perm::CancelOrgBookings,
             // Service Tasks
             Perm::ViewServiceTasks,
             Perm::CreateServiceTasks,

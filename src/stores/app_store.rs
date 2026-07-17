@@ -86,11 +86,7 @@ impl AppStore {
 
 impl Default for AppStore {
     fn default() -> Self {
-        #[allow(unused_mut)]
-        let mut credentials = CredentialStore::with_defaults();
-
-        #[cfg(feature = "hydrate")]
-        credentials.merge_from_local_storage();
+        let credentials = CredentialStore::with_defaults();
 
         Self {
             current_user: UserProfile::default(),
@@ -816,7 +812,8 @@ impl AppStore {
         &mut self,
         username: &str,
         password: &str,
-        _notification_store: &mut NotificationStore,
+        notification_store: &mut NotificationStore,
+        organization_store: &mut crate::stores::OrganizationStore,
     ) -> Result<(String, String), String> {
         let cred = self
             .credentials
@@ -842,14 +839,20 @@ impl AppStore {
 
         // Seed demo organizations and portfolios if none exist
         if self.portfolios.is_empty() {
-            // Seeding requires OrganizationStore — handled by login() and login_server_validated()
-            // which have access to organization_store. login_with_credentials is the local-only
-            // path that still needs it passed in.
-            // For now, skip seeding here — the caller should use login() instead.
+            crate::stores::seed_data::seed_red_family_data(
+                self,
+                organization_store,
+                notification_store,
+            );
             // Mixed Investments is NOT part of any organization
-            self.portfolios
-                .push(seed_default_portfolio(self.current_user.id));
+            self.portfolios.push(seed_default_portfolio(self.current_user.id));
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
+            let red_org_id = organization_store.current_organization_id;
+            self.current_user.organization_id = red_org_id;
+            self.portfolios
+                .push(seed_direct_portfolio(self.current_user.id, red_org_id));
+            self.portfolios
+                .push(seed_groups_only_portfolio(self.current_user.id, red_org_id));
         }
 
         // Navigate to Overview after login
@@ -890,6 +893,7 @@ impl AppStore {
             );
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
             let red_org_id = organization_store.current_organization_id;
+            self.current_user.organization_id = red_org_id;
             self.portfolios
                 .push(seed_direct_portfolio(self.current_user.id, red_org_id));
             self.portfolios
@@ -928,6 +932,7 @@ impl AppStore {
             // Mixed Investments is NOT part of any organization
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
             let red_org_id = organization_store.current_organization_id;
+            self.current_user.organization_id = red_org_id;
             self.portfolios
                 .push(seed_direct_portfolio(self.current_user.id, red_org_id));
             self.portfolios
@@ -1105,6 +1110,7 @@ impl AppStore {
             // Mixed Investments is NOT part of any organization
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
             let red_org_id = organization_store.current_organization_id;
+            self.current_user.organization_id = red_org_id;
             self.portfolios
                 .push(seed_direct_portfolio(self.current_user.id, red_org_id));
             self.portfolios

@@ -355,8 +355,11 @@ pub struct ValidatedUser {
     pub display_name: String,
     pub email: String,
     pub validated_at: String,
+    #[serde(default)]
     pub totp_secret: Option<String>,
+    #[serde(default)]
     pub totp_enabled: bool,
+    #[serde(default)]
     pub email_2fa_enabled: bool,
     #[serde(default)]
     pub phone_number: Option<String>,

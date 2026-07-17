@@ -152,6 +152,10 @@ pub fn TabList() -> impl IntoView {
     let tab_items = move || {
         let mut items = vec![
             TabListItem {
+                tab_type: TabType::Overview,
+                title: "Overview",
+            },
+            TabListItem {
                 tab_type: TabType::Portfolios,
                 title: "Portfolios",
             },

@@ -15,5 +15,8 @@ echo "Logs will show both SSR and CSR build processes"
 echo "Errors will be saved to $ERRORS_FILE"
 echo ""
 
+# Make sure a previous farley server isn't holding the DB lock.
+pkill -x farley 2>/dev/null || true
+
 # Run cargo leptos watch, tee all output to stdout and capture errors
 cargo leptos watch 2>&1 | tee >(grep -iE "^error|^warning:|could not compile|build failed" >> "$ERRORS_FILE")

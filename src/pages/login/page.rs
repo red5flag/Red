@@ -92,21 +92,23 @@ pub fn LoginPage() -> impl IntoView {
 
     let finish_login = move |username: String, name: String, email: String, role: String| {
         set_error.set(String::new());
+        let mut org = organization_store.get_untracked();
+        let mut notif = notification_store.get_untracked();
         app_store.update(|store| {
             store.login_server_validated(
                 &username,
                 &name,
                 &email,
-                &mut notification_store.get_untracked(),
-                &mut organization_store.get_untracked(),
+                &mut notif,
+                &mut org,
             );
         });
-        notification_store.update(|store| {
-            store.add_notification(
-                format!("Welcome, {}!", name),
-                crate::stores::NotificationType::Success,
-            );
-        });
+        organization_store.set(org);
+        notif.add_notification(
+            format!("Welcome, {}!", name),
+            crate::stores::NotificationType::Success,
+        );
+        notification_store.set(notif);
         let user_id = app_store.get().current_user.id;
         let org_id = app_store.get().current_user.organization_id;
         undo_store.update(|undo| {
@@ -124,9 +126,19 @@ pub fn LoginPage() -> impl IntoView {
     };
 
     let initial_username = load_last_username();
-    if !initial_username.is_empty() {
-        set_username.set(initial_username.clone());
+    // Defer setting username from localStorage to after hydration
+    // to avoid mismatch with server-rendered empty value.
+    #[cfg(feature = "hydrate")]
+    {
+        let set_username_clone = set_username;
+        let initial = initial_username.clone();
+        if !initial.is_empty() {
+            spawn_local(async move {
+                set_username_clone.set(initial);
+            });
+        }
     }
+    let _ = &initial_username;
 
     cfg_if! {
         if #[cfg(feature = "hydrate")] {
@@ -177,23 +189,26 @@ pub fn LoginPage() -> impl IntoView {
         let password_matches = app_store.get().check_password(&u, &p);
 
         if password_matches {
+            let mut org = organization_store.get_untracked();
+            let mut notif = notification_store.get_untracked();
             let mut result: Option<Result<(String, String), String>> = None;
             app_store.update(|store| {
                 result = Some(store.login_with_credentials(
                     &u,
                     &p,
-                    &mut notification_store.get_untracked(),
+                    &mut notif,
+                    &mut org,
                 ));
             });
 
             if let Some(Ok((name, role_str))) = result {
                 set_error.set(String::new());
-                notification_store.update(|store| {
-                    store.add_notification(
-                        format!("Welcome, {}!", name),
-                        crate::stores::NotificationType::Success,
-                    );
-                });
+                organization_store.set(org);
+                notif.add_notification(
+                    format!("Welcome, {}!", name),
+                    crate::stores::NotificationType::Success,
+                );
+                notification_store.set(notif);
                 let user_id = app_store.get().current_user.id;
                 let org_id = app_store.get().current_user.organization_id;
                 undo_store.update(|undo| {
@@ -260,6 +275,10 @@ pub fn LoginPage() -> impl IntoView {
                                             s.save_password_to_credentials(&u_clone, &p_clone);
                                         });
                                         finish_login(u_clone.clone(), name, email, "Owner".to_string());
+                                        set_login_pressed_clone.set(false);
+                                    } else {
+                                        set_error_clone.set("Server returned success but missing user details".to_string());
+                                        set_login_pressed_clone.set(false);
                                     }
                                 } else if login_resp.requires_totp || login_resp.requires_email_2fa || login_resp.requires_phone_2fa {
                                     set_pending_username_clone.set(u_clone.clone());
@@ -307,14 +326,16 @@ pub fn LoginPage() -> impl IntoView {
             return;
         }
         let mut result: Option<Result<(String, String), String>> = None;
+        let mut org = organization_store.get_untracked();
         app_store.update(|store| {
             result = Some(store.login_saved_profile(
                 &u,
                 &p,
                 &mut notification_store.get_untracked(),
-                &mut organization_store.get_untracked(),
+                &mut org,
             ));
         });
+        organization_store.set(org);
         match result {
             Some(Ok((name, role_str))) => {
                 set_error.set(String::new());
@@ -490,13 +511,8 @@ pub fn LoginPage() -> impl IntoView {
     let (changelog_open, set_changelog_open) = signal(false);
     let (commits, _set_commits) = signal(Vec::<(String, String)>::new());
     let (commits_loading, set_commits_loading) = signal(false);
-    let (commits_fetched, set_commits_fetched) = signal(false);
 
     let fetch_commits = move |_| {
-        if commits_fetched.get() {
-            return;
-        }
-        set_commits_fetched.set(true);
         set_commits_loading.set(true);
         cfg_if! {
             if #[cfg(feature = "hydrate")] {

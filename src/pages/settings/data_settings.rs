@@ -1,3 +1,4 @@
+use crate::pages::organization::organization_forms::AddOrgForm;
 use crate::stores::{
     use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
     use_organization_store, use_transaction_store, use_ui_store,
@@ -40,6 +41,44 @@ pub(crate) fn DataSettings(
     let notification_store = use_notification_store();
     let transaction_store = use_transaction_store();
     let ui_store = use_ui_store();
+
+    // Add Organization form state (mirrors Organization page)
+    let (settings_show_add_org, set_settings_show_add_org) = signal(false);
+    let (settings_new_org_name, set_settings_new_org_name) = signal(String::new());
+    let (settings_new_org_desc, set_settings_new_org_desc) = signal(String::new());
+    let (settings_new_org_abn, set_settings_new_org_abn) = signal(String::new());
+    let (settings_new_org_lei, set_settings_new_org_lei) = signal(String::new());
+    let (settings_new_org_business_type, set_settings_new_org_business_type) = signal(String::new());
+    let (settings_new_org_business_address, set_settings_new_org_business_address) = signal(String::new());
+    let (settings_new_org_business_phone, set_settings_new_org_business_phone) = signal(String::new());
+    let (settings_new_org_business_email, set_settings_new_org_business_email) = signal(String::new());
+
+    let on_settings_add_org = move |_| {
+        let name = settings_new_org_name.get();
+        if name.trim().is_empty() {
+            return;
+        }
+        let owner_id = app_store.get().current_user.id;
+        let mut org = crate::models::Organization::new(name, owner_id);
+        org.description = if settings_new_org_desc.get().trim().is_empty() { None } else { Some(settings_new_org_desc.get()) };
+        org.abn = if settings_new_org_abn.get().trim().is_empty() { None } else { Some(settings_new_org_abn.get()) };
+        org.lei = if settings_new_org_lei.get().trim().is_empty() { None } else { Some(settings_new_org_lei.get()) };
+        org.business_type = if settings_new_org_business_type.get().trim().is_empty() { None } else { Some(settings_new_org_business_type.get()) };
+        org.business_address = if settings_new_org_business_address.get().trim().is_empty() { None } else { Some(settings_new_org_business_address.get()) };
+        org.business_phone = if settings_new_org_business_phone.get().trim().is_empty() { None } else { Some(settings_new_org_business_phone.get()) };
+        org.business_email = if settings_new_org_business_email.get().trim().is_empty() { None } else { Some(settings_new_org_business_email.get()) };
+        organization_store.update(|s| s.add_organization(org));
+        set_settings_new_org_name.set(String::new());
+        set_settings_new_org_desc.set(String::new());
+        set_settings_new_org_abn.set(String::new());
+        set_settings_new_org_lei.set(String::new());
+        set_settings_new_org_business_type.set(String::new());
+        set_settings_new_org_business_address.set(String::new());
+        set_settings_new_org_business_phone.set(String::new());
+        set_settings_new_org_business_email.set(String::new());
+        set_settings_show_add_org.set(false);
+        set_import_status.set("Organization created.".to_string());
+    };
 
     view! {
         <div class="data-card">
@@ -418,6 +457,82 @@ pub(crate) fn DataSettings(
                     </div>
                     <div class="list-item-right">
                         <button class="settings-action-btn" on:click=move |_| import_channel.run("airbnb")>"Import"</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-card">
+            <div class="card-header">
+                <span class="card-title">"Import Organizations"</span>
+            </div>
+            <div class="settings-list">
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <div class="list-item-title">"Organizations"</div>
+                        <div class="list-item-desc">"Create a new organization or import from external sources."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <button
+                            class="settings-action-btn"
+                            on:click=move |_| set_settings_show_add_org.update(|v| *v = !*v)
+                        >
+                            {move || if settings_show_add_org.get() { "Cancel" } else { "Add / Import" }}
+                        </button>
+                    </div>
+                </div>
+                {move || if settings_show_add_org.get() {
+                    view! {
+                        <div class="list-item org-import-add-form">
+                            <AddOrgForm
+                                show={settings_show_add_org}
+                                _set_show={set_settings_show_add_org}
+                                name={settings_new_org_name}
+                                set_name={set_settings_new_org_name}
+                                desc={settings_new_org_desc}
+                                set_desc={set_settings_new_org_desc}
+                                abn={settings_new_org_abn}
+                                set_abn={set_settings_new_org_abn}
+                                lei={settings_new_org_lei}
+                                set_lei={set_settings_new_org_lei}
+                                business_type={settings_new_org_business_type}
+                                set_business_type={set_settings_new_org_business_type}
+                                business_address={settings_new_org_business_address}
+                                set_business_address={set_settings_new_org_business_address}
+                                business_phone={settings_new_org_business_phone}
+                                set_business_phone={set_settings_new_org_business_phone}
+                                business_email={settings_new_org_business_email}
+                                set_business_email={set_settings_new_org_business_email}
+                                on_add={Callback::new(move |_| on_settings_add_org(()))}
+                            />
+                        </div>
+                    }.into_any()
+                } else { ().into_any() }}
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <div class="list-item-title">"Import Organization"</div>
+                        <div class="list-item-desc">"Import an existing organization from LinkedIn, ABN Lookup, or other sources."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <button class="settings-action-btn" disabled>"Import"</button>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <div class="list-item-title">"LinkedIn Import"</div>
+                        <div class="list-item-desc">"Sync your organization details from LinkedIn."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <button class="settings-action-btn" disabled>"Import"</button>
+                    </div>
+                </div>
+                <div class="list-item">
+                    <div class="list-item-left">
+                        <div class="list-item-title">"Assisted Setup"</div>
+                        <div class="list-item-desc">"Let the assistant create an organization profile for you."</div>
+                    </div>
+                    <div class="list-item-right">
+                        <button class="settings-action-btn" disabled>"Setup"</button>
                     </div>
                 </div>
             </div>

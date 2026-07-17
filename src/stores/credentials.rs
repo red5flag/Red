@@ -2,6 +2,7 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
+#[cfg(any(feature = "ssr", feature = "hydrate"))]
 use base64::Engine as _;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -58,12 +59,12 @@ pub fn decrypt_remembered_password(encoded: &str) -> Option<String> {
 }
 
 #[cfg(not(any(feature = "ssr", feature = "hydrate")))]
-fn encrypt_remembered_password(_plain: &str) -> Option<String> {
+pub fn encrypt_remembered_password(_plain: &str) -> Option<String> {
     None
 }
 
 #[cfg(not(any(feature = "ssr", feature = "hydrate")))]
-fn decrypt_remembered_password(encoded: &str) -> Option<String> {
+pub fn decrypt_remembered_password(encoded: &str) -> Option<String> {
     Some(encoded.to_string())
 }
 
@@ -74,8 +75,11 @@ pub struct StoredCredential {
     pub display_name: String,
     pub email: String,
     pub validated: bool,
+    #[serde(default)]
     pub totp_secret: Option<String>,
+    #[serde(default)]
     pub totp_enabled: bool,
+    #[serde(default)]
     pub email_2fa_enabled: bool,
     #[serde(default = "default_true")]
     pub store_local: bool,

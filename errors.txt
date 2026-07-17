@@ -1,0 +1,6 @@
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: could not compile `farley` (lib) due to 2 previous errors
+error: could not compile `farley` (lib) due to 2 previous errors

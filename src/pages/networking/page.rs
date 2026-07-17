@@ -361,38 +361,39 @@ pub fn NetworkingPage() -> impl IntoView {
     let (selected_org, set_selected_org) = signal::<Option<ExternalOrganization>>(None);
     let (_edit_mode, _set_edit_mode) = signal(false);
 
-    let tabs_scroll_ref = NodeRef::<leptos::html::Div>::new();
-    let (can_scroll_left, set_can_scroll_left) = signal(false);
-    let (can_scroll_right, set_can_scroll_right) = signal(true);
+    // Sort options horizontal scrollbar state
+    let sort_scroll_ref = NodeRef::<leptos::html::Div>::new();
+    let (sort_can_scroll_left, set_sort_can_scroll_left) = signal(false);
+    let (sort_can_scroll_right, set_sort_can_scroll_right) = signal(true);
 
-    let update_scroll_state = move || {
-        if let Some(el) = tabs_scroll_ref.get() {
+    let update_sort_scroll_state = move || {
+        if let Some(el) = sort_scroll_ref.get() {
             let left = el.scroll_left() as f64;
             let client = el.client_width() as f64;
             let width = el.scroll_width() as f64;
-            set_can_scroll_left.set(left > 0.0);
-            set_can_scroll_right.set(left + client < width - 1.0);
+            set_sort_can_scroll_left.set(left > 0.0);
+            set_sort_can_scroll_right.set(left + client < width - 1.0);
         }
     };
 
-    let scroll_tabs_left = move || {
-        if let Some(el) = tabs_scroll_ref.get() {
+    let scroll_sort_left = move || {
+        if let Some(el) = sort_scroll_ref.get() {
             let _ = el.scroll_by_with_x_and_y(-120.0, 0.0);
         }
-        update_scroll_state();
+        update_sort_scroll_state();
     };
 
-    let scroll_tabs_right = move || {
-        if let Some(el) = tabs_scroll_ref.get() {
+    let scroll_sort_right = move || {
+        if let Some(el) = sort_scroll_ref.get() {
             let _ = el.scroll_by_with_x_and_y(120.0, 0.0);
         }
-        update_scroll_state();
+        update_sort_scroll_state();
     };
 
     Effect::new(move |_| {
-        let _ = active_tab.get();
-        let _ = tabs_scroll_ref.get();
-        update_scroll_state();
+        let _ = ui_store.get().net_sort_mode;
+        let _ = sort_scroll_ref.get();
+        update_sort_scroll_state();
     });
 
     let sort_mode = move || match ui_store.get().net_sort_mode {
@@ -546,170 +547,211 @@ pub fn NetworkingPage() -> impl IntoView {
         }
     };
 
-    let primary_tabs_for_button = primary_tabs.to_vec();
-
-    // Sort dropdown state
+    // Sort option dropdown state
     let (sort_dropdown_open, set_sort_dropdown_open) = signal(false);
-
-    let render_tab_button = move |t: &NetTab| {
-        let tab = t.clone();
-        let tab_for_click = t.clone();
-        let label = t.label().to_string();
-        let label_for_aria = label.clone();
-        let is_primary = primary_tabs_for_button.contains(t);
-        view! {
-            <button
-                class="net-quick-tab"
-                class:net-quick-tab-primary={is_primary}
-                class:active={move || active_tab.get() == tab}
-                on:click=move |_| set_active_tab.set(tab_for_click.clone())
-                aria-label={label_for_aria}
-            >
-                {label}
-            </button>
-        }
-    };
+    let (view_dropdown_open, set_view_dropdown_open) = signal(false);
 
     view! {
-        <div class="home-screen">
-            // Top navigation / controls bar
+        <div class="home-screen net-page">
+            // Top navigation / controls bar attached directly under navbar
             <div class="net-top-controls">
-                // Quick filter tabs
-                <div class="net-quick-tabs-outer">
-                    <button
-                        class="net-scroll-arrow net-scroll-arrow-left"
-                        class:hidden={move || !can_scroll_left.get()}
-                        title="Scroll left"
-                        aria-label="Scroll left"
-                        on:click=move |_| scroll_tabs_left()
-                    >"<"</button>
-                    <div
-                        class="net-quick-tabs"
-                        role="tablist"
-                        aria-label="Networking views"
-                        node_ref=tabs_scroll_ref
-                        on:scroll=move |_| update_scroll_state()
-                    >
-                        {primary_tabs.iter().map(&render_tab_button).collect::<Vec<_>>()}
-                        {secondary_tabs.iter().map(&render_tab_button).collect::<Vec<_>>()}
-                    </div>
-                    <button
-                        class="net-scroll-arrow net-scroll-arrow-right"
-                        class:hidden={move || !can_scroll_right.get()}
-                        title="Scroll right"
-                        aria-label="Scroll right"
-                        on:click=move |_| scroll_tabs_right()
-                    >">"</button>
-                </div>
-
                 // Action bar
                 <div class="net-action-bar">
                     <button class="net-action-btn" on:click=move |_| ui_store.update(|s| s.toggle_networking_add_member())>"Add Contact"</button>
-                    <button class="net-action-btn" on:click=move |_| messenger_store.update(|s| s.set_message_drawer(true))>"Messages"</button>
-                    <select
-                        class="net-action-btn net-view-select"
-                        aria-label="View amount"
-                        prop:value={move || {
-                            match ui_store.get().net_view_count() {
-                                ViewCount::V1 => "view_1",
-                                ViewCount::V10 => "view_10",
-                                ViewCount::V20 => "view_20",
-                                ViewCount::V50 => "view_50",
-                                ViewCount::V100 => "view_100",
-                                ViewCount::Custom(_) => "view_custom",
-                            }.to_string()
-                        }}
-                        on:change=move |ev| {
-                            let v = event_target_value(&ev);
-                            let vc = match v.as_str() {
-                                "view_1" => ViewCount::V1,
-                                "view_10" => ViewCount::V10,
-                                "view_20" => ViewCount::V20,
-                                "view_50" => ViewCount::V50,
-                                "view_100" => ViewCount::V100,
-                                "view_custom" => ViewCount::Custom(50),
-                                _ => ViewCount::V50,
-                            };
-                            ui_store.update(|s| s.set_net_view_count(vc));
-                        }
-                    >
-                        <option value="view_1">"View: 1"</option>
-                        <option value="view_10">"View: 10"</option>
-                        <option value="view_20">"View: 20"</option>
-                        <option value="view_50">"View: 50"</option>
-                        <option value="view_100">"View: 100"</option>
-                        <option value="view_custom">"..."</option>
-                    </select>
-                    {move || if matches!(ui_store.get().net_view_count(), ViewCount::Custom(_)) {
+                    // View dropdown: contains the view tabs and the number-of-view control
+                    {move || {
+                        let view_open = view_dropdown_open.get();
                         view! {
-                            <input
-                                class="net-action-btn net-view-input"
-                                type="number"
-                                min="1"
-                                step="1"
-                                aria-label="Custom view count"
-                                prop:value={move || match ui_store.get().net_view_count() {
-                                    ViewCount::Custom(n) => n.to_string(),
-                                    _ => "50".to_string(),
-                                }}
-                                on:input=move |ev| {
-                                    let val = event_target_value(&ev);
-                                    if let Ok(n) = val.parse::<usize>() {
-                                        let n = n.max(1);
-                                        ui_store.update(|s| s.set_net_view_count(ViewCount::Custom(n)));
-                                    }
-                                }
-                            />
-                        }.into_any()
-                    } else { ().into_any() }}
-                    <div class="net-sort-btn-wrap">
-                        <button class="net-sort-btn" aria-haspopup="menu" aria-expanded={move || sort_dropdown_open.get()} on:click=move |_| set_sort_dropdown_open.update(|v| *v = !*v)>
-                            <span class="net-sort-label">{format!("Sort: {}", sort_mode().label())}</span>
-                            <span class="net-sort-arrow">{if sort_ascending() { "↑" } else { "↓" }}</span>
-                        </button>
-                    {move || if sort_dropdown_open.get() {
-                        view! {
-                            <div class="net-sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                <div class="net-sort-dropdown-header">
-                                    <span>"SORT BY"</span>
-                                    <button class="net-sort-toggle" on:click=move |_| ui_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
-                                        {if ui_store.get().net_sort_ascending { "↑ Asc" } else { "↓ Desc" }}
-                                    </button>
-                                </div>
-                                {[
-                                    (0, "Name"),
-                                    (1, "Company"),
-                                    (2, "Status"),
-                                    (3, "Risk"),
-                                    (4, "Type"),
-                                    (5, "Transactions"),
-                                ].iter().map(|(idx, label)| {
-                                    let is_active = ui_store.get().net_sort_mode == *idx as u8;
-                                    let label_text = *label;
+                            <div class="net-sort-btn-wrap net-view-btn-wrap">
+                                <button
+                                    class="net-action-btn net-view-btn"
+                                    aria-haspopup="menu"
+                                    aria-expanded={view_open}
+                                    on:click=move |_| set_view_dropdown_open.update(|v| *v = !*v)
+                                >
+                                    {move || format!("View: {}", page_size())}
+                                </button>
+                                {if view_open {
                                     view! {
-                                        <button class="net-sort-option" class:net-sort-option-active={is_active}
-                                            on:click=move |_| {
-                                                ui_store.update(|s| {
-                                                    if s.net_sort_mode == *idx as u8 {
-                                                        s.net_sort_ascending = !s.net_sort_ascending;
-                                                    } else {
-                                                        s.net_sort_mode = *idx as u8;
-                                                    }
-                                                });
-                                                set_sort_dropdown_open.set(false);
-                                            }
-                                        >
-                                            {label_text}
-                                            {if is_active {
-                                                Some(view! { <span class="net-sort-option-arrow">{if ui_store.get().net_sort_ascending { "↑" } else { "↓" }}</span> })
-                                            } else { None }}
-                                        </button>
-                                    }
-                                }).collect::<Vec<_>>()}
+                                        <div class="net-sort-dropdown net-view-dropdown" on:click=|ev| ev.stop_propagation()>
+                                            <div class="net-sort-dropdown-section">
+                                                <div class="net-sort-dropdown-section-title">"VIEW"</div>
+                                                <div class="net-sort-vertical-list" role="tablist" aria-label="Networking views">
+                                                    {primary_tabs.iter().chain(secondary_tabs.iter()).map(|t| {
+                                                        let tab = *t;
+                                                        let label = t.label();
+                                                        view! {
+                                                            <button
+                                                                class="net-sort-vertical-tab"
+                                                                class:net-sort-vertical-tab-active={move || active_tab.get() == tab}
+                                                                on:click=move |_| {
+                                                                    set_active_tab.set(tab);
+                                                                    set_view_dropdown_open.set(false);
+                                                                }
+                                                            >
+                                                                {label}
+                                                            </button>
+                                                        }
+                                                    }).collect::<Vec<_>>()}
+                                                </div>
+                                            </div>
+                                            <div class="net-sort-dropdown-section">
+                                                <div class="net-sort-dropdown-section-title">"VIEW COUNT"</div>
+                                                <div class="net-view-count-row">
+                                                    <select
+                                                        class="net-view-select"
+                                                        aria-label="View amount"
+                                                        prop:value={move || {
+                                                            match ui_store.get().net_view_count() {
+                                                                ViewCount::V1 => "view_1",
+                                                                ViewCount::V10 => "view_10",
+                                                                ViewCount::V20 => "view_20",
+                                                                ViewCount::V50 => "view_50",
+                                                                ViewCount::V100 => "view_100",
+                                                                ViewCount::Custom(_) => "view_custom",
+                                                            }.to_string()
+                                                        }}
+                                                        on:change=move |ev| {
+                                                            let v = event_target_value(&ev);
+                                                            let vc = match v.as_str() {
+                                                                "view_1" => ViewCount::V1,
+                                                                "view_10" => ViewCount::V10,
+                                                                "view_20" => ViewCount::V20,
+                                                                "view_50" => ViewCount::V50,
+                                                                "view_100" => ViewCount::V100,
+                                                                "view_custom" => ViewCount::Custom(50),
+                                                                _ => ViewCount::V50,
+                                                            };
+                                                            ui_store.update(|s| s.set_net_view_count(vc));
+                                                        }
+                                                    >
+                                                        <option value="view_1">"1"</option>
+                                                        <option value="view_10">"10"</option>
+                                                        <option value="view_20">"20"</option>
+                                                        <option value="view_50">"50"</option>
+                                                        <option value="view_100">"100"</option>
+                                                        <option value="view_custom">"..."</option>
+                                                    </select>
+                                                    {if matches!(ui_store.get().net_view_count(), ViewCount::Custom(_)) {
+                                                        view! {
+                                                            <input
+                                                                class="net-view-input"
+                                                                type="number"
+                                                                min="1"
+                                                                step="1"
+                                                                aria-label="Custom view count"
+                                                                prop:value={move || match ui_store.get().net_view_count() {
+                                                                    ViewCount::Custom(n) => n.to_string(),
+                                                                    _ => "50".to_string(),
+                                                                }}
+                                                                on:input=move |ev| {
+                                                                    let val = event_target_value(&ev);
+                                                                    if let Ok(n) = val.parse::<usize>() {
+                                                                        let n = n.max(1);
+                                                                        ui_store.update(|s| s.set_net_view_count(ViewCount::Custom(n)));
+                                                                    }
+                                                                }
+                                                            />
+                                                        }.into_any()
+                                                    } else { ().into_any() }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }}
                             </div>
                         }.into_any()
-                    } else { ().into_any() }}
-                    </div>
+                    }}
+                    // Sort option dropdown with horizontal scrollable sort options
+                    {move || {
+                        let is_open = sort_dropdown_open.get();
+                        view! {
+                            <div class="net-sort-btn-wrap">
+                                <button
+                                    class="net-action-btn net-sort-btn"
+                                    aria-haspopup="menu"
+                                    aria-expanded={is_open}
+                                    on:click=move |_| set_sort_dropdown_open.update(|v| *v = !*v)
+                                >
+                                    <span class="net-sort-label">{format!("Sort: {}", sort_mode().label())}</span>
+                                    <span class="net-sort-arrow">{if sort_ascending() { "↑" } else { "↓" }}</span>
+                                </button>
+                                {if is_open {
+                                    view! {
+                                        <div class="net-sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                            <div class="net-sort-dropdown-section">
+                                                <div class="net-sort-dropdown-section-title">
+                                                    "SORT BY"
+                                                    <button class="net-sort-toggle" on:click=move |_| ui_store.update(|s| s.net_sort_ascending = !s.net_sort_ascending)>
+                                                        {if ui_store.get().net_sort_ascending { "↑ Asc" } else { "↓ Desc" }}
+                                                    </button>
+                                                </div>
+                                                <div class="net-sort-tabs-outer net-sort-tabs-dropdown">
+                                                    <button
+                                                        class="net-scroll-arrow net-scroll-arrow-left"
+                                                        class:hidden={move || !sort_can_scroll_left.get()}
+                                                        title="Scroll sort options left"
+                                                        aria-label="Scroll sort options left"
+                                                        on:click=move |_| scroll_sort_left()
+                                                    >"<"</button>
+                                                <div
+                                                    class="net-sort-tabs"
+                                                    role="radiogroup"
+                                                    aria-label="Sort by"
+                                                    node_ref=sort_scroll_ref
+                                                    on:scroll=move |_| update_sort_scroll_state()
+                                                >
+                                                    {[
+                                                        (0, "Name"),
+                                                        (1, "Company"),
+                                                        (2, "Status"),
+                                                        (3, "Risk"),
+                                                        (4, "Type"),
+                                                        (5, "Transactions"),
+                                                    ].iter().map(|(idx, label)| {
+                                                        let label_text = *label;
+                                                        let idx_u8 = *idx as u8;
+                                                        let idx_for_class = idx_u8;
+                                                        let idx_for_click = idx_u8;
+                                                        view! {
+                                                            <button
+                                                                class="net-sort-tab"
+                                                                class:net-sort-tab-active={move || ui_store.get().net_sort_mode == idx_for_class}
+                                                                aria-pressed={move || ui_store.get().net_sort_mode == idx_for_class}
+                                                                on:click=move |_| {
+                                                                    ui_store.update(|s| {
+                                                                        if s.net_sort_mode == idx_for_click {
+                                                                            s.net_sort_ascending = !s.net_sort_ascending;
+                                                                        } else {
+                                                                            s.net_sort_mode = idx_for_click;
+                                                                        }
+                                                                    });
+                                                                    set_sort_dropdown_open.set(false);
+                                                                }
+                                                            >
+                                                                {label_text}
+                                                                {move || if ui_store.get().net_sort_mode == idx_for_class {
+                                                                    Some(view! { <span class="net-sort-tab-arrow">{if ui_store.get().net_sort_ascending { " ↑" } else { " ↓" }}</span> })
+                                                                } else { None }}
+                                                            </button>
+                                                        }
+                                                    }).collect::<Vec<_>>()}
+                                                </div>
+                                                <button
+                                                    class="net-scroll-arrow net-scroll-arrow-right"
+                                                    class:hidden={move || !sort_can_scroll_right.get()}
+                                                    title="Scroll sort options right"
+                                                    aria-label="Scroll sort options right"
+                                                    on:click=move |_| scroll_sort_right()
+                                                >">"</button>
+                                            </div>
+                                            </div>
+                                        </div>
+                                    }.into_any()
+                                } else { ().into_any() }}
+                            </div>
+                        }.into_any()
+                    }}
                 </div>
             </div>
 

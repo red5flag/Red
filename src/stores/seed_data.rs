@@ -17,24 +17,50 @@ pub fn seed_red_family_data(
     let owner_id = app_store.current_user.id;
     let owner_email = app_store.current_user.email.clone();
 
-    // RedOrg is owned by the current user (Red).
-    let red_org = Organization::new("RedOrg".to_string(), owner_id);
+    // RedOrg is owned by the current user (Red) — primary test company.
+    let mut red_org = Organization::new("RedOrg".to_string(), owner_id);
     let red_org_id = red_org.id;
+    red_org.description = Some("RedOrg — primary test organization (Company)".to_string());
+    red_org.settings.color = Some("#ef4444".to_string());
+    red_org.business_type = Some("Company".to_string());
+    red_org.abn = Some("12 345 678 901".to_string());
+    red_org.lei = Some("12345678901234567890".to_string());
+    red_org.business_address = Some("1 Red St, Melbourne VIC 3000, Australia".to_string());
+    red_org.business_phone = Some("+61 1 234 567 890".to_string());
+    red_org.business_email = Some("contact@redorg.com".to_string());
 
     let mut red_corp = Organization::new("RedDirector".to_string(), owner_id);
     let red_corp_id = red_corp.id;
     red_corp.description = Some("Red Director - Director role testbed".to_string());
     red_corp.settings.color = Some("#ef4444".to_string());
+    red_corp.business_type = Some("Company".to_string());
+    red_corp.abn = Some("1".to_string());
+    red_corp.lei = Some("1".to_string());
+    red_corp.business_address = Some("1".to_string());
+    red_corp.business_phone = Some("1".to_string());
+    red_corp.business_email = Some("1".to_string());
 
     let mut red_comp = Organization::new("RedManager".to_string(), owner_id);
     let red_comp_id = red_comp.id;
     red_comp.description = Some("Red Manager - Manager role testbed".to_string());
     red_comp.settings.color = Some("#f97316".to_string());
+    red_comp.business_type = Some("Company".to_string());
+    red_comp.abn = Some("1".to_string());
+    red_comp.lei = Some("1".to_string());
+    red_comp.business_address = Some("1".to_string());
+    red_comp.business_phone = Some("1".to_string());
+    red_comp.business_email = Some("1".to_string());
 
     let mut red_co = Organization::new("RedWorker".to_string(), owner_id);
     let red_co_id = red_co.id;
     red_co.description = Some("Red Worker - Worker role testbed".to_string());
     red_co.settings.color = Some("#3b82f6".to_string());
+    red_co.business_type = Some("Company".to_string());
+    red_co.abn = Some("1".to_string());
+    red_co.lei = Some("1".to_string());
+    red_co.business_address = Some("1".to_string());
+    red_co.business_phone = Some("1".to_string());
+    red_co.business_email = Some("1".to_string());
 
     organization_store.organizations.push(red_org);
     organization_store.organizations.push(red_corp);
@@ -82,7 +108,8 @@ pub fn seed_red_family_data(
         org.add_member(owner_id);
     }
 
-    // One portfolio + one asset for each organization to test role access.
+    // Role-testbed portfolios are assigned to RedOrg so most portfolios live in one org.
+    // Only NotRed Portfolio (guest testing) and Mixed Investments (unaffiliated) stay outside.
     app_store.portfolios.push(seed_org_portfolio(
         red_org_id,
         owner_id,
@@ -90,19 +117,19 @@ pub fn seed_red_family_data(
         "RedOrg HQ Asset",
     ));
     app_store.portfolios.push(seed_org_portfolio(
-        red_corp_id,
+        red_org_id,
         owner_id,
         "RedDirector Portfolio",
         "RedDirector Fleet Asset",
     ));
     app_store.portfolios.push(seed_org_portfolio(
-        red_comp_id,
+        red_org_id,
         owner_id,
         "RedManager Portfolio",
         "RedManager Equipment Asset",
     ));
     app_store.portfolios.push(seed_org_portfolio(
-        red_co_id,
+        red_org_id,
         owner_id,
         "RedWorker Portfolio",
         "RedWorker Equipment Asset",
@@ -180,11 +207,21 @@ pub fn seed_notred_data(
     let guest_email = app_store.current_user.email.clone();
 
     let notred_owner = Uuid::new_v4();
-    let mut notred = Organization::new("NotRed".to_string(), notred_owner);
-    let notred_id = notred.id;
-    notred.description = Some("NotRed - Guest role testbed".to_string());
-    notred.settings.color = Some("#10b981".to_string());
-    notred.add_member(guest_id);
+    let notred_id;
+    let notred = {
+        let mut o = Organization::new("NotRed".to_string(), notred_owner);
+        o.description = Some("NotRed - Guest role testbed".to_string());
+        o.settings.color = Some("#10b981".to_string());
+        o.business_type = Some("Company".to_string());
+        o.abn = Some("1".to_string());
+        o.lei = Some("1".to_string());
+        o.business_address = Some("1".to_string());
+        o.business_phone = Some("1".to_string());
+        o.business_email = Some("1".to_string());
+        o.add_member(guest_id);
+        notred_id = o.id;
+        o
+    };
     organization_store.organizations.push(notred);
 
     // Current user as a Guest in NotRed.

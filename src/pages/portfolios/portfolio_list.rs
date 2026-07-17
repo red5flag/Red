@@ -350,8 +350,8 @@ pub(crate) fn PortfolioListItem(
                         parts.collect_view().into_any()
                     }}
                 </div>
-                // Action strip — double-click on docs opens doc modal
-                <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
+                // Action strip — notification bell above document icon, hidden when count is zero
+                <div class="pf-list-actions pf-list-actions-stacked" on:click=|ev| ev.stop_propagation()>
                     {let name_for_notif = name_for_doc_btn.clone();
                     move || {
                         let count = app_store.get().doc_notifications_for_portfolio(pid, &notification_store.get().notifications);
@@ -359,38 +359,39 @@ pub(crate) fn PortfolioListItem(
                         let pname_click = pname.clone();
                         let pname_ctx = pname.clone();
                         let pname_keydown = pname.clone();
-                        view! {
-                            <span class="pf-notif-badge pf-notif-badge-clickable"
-                                role="button"
-                                tabindex="0"
-                                aria-label={format!("Notifications for {} portfolio. {} unread", pname, count)}
-                                title="Left-click to view notifications, right-click to edit settings"
-                                on:click=move |ev| {
-                                    ev.stop_propagation();
-                                    on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_click.clone(), false));
-                                }
-                                on:contextmenu=move |ev| {
-                                    ev.prevent_default();
-                                    ev.stop_propagation();
-                                    on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_ctx.clone(), true));
-                                }
-                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                    if ev.key() == "Enter" || ev.key() == " " {
+                        if count > 0 {
+                            view! {
+                                <button
+                                    class="pf-action-btn pf-notif-action-btn"
+                                    type="button"
+                                    aria-label={format!("Notifications for {} portfolio. {} unread", pname, count)}
+                                    title="Left-click to view notifications, right-click to edit settings"
+                                    on:click=move |ev| {
+                                        ev.stop_propagation();
+                                        on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_click.clone(), false));
+                                    }
+                                    on:contextmenu=move |ev| {
                                         ev.prevent_default();
                                         ev.stop_propagation();
-                                        on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_keydown.clone(), false));
+                                        on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_ctx.clone(), true));
                                     }
-                                }>
-                                "🔔"
-                                {move || if count > 0 {
-                                    Some(view! { <span class="pf-notif-count">{count}</span> })
-                                } else {
-                                    None
-                                }}
-                            </span>
-                        }.into_any()
+                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                        if ev.key() == "Enter" || ev.key() == " " {
+                                            ev.prevent_default();
+                                            ev.stop_propagation();
+                                            on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_keydown.clone(), false));
+                                        }
+                                    }
+                                >
+                                    <span class="pf-notif-action-icon">
+                                        "🔔"
+                                        <span class="pf-notif-count">{count}</span>
+                                    </span>
+                                </button>
+                            }.into_any()
+                        } else { ().into_any() }
                     }}
-                    <button class="pf-action-btn"
+                    <button class="pf-action-btn pf-doc-action-btn"
                         class:active=move || ui_store.get().is_doc_modal_open(pid)
                         aria-label={format!("View documents for {} portfolio. {} document{}", name_for_doc_btn, doc_count, if doc_count == 1 { "" } else { "s" })}
                         on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(pid))

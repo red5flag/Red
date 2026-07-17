@@ -653,18 +653,16 @@ async fn search_meilisearch(
     query: &str,
     filters: &SearchFilters,
 ) -> Result<SearchResults, String> {
-    let url = format!("{}/indexes/{}/search", config.host, config.index_name);
-    let body = serde_json::json!({
-        "q": query,
-        "limit": 20,
-        "filter": build_meilisearch_filter(filters),
-        "attributesToHighlight": ["name", "description"],
-    });
-
-    let response_json: serde_json::Value;
-
     cfg_if::cfg_if! {
         if #[cfg(feature = "ssr")] {
+            let url = format!("{}/indexes/{}/search", config.host, config.index_name);
+            let body = serde_json::json!({
+                "q": query,
+                "limit": 20,
+                "filter": build_meilisearch_filter(filters),
+                "attributesToHighlight": ["name", "description"],
+            });
+
             let client = reqwest::Client::new();
             let response = client
                 .post(&url)
@@ -673,20 +671,32 @@ async fn search_meilisearch(
                 .send()
                 .await
                 .map_err(|e| e.to_string())?;
-            response_json = response.json().await.map_err(|e| e.to_string())?;
-        } else {
+            let response_json = response.json().await.map_err(|e| e.to_string())?;
+            parse_meilisearch_response(response_json)
+        } else if #[cfg(feature = "hydrate")] {
+            let url = format!("{}/indexes/{}/search", config.host, config.index_name);
+            let body = serde_json::json!({
+                "q": query,
+                "limit": 20,
+                "filter": build_meilisearch_filter(filters),
+                "attributesToHighlight": ["name", "description"],
+            });
+
             let request = gloo_net::http::Request::post(&url)
                 .header("Authorization", &format!("Bearer {}", config.api_key))
                 .json(&body)
                 .map_err(|e| e.to_string())?;
             let response = request.send().await.map_err(|e| e.to_string())?;
-            response_json = response.json().await.map_err(|e| e.to_string())?;
+            let response_json = response.json().await.map_err(|e| e.to_string())?;
+            parse_meilisearch_response(response_json)
+        } else {
+            let _ = (config, query, filters);
+            Err("Meilisearch search requires the ssr or hydrate feature".to_string())
         }
     }
-
-    parse_meilisearch_response(response_json)
 }
 
+#[allow(dead_code)]
 fn build_meilisearch_filter(filters: &SearchFilters) -> String {
     let mut parts = Vec::new();
 
@@ -738,6 +748,7 @@ fn build_meilisearch_filter(filters: &SearchFilters) -> String {
     parts.join(" AND ")
 }
 
+#[allow(dead_code)]
 fn parse_meilisearch_response(json: serde_json::Value) -> Result<SearchResults, String> {
     let hits = json
         .get("hits")

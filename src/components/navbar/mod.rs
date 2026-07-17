@@ -4,7 +4,8 @@ use crate::components::tabs::TabList;
 use crate::models::Action;
 use crate::stores::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, use_app_store,
-    use_messenger_store, use_notification_store, use_ui_store, use_undo_redo_store, Notification,
+    use_messenger_store, use_notification_store, use_ui_store, use_undo_redo_store,
+    Notification, NotificationDrawerFilter, NotificationDrawerSort, NotificationType,
 };
 use crate::types::{ActionType, TabType};
 use leptos::prelude::*;
@@ -34,6 +35,8 @@ pub fn Navbar() -> impl IntoView {
 
     // Document reader view toggle inside the notifications drawer
     let (show_doc_reader, set_show_doc_reader) = signal(false);
+    // Sort dropdown inside the notifications drawer
+    let (show_sort_menu, set_show_sort_menu) = signal(false);
 
     // Click feedback state for navbar buttons (1-second flash)
     let (clicked, set_clicked) = signal(std::collections::HashSet::<usize>::new());
@@ -191,6 +194,7 @@ pub fn Navbar() -> impl IntoView {
 
     let on_notifications_click = move |_| {
         notification_store.update(|store| {
+            store.clear_drawer_scope();
             store.toggle_drawer();
             if store.drawer_open {
                 messenger_store.update(|s| s.set_message_drawer(false));
@@ -206,26 +210,111 @@ pub fn Navbar() -> impl IntoView {
     let is_tabs_drawer_open = move || ui_store.get().tabs_drawer_open;
     let is_notifications_drawer_open = move || notification_store.get().drawer_open;
     let notification_count = move || {
-        notification_store
-            .get()
+        let store = notification_store.get();
+        let filter = &store.drawer_filter;
+        store
             .notifications
             .iter()
-            .filter(|n| n.target_tab.is_some())
+            .filter(|n| matches_filter(n, filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
             .count()
     };
 
-    let on_home_click = move |_| {
-        app_store.update(|s| {
-            s.expand_tab(TabType::Overview);
-        });
-        messenger_store.update(|s| s.set_message_drawer(false));
-        ui_store.update(|ui| {
-            ui.close_tabs_drawer();
-            ui.close_search();
-        });
-        notification_store.update(|s| s.close_drawer());
-        click_feedback(4);
-    };
+    /// Display label for the active sort mode.
+    fn sort_label(sort: &NotificationDrawerSort) -> &'static str {
+        match sort {
+            NotificationDrawerSort::Newest => "Newest",
+            NotificationDrawerSort::Oldest => "Oldest",
+            NotificationDrawerSort::Type => "By Type",
+        }
+    }
+
+    /// Display label for the active filter.
+    fn filter_label(filter: &NotificationDrawerFilter) -> String {
+        match filter {
+            NotificationDrawerFilter::All => "All".to_string(),
+            NotificationDrawerFilter::Portfolios => "Portfolios".to_string(),
+            NotificationDrawerFilter::Networking => "Networking".to_string(),
+            NotificationDrawerFilter::Files => "Files".to_string(),
+            NotificationDrawerFilter::Type(t) => format!("{}", t),
+        }
+    }
+
+    /// Check whether a notification matches the active drawer filter.
+    fn matches_filter(
+        n: &Notification,
+        filter: &NotificationDrawerFilter,
+        scoped_portfolio: &Option<Uuid>,
+        scoped_group: &Option<(Uuid, Uuid)>,
+    ) -> bool {
+        let category_matches = match filter {
+            NotificationDrawerFilter::All => true,
+            NotificationDrawerFilter::Portfolios => n.target_tab.as_ref() == Some(&TabType::Portfolios),
+            NotificationDrawerFilter::Networking => n.target_tab.as_ref() == Some(&TabType::Networking),
+            NotificationDrawerFilter::Files => {
+                n.linked_doc_id.is_some() || n.linked_asset_id.is_some() || n.linked_group_id.is_some()
+            }
+            NotificationDrawerFilter::Type(t) => &n.notification_type == t,
+        };
+        if !category_matches {
+            return false;
+        }
+        if let Some(pid) = scoped_portfolio {
+            if n.linked_portfolio_id.as_ref() != Some(pid) {
+                return false;
+            }
+        }
+        if let Some((_, gid)) = scoped_group {
+            if n.linked_group_id.as_ref() != Some(gid) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Apply the active sort to a list of notifications.
+    fn apply_sort(notifs: &mut [Notification], sort: &NotificationDrawerSort) {
+        match sort {
+            NotificationDrawerSort::Newest => notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp)),
+            NotificationDrawerSort::Oldest => notifs.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
+            NotificationDrawerSort::Type => notifs.sort_by(|a, b| {
+                let type_order = type_rank(&a.notification_type).cmp(&type_rank(&b.notification_type));
+                if type_order != std::cmp::Ordering::Equal {
+                    type_order
+                } else {
+                    b.timestamp.cmp(&a.timestamp)
+                }
+            }),
+        }
+    }
+
+    fn type_rank(t: &NotificationType) -> u8 {
+        match t {
+            NotificationType::Error => 0,
+            NotificationType::Warning => 1,
+            NotificationType::Info => 2,
+            NotificationType::Success => 3,
+        }
+    }
+
+    /// Advance the filter to the next quick-swap option.
+    fn next_filter(filter: &NotificationDrawerFilter) -> NotificationDrawerFilter {
+        match filter {
+            NotificationDrawerFilter::All => NotificationDrawerFilter::Portfolios,
+            NotificationDrawerFilter::Portfolios => NotificationDrawerFilter::Networking,
+            NotificationDrawerFilter::Networking => NotificationDrawerFilter::Files,
+            NotificationDrawerFilter::Files => NotificationDrawerFilter::Type(NotificationType::Success),
+            NotificationDrawerFilter::Type(NotificationType::Success) => {
+                NotificationDrawerFilter::Type(NotificationType::Warning)
+            }
+            NotificationDrawerFilter::Type(NotificationType::Warning) => {
+                NotificationDrawerFilter::Type(NotificationType::Error)
+            }
+            NotificationDrawerFilter::Type(NotificationType::Error) => {
+                NotificationDrawerFilter::Type(NotificationType::Info)
+            }
+            NotificationDrawerFilter::Type(NotificationType::Info) => NotificationDrawerFilter::All,
+        }
+    }
 
     view! {
         // Main Navbar - Fixed at top, single row
@@ -238,9 +327,6 @@ pub fn Navbar() -> impl IntoView {
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&1)} on:click=on_redo
                         on:contextmenu=on_redo_context
                         disabled={move || !can_redo()} title="Redo (hold for list)">"↻"</button>
-                </div>
-                <div class="nav-row1-centre">
-                    <button class="nav-home-btn" class:clicked={move || clicked.get().contains(&4)} on:click=on_home_click title="Home">"🏠"</button>
                 </div>
                 <div class="nav-row1-right">
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&2)} on:click=on_undo
@@ -288,13 +374,76 @@ pub fn Navbar() -> impl IntoView {
 
         // Notifications drawer (right-side panel)
         {move || if is_notifications_drawer_open() {
-            let on_close_notif = move |_| notification_store.update(|s| s.close_drawer());
+            let on_close_notif = {
+                let set_show_sort_menu = set_show_sort_menu.clone();
+                move |_| {
+                    notification_store.update(|s| s.close_drawer());
+                    set_show_sort_menu.set(false);
+                }
+            };
             view! {
                 <div class="notif-drawer-overlay" on:click=on_close_notif>
                     <div class="notif-drawer" on:click=|ev| ev.stop_propagation()>
-                        <div class="notif-drawer-header">
-                            <span class="notif-drawer-title">"Notifications"</span>
+                        <div class="notif-drawer-header notif-drawer-header-compact">
                             <div class="notif-drawer-actions">
+                                // Quick-swap filter button (e.g. All -> Portfolios -> Networking -> ...)
+                                <button
+                                    class="notif-drawer-mode-btn notif-filter-btn"
+                                    on:click=move |_| {
+                                        let mut store = notification_store.get();
+                                        let next = next_filter(&store.drawer_filter);
+                                        if matches!(next, NotificationDrawerFilter::All) {
+                                            store.clear_drawer_scope();
+                                        }
+                                        store.set_drawer_filter(next);
+                                        notification_store.set(store);
+                                    }
+                                    title="Cycle notification filter"
+                                >
+                                    {move || filter_label(&notification_store.get().drawer_filter)}
+                                </button>
+
+                                // Sort dropdown button with options menu
+                                <div class="notif-sort-dropdown">
+                                    <button
+                                        class="notif-drawer-mode-btn notif-sort-btn"
+                                        class:active={move || show_sort_menu.get()}
+                                        on:click=move |_| set_show_sort_menu.update(|v| *v = !*v)
+                                        title="Change sort order"
+                                    >
+                                        {move || format!("{} ▼", sort_label(&notification_store.get().drawer_sort))}
+                                    </button>
+                                    {move || if show_sort_menu.get() {
+                                        let menu_items = [
+                                            NotificationDrawerSort::Newest,
+                                            NotificationDrawerSort::Oldest,
+                                            NotificationDrawerSort::Type,
+                                        ];
+                                        view! {
+                                            <div class="notif-sort-menu">
+                                                {menu_items.into_iter().map(|sort| {
+                                                    let label = sort_label(&sort);
+                                                    let sort_for_active = sort.clone();
+                                                    let sort_for_click = sort.clone();
+                                                    view! {
+                                                        <button
+                                                            class="notif-sort-menu-item"
+                                                            class:active={move || notification_store.get().drawer_sort == sort_for_active}
+                                                            on:click=move |_| {
+                                                                notification_store.update(|s| s.set_drawer_sort(sort_for_click.clone()));
+                                                                set_show_sort_menu.set(false);
+                                                            }
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    }
+                                                }).collect::<Vec<_>>()}
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }}
+                                </div>
+
+                                // Document reader / all notifications toggle
                                 <button
                                     class="notif-drawer-mode-btn"
                                     class:active={move || show_doc_reader.get()}
@@ -303,17 +452,18 @@ pub fn Navbar() -> impl IntoView {
                                 >
                                     {move || if show_doc_reader.get() { "🔔 All" } else { "📄 Reader" }}
                                 </button>
-                                <button class="notif-drawer-close" on:click=on_close_notif>"✕"</button>
                             </div>
                         </div>
                         <div class="notif-drawer-body">
                             {move || if show_doc_reader.get() {
                                 document_reader_view(app_store, notification_store, move || set_show_doc_reader.set(false)).into_any()
                             } else {
-                                let notifs = notification_store.get().notifications.clone()
-                                    .into_iter()
-                                    .filter(|n| n.target_tab.is_some())
-                                    .collect::<Vec<_>>();
+                                let store = notification_store.get();
+                                let mut notifs: Vec<Notification> = store.notifications.iter()
+                                    .filter(|n| matches_filter(n, &store.drawer_filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
+                                    .cloned()
+                                    .collect();
+                                apply_sort(&mut notifs, &store.drawer_sort);
                                 if notifs.is_empty() {
                                     view! {
                                         <div class="notif-empty">
@@ -322,10 +472,10 @@ pub fn Navbar() -> impl IntoView {
                                         </div>
                                     }.into_any()
                                 } else {
-                                    let notifs_rev = notifs.into_iter().rev().collect::<Vec<_>>();
+                                    let notifs_sorted = notifs;
                                     view! {
                                         <For
-                                            each=move || notifs_rev.clone()
+                                            each=move || notifs_sorted.clone()
                                             key=|n| n.id
                                             children=move |n| {
                                                 let nid = n.id;

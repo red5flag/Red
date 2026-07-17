@@ -163,7 +163,9 @@ mod notifications;
 mod page;
 mod portfolio_list;
 
-pub(crate) use asset_channels::{AssetChannelManagement, AssetChannelsSection};
+pub(crate) use asset_channels::{
+    AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
+};
 pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetDetailView, AssetItem};
 pub(crate) use asset_viewer::AssetViewer;

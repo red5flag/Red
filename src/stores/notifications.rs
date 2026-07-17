@@ -32,6 +32,45 @@ pub enum NotificationType {
     Info,
 }
 
+impl std::fmt::Display for NotificationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NotificationType::Success => write!(f, "Success"),
+            NotificationType::Error => write!(f, "Error"),
+            NotificationType::Warning => write!(f, "Warning"),
+            NotificationType::Info => write!(f, "Info"),
+        }
+    }
+}
+
+/// Filter category for the global notifications drawer.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum NotificationDrawerFilter {
+    /// Show every notification.
+    #[default]
+    All,
+    /// Notifications related to portfolios.
+    Portfolios,
+    /// Notifications related to networking / team.
+    Networking,
+    /// Notifications linked to documents / files.
+    Files,
+    /// Notifications of a specific in-app type.
+    Type(NotificationType),
+}
+
+/// Sort order for the global notifications drawer.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum NotificationDrawerSort {
+    /// Most recent first.
+    #[default]
+    Newest,
+    /// Oldest first.
+    Oldest,
+    /// Group by notification type, then newest first.
+    Type,
+}
+
 /// UI state, preferences, and lifecycle for the notification system.
 ///
 /// Phase B owns the notification list and basic notification lifecycle/query
@@ -43,6 +82,14 @@ pub struct NotificationStore {
     pub notifications: Vec<Notification>,
     /// Whether the right-side notifications drawer is open.
     pub drawer_open: bool,
+    /// Active category filter inside the drawer.
+    pub drawer_filter: NotificationDrawerFilter,
+    /// Active sort order inside the drawer.
+    pub drawer_sort: NotificationDrawerSort,
+    /// Optional portfolio scope applied from a portfolio bell badge.
+    pub drawer_scoped_portfolio: Option<Uuid>,
+    /// Optional group scope applied from a group bell badge.
+    pub drawer_scoped_group: Option<(Uuid, Uuid)>,
     /// Whether email notifications are enabled.
     pub email_notifications: bool,
     /// Whether push (in-app) notifications are enabled.
@@ -62,6 +109,38 @@ impl NotificationStore {
 
     pub fn close_drawer(&mut self) {
         self.drawer_open = false;
+    }
+
+    pub fn open_drawer(&mut self) {
+        self.drawer_open = true;
+    }
+
+    pub fn open_drawer_with_filter(&mut self, filter: NotificationDrawerFilter) {
+        self.drawer_filter = filter;
+        self.drawer_open = true;
+    }
+
+    pub fn set_drawer_filter(&mut self, filter: NotificationDrawerFilter) {
+        self.drawer_filter = filter;
+    }
+
+    pub fn set_drawer_sort(&mut self, sort: NotificationDrawerSort) {
+        self.drawer_sort = sort;
+    }
+
+    pub fn clear_drawer_scope(&mut self) {
+        self.drawer_scoped_portfolio = None;
+        self.drawer_scoped_group = None;
+    }
+
+    pub fn scope_drawer_to_portfolio(&mut self, portfolio_id: Uuid) {
+        self.drawer_scoped_portfolio = Some(portfolio_id);
+        self.drawer_scoped_group = None;
+    }
+
+    pub fn scope_drawer_to_group(&mut self, portfolio_id: Uuid, group_id: Uuid) {
+        self.drawer_scoped_portfolio = Some(portfolio_id);
+        self.drawer_scoped_group = Some((portfolio_id, group_id));
     }
 
     pub fn set_email_notifications(&mut self, enabled: bool) {

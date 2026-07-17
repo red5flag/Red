@@ -8,8 +8,9 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, document_icon, shorthand_name, AssetChannelManagement, AssetChannelsSection,
-    DocModal, DocumentViewer, UserAssignmentPanel,
+    detect_file_type, document_icon, read_image_as_data_url, shorthand_name,
+    AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
+    DocumentViewer, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -130,12 +131,79 @@ pub(crate) fn AssetItem(
             .map(|a| a.documents.clone())
             .unwrap_or_default()
     });
+
+    // Reactive image list for this asset
+    let default_asset_images = asset.images.clone();
+    let asset_images = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .flat_map(|p| {
+                p.assets
+                    .iter()
+                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+            })
+            .find(|a| a.id == asset_id)
+            .map(|a| a.images.clone())
+            .unwrap_or_else(|| default_asset_images.clone())
+    });
+
+    let max_images = if asset.organization_id.is_some() { 100usize } else { 50usize };
+
+    let add_image = Callback::new(move |url: String| {
+        if let Some(pid) = portfolio_id {
+            app_store.update(|s| {
+                if let Some(p) = s.get_portfolio_mut(pid) {
+                    let all: Vec<_> = p
+                        .assets
+                        .iter_mut()
+                        .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                        .collect();
+                    for a in all {
+                        if a.id == asset_id && a.images.len() < max_images {
+                            a.images.push(url.clone());
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+    });
+
     let a_name = asset.name.clone();
     let a_addr = asset.location.clone().unwrap_or_default();
     let a_addr_grid = a_addr.clone();
     let a_name_tx = a_name.clone();
     let a_org_id = asset.organization_id;
     let organization_store = use_organization_store();
+
+    // Permission-based flags for linking and booking controls
+    let current_user_id = app_store.get().current_user.id;
+    let can_link = move || {
+        if a_org_id.is_none() {
+            return can_edit;
+        }
+        let oid = a_org_id.unwrap();
+        organization_store
+            .get()
+            .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditDirectAssetLinking)
+            || organization_store
+                .get()
+                .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditChannels)
+    };
+    let can_book = move || {
+        if a_org_id.is_none() {
+            return can_edit;
+        }
+        let oid = a_org_id.unwrap();
+        organization_store
+            .get()
+            .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::CreateDirectAssetBookings)
+            || organization_store
+                .get()
+                .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::CreateBookings)
+    };
     let a_org_name = move || {
         organization_store
             .get()
@@ -364,9 +432,7 @@ pub(crate) fn AssetItem(
                 }.into_any()
             } else { ().into_any() }}
             <div class="ai-list-card" id={content_id.clone()}>
-                <img class="ai-list-image" src={image_url.clone()} alt={a_name.clone()} />
                 <div class="ai-list-body">
-                    <div class="ai-list-portfolio">{pname.clone()}</div>
                     {move || if can_edit_here && editing.get() {
                         view! {
                             <div class="ai-edit-stack">
@@ -388,6 +454,52 @@ pub(crate) fn AssetItem(
                             </div>
                         }.into_any()
                     } else { ().into_any() }}
+                    // Image slider with upload outline
+                    <div class="ai-image-slider" on:click=|ev| ev.stop_propagation()>
+                        {{
+                            let a_name_slider = a_name.clone();
+                            move || {
+                                let images = asset_images.get();
+                                let count = images.len();
+                                let can_add = can_edit_here && count < max_images;
+                                let a_name_add = a_name_slider.clone();
+                                let a_name_images = a_name_slider.clone();
+                                view! {
+                                    {if can_add {
+                                        view! {
+                                            <div class="ai-image-slider-item ai-image-add-card" aria-label={format!("Add image to {} (max {})", a_name_add, max_images)}>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    class="ai-image-file-input"
+                                                    on:change=move |ev| {
+                                                        read_image_as_data_url(&ev, {
+                                                            let add_image = add_image.clone();
+                                                            move |url| add_image.run(url)
+                                                        });
+                                                    }
+                                                />
+                                                <span class="ai-image-add-icon">"➕"</span>
+                                                <span class="ai-image-add-label">"Image"</span>
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }}
+                                    <For
+                                        each=move || asset_images.get()
+                                        key=|url| url.clone()
+                                        children=move |url: String| {
+                                            let a_name_images = a_name_images.clone();
+                                            view! {
+                                                <div class="ai-image-slider-item">
+                                                    <img class="ai-image-slider-img" src={url} alt={format!("Image of {}", a_name_images)} />
+                                                </div>
+                                            }
+                                        }
+                                    />
+                                }.into_any()
+                            }
+                        }}
+                    </div>
                     // Detail grid inline (always visible)
                     <div class="pf-detail-grid pf-detail-grid-inline">
                         <div class="pf-detail-cell">
@@ -407,12 +519,20 @@ pub(crate) fn AssetItem(
                             <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
                         </div>
                     </div>
-                    <AssetChannelManagement
-                        asset_id={asset_id}
-                        asset_name={asset_name_for_channels.clone()}
-                        portfolio_id={portfolio_id}
-                        can_edit={can_edit_here}
-                    />
+                    <div class="ai-controls-row">
+                        <AssetLinkingControls
+                            asset_id={asset_id}
+                            asset_name={asset_name_for_channels.clone()}
+                            portfolio_id={portfolio_id}
+                            can_link={can_link()}
+                        />
+                        <AssetBookingControls
+                            asset_id={asset_id}
+                            asset_name={asset_name_for_channels.clone()}
+                            portfolio_id={portfolio_id}
+                            can_book={can_book()}
+                        />
+                    </div>
                     // Horizontal document slider with + Document card
                     <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
                         // + Document card (always first)
