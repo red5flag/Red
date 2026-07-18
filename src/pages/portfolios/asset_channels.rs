@@ -1,5 +1,5 @@
 use crate::models::{
-    Booking, BookingSource, BookingStatus, Channel, ConnectionStatus, SyncDirection,
+    Booking, BookingSource, BookingStatus, Channel, ChannelType, ConnectionStatus, SyncDirection,
 };
 use crate::stores::{use_app_store, use_calendar_store};
 use chrono::{Duration, NaiveDate, Utc};
@@ -836,6 +836,120 @@ pub(crate) fn AssetBookingControls(
                         }.into_any()
                     }
                 }}
+            </div>
+        </div>
+    }
+}
+
+/// Add Channel Modal — creates a new channel and links it to an asset.
+#[component]
+pub(crate) fn AddChannelModal(
+    asset_id: Uuid,
+    asset_name: String,
+    portfolio_id: Option<Uuid>,
+    on_close: Callback<()>,
+) -> impl IntoView {
+    let app_store = use_app_store();
+    let (name, set_name) = signal(format!("Test Channel - {}", asset_name));
+    let (channel_type, set_channel_type) = signal("Test".to_string());
+    let (rate, set_rate) = signal(String::new());
+    let (form_error, set_form_error) = signal(Option::<String>::None);
+
+    let save = Callback::new(move |_| {
+        set_form_error.set(None);
+        let name = name.get().trim().to_string();
+        if name.is_empty() {
+            set_form_error.set(Some("Channel name is required".to_string()));
+            return;
+        }
+        let rate = if rate.get().trim().is_empty() {
+            None
+        } else {
+            match rate.get().trim().parse::<f64>() {
+                Ok(v) if v >= 0.0 => Some(v),
+                _ => {
+                    set_form_error.set(Some("Invalid nightly rate".to_string()));
+                    return;
+                }
+            }
+        };
+        let channel_type = match channel_type.get().as_str() {
+            "Airbnb" => ChannelType::Airbnb,
+            "BookingCom" => ChannelType::BookingCom,
+            "Expedia" => ChannelType::Expedia,
+            "Vrbo" => ChannelType::Vrbo,
+            "LinkedIn" => ChannelType::LinkedIn,
+            _ => ChannelType::Test,
+        };
+        let mut channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
+        channel.channel_type = channel_type;
+        channel.nightly_rate_override = rate;
+        let cid = channel.id;
+        app_store.update(|s| {
+            s.add_channel(channel);
+            if let Some(pid) = portfolio_id {
+                if let Some(p) = s.get_portfolio_mut(pid) {
+                    if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                    } else {
+                        for g in p.asset_groups.iter_mut() {
+                            if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                                a.channel_ids.push(cid);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                for p in s.portfolios.iter_mut() {
+                    if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                        break;
+                    }
+                    for g in p.asset_groups.iter_mut() {
+                        if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                            a.channel_ids.push(cid);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        on_close.run(());
+    });
+
+    view! {
+        <div class="doc-modal-overlay" on:click=move |_| on_close.run(())>
+            <div class="doc-modal channel-management-window" on:click=|ev| ev.stop_propagation()>
+                <div class="doc-modal-header">
+                    <span class="doc-modal-title">"Add Channel"</span>
+                    <button class="doc-modal-close" aria-label="Close add channel" on:click=move |_| on_close.run(())>"✕"</button>
+                </div>
+                <div class="doc-modal-body">
+                    <div class="channel-management-form">
+                        {move || form_error.get().map(|m| view! { <div class="ai-form-error">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
+                        <label>"Channel name"
+                            <input type="text" prop:value={move || name.get()} on:input=move |ev| set_name.set(event_target_value(&ev)) />
+                        </label>
+                        <label>"Channel type"
+                            <select prop:value={move || channel_type.get()} on:change=move |ev| set_channel_type.set(event_target_value(&ev))>
+                                <option value="Test">"Test Channel"</option>
+                                <option value="Airbnb">"Airbnb"</option>
+                                <option value="BookingCom">"Booking.com"</option>
+                                <option value="Expedia">"Expedia"</option>
+                                <option value="Vrbo">"Vrbo"</option>
+                                <option value="LinkedIn">"LinkedIn"</option>
+                            </select>
+                        </label>
+                        <label>"Nightly rate (optional)"
+                            <input type="text" prop:value={move || rate.get()} on:input=move |ev| set_rate.set(event_target_value(&ev)) placeholder="e.g. 100" />
+                        </label>
+                        <div class="channel-management-actions">
+                            <button class="login-btn" on:click=move |_| on_close.run(())>"Cancel"</button>
+                            <button class="login-btn sell" on:click=move |_| save.run(())>"Save Channel"</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     }

@@ -1,4 +1,5 @@
 use crate::models::{CalendarEvent, CalendarEventType};
+use crate::pages::portfolios::{AddChannelModal, ChannelManagementWindow};
 use crate::stores::{use_app_store, use_calendar_store};
 use chrono::{Datelike, Duration, NaiveDate, Utc};
 use leptos::prelude::*;
@@ -528,6 +529,28 @@ fn EventEditor(
     let (category, set_category) = signal(event.category.clone().unwrap_or_default());
     let (description, set_description) = signal(event.description.clone().unwrap_or_default());
 
+    let app_store = use_app_store();
+    let (show_add_channel, set_show_add_channel) = signal(false);
+    let (show_manage_channel, set_show_manage_channel) = signal(false);
+    let related_asset_id = event.related_asset_id;
+    let related_portfolio_id = event.related_portfolio_id;
+    let related_channel_id = event.related_channel_id;
+    let can_link_channel = related_asset_id.is_some();
+
+    let asset_name_for_modal = Memo::new(move |_| {
+        related_asset_id
+            .and_then(|aid| {
+                app_store
+                    .get()
+                    .portfolios
+                    .iter()
+                    .flat_map(|p| p.assets.iter().chain(p.asset_groups.iter().flat_map(|g| g.assets.iter())))
+                    .find(|a| a.id == aid)
+                    .map(|a| a.name.clone())
+            })
+            .unwrap_or_else(|| "Asset".to_string())
+    });
+
     let ev = event.clone();
     let save = move |_| {
         let Ok(d) = NaiveDate::parse_from_str(&date.get(), "%Y-%m-%d") else {
@@ -641,8 +664,39 @@ fn EventEditor(
 
                 <div class="calendar-event-editor-actions">
                     <button class="calendar-event-editor-save" on:click=save>"Save"</button>
+                    {move || if can_link_channel { view! {
+                        <button
+                            class="calendar-event-editor-save"
+                            on:click=move |_| {
+                                if related_channel_id.is_some() {
+                                    set_show_manage_channel.set(true);
+                                } else {
+                                    set_show_add_channel.set(true);
+                                }
+                            }
+                        >
+                            {if related_channel_id.is_some() { "Manage Channel" } else { "Link Channel" }}
+                        </button>
+                    }.into_any() } else { ().into_any() }}
                     <button class="calendar-event-editor-cancel" on:click=move |_| on_cancel.run(())>"Cancel"</button>
                 </div>
+
+                {move || if show_add_channel.get() { view! {
+                    <AddChannelModal
+                        asset_id={related_asset_id.unwrap()}
+                        asset_name={asset_name_for_modal.get()}
+                        portfolio_id={related_portfolio_id}
+                        on_close={Callback::new(move |_| set_show_add_channel.set(false))}
+                    />
+                }.into_any() } else { ().into_any() }}
+
+                {move || if show_manage_channel.get() {
+                    if let Some(cid) = related_channel_id {
+                        view! {
+                            <ChannelManagementWindow channel_id={cid} on_close={Callback::new(move |_| set_show_manage_channel.set(false))} />
+                        }.into_any()
+                    } else { ().into_any() }
+                } else { ().into_any() }}
             </div>
         </div>
     }

@@ -1,6 +1,115 @@
-error: open tag has no corresponding close tag
-error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
-error: open tag has no corresponding close tag
-error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
+warning: function `read_images_as_data_urls` is never used
+warning: function `read_images_as_data_urls` is never used
+warning: `farley` (lib) generated 1 warning
+warning: `farley` (lib) generated 1 warning
+warning: unused import: `read_images_as_data_urls`
+warning: unused import: `read_images_as_data_urls`
+warning: function `read_images_as_data_urls` is never used
+warning: function `read_images_as_data_urls` is never used
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+error[E0063]: missing fields `emoji` and `image_url` in initializer of `portfolio::AssetGroup`
+error[E0063]: missing fields `emoji` and `image_url` in initializer of `portfolio::AssetGroup`
+error[E0063]: missing fields `emoji` and `image_url` in initializer of `portfolio::AssetGroup`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
+error[E0063]: missing fields `emoji` and `image_url` in initializer of `portfolio::AssetGroup`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+error[E0063]: missing fields `emoji` and `image_url` in initializer of `portfolio::AssetGroup`
+error[E0063]: missing fields `emoji` and `image_url` in initializer of `portfolio::AssetGroup`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: unused import: `read_image_as_data_url`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: unused import: `read_image_as_data_url`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `orgs` in this scope
+error[E0425]: cannot find value `current_org_id` in this scope
+error[E0425]: cannot find value `save_org_edit` in this scope
+error[E0425]: cannot find value `set_is_editing_org` in this scope
+error[E0425]: cannot find value `org_name` in this scope
+error[E0425]: cannot find value `org_color` in this scope
+error[E0425]: cannot find value `set_is_editing_org` in this scope
+error[E0425]: cannot find value `org_name` in this scope
+error[E0425]: cannot find value `org_color` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `org_name_for_label` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `orgs` in this scope
+error[E0425]: cannot find value `current_org_id` in this scope
+error[E0425]: cannot find value `save_org_edit` in this scope
+error[E0425]: cannot find value `set_is_editing_org` in this scope
+error[E0425]: cannot find value `org_name` in this scope
+error[E0425]: cannot find value `org_color` in this scope
+error[E0425]: cannot find value `set_is_editing_org` in this scope
+error[E0425]: cannot find value `org_name` in this scope
+error[E0425]: cannot find value `org_color` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `org_name_for_label` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error[E0425]: cannot find value `is_editing_org` in this scope
+error: could not compile `farley` (lib) due to 15 previous errors
+error: could not compile `farley` (lib) due to 15 previous errors
+error[E0425]: cannot find value `org_name_for_label` in this scope
+error[E0425]: cannot find value `org_name_for_label` in this scope
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+error: 7 positional arguments in format string, but there are 6 arguments
+error: 7 positional arguments in format string, but there are 6 arguments
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused imports: `HashMap` and `HashSet`
+warning: unused imports: `HashMap` and `HashSet`
+warning: struct `PortfolioGroup` is never constructed
+warning: struct `PortfolioGroup` is never constructed
+warning: unused variable: `expanded_orgs`
+warning: unused variable: `set_expanded_orgs`
+warning: unused variable: `grouped_portfolios`
+warning: unused variable: `expanded_orgs`
+warning: unused variable: `set_expanded_orgs`
+warning: unused variable: `grouped_portfolios`
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 3 suggestions)
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 3 suggestions)
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error[E0063]: missing field `first_index` in initializer of `PortfolioGroup`
+error[E0063]: missing field `first_index` in initializer of `PortfolioGroup`
+error[E0063]: missing field `first_index` in initializer of `PortfolioGroup`
+error[E0063]: missing field `first_index` in initializer of `PortfolioGroup`
+error[E0063]: missing field `first_index` in initializer of `PortfolioGroup`
+error[E0063]: missing field `first_index` in initializer of `PortfolioGroup`
+error: could not compile `farley` (lib) due to 3 previous errors
+error: could not compile `farley` (lib) due to 3 previous errors
+warning: unused import: `read_image_as_data_url`
+warning: unused import: `read_image_as_data_url`
+error: unexpected closing delimiter: `}`
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error

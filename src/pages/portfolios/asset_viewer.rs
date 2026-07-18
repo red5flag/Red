@@ -309,8 +309,8 @@ pub(crate) fn AssetViewer(
                                     view! {
                                         <AssetGroupItem
                                             group={group}
-                                            can_edit={can_edit.get()}
-                                            can_edit_documents={can_edit_documents.get()}
+                                            can_edit={can_edit}
+                                            can_edit_documents={can_edit_documents}
                                             pid={pid2}
                                             gid={gid}
                                             expanded={is_expanded}
@@ -481,7 +481,7 @@ pub(crate) fn AssetViewer(
                         view! {
                             <div class={direct_class}>
                                 {direct_to_show.into_iter().enumerate().map(move |(idx, asset)| view! {
-                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_direct_content.get()} on_select={on_select_asset} can_edit={can_edit.get()} can_edit_documents={can_edit_documents.get()} tint_index={idx + 1} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_direct_content.get()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={idx + 1} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
                                 }).collect::<Vec<_>>()}
                             </div>
                             {if direct_remaining > 0 {
@@ -650,7 +650,7 @@ pub(crate) fn AssetViewer(
             } else { ().into_any() }}
 
             {move || selected_asset.get().map(|asset| view! {
-                <AssetDetailView asset={asset} on_close={on_close_asset} />
+                <AssetDetailView asset={asset} portfolio_id={Some(pid)} can_edit={can_edit} on_close={on_close_asset} />
             })}
         </div>
     }

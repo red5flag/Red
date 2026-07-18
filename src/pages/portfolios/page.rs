@@ -1,17 +1,26 @@
 use crate::components::tabs::use_tab_edit_mode;
-use crate::models::{Asset, AssetGroup, AssetStatus, Channel, Portfolio};
+use crate::models::{Asset, AssetGroup, AssetStatus, Channel, Organization, Portfolio};
 use crate::stores::{
     use_app_store, use_notification_store, use_organization_store, use_ui_store,
     NotificationDrawerFilter,
 };
 use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
 use leptos::prelude::*;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, read_image_as_data_url, AssetTarget, NotifTarget,
+    asset_placeholder_url, read_image_as_data_url, AddPortfolioModal, AssetTarget, NotifTarget,
     NotificationContentView, NotificationQuickSettings, PortfolioListItem,
 };
+
+#[derive(Clone, PartialEq)]
+struct PortfolioGroup {
+    key: Uuid,
+    first_index: usize,
+    organization: Option<Organization>,
+    portfolios: Vec<Portfolio>,
+}
 
 /// Compare two portfolio lists by their ids in order.
 /// Used by the list memos so that `selected_portfolio_ids` changes
@@ -100,6 +109,58 @@ pub fn PortfoliosPage() -> impl IntoView {
 
     let view_mode = Memo::new(move |_| ui_store.get().portfolio_view_mode.clone());
     let selected_ids = move || app_store.get().selected_portfolio_ids;
+    let (expanded_orgs, set_expanded_orgs) = signal(HashSet::<Uuid>::new());
+
+    let grouped_portfolios = Memo::new(move |_| {
+        let orgs = organization_store.get().organizations.clone();
+        let mut groups: Vec<PortfolioGroup> = Vec::new();
+        let mut org_index: HashMap<Uuid, usize> = HashMap::new();
+        for (idx, p) in sorted_portfolios.get().into_iter().enumerate() {
+            if let Some(oid) = p.organization_id {
+                if let Some(&group_idx) = org_index.get(&oid) {
+                    groups[group_idx].portfolios.push(p);
+                } else if let Some(org) = orgs.iter().find(|o| o.id == oid).cloned() {
+                    org_index.insert(oid, groups.len());
+                    groups.push(PortfolioGroup {
+                        key: org.id,
+                        first_index: idx,
+                        organization: Some(org),
+                        portfolios: vec![p],
+                    });
+                } else {
+                    groups.push(PortfolioGroup {
+                        key: p.id,
+                        first_index: idx,
+                        organization: None,
+                        portfolios: vec![p],
+                    });
+                }
+            } else {
+                groups.push(PortfolioGroup {
+                    key: p.id,
+                    first_index: idx,
+                    organization: None,
+                    portfolios: vec![p],
+                });
+            }
+        }
+        groups.sort_by(|a, b| {
+            let a_is_org = a.organization.is_some();
+            let b_is_org = b.organization.is_some();
+            if a_is_org && !b_is_org {
+                std::cmp::Ordering::Less
+            } else if !a_is_org && b_is_org {
+                std::cmp::Ordering::Greater
+            } else if let (Some(ao), Some(bo)) = (&a.organization, &b.organization) {
+                ao.name
+                    .cmp(&bo.name)
+                    .then(a.first_index.cmp(&b.first_index))
+            } else {
+                a.first_index.cmp(&b.first_index)
+            }
+        });
+        groups
+    });
     let edit_mode = use_tab_edit_mode();
     let _ = edit_mode;
     let can_edit = move |org_id: Option<Uuid>| {
@@ -131,12 +192,6 @@ pub fn PortfoliosPage() -> impl IntoView {
         user.role = role;
         user.can_upload_documents()
     };
-
-    // Form signals for add portfolio
-    let (new_name, set_new_name) = signal(String::new());
-    let (new_desc, set_new_desc) = signal(String::new());
-    let (new_image_url, set_new_image_url) = signal(Option::<String>::None);
-    let (new_emoji, set_new_emoji) = signal(String::new());
 
     // Form signals for add asset group
     let (show_add_group, set_show_add_group) = signal(Option::<Uuid>::None);
@@ -210,29 +265,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                 s.touch_portfolio(id);
             }
         });
-    };
-
-    let on_add_portfolio = move |_| {
-        let name = new_name.get();
-        if name.trim().is_empty() {
-            return;
-        }
-        let owner_id = app_store.get().current_user.id;
-        let mut p = Portfolio::new(name, owner_id, crate::types::Currency::USD);
-        p.description = if new_desc.get().trim().is_empty() {
-            None
-        } else {
-            Some(new_desc.get())
-        };
-        p.image_url = new_image_url.get();
-        let emoji = new_emoji.get().trim().to_string();
-        p.emoji = if emoji.is_empty() { None } else { Some(emoji) };
-        app_store.update(|s| s.add_portfolio(p, &mut notification_store.get_untracked()));
-        set_new_name.set(String::new());
-        set_new_desc.set(String::new());
-        set_new_image_url.set(None);
-        set_new_emoji.set(String::new());
-        ui_store.update(|s| s.show_add_portfolio = false);
     };
 
     let on_delete_portfolio = move |id: Uuid| {
@@ -342,6 +374,58 @@ pub fn PortfoliosPage() -> impl IntoView {
             .get()
             .into_iter()
             .find(|p| ids.contains(&p.id))
+    };
+
+    let render_portfolio = move |portfolio: Portfolio| -> AnyView {
+        let portfolio_id = portfolio.id;
+        let org_id = portfolio.organization_id;
+        let is_expanded = Memo::new(move |_| selected_ids().contains(&portfolio_id));
+        let can = Memo::new(move |_| can_edit(org_id));
+        let can_docs = Memo::new(move |_| can_edit_documents(org_id));
+        view! {
+            <PortfolioListItem
+                portfolio={portfolio}
+                can_edit={can}
+                can_edit_documents={can_docs}
+                expanded={is_expanded}
+                on_toggle=Callback::new(move |_| on_toggle_view(portfolio_id))
+                on_context=move |ev: leptos::ev::MouseEvent| {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
+                }
+                on_open_notif_qs={Callback::new(move |(target, name, is_settings)| {
+                    if is_settings {
+                        set_notif_qs_target.set(Some((target, name)));
+                    } else {
+                        notification_store.update(|s| {
+                            s.clear_drawer_scope();
+                            s.set_drawer_filter(NotificationDrawerFilter::Portfolios);
+                            match target {
+                                NotifTarget::Portfolio(pid) => s.scope_drawer_to_portfolio(pid),
+                                NotifTarget::Group(pid, gid) => s.scope_drawer_to_group(pid, gid),
+                            }
+                            s.open_drawer();
+                        });
+                    }
+                })}
+                show_add_group={show_add_group}
+                set_show_add_group={set_show_add_group}
+                _new_group_name={new_group_name}
+                set_new_group_name={set_new_group_name}
+                on_add_group={on_add_group}
+                show_add_asset={show_add_asset}
+                set_show_add_asset={set_show_add_asset}
+                new_asset_name={new_asset_name}
+                set_new_asset_name={set_new_asset_name}
+                new_asset_type={new_asset_type}
+                set_new_asset_type={set_new_asset_type}
+                new_asset_value={new_asset_value}
+                set_new_asset_value={set_new_asset_value}
+                on_add_asset={on_add_asset}
+                view_mode={view_mode}
+            />
+        }.into_any()
     };
 
     view! {
@@ -519,53 +603,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                 }.into_any()
             })}
 
-            // Add Portfolio Form (toggled from navbar)
-            {move || ui_store.get().show_add_portfolio.then(|| view! {
-                <div class="add-form">
-                    <input
-                        class="login-input"
-                        type="text"
-                        placeholder="Portfolio name"
-                        aria-label="Portfolio name"
-                        on:input=move |ev| set_new_name.set(event_target_value(&ev))
-                    />
-                    <input
-                        class="login-input"
-                        type="text"
-                        placeholder="Description (optional)"
-                        aria-label="Description (optional)"
-                        on:input=move |ev| set_new_desc.set(event_target_value(&ev))
-                    />
-                    <input
-                        class="login-input"
-                        type="file"
-                        accept="image/*"
-                        aria-label="Portfolio image (optional)"
-                        on:change=move |ev| read_image_as_data_url(&ev, move |url| set_new_image_url.set(Some(url)))
-                    />
-                    <select
-                        class="login-input"
-                        aria-label="Portfolio emoji"
-                        prop:value={move || new_emoji.get()}
-                        on:change=move |ev| set_new_emoji.set(event_target_value(&ev))
-                    >
-                        <option value="">"Default 🏢"</option>
-                        <option value="🏢">"🏢 Office"</option>
-                        <option value="🏠">"🏠 Property"</option>
-                        <option value="🚗">"🚗 Vehicle"</option>
-                        <option value="💼">"💼 Business"</option>
-                        <option value="💰">"💰 Finance"</option>
-                        <option value="📈">"📈 Growth"</option>
-                        <option value="🏭">"🏭 Industrial"</option>
-                        <option value="🌐">"🌐 Global"</option>
-                        <option value="🎨">"🎨 Creative"</option>
-                        <option value="🔬">"🔬 Research"</option>
-                        <option value="⚡">"⚡ Energy"</option>
-                    </select>
-                    <button class="login-btn" on:click=on_add_portfolio>"Create Portfolio"</button>
-                </div>
-            })}
-
             // Top-level Add Group Form (toggled from navbar)
             {move || ui_store.get().show_top_add_group.then(|| view! {
                 <div class="add-form">
@@ -710,76 +747,134 @@ pub fn PortfoliosPage() -> impl IntoView {
                 ev.prevent_default();
                 set_context_menu.set(Some((Uuid::new_v4(), ev.client_x(), ev.client_y())));
             }>
-                {move || if sorted_portfolios.get().is_empty() {
+                {move || if grouped_portfolios.get().is_empty() {
                     view! {
                         <div class="empty-state">
                             <div class="empty-state-icon">"📊"</div>
                             <div class="empty-state-title">"No portfolios yet"</div>
                             <div class="empty-state-desc">"Create your first portfolio to get started"</div>
-                            <button class="login-btn" on:click=move |_| ui_store.update(|s| s.show_add_portfolio = true)>"Create Portfolio"</button>
+                            <button class="login-btn" on:click=move |_| ui_store.update(|s| s.show_add_portfolio = !s.show_add_portfolio)>"Create Portfolio"</button>
+                            {move || ui_store.get().show_add_portfolio.then(|| view! {
+                                <AddPortfolioModal />
+                            })}
                         </div>
                     }.into_any()
-                } else {
+                } else if view_mode.get() == ViewMode::Grid {
                     view! {
                         <For
                             each=move || sorted_portfolios.get()
                             key=|portfolio| portfolio.id
-                            children=move |portfolio| {
-                        let portfolio_id = portfolio.id;
-                        let org_id = portfolio.organization_id;
-                        let is_expanded = Memo::new(move |_| selected_ids().contains(&portfolio_id));
-                        let can = Memo::new(move |_| can_edit(org_id));
-                        let can_docs = Memo::new(move |_| can_edit_documents(org_id));
-
-                        view! {
-                            <PortfolioListItem
-                                portfolio={portfolio}
-                                can_edit={can}
-                                can_edit_documents={can_docs}
-                                expanded={is_expanded}
-                                on_toggle=Callback::new(move |_| on_toggle_view(portfolio_id))
-                                on_context=move |ev: leptos::ev::MouseEvent| {
-                                    ev.prevent_default();
-                                    ev.stop_propagation();
-                                    set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
+                            children=render_portfolio
+                        />
+                    }.into_any()
+                } else {
+                    view! {
+                        <For
+                            each=move || grouped_portfolios.get()
+                            key=|group| group.key
+                            children=move |group: PortfolioGroup| {
+                                let PortfolioGroup { organization, portfolios, .. } = group;
+                                if let Some(org) = organization {
+                                    let org_id = org.id;
+                                    let org_name = org.name.clone();
+                                    let org_desc = org.description.clone().unwrap_or_default();
+                                    let org_color = org.settings.color.clone();
+                                    let org_image_url = org.image_url.clone();
+                                    let org_image_ref = NodeRef::<leptos::html::Input>::new();
+                                    let is_expanded = move || expanded_orgs.get().contains(&org_id);
+                                    view! {
+                                        <div class="pf-org-group" class:expanded={move || is_expanded()}>
+                                            <div class="asset-group-header pf-org-group-header pf-accordion-header" role="button" tabindex="0"
+                                                aria-expanded={move || is_expanded()}
+                                                on:click=move |ev: leptos::ev::MouseEvent| {
+                                                    ev.stop_propagation();
+                                                    set_expanded_orgs.update(|s| { if s.contains(&org_id) { s.remove(&org_id); } else { s.insert(org_id); }});
+                                                }
+                                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                                    if ev.key() == "Enter" || ev.key() == " " {
+                                                        ev.prevent_default();
+                                                        ev.stop_propagation();
+                                                        set_expanded_orgs.update(|s| { if s.contains(&org_id) { s.remove(&org_id); } else { s.insert(org_id); }});
+                                                    }
+                                                }
+                                            >
+                                                <span class="asset-group-arrow">{move || if is_expanded() { "▼" } else { "▶" }}</span>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    class="pf-hidden-file-input"
+                                                    node_ref=org_image_ref
+                                                    on:change=move |ev| {
+                                                        read_image_as_data_url(&ev, {
+                                                            let organization_store = organization_store;
+                                                            move |url: String| {
+                                                                organization_store.update(|s| {
+                                                                    if let Some(o) = s.get_organization_mut(org_id) {
+                                                                        o.image_url = Some(url);
+                                                                        o.updated_at = chrono::Utc::now();
+                                                                    }
+                                                                });
+                                                            }
+                                                        });
+                                                    }
+                                                />
+                                                <div class="asset-group-icon"
+                                                    on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                                                        if can_edit(Some(org_id)) {
+                                                            ev.prevent_default();
+                                                            ev.stop_propagation();
+                                                            if let Some(input) = org_image_ref.get() {
+                                                                let _ = input.click();
+                                                            }
+                                                        }
+                                                    }
+                                                >
+                                                    {if let Some(ref url) = org_image_url {
+                                                        view! { <img class="pf-header-image" src={url.clone()} alt={format!("{} logo", org_name)} /> }.into_any()
+                                                    } else {
+                                                        org_color.map(|c| view! { <span class="pf-org-color-tag" style={format!("background: {}", c)} aria-hidden="true"></span> }).unwrap_or_else(|| view! { <span class="pf-org-color-tag" style={String::new()} aria-hidden="true"></span> }).into_any()
+                                                    }}
+                                                </div>
+                                                <div class="asset-group-info-wrap">
+                                                    <div class="asset-group-name">{org_name}</div>
+                                                    {if !org_desc.is_empty() { view! { <div class="asset-group-desc">{org_desc}</div> }.into_any() } else { ().into_any() }}
+                                                </div>
+                                            </div>
+                                            <div class="pf-org-group-content" class:hidden={move || !is_expanded()}>
+                                                <For
+                                                    each=move || portfolios.clone()
+                                                    key=|p| p.id
+                                                    children=render_portfolio
+                                                />
+                                            </div>
+                                        </div>
+                                    }.into_any()
+                                } else if let Some(p) = portfolios.into_iter().next() {
+                                    render_portfolio(p)
+                                } else {
+                                    ().into_any()
                                 }
-                                on_open_notif_qs={Callback::new(move |(target, name, is_settings)| {
-                                    if is_settings {
-                                        set_notif_qs_target.set(Some((target, name)));
-                                    } else {
-                                        // Open the global notification drawer scoped to the entity.
-                                        notification_store.update(|s| {
-                                            s.clear_drawer_scope();
-                                            s.set_drawer_filter(NotificationDrawerFilter::Portfolios);
-                                            match target {
-                                                NotifTarget::Portfolio(pid) => s.scope_drawer_to_portfolio(pid),
-                                                NotifTarget::Group(pid, gid) => s.scope_drawer_to_group(pid, gid),
-                                            }
-                                            s.open_drawer();
-                                        });
-                                    }
-                                })}
-                                show_add_group={show_add_group}
-                                set_show_add_group={set_show_add_group}
-                                _new_group_name={new_group_name}
-                                set_new_group_name={set_new_group_name}
-                                on_add_group={on_add_group}
-                                show_add_asset={show_add_asset}
-                                set_show_add_asset={set_show_add_asset}
-                                new_asset_name={new_asset_name}
-                                set_new_asset_name={set_new_asset_name}
-                                new_asset_type={new_asset_type}
-                                set_new_asset_type={set_new_asset_type}
-                                new_asset_value={new_asset_value}
-                                set_new_asset_value={set_new_asset_value}
-                                on_add_asset={on_add_asset}
-                                view_mode={view_mode}
-                            />
-                        }
-                    }
-                />
+                            }
+                        />
                     }.into_any()
                 }}
+                    <button
+                        class="pf-empty-outline org-empty-outline"
+                        type="button"
+                        aria-label="Add a new portfolio"
+                        on:click=move |_| ui_store.update(|s| s.show_add_portfolio = !s.show_add_portfolio)
+                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            ui_store.update(|s| s.show_add_portfolio = true);
+                        }
+                    >
+                        <span class="org-empty-outline-icon">"+"</span>
+                        <span class="org-empty-outline-text">"Add Portfolio"</span>
+                    </button>
+                    {move || ui_store.get().show_add_portfolio.then(|| view! {
+                        <AddPortfolioModal />
+                    })}
             </div>
 
             // Context menu for portfolio press-and-hold or whitespace
@@ -1130,6 +1225,8 @@ fn create_mock_asset_group(name: &str, assets: Vec<Asset>) -> AssetGroup {
         assigned_users: vec![],
         notification_settings: vec![],
         channel_ids: vec![],
+        image_url: None,
+        emoji: None,
     };
     group.recalculate_values();
     group

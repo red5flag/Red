@@ -1273,6 +1273,18 @@ html, body {
     border-top: none;
 }
 
+/* Inside the portfolio/asset viewers the list/grid container sits below a header
+   that already provides a bottom border, so its top border creates a doubled line. */
+#av-groups-content .asset-list,
+#av-direct-content .asset-list,
+.asset-group-assets.asset-list,
+#av-groups-content .grid-view,
+#av-direct-content .grid-view,
+#av-groups-content [class*="grid-view-"],
+#av-direct-content [class*="grid-view-"] {
+    border-top: none;
+}
+
 .asset-group {
     border: 2px solid var(--border-color);
     border-top: none;
@@ -1325,8 +1337,18 @@ html, body {
     font-size: 24px;
 }
 
-.pf-accordion > .asset-group > .asset-group-header .asset-group-icon {
+.pf-accordion .pf-accordion-header .asset-group-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
     margin-left: 8px;
+}
+.pf-accordion .pf-accordion-header .asset-group-icon .pf-org-color-tag {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
 }
 
 .asset-group-icon .pf-header-image {
@@ -1335,6 +1357,16 @@ html, body {
     object-fit: cover;
     border-radius: 4px;
     background: var(--primary-bg);
+}
+
+.pf-hidden-file-input {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
 }
 
 .pf-notif-badge {
@@ -2191,24 +2223,126 @@ html, body {
     border-top: none;
     border-bottom: none;
 }
-.pf-accordion > .asset-group {
+.pf-accordion .asset-group.pf-portfolio {
     border-top: none;
     border-left: none;
     border-right: none;
     border-bottom: 2px solid var(--border-color);
 }
-.pf-accordion > .asset-group > .asset-group-content {
-    border-top: 1px solid var(--border-color);
+.pf-accordion .asset-group.pf-portfolio > .asset-group-content {
+    border-top: none;
     background: var(--primary-bg);
 }
 
-/* Portfolio list items: same size as asset group headers */
-.pf-accordion > .asset-group > .asset-group-header {
-    min-height: var(--bar-h);
-    padding: 12px 16px 12px var(--bar-h);
+.pf-accordion > .pf-org-group {
+    border-bottom: 1px solid var(--border-color);
 }
-.pf-accordion > .asset-group > .asset-group-header > .asset-group-arrow {
+.pf-accordion > .pf-org-group > .pf-org-group-content {
+    width: 100%;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: var(--secondary-bg);
+}
+.pf-accordion > .pf-org-group.expanded {
+    border-bottom: none;
+}
+.pf-accordion > .pf-org-group > .pf-org-group-content.hidden {
+    display: none;
+}
+.pf-accordion > .pf-org-group > .pf-org-group-content > .asset-group {
+    border: none;
+    background: transparent;
+}
+
+/* Portfolio list items: uniform height with room for organization + title */
+.pf-accordion .pf-accordion-header {
+    height: calc(var(--bar-h) * 1.65);
+    min-height: calc(var(--bar-h) * 1.65);
+    max-height: calc(var(--bar-h) * 1.65);
+    padding: 6px 16px 6px var(--bar-h);
+    overflow: hidden;
+}
+.pf-accordion .pf-accordion-header.editing {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+}
+.pf-accordion .pf-accordion-header > .asset-group-arrow {
     width: var(--bar-h);
+}
+.pf-accordion .pf-accordion-header > .asset-group-info-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    align-items: center;
+    gap: 4px 8px;
+    height: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+.pf-accordion .pf-accordion-header.editing > .asset-group-info-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: center;
+    height: auto;
+    min-height: var(--bar-h);
+    overflow: visible;
+    gap: 8px;
+}
+.pf-accordion .pf-accordion-header .pf-org-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    line-height: 1.2;
+}
+.pf-accordion .pf-accordion-header .asset-group-name {
+    flex: 0 0 100%;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    line-height: 1.2;
+}
+.pf-accordion .pf-accordion-header .asset-group-desc {
+    flex: 0 1 100%;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    line-height: 1.2;
+}
+.pf-accordion .pf-accordion-header .asset-group-count {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+    line-height: 1.2;
+}
+.pf-accordion .pf-accordion-header .pf-org-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #000;
+}
+.pf-accordion .pf-accordion-header .asset-group-name {
+    font-weight: 600;
+    font-size: 14px;
+}
+.pf-accordion .pf-accordion-header .asset-group-desc,
+.pf-accordion .pf-accordion-header .asset-group-count {
+    font-size: 11px;
+    color: var(--text-secondary);
 }
 .grid-view .asset-group.expanded > .asset-group-header {
     min-height: var(--bar-h);
@@ -2633,6 +2767,9 @@ html, body {
 
 /* Networking top controls wrapper */
 .net-top-controls {
+    position: sticky;
+    top: var(--navbar-height);
+    z-index: 100;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -3173,9 +3310,6 @@ html, body {
 
 /* Networking action bar */
 .net-action-bar {
-    position: sticky;
-    top: var(--navbar-height);
-    z-index: 100;
     display: flex;
     width: 100%;
     border: 2px solid var(--border-color);
@@ -3204,6 +3338,21 @@ html, body {
     cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Remove the default action-btn right border inside the Networking action bar so we can add it precisely */
+.net-action-bar .net-action-btn {
+    border-right: none;
+}
+
+/* Show a right border on every action-bar button except the last one so each edge is visible */
+.net-action-bar > .net-action-btn,
+.net-action-bar .net-sort-btn-wrap:not(:last-child) .net-action-btn {
+    border-right: 2px solid var(--border-color);
+}
+
+.net-action-bar .net-sort-btn-wrap:last-child .net-action-btn {
+    border-right: none;
 }
 
 .net-action-bar .net-view-select {
@@ -5821,6 +5970,41 @@ html, body {
     aspect-ratio: 1;
     object-fit: cover;
     border: 2px solid var(--border-color);
+    position: relative;
+}
+
+.asset-detail-img.asset-detail-add-image {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-style: dashed;
+    cursor: pointer;
+    background: var(--secondary-bg);
+    position: relative;
+    font-size: 28px;
+    color: var(--text-secondary);
+    overflow: hidden;
+}
+
+.asset-detail-img.asset-detail-add-image span {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.asset-detail-img.asset-detail-add-image input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+}
+
+.asset-detail-img.asset-detail-add-image:hover {
+    border-color: var(--highlight);
+    color: var(--highlight);
 }
 
 .asset-detail-no-image {
@@ -8606,30 +8790,44 @@ html, body {
 }
 .pf-edit-btn { font-size: clamp(16px, 2.4vh, 22px); }
 
-/* Vertical action strip: notification bell above document icon with even spacing */
+/* Vertical action strip: notification bell above document icon, each centred in its half */
 .pf-list-actions.pf-list-actions-stacked {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    justify-content: space-evenly;
+    justify-content: center;
     width: var(--bar-h);
     height: 100%;
     padding: 0;
     gap: 0;
 }
 .pf-list-actions.pf-list-actions-stacked .pf-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    height: auto;
     min-width: 0;
     min-height: 0;
-    flex: 0 0 auto;
+    flex: 1 1 0;
     border-left: none;
     border-bottom: 1px solid var(--border-color);
     padding: 0;
-    font-size: clamp(18px, 2.8vh, 24px);
+    font-size: clamp(16px, 2.4vh, 20px);
+    line-height: 1;
 }
 .pf-list-actions.pf-list-actions-stacked .pf-action-btn:last-child {
     border-bottom: none;
+}
+.pf-action-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    gap: 2px;
+}
+.pf-action-stack .pf-action-count {
+    font-size: clamp(12px, 1.6vh, 14px);
 }
 .pf-notif-action-icon {
     position: relative;
@@ -9282,6 +9480,48 @@ html, body {
     font-size: 10px;
     color: var(--text-secondary);
     font-weight: 600;
+}
+
+.ai-image-add-icon,
+.ai-image-add-label {
+    position: relative;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.ai-add-image-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 44px;
+    min-width: 44px;
+    aspect-ratio: 1;
+    border: 2px dashed var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--secondary-bg);
+    color: var(--text-secondary);
+    font-size: 10px;
+    gap: 2px;
+    overflow: hidden;
+}
+
+.ai-add-image-btn:hover {
+    border-color: var(--highlight);
+    color: var(--highlight);
+}
+
+.ai-add-image-btn span {
+    position: relative;
+    z-index: 3;
+    pointer-events: none;
+    line-height: 1;
+}
+
+.ai-add-image-btn span:first-of-type {
+    font-size: 16px;
 }
 
 .ai-edit-stack {
@@ -15056,6 +15296,18 @@ html, body {
     letter-spacing: 0.5px;
 }
 
+/* Empty portfolio outline at the end of the portfolios list */
+.pf-empty-outline {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 8px;
+}
+
+.grid-view .pf-empty-outline {
+    grid-column: 1 / -1;
+    margin-top: 0;
+}
+
 /* ── Responsive navbar for tablet displays (768px - 1024px) ─────────────────── */
 @media (min-width: 768px) and (max-width: 1024px) {
     :root {
@@ -15101,5 +15353,183 @@ html, body {
 
     .nav-profile-name-top {
         font-size: clamp(12px, 1.8vh, 16px);
+    }
+}
+
+/* Add Portfolio dropdown panel */
+.apf-dropdown {
+    width: 100%;
+    max-width: 720px;
+    max-height: 70vh;
+    margin-top: 8px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10;
+}
+
+.grid-view .apf-dropdown {
+    grid-column: 1 / -1;
+}
+
+.apf-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+    border-radius: 8px 8px 0 0;
+    flex-shrink: 0;
+}
+
+.apf-dropdown-title {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.apf-dropdown-close {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.apf-dropdown-close:hover {
+    color: #ef4444;
+}
+
+.apf-dropdown-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    overflow-y: auto;
+}
+
+.apf-form {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.apf-form .apf-input {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.apf-form .apf-input + .org-edit-label {
+    margin-top: 8px;
+}
+
+.apf-file-input {
+    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+}
+
+.apf-section {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    background: var(--secondary-bg);
+}
+
+.apf-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+}
+
+.apf-add-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.apf-add-row .login-input {
+    flex: 1 1 140px;
+    min-width: 120px;
+}
+
+.apf-doc-row,
+.apf-group-row,
+.apf-asset-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+.apf-doc-row:last-child,
+.apf-group-row:last-child,
+.apf-asset-row:last-child {
+    border-bottom: none;
+}
+
+.apf-remove-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+}
+
+.apf-remove-btn:hover {
+    color: #ef4444;
+}
+
+.apf-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.apf-empty {
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 8px 0;
+}
+
+.apf-docs-list {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 600px) {
+    .apf-dropdown {
+        width: 100%;
+        max-height: none;
+        border-radius: 8px;
+    }
+
+    .apf-add-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .apf-add-row .login-input,
+    .apf-actions .login-btn,
+    .apf-actions .view-btn {
+        width: 100%;
     }
 }

@@ -8,8 +8,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, document_icon, read_image_as_data_url, shorthand_name,
-    AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
+    detect_file_type, document_icon, read_images_as_data_urls, shorthand_name,
+    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
     DocumentViewer, UserAssignmentPanel,
 };
 
@@ -42,8 +42,8 @@ pub(crate) fn AssetItem(
     #[prop(default = None)] group_id: Option<Uuid>,
     view_mode: ViewMode,
     on_select: Callback<Asset>,
-    #[prop(default = false)] can_edit: bool,
-    #[prop(default = false)] can_edit_documents: bool,
+    #[prop(into)] can_edit: Signal<bool>,
+    #[prop(into)] can_edit_documents: Signal<bool>,
     #[prop(default = 0)] tint_index: usize,
     #[prop(default = false)] collapsible: bool,
     #[prop(default = None)] highlight: Option<Signal<Option<Uuid>>>,
@@ -59,6 +59,7 @@ pub(crate) fn AssetItem(
         .unwrap_or_else(|| asset_placeholder_url(&asset.asset_type, &asset.name));
 
     let asset_id = asset.id;
+    let has_channels = Memo::new(move |_| !app_store.get().channels_for_asset(asset_id).is_empty());
     let asset_for_highlight = asset.clone();
     let (expanded_detail, set_expanded_detail) = signal(false);
     let (collapsed, set_collapsed) = signal(collapsible);
@@ -89,6 +90,8 @@ pub(crate) fn AssetItem(
     let (show_add_org, set_show_add_org) = signal(false);
     let (show_add_transaction, set_show_add_transaction) = signal(false);
     let (confirm_asset_remove, set_confirm_asset_remove) = signal(false);
+    let (show_add_channel, set_show_add_channel) = signal(false);
+    let (show_add_booking, set_show_add_booking) = signal(false);
     // Form fields for add user
     let (new_user_name, set_new_user_name) = signal(String::new());
     let (new_user_email, set_new_user_email) = signal(String::new());
@@ -107,6 +110,9 @@ pub(crate) fn AssetItem(
 
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
+    let user_id = app_store.get().current_user.id;
+    let assigned_workers = asset.assigned_workers.clone();
+    let can_add_images = Memo::new(move |_| can_edit_here.get() || assigned_workers.contains(&user_id));
     // doc sort: 0 = recent, 1 = name
     let (_doc_sort, _set_doc_sort) = signal(0u8);
     let (_detail_tab, _set_detail_tab) = signal(0u8);
@@ -173,7 +179,7 @@ pub(crate) fn AssetItem(
 
     let a_name = asset.name.clone();
     let a_addr = asset.location.clone().unwrap_or_default();
-    let a_addr_grid = a_addr.clone();
+    let a_addr_grid = if a_addr.is_empty() { "\u{00A0}".to_string() } else { a_addr.clone() };
     let a_name_tx = a_name.clone();
     let a_org_id = asset.organization_id;
     let organization_store = use_organization_store();
@@ -182,7 +188,7 @@ pub(crate) fn AssetItem(
     let current_user_id = app_store.get().current_user.id;
     let can_link = move || {
         if a_org_id.is_none() {
-            return can_edit;
+            return can_edit.get();
         }
         let oid = a_org_id.unwrap();
         organization_store
@@ -194,7 +200,7 @@ pub(crate) fn AssetItem(
     };
     let can_book = move || {
         if a_org_id.is_none() {
-            return can_edit;
+            return can_edit.get();
         }
         let oid = a_org_id.unwrap();
         organization_store
@@ -299,7 +305,7 @@ pub(crate) fn AssetItem(
             }
         });
     };
-    let add_cb = if can_edit_documents_here {
+    let add_cb = if can_edit_documents_here.get() {
         Some(Callback::new(add_doc))
     } else {
         None
@@ -376,7 +382,7 @@ pub(crate) fn AssetItem(
         let a_type_header = a_type_grid.clone();
         let a_val_header = a_current_val;
         let image_url_header = image_url.clone();
-        let asset_name_for_channels = a_name.clone();
+        let (asset_name_signal, _set_asset_name) = signal(a_name.clone());
         view! {
         <div class="ai-item"
             node_ref=item_ref
@@ -386,7 +392,7 @@ pub(crate) fn AssetItem(
             style={tint_style.clone()}
             aria-label={format!("Asset {}. Type {}. In {}. {}", a_name, a_type_grid, pname, if a_addr.is_empty() { "No address set" } else { a_addr.as_str() })}
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
-                if can_edit_here {
+                if can_edit_here.get() {
                     ev.prevent_default();
                     ev.stop_propagation();
                     set_asset_context_menu.set(Some((ev.client_x(), ev.client_y())));
@@ -403,7 +409,7 @@ pub(crate) fn AssetItem(
                         aria-controls={content_id_for_header.clone()}
                         aria-label={format!("Asset {}. Type {}. {}", a_name_header, a_type_header, if collapsed.get() { "Collapsed" } else { "Expanded" })}
                         on:click=move |_| if !editing.get() { set_collapsed.update(|v| *v = !*v) }
-                        on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_editing.set(true); set_collapsed.set(false); } }
+                        on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); set_collapsed.set(false); } }
                         on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                             if ev.key() == "Enter" || ev.key() == " " {
                                 ev.prevent_default();
@@ -425,15 +431,34 @@ pub(crate) fn AssetItem(
                                 }.into_any()
                             } else { ().into_any() }}
                         </div>
+                        {let a_name_add_btn = a_name_header.clone();
+                        move || if can_add_images.get() && asset_images.get().len() < max_images { view! {
+                            <label class="ai-add-image-btn" aria-label={format!("Add image to {}", a_name_add_btn)} on:click=|ev| ev.stop_propagation()>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    class="ai-image-file-input"
+                                    on:change=move |ev| {
+                                        read_images_as_data_urls(&ev, {
+                                            let add_image = add_image.clone();
+                                            move |url| add_image.run(url)
+                                        });
+                                    }
+                                />
+                                <span>"➕"</span>
+                                <span>"Image"</span>
+                            </label>
+                        }.into_any() } else { ().into_any() }}
                         <span class="ai-collapsible-arrow" aria-hidden="true">
-                            {move || if collapsed.get() { "▼" } else { "▶" }}
+                            {move || if collapsed.get() { "▶" } else { "▼" }}
                         </span>
                     </div>
                 }.into_any()
             } else { ().into_any() }}
             <div class="ai-list-card" id={content_id.clone()}>
                 <div class="ai-list-body">
-                    {move || if can_edit_here && editing.get() {
+                    {move || if can_edit_here.get() && editing.get() {
                         view! {
                             <div class="ai-edit-stack">
                                 <input class="pf-edit-input" placeholder="Asset name"
@@ -461,7 +486,7 @@ pub(crate) fn AssetItem(
                             move || {
                                 let images = asset_images.get();
                                 let count = images.len();
-                                let can_add = can_edit_here && count < max_images;
+                                let can_add = can_add_images.get() && count < max_images;
                                 let a_name_add = a_name_slider.clone();
                                 let a_name_images = a_name_slider.clone();
                                 view! {
@@ -471,9 +496,10 @@ pub(crate) fn AssetItem(
                                                 <input
                                                     type="file"
                                                     accept="image/*"
+                                                    multiple
                                                     class="ai-image-file-input"
                                                     on:change=move |ev| {
-                                                        read_image_as_data_url(&ev, {
+                                                        read_images_as_data_urls(&ev, {
                                                             let add_image = add_image.clone();
                                                             move |url| add_image.run(url)
                                                         });
@@ -519,20 +545,22 @@ pub(crate) fn AssetItem(
                             <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
                         </div>
                     </div>
-                    <div class="ai-controls-row">
-                        <AssetLinkingControls
-                            asset_id={asset_id}
-                            asset_name={asset_name_for_channels.clone()}
-                            portfolio_id={portfolio_id}
-                            can_link={can_link()}
-                        />
-                        <AssetBookingControls
-                            asset_id={asset_id}
-                            asset_name={asset_name_for_channels.clone()}
-                            portfolio_id={portfolio_id}
-                            can_book={can_book()}
-                        />
-                    </div>
+                    {move || if has_channels.get() { view! {
+                        <div class="ai-controls-row">
+                            <AssetLinkingControls
+                                asset_id={asset_id}
+                                asset_name={asset_name_signal.get()}
+                                portfolio_id={portfolio_id}
+                                can_link={can_link()}
+                            />
+                            <AssetBookingControls
+                                asset_id={asset_id}
+                                asset_name={asset_name_signal.get()}
+                                portfolio_id={portfolio_id}
+                                can_book={can_book()}
+                            />
+                        </div>
+                    }.into_any() } else { ().into_any() }}
                     // Horizontal document slider with + Document card
                     <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
                         // + Document card (always first)
@@ -599,7 +627,7 @@ pub(crate) fn AssetItem(
                                                     <DocumentViewer
                                                         doc={d.clone()}
                                                         on_close=move || set_viewing.set(false)
-                                                        can_edit={can_edit_documents_here}
+                                                        can_edit={can_edit_documents_here.get()}
                                                     />
                                                 </div>
                                             </div>
@@ -651,7 +679,7 @@ pub(crate) fn AssetItem(
                         entity_id={asset_id}
                         title={mt}
                         on_close=move || ui_store.update(|s| s.close_doc_modal(asset_id))
-                        can_edit={can_edit_documents_here}
+                        can_edit={can_edit_documents_here.get()}
                         on_add={ac}
                         portfolio_id={portfolio_id}
                         group_id={group_id}
@@ -668,15 +696,15 @@ pub(crate) fn AssetItem(
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
-                                    // TODO: Open channel selection modal
+                                    set_show_add_channel.set(true);
                                 }
                             >"📡 Add Channel"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
-                                    // TODO: Open channel selection modal
+                                    set_show_add_booking.set(true);
                                 }
-                            >"📡 Add to Channel"</button>
+                            >"Add Booking"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
@@ -997,7 +1025,7 @@ pub(crate) fn AssetItem(
             } else { ().into_any() }}
 
             {move || {
-                if expanded_detail.get() && can_edit_here {
+                if expanded_detail.get() && can_edit_here.get() {
                     view! {
                         <div class="ai-detail-panel" on:click=|ev| ev.stop_propagation()>
                             <div class="ai-edit-tab">
@@ -1019,85 +1047,174 @@ pub(crate) fn AssetItem(
                                         <button class="pf-edit-cancel" on:click=move |_| { set_expanded_detail.set(false); }>"✕ Cancel"</button>
                                     </div>
                                     <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
-                                    <AssetChannelsSection asset_id={asset_id} asset_name={asset_name_for_channels.clone()} portfolio_id={portfolio_id} can_edit={can_edit_here} />
+                                    <AssetChannelsSection asset_id={asset_id} asset_name={asset_name_signal.get()} portfolio_id={portfolio_id} can_edit={can_edit_here.get()} />
                                 </div>
                             </div>
                         </div>
                     }.into_any()
                 } else { ().into_any() }
             }}
+
+            {move || if show_add_channel.get() { view! {
+                <AddChannelModal
+                    asset_id={asset_id}
+                    asset_name={asset_name_signal.get()}
+                    portfolio_id={portfolio_id}
+                    on_close={Callback::new(move |_| set_show_add_channel.set(false))}
+                />
+            }.into_any() } else { ().into_any() }}
+
+            {move || if show_add_booking.get() { view! {
+                <div class="doc-modal-overlay" on:click=move |_| set_show_add_booking.set(false)>
+                    <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                        <div class="doc-modal-header">
+                            <span>"Booking Controls"</span>
+                            <button class="doc-modal-close" aria-label="Close booking controls" on:click=move |_| set_show_add_booking.set(false)>"✕"</button>
+                        </div>
+                        <div class="doc-modal-body">
+                            <AssetBookingControls
+                                asset_id={asset_id}
+                                asset_name={asset_name_signal.get()}
+                                portfolio_id={portfolio_id}
+                                can_book={can_book()}
+                            />
+                        </div>
+                    </div>
+                </div>
+            }.into_any() } else { ().into_any() }}
         </div>
     }.into_any()
     }
 }
 
 #[component]
-pub(crate) fn AssetDetailView(asset: Asset, on_close: Callback<()>) -> impl IntoView {
-    let icon = match asset.asset_type {
-        AssetType::RealEstate => "🏢",
-        AssetType::Vehicle => "🚗",
-        AssetType::Equipment => "⚙️",
-        AssetType::Stock => "📈",
-        AssetType::Bond => "📜",
-        AssetType::Commodity => "🌾",
-        AssetType::Digital => "💻",
-        AssetType::IntellectualProperty => "💡",
-        AssetType::Channel => "📡",
-        AssetType::Custom(_) => "📦",
-    };
-    let pl_class = if asset.profit_loss >= 0.0 {
-        "positive"
-    } else {
-        "negative"
-    };
+pub(crate) fn AssetDetailView(
+    asset: Asset,
+    #[prop(default = None)] portfolio_id: Option<Uuid>,
+    #[prop(into)] can_edit: Signal<bool>,
+    on_close: Callback<()>,
+) -> impl IntoView {
+    let app_store = use_app_store();
+    let asset_id = asset.id;
+    let user_id = app_store.get().current_user.id;
+    let assigned_workers = asset.assigned_workers.clone();
+    let can_add_images = Memo::new(move |_| can_edit.get() || assigned_workers.contains(&user_id));
+    let (local_asset, set_local_asset) = signal(asset);
+
+    let add_image = Callback::new(move |url: String| {
+        if let Some(pid) = portfolio_id {
+            app_store.update(|s| {
+                if let Some(p) = s.get_portfolio_mut(pid) {
+                    let max = if local_asset.get().organization_id.is_some() { 100 } else { 50 };
+                    let all: Vec<_> = p
+                        .assets
+                        .iter_mut()
+                        .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                        .collect();
+                    for a in all {
+                        if a.id == asset_id && a.images.len() < max {
+                            a.images.push(url.clone());
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+        set_local_asset.update(|a| {
+            let max = if a.organization_id.is_some() { 100 } else { 50 };
+            if a.images.len() < max {
+                a.images.push(url.clone());
+            }
+        });
+    });
 
     view! {
-        <div class="asset-detail-overlay" on:click=move |_| on_close.run(())>
-            <div class="asset-detail" on:click=|ev| ev.stop_propagation()>
-                <div class="asset-detail-header">
-                    <div class="asset-detail-icon">{icon}</div>
-                    <div class="asset-detail-title">{asset.name.clone()}</div>
-                    <button class="asset-detail-close" aria-label={format!("Close details for {}", asset.name)} on:click=move |_| on_close.run(())>"✕"</button>
+        {move || {
+            let asset = local_asset.get();
+            let icon = match asset.asset_type {
+                AssetType::RealEstate => "🏢",
+                AssetType::Vehicle => "🚗",
+                AssetType::Equipment => "⚙️",
+                AssetType::Stock => "📈",
+                AssetType::Bond => "📜",
+                AssetType::Commodity => "🌾",
+                AssetType::Digital => "💻",
+                AssetType::IntellectualProperty => "💡",
+                AssetType::Channel => "📡",
+                AssetType::Custom(_) => "📦",
+            };
+            let pl_class = if asset.profit_loss >= 0.0 { "positive" } else { "negative" };
+            let max_images = if asset.organization_id.is_some() { 100 } else { 50 };
+            let can_add = can_add_images.get() && asset.images.len() < max_images;
+            let name = asset.name.clone();
+            let images = asset.images;
+
+            view! {
+                <div class="asset-detail-overlay" on:click=move |_| on_close.run(())>
+                    <div class="asset-detail" on:click=|ev| ev.stop_propagation()>
+                        <div class="asset-detail-header">
+                            <div class="asset-detail-icon">{icon}</div>
+                            <div class="asset-detail-title">{name.clone()}</div>
+                            <button class="asset-detail-close" aria-label={format!("Close details for {}", name)} on:click=move |_| on_close.run(())>"✕"</button>
+                        </div>
+                        <div class="asset-detail-body">
+                            <div class="asset-detail-row">
+                                <span class="asset-detail-label">"Type"</span>
+                                <span class="asset-detail-value">{format!("{:?}", asset.asset_type)}</span>
+                            </div>
+                            <div class="asset-detail-row">
+                                <span class="asset-detail-label">"Location"</span>
+                                <span class="asset-detail-value">{asset.location.clone().unwrap_or_else(|| "—".to_string())}</span>
+                            </div>
+                            <div class="asset-detail-row">
+                                <span class="asset-detail-label">"Current Value"</span>
+                                <span class="asset-detail-value">{format!("${:.2}M", asset.current_value / 1000000.0)}</span>
+                            </div>
+                            <div class="asset-detail-row">
+                                <span class="asset-detail-label">"Profit/Loss"</span>
+                                <span class={format!("asset-detail-value {}", pl_class)}
+                                    aria-label={format!("Profit/Loss is {}: ${:+.0}K", if asset.profit_loss >= 0.0 { "positive" } else { "negative" }, asset.profit_loss / 1000.0)}>
+                                    {format!("${:+.0}K", asset.profit_loss / 1000.0)}
+                                </span>
+                            </div>
+                            <div class="asset-detail-row">
+                                <span class="asset-detail-label">"Organization"</span>
+                                <span class="asset-detail-value">{asset.organization_id.map(|id| id.to_string()).unwrap_or_else(|| "Unassigned".to_string())}</span>
+                            </div>
+                            <div class="asset-detail-row">
+                                <span class="asset-detail-label">"Status"</span>
+                                <span class="asset-detail-value">{format!("{:?}", asset.status)}</span>
+                            </div>
+                            <div class="asset-detail-images">
+                                {if can_add { view! {
+                                    <div class="asset-detail-img asset-detail-add-image" title="Add image">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            class="ai-image-file-input"
+                                            on:change=move |ev| {
+                                                read_images_as_data_urls(&ev, {
+                                                    let cb = add_image.clone();
+                                                    move |url| cb.run(url)
+                                                });
+                                            }
+                                        />
+                                        <span>"➕"</span>
+                                    </div>
+                                }.into_any() } else { ().into_any() }}
+                                {if images.is_empty() && !can_add {
+                                    view! { <div class="asset-detail-no-image">"No images"</div> }.into_any()
+                                } else {
+                                    images.into_iter().map(|url| view! {
+                                        <img class="asset-detail-img" src={url} alt={format!("Image of {}", name)} />
+                                    }).collect::<Vec<_>>().into_any()
+                                }}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="asset-detail-body">
-                    <div class="asset-detail-row">
-                        <span class="asset-detail-label">"Type"</span>
-                        <span class="asset-detail-value">{format!("{:?}", asset.asset_type)}</span>
-                    </div>
-                    <div class="asset-detail-row">
-                        <span class="asset-detail-label">"Location"</span>
-                        <span class="asset-detail-value">{asset.location.clone().unwrap_or_else(|| "—".to_string())}</span>
-                    </div>
-                    <div class="asset-detail-row">
-                        <span class="asset-detail-label">"Current Value"</span>
-                        <span class="asset-detail-value">{format!("${:.2}M", asset.current_value / 1000000.0)}</span>
-                    </div>
-                    <div class="asset-detail-row">
-                        <span class="asset-detail-label">"Profit/Loss"</span>
-                        <span class={format!("asset-detail-value {}", pl_class)}
-                            aria-label={format!("Profit/Loss is {}: ${:+.0}K", if asset.profit_loss >= 0.0 { "positive" } else { "negative" }, asset.profit_loss / 1000.0)}>
-                            {format!("${:+.0}K", asset.profit_loss / 1000.0)}
-                        </span>
-                    </div>
-                    <div class="asset-detail-row">
-                        <span class="asset-detail-label">"Organization"</span>
-                        <span class="asset-detail-value">{asset.organization_id.map(|id| id.to_string()).unwrap_or_else(|| "Unassigned".to_string())}</span>
-                    </div>
-                    <div class="asset-detail-row">
-                        <span class="asset-detail-label">"Status"</span>
-                        <span class="asset-detail-value">{format!("{:?}", asset.status)}</span>
-                    </div>
-                    <div class="asset-detail-images">
-                        {if asset.images.is_empty() {
-                            view! { <div class="asset-detail-no-image">"No images"</div> }.into_any()
-                        } else {
-                            asset.images.into_iter().map(|url| view! {
-                                <img class="asset-detail-img" src={url} alt={format!("Image of {}", asset.name)} />
-                            }).collect::<Vec<_>>().into_any()
-                        }}
-                    </div>
-                </div>
-            </div>
-        </div>
+            }
+        }}
     }
 }

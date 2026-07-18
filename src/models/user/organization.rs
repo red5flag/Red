@@ -24,6 +24,8 @@ pub struct Organization {
     pub business_address: Option<String>,
     pub business_phone: Option<String>,
     pub business_email: Option<String>,
+    #[serde(default)]
+    pub image_url: Option<String>,
 }
 
 impl Organization {
@@ -46,6 +48,7 @@ impl Organization {
             business_address: None,
             business_phone: None,
             business_email: None,
+            image_url: None,
         }
     }
 

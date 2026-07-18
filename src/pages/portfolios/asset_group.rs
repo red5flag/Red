@@ -6,15 +6,15 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, single_sentence, AssetItem, AssetTarget, DocModal, NotifTarget,
-    UserAssignmentPanel,
+    detect_file_type, read_image_as_data_url, single_sentence, AssetItem, AssetTarget, DocModal,
+    NotifTarget, UserAssignmentPanel,
 };
 
 #[component]
 pub(crate) fn AssetGroupItem(
     group: AssetGroup,
-    #[prop(default = false)] can_edit: bool,
-    #[prop(default = false)] can_edit_documents: bool,
+    #[prop(into)] can_edit: Signal<bool>,
+    #[prop(into)] can_edit_documents: Signal<bool>,
     pid: Uuid,
     gid: Uuid,
     expanded: Memo<bool>,
@@ -63,6 +63,9 @@ pub(crate) fn AssetGroupItem(
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
     let (new_asset_id, set_new_asset_id) = signal(Option::<Uuid>::None);
+    let group_image_input_ref = NodeRef::<leptos::html::Input>::new();
+    let group_image_url = group.image_url.clone();
+    let group_emoji = group.emoji.clone().unwrap_or_else(|| "📁".to_string());
 
     // Per-scope visible count for this group's assets.
     let assets_scope = format!("group-assets-{gid}");
@@ -178,7 +181,7 @@ pub(crate) fn AssetGroupItem(
     view! {
         <div class="asset-group" class:expanded={move || expanded.get()} style={group_tint_style.clone()}
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
-                if can_edit_here {
+                if can_edit_here.get() {
                     ev.prevent_default();
                     ev.stop_propagation();
                     set_group_context_menu.set(Some((ev.client_x(), ev.client_y())));
@@ -200,24 +203,70 @@ pub(crate) fn AssetGroupItem(
                         if expanded.get() { "Expanded" } else { "Collapsed" }
                     )
                 }}
-                on:click=move |_| if !is_editing.get() { on_toggle.run(gid) }
-                on:dblclick=move |ev| { if can_edit_here { ev.stop_propagation(); set_is_editing.set(true); } }
+                on:click=move |ev: leptos::ev::MouseEvent| {
+                    ev.stop_propagation();
+                    if !is_editing.get() { on_toggle.run(gid); }
+                }
+                on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_is_editing.set(true); } }
                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                     if ev.key() == "Enter" || ev.key() == " " {
                         ev.prevent_default();
-                        if !is_editing.get() { on_toggle.run(gid) }
+                        ev.stop_propagation();
+                        if !is_editing.get() { on_toggle.run(gid); }
                     }
                 }
             >
                 <span class="asset-group-arrow">
-                    {move || if expanded.get() { "▶" } else { "▼" }}
+                    {move || if expanded.get() { "▼" } else { "▶" }}
                 </span>
-                <div class="asset-group-icon">"📁"</div>
+                <input
+                    type="file"
+                    accept="image/*"
+                    class="pf-hidden-file-input"
+                    node_ref=group_image_input_ref
+                    on:change=move |ev| {
+                        read_image_as_data_url(&ev, {
+                            let app_store = app_store.clone();
+                            move |url: String| {
+                                app_store.update(|s| {
+                                    if let Some(p) = s.get_portfolio_mut(pid) {
+                                        if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == gid) {
+                                            g.image_url = Some(url);
+                                            g.updated_at = chrono::Utc::now();
+                                        }
+                                    }
+                                });
+                                if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+                                    leptos::task::spawn_local(async move {
+                                        let _ = crate::server::save_portfolio(p).await;
+                                    });
+                                }
+                            }
+                        });
+                    }
+                />
+                <div class="asset-group-icon"
+                    on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                        if can_edit_here.get() {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            if let Some(input) = group_image_input_ref.get() {
+                                let _ = input.click();
+                            }
+                        }
+                    }
+                >
+                    {if let Some(ref url) = group_image_url {
+                        view! { <img class="pf-header-image" src={url.clone()} alt="Group image" /> }.into_any()
+                    } else {
+                        view! { <span>{group_emoji.clone()}</span> }.into_any()
+                    }}
+                </div>
                 <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
                     {let g_name_header = g_name.clone();
                     let g_desc_header = g_desc.clone();
                     let group_channel_ids = group.channel_ids.clone();
-                    move || if is_editing.get() && can_edit_here {
+                    move || if is_editing.get() && can_edit_here.get() {
                         view! {
                             <div class="asset-group-edit-form">
                                 <input class="pf-edit-input" placeholder="Group name"
@@ -305,13 +354,13 @@ pub(crate) fn AssetGroupItem(
             // Docs modal for group
             {move || if ui_store.get().is_doc_modal_open(gid) {
                 let modal_title = g_name_for_modal.clone();
-                let add_cb = if can_edit_documents_here { Some(Callback::new(move |n: String| add_group_doc(n))) } else { None };
+                let add_cb = if can_edit_documents_here.get() { Some(Callback::new(move |n: String| add_group_doc(n))) } else { None };
                 view! {
                     <DocModal
                         entity_id={gid}
                         title={modal_title}
                         on_close=move || ui_store.update(|s| s.close_doc_modal(gid))
-                        can_edit={can_edit_documents_here}
+                        can_edit={can_edit_documents_here.get()}
                         on_add={add_cb}
                         portfolio_id={Some(pid)}
                         group_id={Some(gid)}

@@ -10,7 +10,7 @@ use leptos::task::spawn_local;
 use std::time::Duration;
 
 use crate::pages::login::{
-    auth_messages, credential_controls, login_form, register_form, two_factor,
+    auth_messages, commits, credential_controls, login_form, register_form, two_factor,
 };
 
 cfg_if! {
@@ -509,7 +509,11 @@ pub fn LoginPage() -> impl IntoView {
     };
 
     let (changelog_open, set_changelog_open) = signal(false);
-    let (commits, _set_commits) = signal(Vec::<(String, String)>::new());
+    let initial_commits = commits::RECENT_COMMITS
+        .iter()
+        .map(|(sha, msg)| (sha.to_string(), msg.to_string()))
+        .collect::<Vec<(String, String)>>();
+    let (commits, _set_commits) = signal(initial_commits);
     let (commits_loading, set_commits_loading) = signal(false);
 
     let fetch_commits = move |_| {

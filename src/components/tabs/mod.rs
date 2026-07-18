@@ -225,17 +225,22 @@ pub fn TabList() -> impl IntoView {
 pub fn TabsContainer() -> impl IntoView {
     let app_store = use_app_store();
 
+    // Only re-render tab content when the active tab list actually changes;
+    // otherwise every app_store update would remount pages and reset their
+    // local UI state (e.g. expanded organization dropdowns in PortfoliosPage).
+    let active_tabs = Memo::new(move |_| app_store.get().active_tabs.clone());
+
     view! {
         <div class="tabs-container">
             <div class="tabs-viewport">
                 {move || {
-                    let tabs = app_store.get().active_tabs.clone();
+                    let tabs = active_tabs.get();
                     if tabs.is_empty() {
                         ().into_any()
                     } else {
                         view! {
                             <For
-                                each=move || tabs.clone()
+                                each=move || active_tabs.get().clone()
                                 key=|tab| tab.clone()
                                 children=move |tab| view! { <TabContent tab_type=tab /> }.into_any()
                             />

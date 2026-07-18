@@ -159,6 +159,8 @@ pub struct AssetGroup {
     pub assigned_users: Vec<Uuid>,
     pub notification_settings: Vec<EntityNotificationSetting>,
     pub channel_ids: Vec<Uuid>,
+    pub image_url: Option<String>,
+    pub emoji: Option<String>,
 }
 
 impl AssetGroup {
@@ -182,6 +184,8 @@ impl AssetGroup {
             assigned_users: Vec::new(),
             notification_settings: Vec::new(),
             channel_ids: Vec::new(),
+            image_url: None,
+            emoji: None,
         }
     }
 

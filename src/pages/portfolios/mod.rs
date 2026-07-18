@@ -120,6 +120,43 @@ pub(crate) fn read_image_as_data_url(
     }
 }
 
+/// Read every selected image file from a file input change event and call the callback for each.
+pub(crate) fn read_images_as_data_urls(
+    ev: &leptos::ev::Event,
+    on_data_url: impl Fn(String) + Clone + 'static,
+) {
+    let input = ev
+        .target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+        .expect("file input target");
+    if let Some(files) = input.files() {
+        let len = files.length();
+        for i in 0..len {
+            if let Some(file) = files.get(i) {
+                let reader = match web_sys::FileReader::new() {
+                    Ok(r) => r,
+                    Err(_) => continue,
+                };
+                let on_data_url = on_data_url.clone();
+                let onload = Closure::once(Box::new(move |e: web_sys::Event| {
+                    if let Some(target) = e.target() {
+                        if let Ok(reader) = target.dyn_into::<web_sys::FileReader>() {
+                            if let Ok(result) = reader.result() {
+                                if let Some(data_url) = result.as_string() {
+                                    on_data_url(data_url);
+                                }
+                            }
+                        }
+                    }
+                }) as Box<dyn FnOnce(web_sys::Event)>);
+                reader.set_onload(Some(onload.as_ref().unchecked_ref()));
+                let _ = reader.read_as_data_url(&file);
+                onload.forget();
+            }
+        }
+    }
+}
+
 #[component]
 pub(crate) fn UserAssignmentPanel(
     assigned: Vec<Uuid>,
@@ -154,6 +191,7 @@ pub(crate) fn UserAssignmentPanel(
     }
 }
 
+mod add_portfolio_modal;
 mod asset_channels;
 mod asset_group;
 mod asset_item;
@@ -163,8 +201,10 @@ mod notifications;
 mod page;
 mod portfolio_list;
 
+pub(crate) use add_portfolio_modal::AddPortfolioModal;
 pub(crate) use asset_channels::{
-    AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
+    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
+    ChannelManagementWindow,
 };
 pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetDetailView, AssetItem};

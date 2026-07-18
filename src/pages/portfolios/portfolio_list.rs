@@ -40,7 +40,6 @@ pub(crate) fn PortfolioListItem(
     let ui_store = use_ui_store();
     let (is_editing_name, set_is_editing_name) = signal(false);
     let (is_editing_desc, set_is_editing_desc) = signal(false);
-    let (is_editing_org, set_is_editing_org) = signal(false);
     let (edit_name, set_edit_name) = signal(portfolio.name.clone());
     let (edit_desc, set_edit_desc) = signal(portfolio.description.clone().unwrap_or_default());
     let (edit_image_url, set_edit_image_url) = signal(portfolio.image_url.clone());
@@ -57,27 +56,9 @@ pub(crate) fn PortfolioListItem(
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
     let organization_store = use_organization_store();
-    let org_name = portfolio.organization_id.and_then(|oid| {
-        organization_store
-            .get()
-            .organizations
-            .iter()
-            .find(|o| o.id == oid)
-            .map(|o| o.name.clone())
-    });
-    let org_name_for_label = org_name.clone();
-    let org_color = portfolio.organization_id.and_then(|oid| {
-        organization_store
-            .get()
-            .organizations
-            .iter()
-            .find(|o| o.id == oid)
-            .and_then(|o| o.settings.color.clone())
-    });
-    let current_org_id = portfolio.organization_id;
-    let orgs = organization_store.get().organizations.clone();
 
     let (portfolio_context_menu, set_portfolio_context_menu) = signal(Option::<(i32, i32)>::None);
+    let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
 
     let do_save = move || {
         let n = edit_name.get();
@@ -106,22 +87,6 @@ pub(crate) fn PortfolioListItem(
     let save_edit = move |_: leptos::ev::FocusEvent| do_save();
     let save_edit_now = move || do_save();
     let save_edit_callback = Callback::new(move |_| do_save());
-
-    let save_org_edit = move |ev: leptos::ev::Event| {
-        let v = event_target_value(&ev);
-        let new_org_id = if v == "none" {
-            None
-        } else {
-            Uuid::parse_str(&v).ok()
-        };
-        app_store.update(|s| {
-            if let Some(p) = s.get_portfolio_mut(pid) {
-                p.organization_id = new_org_id;
-                p.updated_at = chrono::Utc::now();
-            }
-        });
-        set_is_editing_org.set(false);
-    };
 
     let add_doc = move |n: String| {
         if n.trim().is_empty() {
@@ -166,41 +131,77 @@ pub(crate) fn PortfolioListItem(
     });
 
     view! {
-        <div class="asset-group" class:expanded={expanded} class:hidden={move || !expanded.get()} on:contextmenu=on_context>
+        <div class="asset-group pf-portfolio" class:expanded={expanded} on:contextmenu=on_context>
             // Header row — same structure as asset-group-header
-            <div class="asset-group-header"
+            <div class="asset-group-header pf-accordion-header"
+                class:editing={move || is_editing_name.get() || is_editing_desc.get()}
                 role="button"
                 tabindex="0"
                 aria-expanded={move || expanded.get()}
                 aria-controls={format!("pf-content-{}", pid)}
-                aria-label={move || format!("{} portfolio. {}. {} asset{}. {} document{}. {}",
+                aria-label={move || format!("{} portfolio. {} asset{}. {} document{}. {}",
                     name,
-                    org_name_for_label.as_deref().unwrap_or("No organization"),
                     asset_count,
                     if asset_count == 1 { "" } else { "s" },
                     doc_count,
                     if doc_count == 1 { "" } else { "s" },
                     if expanded.get() { "Expanded" } else { "Collapsed" }
                 )}
-                on:click=move |_| {
-                    if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
+                on:click=move |ev: leptos::ev::MouseEvent| {
+                    ev.stop_propagation();
+                    if !is_editing_name.get() && !is_editing_desc.get() {
                         on_toggle.run(());
                     }
                 }
                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                     if ev.key() == "Enter" || ev.key() == " " {
                         ev.prevent_default();
-                        if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
+                        ev.stop_propagation();
+                        if !is_editing_name.get() && !is_editing_desc.get() {
                             on_toggle.run(());
                         }
                     }
                 }
             >
                 <span class="asset-group-arrow">
-                    {move || if expanded.get() { "▶" } else { "▼" }}
+                    {move || if expanded.get() { "▼" } else { "▶" }}
                 </span>
-                <div class="asset-group-icon">
-                    {move || if let Some(ref url) = portfolio_image_url {
+                <input
+                    type="file"
+                    accept="image/*"
+                    class="pf-hidden-file-input"
+                    node_ref=pf_image_input_ref
+                    on:change=move |ev| {
+                        read_image_as_data_url(&ev, {
+                            let app_store = app_store.clone();
+                            move |url: String| {
+                                app_store.update(|s| {
+                                    if let Some(p) = s.get_portfolio_mut(pid) {
+                                        p.image_url = Some(url);
+                                        p.updated_at = chrono::Utc::now();
+                                    }
+                                });
+                                if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+                                    leptos::task::spawn_local(async move {
+                                        let _ = crate::server::save_portfolio(p).await;
+                                    });
+                                }
+                            }
+                        });
+                    }
+                />
+                <div class="asset-group-icon"
+                    on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                        if can_edit_here.get() {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            if let Some(input) = pf_image_input_ref.get() {
+                                let _ = input.click();
+                            }
+                        }
+                    }
+                >
+                    {if let Some(ref url) = portfolio_image_url {
                         view! { <img class="pf-header-image" src={url.clone()} alt="Portfolio image" /> }.into_any()
                     } else {
                         view! { <span>{portfolio_emoji.clone()}</span> }.into_any()
@@ -211,54 +212,6 @@ pub(crate) fn PortfolioListItem(
                     let desc_header = desc.clone();
                     move || {
                         let mut parts: Vec<leptos::prelude::AnyView> = Vec::new();
-                        // Organization label / editor
-                        if can_edit_here.get() {
-                            if is_editing_org.get() {
-                                let orgs_for_select = orgs.clone();
-                                parts.push(view! {
-                                    <select class="pf-edit-input pf-org-select"
-                                        prop:value={move || current_org_id.map(|id| id.to_string()).unwrap_or_else(|| "none".to_string())}
-                                        on:change=save_org_edit
-                                        on:blur=move |_| set_is_editing_org.set(false)
-                                    >
-                                        <option value="none">"No Organization"</option>
-                                        <For
-                                            each=move || orgs_for_select.clone()
-                                            key=|o| o.id
-                                            children=move |o| {
-                                                let oid = o.id.to_string();
-                                                let oname = o.name.clone();
-                                                view! {
-                                                    <option value={oid.clone()}>{oname}</option>
-                                                }
-                                            }
-                                        />
-                                    </select>
-                                }.into_any());
-                            } else if let Some(on) = &org_name {
-                                let color_tag = org_color.clone();
-                                parts.push(view! {
-                                    <div class="pf-org-label"
-                                        on:dblclick=move |ev| { ev.stop_propagation(); set_is_editing_org.set(true); }
-                                    >
-                                        {color_tag.map(|c| view! {
-                                            <span class="pf-org-color-tag" style={format!("background: {}", c)} aria-hidden="true"></span>
-                                        }).unwrap_or_else(|| view! { <span class="pf-org-color-tag" style={String::new()} aria-hidden="true"></span> })}
-                                        {on.clone()}
-                                    </div>
-                                }.into_any());
-                            }
-                        } else if let Some(on) = &org_name {
-                            let color_tag = org_color.clone();
-                            parts.push(view! {
-                                <div class="pf-org-label">
-                                    {color_tag.map(|c| view! {
-                                        <span class="pf-org-color-tag" style={format!("background: {}", c)} aria-hidden="true"></span>
-                                    }).unwrap_or_else(|| view! { <span class="pf-org-color-tag" style={String::new()} aria-hidden="true"></span> })}
-                                    {on.clone()}
-                                </div>
-                            }.into_any());
-                        }
                         // Name
                         if is_editing_name.get() && can_edit_here.get() {
                             parts.push(view! {
@@ -383,10 +336,10 @@ pub(crate) fn PortfolioListItem(
                                         }
                                     }
                                 >
-                                    <span class="pf-notif-action-icon">
-                                        "🔔"
-                                        <span class="pf-notif-count">{count}</span>
-                                    </span>
+                                    <div class="pf-action-stack">
+                                        <span class="pf-action-icon">"🔔"</span>
+                                        <span class="pf-action-count">{count}</span>
+                                    </div>
                                 </button>
                             }.into_any()
                         } else { ().into_any() }
@@ -397,7 +350,10 @@ pub(crate) fn PortfolioListItem(
                         on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(pid))
                         on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); ui_store.update(|s| s.open_doc_modal(pid)); } }
                     >
-                        {format!("📄 {}", doc_count)}
+                        <div class="pf-action-stack">
+                            <span class="pf-action-icon">"📄"</span>
+                            <span class="pf-action-count">{doc_count}</span>
+                        </div>
                     </button>
                 </div>
             </div>
@@ -418,7 +374,7 @@ pub(crate) fn PortfolioListItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if is_editing_org.get() && can_edit_here.get() {
+            {move || if is_editing_name.get() && can_edit_here.get() {
                 let users = org_users();
                 let assigned = assigned_users.clone();
                 view! {
