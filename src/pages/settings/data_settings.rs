@@ -1,4 +1,5 @@
 use crate::pages::organization::organization_forms::AddOrgForm;
+use crate::pages::settings::SettingsTab;
 use crate::stores::{
     use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
     use_organization_store, use_transaction_store, use_ui_store,
@@ -7,6 +8,7 @@ use leptos::prelude::*;
 
 #[component]
 pub(crate) fn DataSettings(
+    tab: ReadSignal<SettingsTab>,
     import_status: ReadSignal<String>,
     set_import_status: WriteSignal<String>,
     import_contacts: Callback<leptos::ev::MouseEvent>,
@@ -45,6 +47,7 @@ pub(crate) fn DataSettings(
     // Add Organization form state (mirrors Organization page)
     let (settings_show_add_org, set_settings_show_add_org) = signal(false);
     let (settings_new_org_name, set_settings_new_org_name) = signal(String::new());
+    let (settings_new_org_image_url, set_settings_new_org_image_url) = signal(Option::<String>::None);
     let (settings_new_org_desc, set_settings_new_org_desc) = signal(String::new());
     let (settings_new_org_abn, set_settings_new_org_abn) = signal(String::new());
     let (settings_new_org_lei, set_settings_new_org_lei) = signal(String::new());
@@ -67,8 +70,10 @@ pub(crate) fn DataSettings(
         org.business_address = if settings_new_org_business_address.get().trim().is_empty() { None } else { Some(settings_new_org_business_address.get()) };
         org.business_phone = if settings_new_org_business_phone.get().trim().is_empty() { None } else { Some(settings_new_org_business_phone.get()) };
         org.business_email = if settings_new_org_business_email.get().trim().is_empty() { None } else { Some(settings_new_org_business_email.get()) };
+        org.image_url = settings_new_org_image_url.get();
         organization_store.update(|s| s.add_organization(org));
         set_settings_new_org_name.set(String::new());
+        set_settings_new_org_image_url.set(None);
         set_settings_new_org_desc.set(String::new());
         set_settings_new_org_abn.set(String::new());
         set_settings_new_org_lei.set(String::new());
@@ -81,7 +86,7 @@ pub(crate) fn DataSettings(
     };
 
     view! {
-        <div class="data-card">
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Storage}>
             <div class="card-header">
                 <span class="card-title">"Storage Options"</span>
             </div>
@@ -150,7 +155,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card">
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Developer}>
             <div class="card-header">
                 <span class="card-title">"Developer Mode"</span>
             </div>
@@ -413,7 +418,7 @@ pub(crate) fn DataSettings(
             } else { ().into_any() }}
         </div>
 
-        <div class="data-card">
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import}>
             <div class="card-header">
                 <span class="card-title">"Import Contacts"</span>
             </div>
@@ -430,7 +435,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card">
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import}>
             <div class="card-header">
                 <span class="card-title">"Import Booking Data"</span>
             </div>
@@ -462,7 +467,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card">
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import}>
             <div class="card-header">
                 <span class="card-title">"Import Organizations"</span>
             </div>
@@ -491,6 +496,8 @@ pub(crate) fn DataSettings(
                                 set_name={set_settings_new_org_name}
                                 desc={settings_new_org_desc}
                                 set_desc={set_settings_new_org_desc}
+                                image_url={settings_new_org_image_url}
+                                set_image_url={set_settings_new_org_image_url}
                                 abn={settings_new_org_abn}
                                 set_abn={set_settings_new_org_abn}
                                 lei={settings_new_org_lei}
@@ -538,7 +545,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card">
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Data}>
             <div class="card-header">
                 <span class="card-title">"Data & Reset"</span>
             </div>
@@ -574,7 +581,7 @@ pub(crate) fn DataSettings(
 
         {move || if !import_status.get().is_empty() {
             view! {
-                <div class="data-card import-status-card">
+                <div class="data-card import-status-card" class:settings-hidden={move || !matches!(tab.get(), SettingsTab::Storage | SettingsTab::Import | SettingsTab::Developer | SettingsTab::Data)}>
                     <div class="import-status">{import_status.get()}</div>
                 </div>
             }.into_any()

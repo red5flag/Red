@@ -61,12 +61,12 @@ pub fn OrganizationPage() -> impl IntoView {
     let (editing_role, set_editing_role) = signal(Option::<(Uuid, Uuid)>::None);
     let (edit_role_name, set_edit_role_name) = signal(String::new());
     let (edit_role_desc, set_edit_role_desc) = signal(String::new());
-    let (edit_role_rank, set_edit_role_rank) = signal(50u32);
     let (edit_role_color, set_edit_role_color) = signal(String::new());
     let (edit_role_scope, set_edit_role_scope) =
         signal(crate::models::RoleScope::entire());
     let (show_add_org, set_show_add_org) = signal(false);
     let (new_org_name, set_new_org_name) = signal(String::new());
+    let (new_org_image_url, set_new_org_image_url) = signal(Option::<String>::None);
     let (new_org_desc, set_new_org_desc) = signal(String::new());
     let (new_org_abn, set_new_org_abn) = signal(String::new());
     let (new_org_lei, set_new_org_lei) = signal(String::new());
@@ -80,6 +80,7 @@ pub fn OrganizationPage() -> impl IntoView {
     let (member_role, set_member_role) = signal(UserRole::Worker);
     let (editing_org, set_editing_org) = signal(Option::<Uuid>::None);
     let (edit_name, set_edit_name) = signal(String::new());
+    let (edit_image_url, set_edit_image_url) = signal(Option::<String>::None);
     let (edit_desc, set_edit_desc) = signal(String::new());
     let (edit_color, set_edit_color) = signal(String::new());
     let (edit_abn, set_edit_abn) = signal(String::new());
@@ -175,8 +176,10 @@ pub fn OrganizationPage() -> impl IntoView {
         } else {
             Some(new_org_business_email.get())
         };
+        org.image_url = new_org_image_url.get();
         organization_store.update(|s| s.add_organization(org));
         set_new_org_name.set(String::new());
+        set_new_org_image_url.set(None);
         set_new_org_desc.set(String::new());
         set_new_org_abn.set(String::new());
         set_new_org_lei.set(String::new());
@@ -195,6 +198,7 @@ pub fn OrganizationPage() -> impl IntoView {
 
     let on_start_edit = move |id: Uuid,
                               name: String,
+                              image_url: Option<String>,
                               desc: Option<String>,
                               color: Option<String>,
                               abn: Option<String>,
@@ -204,6 +208,7 @@ pub fn OrganizationPage() -> impl IntoView {
                               business_phone: Option<String>,
                               business_email: Option<String>| {
         set_edit_name.set(name);
+        set_edit_image_url.set(image_url);
         set_edit_desc.set(desc.unwrap_or_default());
         set_edit_color.set(color.unwrap_or_default());
         set_edit_abn.set(abn.unwrap_or_default());
@@ -224,6 +229,7 @@ pub fn OrganizationPage() -> impl IntoView {
         organization_store.update(|s| {
             if let Some(org) = s.get_organization_mut(id) {
                 org.name = name;
+                org.image_url = edit_image_url.get();
                 org.description = if edit_desc.get().trim().is_empty() {
                     None
                 } else {
@@ -308,7 +314,6 @@ pub fn OrganizationPage() -> impl IntoView {
     let on_start_role_edit = move |oid: Uuid, role: &OrgRole| {
         set_edit_role_name.set(role.name.clone());
         set_edit_role_desc.set(role.description.clone());
-        set_edit_role_rank.set(role.rank);
         set_edit_role_color.set(role.color.clone().unwrap_or_default());
         set_edit_role_scope.set(role.scope.clone());
         set_editing_role.set(Some((oid, role.id)));
@@ -317,7 +322,6 @@ pub fn OrganizationPage() -> impl IntoView {
     let on_start_new_role = move |oid: Uuid| {
         set_edit_role_name.set(String::new());
         set_edit_role_desc.set(String::new());
-        set_edit_role_rank.set(50);
         set_edit_role_color.set(String::new());
         set_edit_role_scope.set(crate::models::RoleScope::entire());
         set_editing_role.set(Some((oid, Uuid::nil())));
@@ -330,7 +334,6 @@ pub fn OrganizationPage() -> impl IntoView {
                 return;
             }
             let desc = edit_role_desc.get();
-            let rank = edit_role_rank.get();
             let color = edit_role_color.get();
             let scope = edit_role_scope.get();
             let color_opt = if color.trim().is_empty() {
@@ -339,7 +342,7 @@ pub fn OrganizationPage() -> impl IntoView {
                 Some(color)
             };
             if rid == Uuid::nil() {
-                let new_role = OrgRole::new(name, rank, desc, vec![]);
+                let new_role = OrgRole::new(name, 0, desc, vec![]);
                 organization_store.update(|s| {
                     let mut r = new_role;
                     r.color = color_opt;
@@ -348,7 +351,7 @@ pub fn OrganizationPage() -> impl IntoView {
                 });
             } else {
                 organization_store
-                    .update(|s| s.update_org_role(oid, rid, name, desc, color_opt, rank, scope));
+                    .update(|s| s.update_org_role(oid, rid, name, desc, color_opt, scope));
             }
             set_editing_role.set(None);
         }
@@ -425,6 +428,8 @@ pub fn OrganizationPage() -> impl IntoView {
                 set_name={set_new_org_name}
                 desc={new_org_desc}
                 set_desc={set_new_org_desc}
+                image_url={new_org_image_url}
+                set_image_url={set_new_org_image_url}
                 abn={new_org_abn}
                 set_abn={set_new_org_abn}
                 lei={new_org_lei}
@@ -455,6 +460,8 @@ pub fn OrganizationPage() -> impl IntoView {
                         set_edit_name={set_edit_name}
                         edit_desc={edit_desc}
                         set_edit_desc={set_edit_desc}
+                        edit_image_url={edit_image_url}
+                        set_edit_image_url={set_edit_image_url}
                         edit_color={edit_color}
                         set_edit_color={set_edit_color}
                         edit_abn={edit_abn}
@@ -470,7 +477,7 @@ pub fn OrganizationPage() -> impl IntoView {
                         edit_business_email={edit_business_email}
                         set_edit_business_email={set_edit_business_email}
                         set_editing_org={set_editing_org}
-                        on_start_edit={Callback::new(move |(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
+                        on_start_edit={Callback::new(move |(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
                         on_save_edit={Callback::new(move |v: Uuid| on_save_edit(v))}
                         on_delete_org={Callback::new(move |v: Uuid| on_delete_org(v))}
                         get_org_tab={Callback::new(move |v: Uuid| get_org_tab(v))}
@@ -513,8 +520,6 @@ pub fn OrganizationPage() -> impl IntoView {
                 set_edit_role_name={set_edit_role_name}
                 edit_role_desc={edit_role_desc}
                 set_edit_role_desc={set_edit_role_desc}
-                edit_role_rank={edit_role_rank}
-                set_edit_role_rank={set_edit_role_rank}
                 edit_role_color={edit_role_color}
                 set_edit_role_color={set_edit_role_color}
                 edit_role_scope={edit_role_scope}
@@ -530,7 +535,7 @@ pub fn OrganizationPage() -> impl IntoView {
                 set_show_add_member={set_show_add_member}
                 set_expanded_orgs={set_expanded_orgs}
                 set_org_tab={Callback::new(move |(oid, tab): (Uuid, &'static str)| set_org_tab(oid, tab))}
-                on_start_edit={Callback::new(move |(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
+                on_start_edit={Callback::new(move |(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
                 on_start_new_role={Callback::new(move |v: Uuid| on_start_new_role(v))}
                 on_delete_org={Callback::new(move |v: Uuid| on_delete_org(v))}
             />

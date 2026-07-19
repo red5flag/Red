@@ -1,4 +1,5 @@
 use crate::models::{OrgRole, PermGroup};
+use crate::pages::portfolios::read_image_as_data_url;
 use crate::stores::OrganizationStore;
 use leptos::prelude::*;
 use std::collections::HashSet;
@@ -24,6 +25,8 @@ pub(crate) fn AddOrgForm(
     #[prop(into)] set_business_phone: WriteSignal<String>,
     #[prop(into)] business_email: ReadSignal<String>,
     #[prop(into)] set_business_email: WriteSignal<String>,
+    #[prop(into)] image_url: ReadSignal<Option<String>>,
+    #[prop(into)] set_image_url: WriteSignal<Option<String>>,
     on_add: Callback<(), ()>,
 ) -> impl IntoView {
     view! {
@@ -35,6 +38,16 @@ pub(crate) fn AddOrgForm(
                 <input class="login-input" type="text" placeholder="Description (optional)"
                     prop:value=move || desc.get()
                     on:input=move |ev| set_desc.set(event_target_value(&ev)) />
+
+                <label class="org-edit-label">"Logo (optional)"</label>
+                {move || image_url.get().map(|url| view! {
+                    <img class="pf-header-image" src={url} alt="Organization logo preview" />
+                })}
+                <input
+                    class="login-input apf-file-input"
+                    type="file"
+                    accept="image/*"
+                    on:change=move |ev| read_image_as_data_url(&ev, move |url| set_image_url.set(Some(url))) />
 
                 <div class="org-business-section">
                     <div class="org-section-title">"Business Details (Optional)"</div>
@@ -80,8 +93,6 @@ pub(crate) fn RoleEditorModal(
     #[prop(into)] set_edit_role_name: WriteSignal<String>,
     #[prop(into)] edit_role_desc: ReadSignal<String>,
     #[prop(into)] set_edit_role_desc: WriteSignal<String>,
-    #[prop(into)] edit_role_rank: ReadSignal<u32>,
-    #[prop(into)] set_edit_role_rank: WriteSignal<u32>,
     #[prop(into)] edit_role_color: ReadSignal<String>,
     #[prop(into)] set_edit_role_color: WriteSignal<String>,
     #[prop(into)] edit_role_scope: ReadSignal<crate::models::RoleScope>,
@@ -111,15 +122,6 @@ pub(crate) fn RoleEditorModal(
                                     on:input=move |ev| set_edit_role_desc.set(event_target_value(&ev))>
                                     {move || edit_role_desc.get()}
                                 </textarea>
-
-                                <label class="org-edit-label">"Rank (drag roles to reorder; edit as a secondary control)"</label>
-                                <input class="login-input" type="number" min="0" max="10000"
-                                    prop:value=move || edit_role_rank.get().to_string()
-                                    on:input=move |ev| {
-                                        if let Ok(v) = event_target_value(&ev).parse::<u32>() {
-                                            set_edit_role_rank.set(v);
-                                        }
-                                    } />
 
                                 <label class="org-edit-label">"Accent color"</label>
                                 <input class="org-color-input" type="color"
@@ -192,6 +194,7 @@ pub(crate) fn OrgContextMenu(
             Option<String>,
             Option<String>,
             Option<String>,
+            Option<String>,
         ),
         (),
     >,
@@ -202,6 +205,7 @@ pub(crate) fn OrgContextMenu(
         {move || context_menu.get().map(|(x, y, id)| {
             let org = organization_store.get().organizations.iter().find(|o| o.id == id).cloned();
             let name = org.as_ref().map(|o| o.name.clone()).unwrap_or_default();
+            let image_url = org.as_ref().and_then(|o| o.image_url.clone());
             let desc = org.as_ref().and_then(|o| o.description.clone());
             let color = org.as_ref().and_then(|o| o.settings.color.clone());
             let abn = org.as_ref().and_then(|o| o.abn.clone());
@@ -224,7 +228,7 @@ pub(crate) fn OrgContextMenu(
                         <button class="context-menu-item org-context-menu-item"
                             on:click=move |_| {
                                 set_context_menu.set(None);
-                                on_start_edit.run((id, name_for_edit.clone(), desc.clone(), color.clone(), abn.clone(), lei.clone(), business_type.clone(), business_address.clone(), business_phone.clone(), business_email.clone()));
+                                on_start_edit.run((id, name_for_edit.clone(), image_url.clone(), desc.clone(), color.clone(), abn.clone(), lei.clone(), business_type.clone(), business_address.clone(), business_phone.clone(), business_email.clone()));
                             }>"\u{270E} Edit Organization"</button>
                         <button class="context-menu-item org-context-menu-item" disabled>
                             "\u{2795} Assign Portfolio (coming soon)"

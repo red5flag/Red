@@ -87,7 +87,19 @@ pub(crate) fn AddPortfolioModal() -> impl IntoView {
                     <select
                         class="login-input apf-input"
                         prop:value={move || org_id.get()}
-                        on:change=move |ev| set_org_id.set(event_target_value(&ev))>
+                        on:change=move |ev| {
+                            let new_org = event_target_value(&ev);
+                            set_org_id.set(new_org.clone());
+                            if image_url.get().is_none() {
+                                if let Ok(oid) = Uuid::parse_str(&new_org) {
+                                    if let Some(org) = organization_store.get().organizations.iter().find(|o| o.id == oid) {
+                                        if org.image_url.is_some() {
+                                            set_image_url.set(org.image_url.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }>
                         <option value="">"No organization"</option>
                         <For
                             each={move || organization_store.get().organizations.clone()}

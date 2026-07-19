@@ -257,6 +257,43 @@ impl AppStore {
         )
     }
 
+    pub fn move_asset_to_portfolio(&mut self, asset_id: Uuid, target_pid: Uuid) -> bool {
+        PortfolioStore::move_asset_to_portfolio(&mut self.portfolios, asset_id, target_pid)
+    }
+
+    pub fn move_asset_to_group(
+        &mut self,
+        asset_id: Uuid,
+        target_pid: Uuid,
+        target_gid: Uuid,
+    ) -> bool {
+        PortfolioStore::move_asset_to_group(&mut self.portfolios, asset_id, target_pid, target_gid)
+    }
+
+    pub fn move_group_to_portfolio(&mut self, group_id: Uuid, target_pid: Uuid) -> bool {
+        PortfolioStore::move_group_to_portfolio(&mut self.portfolios, group_id, target_pid)
+    }
+
+    pub fn set_portfolio_organization(&mut self, portfolio_id: Uuid, org_id: Option<Uuid>) {
+        PortfolioStore::set_portfolio_organization(&mut self.portfolios, portfolio_id, org_id);
+    }
+
+    pub fn add_portfolio_secondary_org(&mut self, portfolio_id: Uuid, org_id: Uuid) {
+        PortfolioStore::add_portfolio_secondary_org(&mut self.portfolios, portfolio_id, org_id);
+    }
+
+    pub fn remove_portfolio_secondary_org(&mut self, portfolio_id: Uuid, org_id: Uuid) {
+        PortfolioStore::remove_portfolio_secondary_org(&mut self.portfolios, portfolio_id, org_id);
+    }
+
+    pub fn set_asset_organization(&mut self, asset_id: Uuid, org_id: Option<Uuid>) {
+        PortfolioStore::set_asset_organization(&mut self.portfolios, asset_id, org_id);
+    }
+
+    pub fn set_asset_group_organization(&mut self, group_id: Uuid, org_id: Option<Uuid>) {
+        PortfolioStore::set_asset_group_organization(&mut self.portfolios, group_id, org_id);
+    }
+
     pub fn add_document_to_portfolio(
         &mut self,
         portfolio_id: Uuid,

@@ -1,4 +1,4 @@
-use crate::models::{Document, EntityNotificationSetting, Portfolio};
+use crate::models::{Asset, AssetGroup, Document, EntityNotificationSetting, Portfolio};
 use crate::stores::notifications::Notification;
 use uuid::Uuid;
 
@@ -421,5 +421,209 @@ impl PortfolioStore {
             }
         }
         false
+    }
+
+    // ── Move helpers ──────────────────────────────────────────────────────────
+
+    /// Move a direct asset or an asset inside a group to another portfolio as a direct asset.
+    pub fn move_asset_to_portfolio(
+        portfolios: &mut [Portfolio],
+        asset_id: Uuid,
+        target_pid: Uuid,
+    ) -> bool {
+        let source_pid = portfolios.iter().find_map(|p| {
+            if p.assets.iter().any(|a| a.id == asset_id) || p.asset_groups.iter().any(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+                Some(p.id)
+            } else {
+                None
+            }
+        });
+        let Some(source_pid) = source_pid else { return false; };
+        if source_pid == target_pid {
+            // ensure it is a direct asset
+            let already_direct = portfolios
+                .iter()
+                .find(|p| p.id == source_pid)
+                .map(|p| p.assets.iter().any(|a| a.id == asset_id))
+                .unwrap_or(false);
+            return already_direct;
+        }
+
+        let mut asset: Option<Asset> = None;
+        {
+            let source = portfolios.iter_mut().find(|p| p.id == source_pid).unwrap();
+            if let Some(pos) = source.assets.iter().position(|a| a.id == asset_id) {
+                asset = Some(source.assets.remove(pos));
+            } else if let Some(gpos) = source.asset_groups.iter().position(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+                if let Some(apos) = source.asset_groups[gpos].assets.iter().position(|a| a.id == asset_id) {
+                    asset = Some(source.asset_groups[gpos].assets.remove(apos));
+                    source.asset_groups[gpos].recalculate_values();
+                }
+            }
+            if asset.is_some() {
+                source.recalculate_values();
+            }
+        }
+        let Some(asset) = asset else { return false; };
+        let target = portfolios.iter_mut().find(|p| p.id == target_pid).unwrap();
+        target.assets.push(asset);
+        target.recalculate_values();
+        true
+    }
+
+    /// Move a direct asset or an asset inside a group into a specific asset group.
+    pub fn move_asset_to_group(
+        portfolios: &mut [Portfolio],
+        asset_id: Uuid,
+        target_pid: Uuid,
+        target_gid: Uuid,
+    ) -> bool {
+        let source_pid = portfolios.iter().find_map(|p| {
+            if p.assets.iter().any(|a| a.id == asset_id) || p.asset_groups.iter().any(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+                Some(p.id)
+            } else {
+                None
+            }
+        });
+        let Some(source_pid) = source_pid else { return false; };
+
+        let mut asset: Option<Asset> = None;
+        {
+            let source = portfolios.iter_mut().find(|p| p.id == source_pid).unwrap();
+            if let Some(pos) = source.assets.iter().position(|a| a.id == asset_id) {
+                asset = Some(source.assets.remove(pos));
+            } else if let Some(gpos) = source.asset_groups.iter().position(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+                if source_pid == target_pid && source.asset_groups[gpos].id == target_gid {
+                    // already in the target group
+                    return true;
+                }
+                if let Some(apos) = source.asset_groups[gpos].assets.iter().position(|a| a.id == asset_id) {
+                    asset = Some(source.asset_groups[gpos].assets.remove(apos));
+                    source.asset_groups[gpos].recalculate_values();
+                }
+            }
+            if asset.is_some() {
+                source.recalculate_values();
+            }
+        }
+        let Some(asset) = asset else { return false; };
+        let target = portfolios.iter_mut().find(|p| p.id == target_pid).unwrap();
+        if let Some(g) = target.asset_groups.iter_mut().find(|g| g.id == target_gid) {
+            g.assets.push(asset);
+            g.recalculate_values();
+            target.recalculate_values();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Move an asset group (and its assets) to another portfolio.
+    pub fn move_group_to_portfolio(
+        portfolios: &mut [Portfolio],
+        group_id: Uuid,
+        target_pid: Uuid,
+    ) -> bool {
+        let source_pid = portfolios.iter().find_map(|p| {
+            if p.asset_groups.iter().any(|g| g.id == group_id) {
+                Some(p.id)
+            } else {
+                None
+            }
+        });
+        let Some(source_pid) = source_pid else { return false; };
+        if source_pid == target_pid {
+            return true;
+        }
+
+        let mut group: Option<AssetGroup> = None;
+        {
+            let source = portfolios.iter_mut().find(|p| p.id == source_pid).unwrap();
+            if let Some(pos) = source.asset_groups.iter().position(|g| g.id == group_id) {
+                group = Some(source.asset_groups.remove(pos));
+                source.recalculate_values();
+            }
+        }
+        let Some(group) = group else { return false; };
+        let target = portfolios.iter_mut().find(|p| p.id == target_pid).unwrap();
+        target.asset_groups.push(group);
+        target.recalculate_values();
+        true
+    }
+
+    // ── Organization helpers ────────────────────────────────────────────────
+
+    pub fn set_portfolio_organization(
+        portfolios: &mut [Portfolio],
+        portfolio_id: Uuid,
+        org_id: Option<Uuid>,
+    ) {
+        if let Some(p) = portfolios.iter_mut().find(|p| p.id == portfolio_id) {
+            p.organization_id = org_id;
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn add_portfolio_secondary_org(
+        portfolios: &mut [Portfolio],
+        portfolio_id: Uuid,
+        org_id: Uuid,
+    ) {
+        if let Some(p) = portfolios.iter_mut().find(|p| p.id == portfolio_id) {
+            if !p.secondary_organization_ids.contains(&org_id) {
+                p.secondary_organization_ids.push(org_id);
+            }
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn remove_portfolio_secondary_org(
+        portfolios: &mut [Portfolio],
+        portfolio_id: Uuid,
+        org_id: Uuid,
+    ) {
+        if let Some(p) = portfolios.iter_mut().find(|p| p.id == portfolio_id) {
+            p.secondary_organization_ids.retain(|&id| id != org_id);
+            p.updated_at = chrono::Utc::now();
+        }
+    }
+
+    pub fn set_asset_organization(
+        portfolios: &mut [Portfolio],
+        asset_id: Uuid,
+        org_id: Option<Uuid>,
+    ) {
+        for p in portfolios.iter_mut() {
+            for a in &mut p.assets {
+                if a.id == asset_id {
+                    a.organization_id = org_id;
+                    p.updated_at = chrono::Utc::now();
+                    return;
+                }
+            }
+            for g in &mut p.asset_groups {
+                for a in &mut g.assets {
+                    if a.id == asset_id {
+                        a.organization_id = org_id;
+                        p.updated_at = chrono::Utc::now();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn set_asset_group_organization(
+        portfolios: &mut [Portfolio],
+        group_id: Uuid,
+        org_id: Option<Uuid>,
+    ) {
+        for p in portfolios.iter_mut() {
+            if let Some(g) = p.asset_groups.iter_mut().find(|g| g.id == group_id) {
+                g.organization_id = org_id;
+                p.updated_at = chrono::Utc::now();
+                return;
+            }
+        }
     }
 }

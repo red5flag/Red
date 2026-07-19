@@ -1,6 +1,6 @@
 use crate::models::{
-    Asset, Booking, BookingSource, BookingStatus, CalendarEvent, Channel, Organization, Portfolio,
-    User,
+    Asset, Booking, BookingSource, BookingStatus, CalendarEvent, Channel, ChannelType,
+    ConnectionStatus, Organization, Portfolio, SyncDirection, User,
 };
 use crate::stores::app_store::AppStore;
 use crate::stores::notifications::{NotificationStore, NotificationType};
@@ -136,6 +136,8 @@ pub fn seed_red_family_data(
     ));
 
     seed_notred_data(app_store, organization_store, notification_store);
+
+    seed_red_channel_data(app_store, organization_store);
 
     // Seed clearly labeled demo Test Channel and booking for the first asset in the first portfolio.
     if let Some(first_portfolio) = app_store.portfolios.first_mut() {
@@ -721,4 +723,306 @@ pub fn seed_groups_only_portfolio(owner_id: Uuid, org_id: Option<Uuid>) -> Portf
     p.assigned_users.push(owner_id);
     p.recalculate_values();
     p
+}
+
+fn make_channel(
+    name: &str,
+    channel_type: ChannelType,
+    asset_id: Uuid,
+    portfolio_id: Uuid,
+    nightly_rate: f64,
+) -> Channel {
+    let now = chrono::Utc::now();
+    Channel {
+        id: Uuid::new_v4(),
+        name: name.to_string(),
+        channel_type,
+        linked_asset_id: Some(asset_id),
+        portfolio_id: Some(portfolio_id),
+        connection_status: ConnectionStatus::Connected,
+        sync_direction: SyncDirection::TwoWay,
+        nightly_rate_override: Some(nightly_rate),
+        minimum_nights: Some(2),
+        maximum_nights: None,
+        commission_percent: Some(10.0),
+        currency: crate::types::Currency::USD,
+        last_sync_at: Some(now),
+        last_sync_status: Some("Connected (seeded)".to_string()),
+        sync_errors: Vec::new(),
+        enabled: true,
+        created_at: now,
+        updated_at: now,
+    }
+}
+
+fn make_channel_asset(
+    name: &str,
+    desc: &str,
+    location: &str,
+    purchase: f64,
+    current: f64,
+    org_id: Uuid,
+    portfolio_id: Uuid,
+    channels: Vec<(ChannelType, f64, &str)>,
+) -> (Asset, Vec<Channel>) {
+    let mut asset = make_asset(
+        name,
+        desc,
+        location,
+        purchase,
+        current,
+        vec![make_doc("Title Deed", "pdf")],
+    );
+    asset.organization_id = Some(org_id);
+    asset.asset_type = AssetType::RealEstate;
+    asset.images = vec![format!(
+        "https://placehold.co/400x400/2d3748/FFF?text={}",
+        name.replace(' ', "+")
+    )];
+
+    let mut channel_objects = Vec::new();
+    for (channel_type, rate, suffix) in channels {
+        let channel_name = format!("{} - {}", name, suffix);
+        let channel = make_channel(&channel_name, channel_type, asset.id, portfolio_id, rate);
+        asset.channel_ids.push(channel.id);
+        channel_objects.push(channel);
+    }
+
+    (asset, channel_objects)
+}
+
+/// Seed the RedChannel organization with Red as owner, two channel-test portfolios, and multiple assets.
+pub fn seed_red_channel_data(
+    app_store: &mut AppStore,
+    organization_store: &mut OrganizationStore,
+) {
+    let owner_id = app_store.current_user.id;
+    let owner_email = app_store.current_user.email.clone();
+
+    let mut red_channel = Organization::new("RedChannel".to_string(), owner_id);
+    red_channel.description = Some("RedChannel — channel management test organization".to_string());
+    red_channel.settings.color = Some("#ef4444".to_string());
+    red_channel.business_type = Some("Company".to_string());
+    red_channel.abn = Some("1".to_string());
+    red_channel.lei = Some("1".to_string());
+    red_channel.business_address = Some("1 RedChannel Way, Melbourne VIC 3000, Australia".to_string());
+    red_channel.business_phone = Some("+61 1 234 567 890".to_string());
+    red_channel.business_email = Some("contact@redchannel.com".to_string());
+    red_channel.add_member(owner_id);
+    let red_channel_id = red_channel.id;
+    organization_store.organizations.push(red_channel);
+
+    let mut red_channel_owner = User::new("Red".to_string(), owner_email, UserRole::Owner);
+    red_channel_owner.id = owner_id;
+    red_channel_owner.organization_id = Some(red_channel_id);
+    organization_store.organization_users.push(red_channel_owner);
+
+    // Portfolio 1: short-stay rentals
+    let mut p1 = Portfolio::new(
+        "RedChannel Short Stays".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p1.organization_id = Some(red_channel_id);
+    p1.description = Some("Short-stay rental portfolio for channel management testing".to_string());
+    p1.tags = vec!["channel".to_string(), "short-stay".to_string()];
+    p1.assigned_users.push(owner_id);
+
+    let p1_id = p1.id;
+    let short_stay_assets: Vec<(_, _, _, f64, f64, Vec<(ChannelType, f64, &str)>)> = vec![
+        (
+            "Studio Loft A",
+            "Downtown studio apartment with balcony and city views.",
+            "101 Collins St, Melbourne VIC 3000",
+            350_000.0,
+            420_000.0,
+            vec![
+                (ChannelType::Airbnb, 145.0, "Airbnb"),
+                (ChannelType::BookingCom, 140.0, "Booking.com"),
+                (ChannelType::Expedia, 138.0, "Expedia"),
+            ],
+        ),
+        (
+            "City Apartment B",
+            "Modern 2-bedroom CBD apartment with high-rise views.",
+            "200 Spencer St, Melbourne VIC 3000",
+            580_000.0,
+            650_000.0,
+            vec![
+                (ChannelType::Airbnb, 210.0, "Airbnb"),
+                (ChannelType::BookingCom, 205.0, "Booking.com"),
+                (ChannelType::Expedia, 200.0, "Expedia"),
+            ],
+        ),
+        (
+            "Suburban Cottage C",
+            "3-bedroom family cottage with garden and quiet street.",
+            "12 Rose St, Richmond VIC 3121",
+            720_000.0,
+            780_000.0,
+            vec![
+                (ChannelType::Airbnb, 185.0, "Airbnb"),
+                (ChannelType::Vrbo, 180.0, "Vrbo"),
+                (ChannelType::BookingCom, 182.0, "Booking.com"),
+            ],
+        ),
+        (
+            "Beach House D",
+            "4-bedroom beachfront house with pool and deck.",
+            "1 Beach Rd, St Kilda VIC 3182",
+            1_200_000.0,
+            1_350_000.0,
+            vec![
+                (ChannelType::Airbnb, 350.0, "Airbnb"),
+                (ChannelType::Vrbo, 340.0, "Vrbo"),
+                (ChannelType::Expedia, 345.0, "Expedia"),
+                (ChannelType::Other("Luxico".to_string()), 360.0, "Luxico"),
+            ],
+        ),
+    ];
+
+    for (name, desc, loc, purchase, current, channels) in short_stay_assets {
+        let (mut asset, channel_objects) = make_channel_asset(
+            name,
+            desc,
+            loc,
+            purchase,
+            current,
+            red_channel_id,
+            p1_id,
+            channels,
+        );
+        if let Some(first_channel) = channel_objects.first() {
+            let channel_id = first_channel.id;
+            let start = chrono::Utc::now() + chrono::Duration::days(3);
+            let end = start + chrono::Duration::days(5);
+            let mut booking = Booking::new(
+                asset.id,
+                Some(channel_id),
+                BookingSource::TestChannel,
+                "Demo Guest".to_string(),
+                start,
+                end,
+                first_channel.nightly_rate_override.unwrap_or(150.0),
+            );
+            booking.status = BookingStatus::Confirmed;
+            let event = CalendarEvent::for_booking(
+                format!("{} - {}", booking.guest_name, asset.name),
+                start,
+                end,
+                Some(p1_id),
+                asset.id,
+                Some(channel_id),
+                booking.id,
+                "Test Channel",
+            );
+            booking.calendar_event_ids.push(event.id);
+            asset.calendar_events.push(event);
+            app_store.bookings.push(booking);
+        }
+        p1.assets.push(asset);
+        for c in channel_objects {
+            app_store.add_channel(c);
+        }
+    }
+    p1.recalculate_values();
+    app_store.portfolios.push(p1);
+
+    // Portfolio 2: long-stay / corporate rentals
+    let mut p2 = Portfolio::new(
+        "RedChannel Long Stays".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p2.organization_id = Some(red_channel_id);
+    p2.description = Some("Long-stay and corporate rental portfolio for channel management testing".to_string());
+    p2.tags = vec!["channel".to_string(), "long-stay".to_string()];
+    p2.assigned_users.push(owner_id);
+
+    let p2_id = p2.id;
+    let long_stay_assets: Vec<(_, _, _, f64, f64, Vec<(ChannelType, f64, &str)>)> = vec![
+        (
+            "Executive Suite 1",
+            "Premium 1-bedroom executive suite, fully serviced.",
+            "50 Collins St, Melbourne VIC 3000",
+            450_000.0,
+            510_000.0,
+            vec![
+                (ChannelType::Test, 125.0, "Test Channel"),
+                (ChannelType::Vrbo, 120.0, "Vrbo"),
+                (ChannelType::Other("Corporate Portal".to_string()), 130.0, "Corporate Portal"),
+            ],
+        ),
+        (
+            "Corporate Unit 2",
+            "2-bedroom corporate apartment, minimum 28-night leases.",
+            "80 Lonsdale St, Melbourne VIC 3000",
+            620_000.0,
+            700_000.0,
+            vec![
+                (ChannelType::Test, 150.0, "Test Channel"),
+                (ChannelType::LinkedIn, 145.0, "LinkedIn"),
+                (ChannelType::Other("Corporate Portal".to_string()), 155.0, "Corporate Portal"),
+            ],
+        ),
+        (
+            "Manager Residence 3",
+            "3-bedroom townhouse for on-site managers and long-stay guests.",
+            "15 High St, Kew VIC 3101",
+            850_000.0,
+            920_000.0,
+            vec![
+                (ChannelType::Test, 165.0, "Test Channel"),
+                (ChannelType::Vrbo, 160.0, "Vrbo"),
+                (ChannelType::BookingCom, 162.0, "Booking.com"),
+            ],
+        ),
+    ];
+
+    for (name, desc, loc, purchase, current, channels) in long_stay_assets {
+        let (mut asset, channel_objects) = make_channel_asset(
+            name,
+            desc,
+            loc,
+            purchase,
+            current,
+            red_channel_id,
+            p2_id,
+            channels,
+        );
+        if let Some(first_channel) = channel_objects.first() {
+            let channel_id = first_channel.id;
+            let start = chrono::Utc::now() + chrono::Duration::days(10);
+            let end = start + chrono::Duration::days(30);
+            let mut booking = Booking::new(
+                asset.id,
+                Some(channel_id),
+                BookingSource::TestChannel,
+                "Corp Guest".to_string(),
+                start,
+                end,
+                first_channel.nightly_rate_override.unwrap_or(150.0),
+            );
+            booking.status = BookingStatus::Confirmed;
+            let event = CalendarEvent::for_booking(
+                format!("{} - {}", booking.guest_name, asset.name),
+                start,
+                end,
+                Some(p2_id),
+                asset.id,
+                Some(channel_id),
+                booking.id,
+                "Test Channel",
+            );
+            booking.calendar_event_ids.push(event.id);
+            asset.calendar_events.push(event);
+            app_store.bookings.push(booking);
+        }
+        p2.assets.push(asset);
+        for c in channel_objects {
+            app_store.add_channel(c);
+        }
+    }
+    p2.recalculate_values();
+    app_store.portfolios.push(p2);
 }

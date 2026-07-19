@@ -400,12 +400,12 @@ html, body {
    so every bar + square is identical and flush-fit.                          */
 :root {
     font-size: 156%;
-    --bar-h: clamp(47px, 6.5vh, 73px);
+    --bar-h: clamp(44px, 12vmin, 64px);
     --navbar-height: var(--bar-h);
     --footer-height: clamp(31px, 4.55vh, 47px);
     --controls-h: var(--bar-h);
     --pf-item-h: calc(var(--bar-h) * 0.8);
-    --nav-icon-size: calc(var(--bar-h) * 0.65);
+    --nav-icon-size: calc(var(--bar-h) * 0.6);
 }
 
 /* Navbar - Fixed at top, single row */
@@ -414,12 +414,15 @@ html, body {
     top: 0;
     left: 0;
     right: 0;
+    width: 100%;
+    max-width: 100vw;
     min-height: var(--navbar-height);
     height: auto;
     background: var(--highlight);
     display: flex;
     flex-direction: column;
     z-index: 1000;
+    box-sizing: border-box;
 }
 
 /* Keep the right group buttons adjacent; base classes use margin-left:auto for other contexts */
@@ -450,6 +453,7 @@ html, body {
     gap: 0;
     flex: 1 1 0;
     min-width: 0;
+    justify-content: space-between;
 }
 
 .nav-row1-centre {
@@ -467,6 +471,7 @@ html, body {
     max-width: 25vw;
     text-align: center;
 }
+
 
 .nav-row1-centre .nav-profile-name-top {
     padding: 0 12px;
@@ -1696,6 +1701,18 @@ html, body {
     margin-top: 2px;
 }
 
+.asset-group-channel-icon {
+    font-size: 11px;
+    color: var(--highlight);
+    background: var(--accent-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+    align-self: center;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
 .asset-group-content {
     width: 100%;
     padding: 0;
@@ -2223,7 +2240,8 @@ html, body {
     border-top: none;
     border-bottom: none;
 }
-.pf-accordion .asset-group.pf-portfolio {
+.pf-accordion .asset-group.pf-portfolio,
+.pf-accordion > .asset-group {
     border-top: none;
     border-left: none;
     border-right: none;
@@ -4734,19 +4752,19 @@ html, body {
 
 @media (min-width: 1024px) {
     .app-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        border-left: 2px solid var(--border-color);
-        border-right: 2px solid var(--border-color);
+        max-width: none;
+        margin: 0;
+        border-left: none;
+        border-right: none;
     }
 
     .navbar {
-        max-width: 1200px;
-        margin: 0 auto;
-        left: auto;
-        right: auto;
-        border-left: 2px solid var(--border-color);
-        border-right: 2px solid var(--border-color);
+        max-width: none;
+        margin: 0;
+        left: 0;
+        right: 0;
+        border-left: none;
+        border-right: none;
     }
 
     .card-stats {
@@ -4786,11 +4804,11 @@ html, body {
 @media (min-width: 1440px) {
     .app-container,
     .navbar {
-        max-width: 1400px;
+        max-width: none;
     }
 
     .home-screen {
-        max-width: 1300px;
+        max-width: none;
     }
 }
 
@@ -7190,6 +7208,93 @@ html, body {
     opacity: 0.85;
 }
 
+.reporting-table {
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .reporting-page {
+        padding: 12px;
+    }
+    .reporting-tab {
+        padding: 0 clamp(6px, 2vw, 10px);
+        font-size: clamp(9px, 2.5vw, 12px);
+    }
+    .reporting-th,
+    .reporting-td {
+        padding: 8px 6px;
+        font-size: 11px;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .reporting-metric-value {
+        font-size: clamp(14px, 2.5vh, 18px);
+    }
+}
+
+@media (max-width: 480px) {
+    .reporting-page {
+        padding: 8px;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    .reporting-tab {
+        padding: 0 6px;
+        font-size: 10px;
+        height: 34px;
+    }
+    .reporting-tab-arrow {
+        width: 28px;
+        height: 34px;
+        font-size: 14px;
+    }
+    .reporting-tabs-outer {
+        margin-bottom: 8px;
+    }
+    .reporting-controls-bar {
+        flex-wrap: wrap;
+    }
+    .reporting-sort-select,
+    .reporting-sort-direction,
+    .reporting-btn {
+        height: 36px;
+        font-size: 12px;
+    }
+    .reporting-th,
+    .reporting-td {
+        padding: 6px 4px;
+        font-size: 10px;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .reporting-metrics {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    }
+    .reporting-metric-card {
+        padding: 8px;
+    }
+    .reporting-metric-value {
+        font-size: clamp(14px, 2.5vh, 18px);
+    }
+    .reporting-card {
+        padding: 12px;
+    }
+    .reporting-card-icon {
+        font-size: 28px;
+    }
+    .reporting-card-title {
+        font-size: 13px;
+    }
+    .reporting-card-desc {
+        font-size: 10px;
+    }
+    .reporting-export-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
+        padding: 8px 0;
+    }
+}
+
 /* ═══════════════════════════════════════════
    CAMSCAN (photo-to-PDF conversion)
    ═══════════════════════════════════════════ */
@@ -9142,6 +9247,14 @@ html, body {
     text-overflow: ellipsis;
 }
 
+.ai-channel-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .ai-channel-badge {
     font-size: 11px;
     color: var(--highlight);
@@ -9469,6 +9582,15 @@ html, body {
     border: 2px solid var(--border-color);
     border-radius: 3px;
     background: var(--secondary-bg);
+    pointer-events: none;
+}
+
+.ai-image-slider-item.ai-image-dragging {
+    opacity: 0.4;
+}
+
+.ai-image-slider-item.ai-image-drag-over {
+    border-left: 3px solid var(--highlight);
 }
 
 .ai-image-add-icon {
@@ -13887,6 +14009,10 @@ html, body {
 .org-sub-tab-content {
     padding: 0;
 }
+.org-sub-tab-content .add-form {
+    border-top: none;
+    border-bottom: none;
+}
 .org-sub-tab-content.hidden {
     display: none;
 }
@@ -15311,7 +15437,7 @@ html, body {
 /* ── Responsive navbar for tablet displays (768px - 1024px) ─────────────────── */
 @media (min-width: 768px) and (max-width: 1024px) {
     :root {
-        --bar-h: clamp(52px, 7vh, 64px);
+        --bar-h: clamp(48px, 10vmin, 64px);
         --navbar-height: var(--bar-h);
         --footer-height: clamp(34px, 4.8vh, 42px);
         --controls-h: var(--bar-h);
@@ -15333,7 +15459,7 @@ html, body {
 /* ── Responsive navbar for horizontal phone displays (480px - 768px) ─────────── */
 @media (min-width: 480px) and (max-width: 768px) {
     :root {
-        --bar-h: clamp(44px, 6vh, 56px);
+        --bar-h: clamp(44px, 10vmin, 56px);
         --navbar-height: var(--bar-h);
         --footer-height: clamp(28px, 4vh, 36px);
         --controls-h: var(--bar-h);
@@ -15359,12 +15485,12 @@ html, body {
 /* Add Portfolio dropdown panel */
 .apf-dropdown {
     width: 100%;
-    max-width: 720px;
+    max-width: 100%;
     max-height: 70vh;
     margin-top: 8px;
     background: var(--primary-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 0;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
@@ -15383,7 +15509,7 @@ html, body {
     padding: 12px 16px;
     border-bottom: 1px solid var(--border-color);
     background: var(--secondary-bg);
-    border-radius: 8px 8px 0 0;
+    border-radius: 0;
     flex-shrink: 0;
 }
 
@@ -15532,4 +15658,15 @@ html, body {
     .apf-actions .view-btn {
         width: 100%;
     }
+}
+
+.settings-hidden {
+    display: none !important;
+}
+
+.settings-page .reporting-tabs-outer {
+    position: sticky;
+    top: var(--navbar-height);
+    z-index: 100;
+    margin-bottom: 12px;
 }

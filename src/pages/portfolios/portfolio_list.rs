@@ -57,7 +57,6 @@ pub(crate) fn PortfolioListItem(
     let can_edit_documents_here = can_edit_documents;
     let organization_store = use_organization_store();
 
-    let (portfolio_context_menu, set_portfolio_context_menu) = signal(Option::<(i32, i32)>::None);
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
 
     let do_save = move || {
@@ -381,22 +380,6 @@ pub(crate) fn PortfolioListItem(
                     <UserAssignmentPanel assigned={assigned} users={users} on_toggle={toggle_portfolio_assignment} />
                 }.into_any()
             } else { ().into_any() }}
-
-            // Context menu for portfolio press-and-hold
-            {move || portfolio_context_menu.get().map(|(x, y)| {
-                view! {
-                    <div class="context-menu-overlay" on:click=move |_| set_portfolio_context_menu.set(None)>
-                        <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
-                            <button class="context-menu-item"
-                                on:click=move |_| {
-                                    set_portfolio_context_menu.set(None);
-                                    // TODO: Open channel selection modal
-                                }
-                            >"📡 Add to Channel"</button>
-                        </div>
-                    </div>
-                }.into_any()
-            })}
 
             // Expanded content — AssetViewer
             <div id={format!("pf-content-{}", pid)} class="asset-group-content" class:hidden={move || !expanded.get()}>

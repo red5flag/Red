@@ -52,19 +52,40 @@ pub(crate) fn AssetItem(
     let notification_store = use_notification_store();
     let transaction_store = use_transaction_store();
     let ui_store = use_ui_store();
-    let image_url = asset
-        .images
-        .first()
-        .cloned()
-        .unwrap_or_else(|| asset_placeholder_url(&asset.asset_type, &asset.name));
-
     let asset_id = asset.id;
+    let default_asset_images = asset.images.clone();
+    let asset_images = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .flat_map(|p| {
+                p.assets
+                    .iter()
+                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+            })
+            .find(|a| a.id == asset_id)
+            .map(|a| a.images.clone())
+            .unwrap_or_else(|| default_asset_images.clone())
+    });
+    let asset_type_for_placeholder = asset.asset_type.clone();
+    let asset_name_for_placeholder = asset.name.clone();
+    let image_url: Signal<String> = Signal::derive(move || {
+        asset_images
+            .get()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| asset_placeholder_url(&asset_type_for_placeholder, &asset_name_for_placeholder))
+    });
+    let max_images = if asset.organization_id.is_some() { 100usize } else { 50usize };
     let has_channels = Memo::new(move |_| !app_store.get().channels_for_asset(asset_id).is_empty());
     let asset_for_highlight = asset.clone();
     let (expanded_detail, set_expanded_detail) = signal(false);
     let (collapsed, set_collapsed) = signal(collapsible);
     let (editing, set_editing) = signal(false);
     let (asset_context_menu, set_asset_context_menu) = signal(Option::<(i32, i32)>::None);
+    let (dragged_idx, set_dragged_idx) = signal(None::<usize>);
+    let (drag_over_idx, set_drag_over_idx) = signal(None::<usize>);
     let item_ref = NodeRef::<leptos::html::Div>::new();
 
     // When the parent marks this asset as highlighted, open it in the view:
@@ -88,10 +109,15 @@ pub(crate) fn AssetItem(
     let (show_add_user, set_show_add_user) = signal(false);
     let (show_add_role, set_show_add_role) = signal(false);
     let (show_add_org, set_show_add_org) = signal(false);
+    let (show_move_to_portfolio, set_show_move_to_portfolio) = signal(false);
+    let (show_move_to_group, set_show_move_to_group) = signal(false);
     let (show_add_transaction, set_show_add_transaction) = signal(false);
     let (confirm_asset_remove, set_confirm_asset_remove) = signal(false);
     let (show_add_channel, set_show_add_channel) = signal(false);
     let (show_add_booking, set_show_add_booking) = signal(false);
+    let (asset_target_portfolio_id, set_asset_target_portfolio_id) = signal(String::new());
+    let (asset_target_group_id, set_asset_target_group_id) = signal(String::new());
+    let (asset_org_id, set_asset_org_id) = signal(String::new());
     // Form fields for add user
     let (new_user_name, set_new_user_name) = signal(String::new());
     let (new_user_email, set_new_user_email) = signal(String::new());
@@ -155,8 +181,6 @@ pub(crate) fn AssetItem(
             .unwrap_or_else(|| default_asset_images.clone())
     });
 
-    let max_images = if asset.organization_id.is_some() { 100usize } else { 50usize };
-
     let add_image = Callback::new(move |url: String| {
         if let Some(pid) = portfolio_id {
             app_store.update(|s| {
@@ -170,6 +194,31 @@ pub(crate) fn AssetItem(
                         if a.id == asset_id && a.images.len() < max_images {
                             a.images.push(url.clone());
                             break;
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    let reorder_images = Callback::new(move |args: (usize, usize)| {
+        let (from, to) = args;
+        if from == to {
+            return;
+        }
+        if let Some(pid) = portfolio_id {
+            app_store.update(|s| {
+                if let Some(p) = s.get_portfolio_mut(pid) {
+                    let all: Vec<_> = p
+                        .assets
+                        .iter_mut()
+                        .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                        .collect();
+                    for a in all {
+                        if a.id == asset_id && from < a.images.len() && to < a.images.len() {
+                            let item = a.images.remove(from);
+                            let to_index = if from < to { to - 1 } else { to };
+                            a.images.insert(to_index, item);
                         }
                     }
                 }
@@ -370,7 +419,7 @@ pub(crate) fn AssetItem(
         let short_name = shorthand_name(&a_name);
         view! {
             <div class="asset-grid-card" node_ref=item_ref style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())>
-                <img class="asset-grid-image" src={image_url.clone()} alt={a_name.clone()} />
+                <img class="asset-grid-image" src={image_url} alt={a_name.clone()} />
                 <div class="asset-grid-name">{short_name}</div>
             </div>
         }.into_any()
@@ -381,7 +430,6 @@ pub(crate) fn AssetItem(
         let a_name_header = a_name.clone();
         let a_type_header = a_type_grid.clone();
         let a_val_header = a_current_val;
-        let image_url_header = image_url.clone();
         let (asset_name_signal, _set_asset_name) = signal(a_name.clone());
         view! {
         <div class="ai-item"
@@ -417,7 +465,7 @@ pub(crate) fn AssetItem(
                             }
                         }
                     >
-                        <img class="ai-list-image" src={image_url_header.clone()} alt={a_name_header.clone()} />
+                        <img class="ai-list-image" src={image_url} alt={a_name_header.clone()} />
                         <div class="ai-collapsible-summary">
                             <div class="ai-collapsible-name">{a_name_header.clone()}</div>
                             <div class="ai-collapsible-meta">{format!("{} · ${:.2}", a_type_header, a_val_header)}</div>
@@ -425,31 +473,12 @@ pub(crate) fn AssetItem(
                             let channel_ids = asset.channel_ids.clone();
                             move || if !channel_ids.is_empty() {
                                 view! {
-                                    <div class="ai-channel-badge" title={format!("{} channel(s)", channel_count)}>
-                                        "📡" {channel_count}
+                                    <div class="ai-channel-count" title={format!("{} channel(s)", channel_count)}>
+                                        {format!("{} channel{}", channel_count, if channel_count == 1 { "" } else { "s" })}
                                     </div>
                                 }.into_any()
                             } else { ().into_any() }}
                         </div>
-                        {let a_name_add_btn = a_name_header.clone();
-                        move || if can_add_images.get() && asset_images.get().len() < max_images { view! {
-                            <label class="ai-add-image-btn" aria-label={format!("Add image to {}", a_name_add_btn)} on:click=|ev| ev.stop_propagation()>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    class="ai-image-file-input"
-                                    on:change=move |ev| {
-                                        read_images_as_data_urls(&ev, {
-                                            let add_image = add_image.clone();
-                                            move |url| add_image.run(url)
-                                        });
-                                    }
-                                />
-                                <span>"➕"</span>
-                                <span>"Image"</span>
-                            </label>
-                        }.into_any() } else { ().into_any() }}
                         <span class="ai-collapsible-arrow" aria-hidden="true">
                             {move || if collapsed.get() { "▶" } else { "▼" }}
                         </span>
@@ -511,12 +540,38 @@ pub(crate) fn AssetItem(
                                         }.into_any()
                                     } else { ().into_any() }}
                                     <For
-                                        each=move || asset_images.get()
-                                        key=|url| url.clone()
-                                        children=move |url: String| {
+                                        each=move || { asset_images.get().into_iter().enumerate().collect::<Vec<_>>() }
+                                        key=|(_, url)| url.clone()
+                                        children=move |(idx, url): (usize, String)| {
                                             let a_name_images = a_name_images.clone();
+                                            let is_dragged = move || dragged_idx.get() == Some(idx);
+                                            let is_drag_over = move || drag_over_idx.get() == Some(idx) && dragged_idx.get() != Some(idx);
                                             view! {
-                                                <div class="ai-image-slider-item">
+                                                <div class="ai-image-slider-item"
+                                                    class:ai-image-dragging={is_dragged}
+                                                    class:ai-image-drag-over={is_drag_over}
+                                                    draggable={move || if can_add_images.get() { "true" } else { "false" }}
+                                                    on:dragstart=move |_| { set_dragged_idx.set(Some(idx)); }
+                                                    on:dragover=move |ev: leptos::ev::DragEvent| {
+                                                        ev.prevent_default();
+                                                        set_drag_over_idx.set(Some(idx));
+                                                    }
+                                                    on:dragleave=move |_| { set_drag_over_idx.set(None); }
+                                                    on:drop=move |ev: leptos::ev::DragEvent| {
+                                                        ev.prevent_default();
+                                                        if let Some(from) = dragged_idx.get() {
+                                                            if from != idx {
+                                                                reorder_images.run((from, idx));
+                                                            }
+                                                        }
+                                                        set_drag_over_idx.set(None);
+                                                        set_dragged_idx.set(None);
+                                                    }
+                                                    on:dragend=move |_| {
+                                                        set_drag_over_idx.set(None);
+                                                        set_dragged_idx.set(None);
+                                                    }
+                                                >
                                                     <img class="ai-image-slider-img" src={url} alt={format!("Image of {}", a_name_images)} />
                                                 </div>
                                             }
@@ -696,15 +751,34 @@ pub(crate) fn AssetItem(
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
-                                    set_show_add_channel.set(true);
+                                    set_asset_target_portfolio_id.set(String::new());
+                                    set_asset_target_group_id.set(String::new());
+                                    set_show_move_to_group.set(true);
                                 }
-                            >"📡 Add Channel"</button>
+                            >"➕ Add to Asset Group"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
-                                    set_show_add_booking.set(true);
+                                    set_asset_target_portfolio_id.set(String::new());
+                                    set_show_move_to_portfolio.set(true);
                                 }
-                            >"Add Booking"</button>
+                            >"➕ Add to Portfolio"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    app_store.with(|s| {
+                                        for p in s.portfolios.iter() {
+                                            let found = p.assets.iter().find(|a| a.id == asset_id)
+                                                .or_else(|| p.asset_groups.iter().flat_map(|g| g.assets.iter()).find(|a| a.id == asset_id));
+                                            if let Some(a) = found {
+                                                set_asset_org_id.set(a.organization_id.map(|id| id.to_string()).unwrap_or_default());
+                                                break;
+                                            }
+                                        }
+                                    });
+                                    set_show_add_org.set(true);
+                                }
+                            >"🏢 Add to Organization"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
@@ -716,13 +790,7 @@ pub(crate) fn AssetItem(
                                     set_asset_context_menu.set(None);
                                     set_show_add_role.set(true);
                                 }
-                            >"🎭 Add Role"</button>
-                            <button class="context-menu-item"
-                                on:click=move |_| {
-                                    set_asset_context_menu.set(None);
-                                    set_show_add_org.set(true);
-                                }
-                            >"🏢 Add Organization"</button>
+                            >"� Add Role"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
@@ -856,45 +924,149 @@ pub(crate) fn AssetItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            // Add Organization modal
+            // Add to Organization modal (asset)
             {move || if show_add_org.get() {
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_show_add_org.set(false)>
                         <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
                             <div class="doc-modal-header">
-                                <span>"Add Organization"</span>
+                                <span>"Add to Organization"</span>
                                 <button class="doc-modal-close" aria-label="Close add organization" on:click=move |_| set_show_add_org.set(false)>"✕"</button>
                             </div>
                             <div class="add-form">
-                                <input class="login-input" type="text" placeholder="Organization name"
-                                    aria-label="Organization name"
+                                <label class="list-item-title">"Organization"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Organization"
+                                    prop:value={move || asset_org_id.get()}
+                                    on:change=move |ev| set_asset_org_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"(None)"</option>
+                                    {move || organization_store.get().organizations.iter().map(|o| {
+                                        let id = o.id.to_string();
+                                        view! { <option value={id.clone()}>{o.name.clone()}</option> }
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <input class="login-input" type="text" placeholder="Or create a new organization"
+                                    aria-label="New organization name"
                                     prop:value={move || new_org_name.get()}
                                     on:input=move |ev| set_new_org_name.set(event_target_value(&ev)) />
                                 <button class="login-btn" on:click=move |_| {
-                                    let name = new_org_name.get();
-                                    if !name.trim().is_empty() {
+                                    let name = new_org_name.get().trim().to_string();
+                                    let org_id = if name.is_empty() {
+                                        let s = asset_org_id.get();
+                                        if s.trim().is_empty() { None } else { Uuid::parse_str(&s).ok() }
+                                    } else {
                                         let owner_id = app_store.get().current_user.id;
                                         let org = crate::models::Organization::new(name, owner_id);
                                         let oid = org.id;
                                         organization_store.update(|s| s.add_organization(org));
-                                        // Link asset to the new organization
-                                        app_store.update(|s| {
-                                            for p in s.portfolios.iter_mut() {
-                                                let all: Vec<_> = p.assets.iter_mut()
-                                                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
-                                                    .collect();
-                                                for a in all {
-                                                    if a.id == asset_id {
-                                                        a.organization_id = Some(oid);
-                                                        return;
-                                                    }
-                                                }
-                                            }
-                                        });
-                                    }
+                                        Some(oid)
+                                    };
+                                    app_store.update(|s| { s.set_asset_organization(asset_id, org_id); });
                                     set_new_org_name.set(String::new());
+                                    set_asset_org_id.set(String::new());
                                     set_show_add_org.set(false);
-                                }>"Add Organization"</button>
+                                }>"Save Organization"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Move to Portfolio modal (asset)
+            {move || if show_move_to_portfolio.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_move_to_portfolio.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add to Portfolio"</span>
+                                <button class="doc-modal-close" aria-label="Close move to portfolio" on:click=move |_| set_show_move_to_portfolio.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <label class="list-item-title">"Target portfolio"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Target portfolio"
+                                    prop:value={move || asset_target_portfolio_id.get()}
+                                    on:change=move |ev| set_asset_target_portfolio_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"Select a portfolio"</option>
+                                    {move || app_store.get().portfolios.iter().map(|p| {
+                                        let id = p.id.to_string();
+                                        view! { <option value={id.clone()}>{p.name.clone()}</option> }
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <button class="login-btn" on:click=move |_| {
+                                    let s = asset_target_portfolio_id.get();
+                                    if let Ok(target_pid) = Uuid::parse_str(&s) {
+                                        app_store.update(|store| { store.move_asset_to_portfolio(asset_id, target_pid); });
+                                    }
+                                    set_asset_target_portfolio_id.set(String::new());
+                                    set_show_move_to_portfolio.set(false);
+                                }>"Move to Portfolio"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Move to Asset Group modal (asset)
+            {move || if show_move_to_group.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_move_to_group.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add to Asset Group"</span>
+                                <button class="doc-modal-close" aria-label="Close move to group" on:click=move |_| set_show_move_to_group.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <label class="list-item-title">"Target portfolio"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Target portfolio"
+                                    prop:value={move || asset_target_portfolio_id.get()}
+                                    on:change=move |ev| set_asset_target_portfolio_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"Select a portfolio"</option>
+                                    {move || app_store.get().portfolios.iter().map(|p| {
+                                        let id = p.id.to_string();
+                                        view! { <option value={id.clone()}>{p.name.clone()}</option> }
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <label class="list-item-title">"Target asset group"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Target asset group"
+                                    prop:value={move || asset_target_group_id.get()}
+                                    on:change=move |ev| set_asset_target_group_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"Select an asset group"</option>
+                                    {move || {
+                                        let s = asset_target_portfolio_id.get();
+                                        if let Ok(target_pid) = Uuid::parse_str(&s) {
+                                            app_store.get().portfolios.iter()
+                                                .find(|p| p.id == target_pid)
+                                                .map(|p| p.asset_groups.iter().map(|g| {
+                                                    let id = g.id.to_string();
+                                                    view! { <option value={id.clone()}>{g.name.clone()}</option> }
+                                                }).collect::<Vec<_>>())
+                                                .unwrap_or_default()
+                                        } else {
+                                            Vec::new()
+                                        }
+                                    }}
+                                </select>
+                                <button class="login-btn" on:click=move |_| {
+                                    let p = asset_target_portfolio_id.get();
+                                    let g = asset_target_group_id.get();
+                                    if let (Ok(target_pid), Ok(target_gid)) = (Uuid::parse_str(&p), Uuid::parse_str(&g)) {
+                                        app_store.update(|store| { store.move_asset_to_group(asset_id, target_pid, target_gid); });
+                                    }
+                                    set_asset_target_portfolio_id.set(String::new());
+                                    set_asset_target_group_id.set(String::new());
+                                    set_show_move_to_group.set(false);
+                                }>"Move to Group"</button>
                             </div>
                         </div>
                     </div>

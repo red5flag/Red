@@ -168,18 +168,16 @@ impl OrgRole {
         let scope_text = self.scope.display();
         if can_count > 10 {
             format!(
-                "{} role. Rank {}. Applies to {}. {} members. Has {} permissions.",
+                "{} role. Applies to {}. {} members. Has {} permissions.",
                 self.name,
-                self.rank,
                 scope_text,
                 self.member_ids.len(),
                 can_count
             )
         } else {
             format!(
-                "{} role. Rank {}. Applies to {}. {} members. {} permissions.",
+                "{} role. Applies to {}. {} members. {} permissions.",
                 self.name,
-                self.rank,
                 scope_text,
                 self.member_ids.len(),
                 can_count

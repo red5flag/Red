@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::pages::settings::{
     accessibility_settings, account_settings, data_settings, display_settings,
-    notification_settings, preset_selector, security_settings,
+    notification_settings, preset_selector, security_settings, SettingsTab,
 };
 
 #[cfg(feature = "hydrate")]
@@ -23,6 +23,7 @@ pub fn SettingsPage() -> impl IntoView {
     let calendar_store = use_calendar_store();
     let messenger_store = use_messenger_store();
     let (import_status, set_import_status) = signal(String::new());
+    let (active_tab, set_active_tab) = signal(SettingsTab::Appearance);
 
     // 2FA setup signals
     let (setup_user, set_setup_user) = signal(String::new());
@@ -267,61 +268,114 @@ pub fn SettingsPage() -> impl IntoView {
     });
 
     view! {
-        <div class="home-screen">
-            <account_settings::AccountSettings />
-            <preset_selector::PresetSelector />
-            <display_settings::DisplaySettings />
-            <accessibility_settings::AccessibilitySettings />
-            <notification_settings::NotificationSettings />
-            <data_settings::DataSettings
-                import_status={import_status}
-                set_import_status={set_import_status}
-                import_contacts={import_contacts}
-                import_channel={import_channel}
-                dev_msg_content={dev_msg_content}
-                set_dev_msg_content={set_dev_msg_content}
-                dev_doc_name={dev_doc_name}
-                set_dev_doc_name={set_dev_doc_name}
-                dev_doc_type={dev_doc_type}
-                set_dev_doc_type={set_dev_doc_type}
-                dev_tx_amount={dev_tx_amount}
-                set_dev_tx_amount={set_dev_tx_amount}
-                dev_tx_desc={dev_tx_desc}
-                set_dev_tx_desc={set_dev_tx_desc}
-                dev_cal_title={dev_cal_title}
-                set_dev_cal_title={set_dev_cal_title}
-                dev_cal_days={dev_cal_days}
-                set_dev_cal_days={set_dev_cal_days}
-                dev_portfolio_name={dev_portfolio_name}
-                set_dev_portfolio_name={set_dev_portfolio_name}
-                dev_user_name={dev_user_name}
-                set_dev_user_name={set_dev_user_name}
-                dev_notif_msg={dev_notif_msg}
-                set_dev_notif_msg={set_dev_notif_msg}
-                dev_notif_from={dev_notif_from}
-                set_dev_notif_from={set_dev_notif_from}
-            />
-            <security_settings::SecuritySettings
-                setup_user={setup_user}
-                set_setup_user={set_setup_user}
-                setup_pass={setup_pass}
-                set_setup_pass={set_setup_pass}
-                setup_secret={setup_secret}
-                setup_uri={setup_uri}
-                setup_code={setup_code}
-                set_setup_code={set_setup_code}
-                setup_error={setup_error}
-                setup_success={setup_success}
-                setup_step={setup_step}
-                email_2fa_status={email_2fa_status}
-                phone_number={phone_number}
-                set_phone_number={set_phone_number}
-                phone_2fa_status={phone_2fa_status}
-                on_enable_totp={on_enable_totp}
-                on_confirm_totp={on_confirm_totp}
-                on_toggle_email_2fa={on_toggle_email_2fa}
-                on_toggle_phone_2fa={on_toggle_phone_2fa}
-            />
+        <div class="home-screen settings-page">
+            <div class="reporting-tabs-outer reporting-tabs-top">
+                <div class="reporting-tabs">
+                    {[
+                        SettingsTab::Appearance,
+                        SettingsTab::Account,
+                        SettingsTab::Import,
+                        SettingsTab::Accessibility,
+                        SettingsTab::Storage,
+                        SettingsTab::Notifications,
+                        SettingsTab::TwoFactorAuth,
+                        SettingsTab::Data,
+                        SettingsTab::Developer,
+                    ].iter().map(|&t| {
+                        let label = t.label();
+                        view! {
+                            <button
+                                class="reporting-tab"
+                                class:active={move || active_tab.get() == t}
+                                on:click=move |_| set_active_tab.set(t)
+                            >
+                                {label}
+                            </button>
+                        }
+                    }).collect::<Vec<_>>()}
+                </div>
+            </div>
+
+            <div
+                class="settings-data-wrapper"
+                class:settings-hidden={move || !matches!(
+                    active_tab.get(),
+                    SettingsTab::Import
+                        | SettingsTab::Storage
+                        | SettingsTab::Data
+                        | SettingsTab::Developer
+                )}
+            >
+                <data_settings::DataSettings
+                    tab={active_tab}
+                    import_status={import_status}
+                    set_import_status={set_import_status}
+                    import_contacts={import_contacts}
+                    import_channel={import_channel}
+                    dev_msg_content={dev_msg_content}
+                    set_dev_msg_content={set_dev_msg_content}
+                    dev_doc_name={dev_doc_name}
+                    set_dev_doc_name={set_dev_doc_name}
+                    dev_doc_type={dev_doc_type}
+                    set_dev_doc_type={set_dev_doc_type}
+                    dev_tx_amount={dev_tx_amount}
+                    set_dev_tx_amount={set_dev_tx_amount}
+                    dev_tx_desc={dev_tx_desc}
+                    set_dev_tx_desc={set_dev_tx_desc}
+                    dev_cal_title={dev_cal_title}
+                    set_dev_cal_title={set_dev_cal_title}
+                    dev_cal_days={dev_cal_days}
+                    set_dev_cal_days={set_dev_cal_days}
+                    dev_portfolio_name={dev_portfolio_name}
+                    set_dev_portfolio_name={set_dev_portfolio_name}
+                    dev_user_name={dev_user_name}
+                    set_dev_user_name={set_dev_user_name}
+                    dev_notif_msg={dev_notif_msg}
+                    set_dev_notif_msg={set_dev_notif_msg}
+                    dev_notif_from={dev_notif_from}
+                    set_dev_notif_from={set_dev_notif_from}
+                />
+            </div>
+
+            {move || match active_tab.get() {
+                SettingsTab::Appearance => view! {
+                    <display_settings::DisplaySettings />
+                    <preset_selector::PresetSelector />
+                }.into_any(),
+                SettingsTab::Account => view! {
+                    <account_settings::AccountSettings />
+                }.into_any(),
+                SettingsTab::Accessibility => view! {
+                    <accessibility_settings::AccessibilitySettings />
+                }.into_any(),
+                SettingsTab::Notifications => view! {
+                    <notification_settings::NotificationSettings />
+                }.into_any(),
+                SettingsTab::TwoFactorAuth => view! {
+                    <security_settings::SecuritySettings
+                        setup_user={setup_user}
+                        set_setup_user={set_setup_user}
+                        setup_pass={setup_pass}
+                        set_setup_pass={set_setup_pass}
+                        setup_secret={setup_secret}
+                        setup_uri={setup_uri}
+                        setup_code={setup_code}
+                        set_setup_code={set_setup_code}
+                        setup_error={setup_error}
+                        setup_success={setup_success}
+                        setup_step={setup_step}
+                        email_2fa_status={email_2fa_status}
+                        phone_number={phone_number}
+                        set_phone_number={set_phone_number}
+                        phone_2fa_status={phone_2fa_status}
+                        on_enable_totp={on_enable_totp}
+                        on_confirm_totp={on_confirm_totp}
+                        on_toggle_email_2fa={on_toggle_email_2fa}
+                        on_toggle_phone_2fa={on_toggle_phone_2fa}
+                    />
+                }.into_any(),
+                _ => ().into_any(),
+            }}
         </div>
     }
 }

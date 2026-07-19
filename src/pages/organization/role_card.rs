@@ -27,7 +27,6 @@ pub(crate) fn RoleCard(
     let role_name = role.name.clone();
     let role_desc = role.description.clone();
     let role_scope = role.scope.clone();
-    let role_rank = role.rank;
     let role_color = role.color.clone();
     let role_perms = role.permissions.clone();
     let role_members = role.member_ids.clone();
@@ -43,7 +42,7 @@ pub(crate) fn RoleCard(
     let edit_role = OrgRole {
         id: rid,
         name: role_name.clone(),
-        rank: role_rank,
+        rank: role.rank,
         color: role_color.clone(),
         description: role_desc.clone(),
         scope: role_scope.clone(),
@@ -71,8 +70,7 @@ pub(crate) fn RoleCard(
                 <div class="org-role-info">
                     <div class="org-role-name">{role_name_for_dup.clone()}</div>
                     <div class="org-role-meta">
-                        {format!("Rank {} \u{00B7} {} \u{00B7} {} members",
-                            role_rank,
+                        {format!("{} \u{00B7} {} members",
                             scope_display(&role_scope),
                             role_members.len())}
                     </div>

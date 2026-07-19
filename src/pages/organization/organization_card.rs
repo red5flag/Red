@@ -1,4 +1,5 @@
 use crate::models::{OrgRole, Organization, Perm, User};
+use crate::pages::portfolios::read_image_as_data_url;
 use crate::pages::organization::{
     members::MembersSection, organization_summary::OrganizationSummary,
     portfolio_access::PortfolioAccessList, roles::RolesSection,
@@ -50,6 +51,7 @@ pub(crate) fn OrganizationCard(
             Option<String>,
             Option<String>,
             Option<String>,
+            Option<String>,
         ),
         (),
     >,
@@ -83,6 +85,8 @@ pub(crate) fn OrganizationCard(
     on_update_member_role: Callback<(Uuid, UserRole), ()>,
     on_context_menu: Callback<(i32, i32, Uuid), ()>,
     on_role_context_menu: Callback<(i32, i32, Uuid, Uuid), ()>,
+    #[prop(into)] edit_image_url: ReadSignal<Option<String>>,
+    #[prop(into)] set_edit_image_url: WriteSignal<Option<String>>,
 ) -> impl IntoView {
     let (section_menu, set_section_menu) = signal(Option::<(i32, i32, &'static str, Uuid)>::None);
     let role_context_menu = on_role_context_menu;
@@ -111,6 +115,7 @@ pub(crate) fn OrganizationCard(
         .sum();
 
     let org_name = org.name.clone();
+    let org_image_url = org.image_url.clone();
     let org_desc = org.description.clone();
     let org_color = org.settings.color.clone();
     let color_style = org_color
@@ -179,14 +184,20 @@ pub(crate) fn OrganizationCard(
                 on:dblclick=move |ev: leptos::ev::MouseEvent| {
                     if can_manage && !is_editing {
                         ev.stop_propagation();
-                        on_start_edit.run((oid, org_name.clone(), org_desc.clone(), org_color.clone(), org.abn.clone(), org.lei.clone(), org.business_type.clone(), org.business_address.clone(), org.business_phone.clone(), org.business_email.clone()));
+                        on_start_edit.run((oid, org_name.clone(), org.image_url.clone(), org_desc.clone(), org_color.clone(), org.abn.clone(), org.lei.clone(), org.business_type.clone(), org.business_address.clone(), org.business_phone.clone(), org.business_email.clone()));
                     }
                 }
             >
                 <span class="asset-group-arrow">
                     {move || if is_expanded.get() { "\u{25B2}" } else { "\u{25BC}" }}
                 </span>
-                <div class="asset-group-icon">"\u{1F3E2}"</div>
+                <div class="asset-group-icon">
+                    {if let Some(ref url) = org_image_url {
+                        view! { <img class="pf-header-image" src={url.clone()} alt={format!("{} logo", org_name)} /> }.into_any()
+                    } else {
+                        view! { <span>"\u{1F3E2}"</span> }.into_any()
+                    }}
+                </div>
                 <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
                     {move || if is_editing {
                         view! {
@@ -197,6 +208,14 @@ pub(crate) fn OrganizationCard(
                                 <input class="pf-edit-input" placeholder="Description"
                                     prop:value=move || edit_desc.get()
                                     on:input=move |ev| set_edit_desc.set(event_target_value(&ev)) />
+                                <div class="org-color-row">
+                                    <span class="org-color-label">"Logo"</span>
+                                    {move || edit_image_url.get().map(|url| view! {
+                                        <img class="pf-header-image" src={url} alt="Organization logo preview" />
+                                    })}
+                                    <input class="login-input apf-file-input" type="file" accept="image/*"
+                                        on:change=move |ev| read_image_as_data_url(&ev, move |url| set_edit_image_url.set(Some(url))) />
+                                </div>
                                 <div class="org-color-row">
                                     <span class="org-color-label">"Accent"</span>
                                     <input class="org-color-input" type="color"
@@ -278,7 +297,7 @@ pub(crate) fn OrganizationCard(
                                 view! {
                                     <button class="pf-action-btn"
                                         aria-label="Edit organization"
-                                        on:click=move |_| on_start_edit.run((oid, blind_btn_name.clone(), blind_btn_desc.clone(), blind_btn_color.clone(), org_abn.clone(), org_lei.clone(), org_business_type.clone(), org_business_address.clone(), org_business_phone.clone(), org_business_email.clone()))>
+                                        on:click=move |_| on_start_edit.run((oid, blind_btn_name.clone(), org_image_url.clone(), blind_btn_desc.clone(), blind_btn_color.clone(), org_abn.clone(), org_lei.clone(), org_business_type.clone(), org_business_address.clone(), org_business_phone.clone(), org_business_email.clone()))>
                                         "\u{270E}"
                                     </button>
                                     <button class="pf-action-btn"

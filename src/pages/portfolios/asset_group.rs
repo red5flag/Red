@@ -54,6 +54,9 @@ pub(crate) fn AssetGroupItem(
     let (group_context_menu, set_group_context_menu) = signal(Option::<(i32, i32)>::None);
     let (show_group_add_role, set_show_group_add_role) = signal(false);
     let (show_group_add_org, set_show_group_add_org) = signal(false);
+    let (show_group_move_portfolio, set_show_group_move_portfolio) = signal(false);
+    let (group_target_portfolio_id, set_group_target_portfolio_id) = signal(String::new());
+    let (group_org_id, set_group_org_id) = signal(String::new());
     let (confirm_group_remove, set_confirm_group_remove) = signal(false);
     let (group_role_name, set_group_role_name) = signal(String::new());
     let (group_role_desc, set_group_role_desc) = signal(String::new());
@@ -283,23 +286,29 @@ pub(crate) fn AssetGroupItem(
                             </div>
                         }.into_any()
                     } else {
+                        let channel_count = group_channel_ids.len();
+                        let has_channels = channel_count > 0;
                         view! {
                             <div>
                                 <div class="asset-group-name">{g_name_header.clone()}</div>
                                 {if !g_desc_header.is_empty() {
                                     view! { <div class="asset-group-desc">{g_desc_header.clone()}</div> }.into_any()
                                 } else { ().into_any() }}
-                                <div class="asset-group-count">{format!("{} assets", asset_count)}</div>
-                                {let channel_count = group_channel_ids.len();
-                                let channel_ids = group_channel_ids.clone();
-                                move || if !channel_ids.is_empty() {
-                                    view! {
-                                        <div class="ai-channel-badge" title={format!("{} channel(s)", channel_count)}>
-                                            "📡" {channel_count}
-                                        </div>
-                                    }.into_any()
-                                } else { ().into_any() }}
+                                <div class="asset-group-count">{
+                                    if asset_count == 0 && has_channels {
+                                        format!("{} channels", channel_count)
+                                    } else {
+                                        format!("{} assets", asset_count)
+                                    }
+                                }</div>
                             </div>
+                            {if has_channels && asset_count > 0 {
+                                view! {
+                                    <div class="asset-group-channel-icon" title={format!("{} channel(s)", channel_count)}>
+                                        "📡" {channel_count}
+                                    </div>
+                                }.into_any()
+                            } else { ().into_any() }}
                         }.into_any()
                     }}
                 </div>
@@ -459,17 +468,30 @@ pub(crate) fn AssetGroupItem(
 
             // Context menu for group press-and-hold
             {move || group_context_menu.get().map(|(x, y)| {
-                let _pid2 = pid;
-                let _gid2 = gid;
                 view! {
                     <div class="context-menu-overlay" on:click=move |_| set_group_context_menu.set(None)>
                         <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);
-                                    set_show_add_asset.set(AssetTarget::Group(pid, gid));
+                                    set_group_target_portfolio_id.set(String::new());
+                                    set_show_group_move_portfolio.set(true);
                                 }
-                            >"➕ Add Asset"</button>
+                            >"➕ Add to Portfolio"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    app_store.with(|s| {
+                                        for p in s.portfolios.iter() {
+                                            if let Some(g) = p.asset_groups.iter().find(|g| g.id == gid) {
+                                                set_group_org_id.set(g.organization_id.map(|id| id.to_string()).unwrap_or_default());
+                                                break;
+                                            }
+                                        }
+                                    });
+                                    set_show_group_add_org.set(true);
+                                }
+                            >"� Add to Organization"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);
@@ -482,18 +504,6 @@ pub(crate) fn AssetGroupItem(
                                     set_show_group_add_role.set(true);
                                 }
                             >"🎭 Add Role"</button>
-                            <button class="context-menu-item"
-                                on:click=move |_| {
-                                    set_group_context_menu.set(None);
-                                    set_show_group_add_org.set(true);
-                                }
-                            >"🏢 Add Organization"</button>
-                            <button class="context-menu-item"
-                                on:click=move |_| {
-                                    set_group_context_menu.set(None);
-                                    // TODO: Open channel selection modal
-                                }
-                            >"📡 Add to Channel"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);
@@ -545,39 +555,87 @@ pub(crate) fn AssetGroupItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            // Add Organization modal (group context menu)
+            // Add to Organization modal (group context menu)
             {move || if show_group_add_org.get() {
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_show_group_add_org.set(false)>
                         <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
                             <div class="doc-modal-header">
-                                <span>"Add Organization"</span>
+                                <span>"Add to Organization"</span>
                                 <button class="doc-modal-close" aria-label="Close add organization" on:click=move |_| set_show_group_add_org.set(false)>"✕"</button>
                             </div>
                             <div class="add-form">
-                                <input class="login-input" type="text" placeholder="Organization name"
-                                    aria-label="Organization name"
+                                <label class="list-item-title">"Organization"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Organization"
+                                    prop:value={move || group_org_id.get()}
+                                    on:change=move |ev| set_group_org_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"(None)"</option>
+                                    {move || organization_store.get().organizations.iter().map(|o| {
+                                        let id = o.id.to_string();
+                                        view! { <option value={id.clone()}>{o.name.clone()}</option> }
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <input class="login-input" type="text" placeholder="Or create a new organization"
+                                    aria-label="New organization name"
                                     prop:value={move || group_org_name.get()}
                                     on:input=move |ev| set_group_org_name.set(event_target_value(&ev)) />
                                 <button class="login-btn" on:click=move |_| {
-                                    let name = group_org_name.get();
-                                    if !name.trim().is_empty() {
+                                    let name = group_org_name.get().trim().to_string();
+                                    let org_id = if name.is_empty() {
+                                        let s = group_org_id.get();
+                                        if s.trim().is_empty() { None } else { Uuid::parse_str(&s).ok() }
+                                    } else {
                                         let owner_id = app_store.get().current_user.id;
                                         let org = crate::models::Organization::new(name, owner_id);
                                         let oid = org.id;
                                         organization_store.update(|s| s.add_organization(org));
-                                        // Link group's portfolio to org if not already linked
-                                        app_store.update(|s| {
-                                            if let Some(p) = s.get_portfolio_mut(pid) {
-                                                if p.organization_id.is_none() {
-                                                    p.organization_id = Some(oid);
-                                                }
-                                            }
-                                        });
-                                    }
+                                        Some(oid)
+                                    };
+                                    app_store.update(|s| { s.set_asset_group_organization(gid, org_id); });
                                     set_group_org_name.set(String::new());
+                                    set_group_org_id.set(String::new());
                                     set_show_group_add_org.set(false);
-                                }>"Add Organization"</button>
+                                }>"Save Organization"</button>
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Move to Portfolio modal (group context menu)
+            {move || if show_group_move_portfolio.get() {
+                view! {
+                    <div class="doc-modal-overlay" on:click=move |_| set_show_group_move_portfolio.set(false)>
+                        <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
+                            <div class="doc-modal-header">
+                                <span>"Add to Portfolio"</span>
+                                <button class="doc-modal-close" aria-label="Close move to portfolio" on:click=move |_| set_show_group_move_portfolio.set(false)>"✕"</button>
+                            </div>
+                            <div class="add-form">
+                                <label class="list-item-title">"Target portfolio"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Target portfolio"
+                                    prop:value={move || group_target_portfolio_id.get()}
+                                    on:change=move |ev| set_group_target_portfolio_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"Select a portfolio"</option>
+                                    {move || app_store.get().portfolios.iter().map(|p| {
+                                        let id = p.id.to_string();
+                                        view! { <option value={id.clone()}>{p.name.clone()}</option> }
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <button class="login-btn" on:click=move |_| {
+                                    let s = group_target_portfolio_id.get();
+                                    if let Ok(target_pid) = Uuid::parse_str(&s) {
+                                        app_store.update(|store| { store.move_group_to_portfolio(gid, target_pid); });
+                                    }
+                                    set_group_target_portfolio_id.set(String::new());
+                                    set_show_group_move_portfolio.set(false);
+                                }>"Move to Portfolio"</button>
                             </div>
                         </div>
                     </div>

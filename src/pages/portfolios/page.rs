@@ -227,6 +227,8 @@ pub fn PortfoliosPage() -> impl IntoView {
     let (confirm_pf_remove, set_confirm_pf_remove) = signal(Option::<Uuid>::None);
     let (pf_new_role_desc, set_pf_new_role_desc) = signal(String::new());
     let (pf_new_org_name, set_pf_new_org_name) = signal(String::new());
+    let (pf_org_parent_id, set_pf_org_parent_id) = signal(String::new());
+    let (pf_secondary_org_ids, set_pf_secondary_org_ids) = signal(Vec::<Uuid>::new());
 
     // Consume pending navigation from notification clicks — expand portfolio and open doc modal
     Effect::new(move |_| {
@@ -926,10 +928,10 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     app_store.update(|s| {
                                         s.selected_portfolio_ids.insert(pid);
                                     });
-                                    set_show_add_asset.set(AssetTarget::PortfolioDirect(pid));
+                                    set_show_add_group.set(Some(pid));
                                 }
                             >
-                                "➕ Add Asset"
+                                "➕ Add Asset Group"
                             </button>
                             <button
                                 class="context-menu-item"
@@ -938,10 +940,10 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     app_store.update(|s| {
                                         s.selected_portfolio_ids.insert(pid);
                                     });
-                                    set_show_add_group.set(Some(pid));
+                                    set_show_add_asset.set(AssetTarget::PortfolioDirect(pid));
                                 }
                             >
-                                "➕ Add Asset Group"
+                                "➕ Add Asset"
                             </button>
                             <button
                                 class="context-menu-item"
@@ -965,10 +967,16 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 class="context-menu-item"
                                 on:click=move |_| {
                                     set_context_menu.set(None);
+                                    app_store.with(|s| {
+                                        if let Some(p) = s.get_portfolio(pid_org) {
+                                            set_pf_org_parent_id.set(p.organization_id.map(|id| id.to_string()).unwrap_or_default());
+                                            set_pf_secondary_org_ids.set(p.secondary_organization_ids.clone());
+                                        }
+                                    });
                                     set_show_pf_add_org.set(Some(pid_org));
                                 }
                             >
-                                "� Add Organization"
+                                "🏢 Add to Organization"
                             </button>
                             <button
                                 class="context-menu-item"
@@ -1071,36 +1079,81 @@ pub fn PortfoliosPage() -> impl IntoView {
                 }.into_any()
             })}
 
-            // Add Organization modal (portfolio context menu)
+            // Add to Organization modal (portfolio context menu)
             {move || show_pf_add_org.get().map(|pid| {
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_show_pf_add_org.set(None)>
                         <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
                             <div class="doc-modal-header">
-                                <span>"Add Organization"</span>
+                                <span>"Add to Organization"</span>
                                 <button class="doc-modal-close" aria-label="Close add organization" on:click=move |_| set_show_pf_add_org.set(None)>"✕"</button>
                             </div>
                             <div class="add-form">
-                                <input class="login-input" type="text" placeholder="Organization name"
-                                    aria-label="Organization name"
+                                <label class="list-item-title">"Parent (primary) organization"</label>
+                                <select
+                                    class="form-select"
+                                    aria-label="Parent organization"
+                                    prop:value={move || pf_org_parent_id.get()}
+                                    on:change=move |ev| set_pf_org_parent_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"(None)"</option>
+                                    {move || organization_store.get().organizations.iter().map(|o| {
+                                        let id = o.id.to_string();
+                                        view! { <option value={id.clone()}>{o.name.clone()}</option> }
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <input class="login-input" type="text" placeholder="Or create a new organization"
+                                    aria-label="New organization name"
                                     prop:value={move || pf_new_org_name.get()}
                                     on:input=move |ev| set_pf_new_org_name.set(event_target_value(&ev)) />
+                                <label class="list-item-title">"Secondary / tertiary organizations"</label>
+                                {move || organization_store.get().organizations.iter().map(|o| {
+                                    let oid = o.id;
+                                    let name = o.name.clone();
+                                    view! {
+                                        <label class="list-item">
+                                            <input
+                                                type="checkbox"
+                                                prop:checked={move || pf_secondary_org_ids.get().contains(&oid)}
+                                                on:change=move |ev| {
+                                                    let checked = event_target_checked(&ev);
+                                                    set_pf_secondary_org_ids.update(|v| {
+                                                        if checked {
+                                                            if !v.contains(&oid) { v.push(oid); }
+                                                        } else {
+                                                            v.retain(|&id| id != oid);
+                                                        }
+                                                    });
+                                                }
+                                            />
+                                            {name}
+                                        </label>
+                                    }
+                                }).collect::<Vec<_>>()}
                                 <button class="login-btn" on:click=move |_| {
-                                    let name = pf_new_org_name.get();
-                                    if !name.trim().is_empty() {
+                                    let mut name = pf_new_org_name.get();
+                                    name = name.trim().to_string();
+                                    let parent_id = if name.is_empty() {
+                                        let s = pf_org_parent_id.get();
+                                        if s.trim().is_empty() { None } else { Uuid::parse_str(&s).ok() }
+                                    } else {
                                         let owner_id = app_store.get().current_user.id;
                                         let org = crate::models::Organization::new(name, owner_id);
                                         let oid = org.id;
                                         organization_store.update(|s| s.add_organization(org));
-                                        app_store.update(|s| {
-                                            if let Some(p) = s.get_portfolio_mut(pid) {
-                                                p.organization_id = Some(oid);
-                                            }
-                                        });
-                                    }
+                                        Some(oid)
+                                    };
+                                    app_store.update(|s| {
+                                        if let Some(p) = s.get_portfolio_mut(pid) {
+                                            p.organization_id = parent_id;
+                                            p.secondary_organization_ids = pf_secondary_org_ids.get();
+                                        }
+                                    });
                                     set_pf_new_org_name.set(String::new());
+                                    set_pf_org_parent_id.set(String::new());
+                                    set_pf_secondary_org_ids.set(Vec::new());
                                     set_show_pf_add_org.set(None);
-                                }>"Add Organization"</button>
+                                }>"Save Organizations"</button>
                             </div>
                         </div>
                     </div>
@@ -1211,6 +1264,7 @@ fn create_mock_asset_group(name: &str, assets: Vec<Asset>) -> AssetGroup {
         id: Uuid::new_v4(),
         name: name.to_string(),
         description: None,
+        organization_id: None,
         assets,
         total_value: 0.0,
         purchase_value: 0.0,

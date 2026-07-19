@@ -19,6 +19,8 @@ pub(crate) fn OrganizationList(
     #[prop(into)] set_edit_name: WriteSignal<String>,
     #[prop(into)] edit_desc: ReadSignal<String>,
     #[prop(into)] set_edit_desc: WriteSignal<String>,
+    #[prop(into)] edit_image_url: ReadSignal<Option<String>>,
+    #[prop(into)] set_edit_image_url: WriteSignal<Option<String>>,
     #[prop(into)] edit_color: ReadSignal<String>,
     #[prop(into)] set_edit_color: WriteSignal<String>,
     #[prop(into)] edit_abn: ReadSignal<String>,
@@ -38,6 +40,7 @@ pub(crate) fn OrganizationList(
         (
             Uuid,
             String,
+            Option<String>,
             Option<String>,
             Option<String>,
             Option<String>,
@@ -119,6 +122,8 @@ pub(crate) fn OrganizationList(
                                 set_edit_name={set_edit_name}
                                 edit_desc={edit_desc}
                                 set_edit_desc={set_edit_desc}
+                                edit_image_url={edit_image_url}
+                                set_edit_image_url={set_edit_image_url}
                                 edit_color={edit_color}
                                 set_edit_color={set_edit_color}
                                 edit_abn={edit_abn}

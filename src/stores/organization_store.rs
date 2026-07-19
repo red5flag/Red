@@ -154,10 +154,17 @@ impl OrganizationStore {
 
     // Discord-style role management
 
+    fn recompute_role_ranks(roles: &mut Vec<OrgRole>) {
+        let base = 1000u32;
+        for (i, role) in roles.iter_mut().enumerate() {
+            role.rank = base.saturating_sub(i as u32 * 10);
+        }
+    }
+
     pub fn add_role_to_org(&mut self, org_id: Uuid, role: OrgRole) {
         if let Some(org) = self.get_organization_mut(org_id) {
             org.roles.push(role);
-            org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+            Self::recompute_role_ranks(&mut org.roles);
             org.updated_at = chrono::Utc::now();
         }
     }
@@ -169,7 +176,6 @@ impl OrganizationStore {
         name: String,
         description: String,
         color: Option<String>,
-        rank: u32,
         scope: RoleScope,
     ) {
         if let Some(org) = self.get_organization_mut(org_id) {
@@ -177,10 +183,8 @@ impl OrganizationStore {
                 role.name = name;
                 role.description = description;
                 role.color = color;
-                role.rank = rank;
                 role.scope = scope;
             }
-            org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
             org.updated_at = chrono::Utc::now();
         }
     }
@@ -188,16 +192,7 @@ impl OrganizationStore {
     pub fn delete_org_role(&mut self, org_id: Uuid, role_id: Uuid) {
         if let Some(org) = self.get_organization_mut(org_id) {
             org.roles.retain(|r| r.id != role_id || r.is_system);
-            org.updated_at = chrono::Utc::now();
-        }
-    }
-
-    pub fn reorder_org_role(&mut self, org_id: Uuid, role_id: Uuid, new_rank: u32) {
-        if let Some(org) = self.get_organization_mut(org_id) {
-            if let Some(role) = org.roles.iter_mut().find(|r| r.id == role_id) {
-                role.rank = new_rank;
-            }
-            org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+            Self::recompute_role_ranks(&mut org.roles);
             org.updated_at = chrono::Utc::now();
         }
     }
@@ -222,10 +217,7 @@ impl OrganizationStore {
             };
             roles.insert(target_pos, dragged);
 
-            let base = 1000u32;
-            for (i, role) in roles.iter_mut().enumerate() {
-                role.rank = base.saturating_sub(i as u32 * 10);
-            }
+            Self::recompute_role_ranks(&mut roles);
             org.roles = roles;
             org.updated_at = chrono::Utc::now();
         }
@@ -294,7 +286,7 @@ impl OrganizationStore {
                 new_role.is_system = false;
                 new_role.member_ids = Vec::new();
                 org.roles.push(new_role);
-                org.roles.sort_by(|a, b| b.rank.cmp(&a.rank));
+                Self::recompute_role_ranks(&mut org.roles);
                 org.updated_at = chrono::Utc::now();
                 return Some(new_id);
             }

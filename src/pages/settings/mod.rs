@@ -8,3 +8,32 @@ pub mod preset_selector;
 pub mod security_settings;
 
 pub use page::SettingsPage;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingsTab {
+    Appearance,
+    Account,
+    Import,
+    Accessibility,
+    Storage,
+    Notifications,
+    TwoFactorAuth,
+    Data,
+    Developer,
+}
+
+impl SettingsTab {
+    pub const fn label(&self) -> &'static str {
+        match self {
+            SettingsTab::Appearance => "Appearance",
+            SettingsTab::Account => "Accounts",
+            SettingsTab::Import => "Import",
+            SettingsTab::Accessibility => "Accessibility",
+            SettingsTab::Storage => "Storage",
+            SettingsTab::Notifications => "Notifications",
+            SettingsTab::TwoFactorAuth => "2FA",
+            SettingsTab::Data => "Data",
+            SettingsTab::Developer => "Developer",
+        }
+    }
+}

@@ -1,4 +1,3 @@
-use crate::components::editable_text::EditableText;
 use crate::models::ConnectionStatus;
 use crate::stores::{
     use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
@@ -30,11 +29,6 @@ pub fn OverviewPage() -> impl IntoView {
     let messenger_store = use_messenger_store();
     let notification_store = use_notification_store();
     let transaction_store = use_transaction_store();
-
-    let user_name = move || app_store.get().current_user.name.clone();
-    let on_name_commit = move |name: String| {
-        app_store.update(|s| s.set_user_name(name));
-    };
 
     let unread_message_count = move || {
         let current_user_id = app_store.get().current_user.id;
@@ -392,11 +386,6 @@ pub fn OverviewPage() -> impl IntoView {
 
     view! {
         <div class="overview-content">
-            <div class="overview-greeting">
-                "Welcome, "
-                <EditableText value=Signal::derive(user_name) on_commit=on_name_commit />
-            </div>
-
             // Organization + Portfolio detail row
             <div class="overview-detail-row">
                 <div class="overview-detail-card clickable" on:click=on_open_organization>

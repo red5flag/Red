@@ -34,6 +34,8 @@ pub struct Portfolio {
     pub channel_ids: Vec<Uuid>,
     pub image_url: Option<String>,
     pub emoji: Option<String>,
+    #[serde(default)]
+    pub secondary_organization_ids: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,6 +76,7 @@ impl Portfolio {
             channel_ids: Vec::new(),
             image_url: None,
             emoji: None,
+            secondary_organization_ids: Vec::new(),
         }
     }
 
@@ -145,6 +148,8 @@ pub struct AssetGroup {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    #[serde(default)]
+    pub organization_id: Option<Uuid>,
     pub assets: Vec<Asset>,
     pub total_value: f64,
     pub purchase_value: f64,
@@ -170,6 +175,7 @@ impl AssetGroup {
             id: Uuid::new_v4(),
             name,
             description: None,
+            organization_id: None,
             assets: Vec::new(),
             total_value: 0.0,
             purchase_value: 0.0,
