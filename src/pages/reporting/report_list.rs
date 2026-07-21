@@ -1,4 +1,4 @@
-use crate::models::{Asset, Document, Transaction};
+use crate::models::{Asset, ConditionStatus, Document, LifecycleStatus, Transaction};
 use crate::pages::reporting::{fmt_dollars, table_head};
 use crate::stores::{use_transaction_store, use_ui_store, AppStore};
 use crate::types::{ReportSortMode, TransactionType};
@@ -164,7 +164,23 @@ pub(crate) fn sort_assets(items: &mut [(Asset, String)], sort: &ReportSortMode) 
                 .current_value
                 .partial_cmp(&ab.current_value)
                 .unwrap_or(std::cmp::Ordering::Equal),
-            ReportSortMode::ByStatus => format!("{:?}", aa.status).cmp(&format!("{:?}", ab.status)),
+            ReportSortMode::ByStatus => {
+                let status_a = format!(
+                    "{} {} {} {}",
+                    aa.lifecycle_status.as_str(),
+                    aa.availability_status.as_str(),
+                    aa.condition_status.as_str(),
+                    aa.commercial_status.as_str()
+                );
+                let status_b = format!(
+                    "{} {} {} {}",
+                    ab.lifecycle_status.as_str(),
+                    ab.availability_status.as_str(),
+                    ab.condition_status.as_str(),
+                    ab.commercial_status.as_str()
+                );
+                status_a.cmp(&status_b)
+            }
             ReportSortMode::ByName => aa.name.to_lowercase().cmp(&ab.name.to_lowercase()),
             ReportSortMode::ByDocumentType => {
                 format!("{:?}", aa.asset_type).cmp(&format!("{:?}", ab.asset_type))
@@ -575,7 +591,7 @@ pub(crate) fn assets_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
                                         <div class="reporting-td">{a.name}</div>
                                         <div class="reporting-td">{portfolio}</div>
                                         <div class="reporting-td">{format!("{:?}", a.asset_type)}</div>
-                                        <div class="reporting-td">{format!("{:?}", a.status)}</div>
+                                        <div class="reporting-td">{format!("{} | {} | {} | {}", a.lifecycle_status.as_str(), a.availability_status.as_str(), a.condition_status.as_str(), a.commercial_status.as_str())}</div>
                                         <div class="reporting-td">{fmt_dollars(a.current_value)}</div>
                                         <div class={format!("reporting-td {}", pl_cls)}>{format!("{:+.1}%", a.profit_loss_percent)}</div>
                                     </div>
@@ -597,10 +613,18 @@ pub(crate) fn compliance_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
     for p in &store.portfolios {
         for a in p.get_all_assets() {
             let docs = a.documents.len();
-            let status = format!("{:?}", a.status);
+            let status = format!(
+                "{} / {} / {} / {}",
+                a.lifecycle_status.as_str(),
+                a.availability_status.as_str(),
+                a.condition_status.as_str(),
+                a.commercial_status.as_str()
+            );
             let risk = if docs == 0 {
                 "Missing docs"
-            } else if status == "UnderReview" {
+            } else if matches!(a.lifecycle_status, LifecycleStatus::Disposed)
+                || matches!(a.condition_status, ConditionStatus::Unsafe)
+            {
                 "Under review"
             } else {
                 "OK"

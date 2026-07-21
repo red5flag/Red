@@ -120,6 +120,55 @@ pub(crate) fn read_image_as_data_url(
     }
 }
 
+/// Create click/double-click handlers for a name element.
+/// Single click toggles the dropdown after a short delay; a second click
+/// within the delay treats the action as a double-click and starts editing instead.
+pub(crate) fn name_click_handlers(
+    on_toggle: impl Fn() + Clone + Send + Sync + 'static,
+    on_edit: impl Fn() + Clone + Send + Sync + 'static,
+) -> (impl Fn(leptos::ev::MouseEvent) + Clone, impl Fn(leptos::ev::MouseEvent) + Clone) {
+    use std::sync::Arc;
+
+    let (pending, set_pending) = signal(false);
+    let on_toggle: Arc<Box<dyn Fn() + Send + Sync>> = Arc::new(Box::new(on_toggle));
+    let on_edit: Arc<Box<dyn Fn() + Send + Sync>> = Arc::new(Box::new(on_edit));
+
+    let on_click = {
+        let on_toggle = on_toggle.clone();
+        let on_edit = on_edit.clone();
+        move |ev: leptos::ev::MouseEvent| {
+            ev.stop_propagation();
+            if pending.get() {
+                set_pending.set(false);
+                (*on_edit)();
+                return;
+            }
+            set_pending.set(true);
+            let on_toggle = on_toggle.clone();
+            leptos::task::spawn_local(async move {
+                gloo_timers::future::TimeoutFuture::new(200).await;
+                if pending.get() {
+                    set_pending.set(false);
+                    (*on_toggle)();
+                }
+            });
+        }
+    };
+
+    let on_dblclick = {
+        let on_edit = on_edit.clone();
+        move |ev: leptos::ev::MouseEvent| {
+            ev.stop_propagation();
+            if pending.get() {
+                set_pending.set(false);
+                (*on_edit)();
+            }
+        }
+    };
+
+    (on_click, on_dblclick)
+}
+
 /// Read every selected image file from a file input change event and call the callback for each.
 pub(crate) fn read_images_as_data_urls(
     ev: &leptos::ev::Event,
@@ -193,6 +242,7 @@ pub(crate) fn UserAssignmentPanel(
 
 mod add_portfolio_modal;
 mod asset_channels;
+mod asset_editor;
 mod asset_group;
 mod asset_item;
 mod asset_viewer;
@@ -207,7 +257,8 @@ pub(crate) use asset_channels::{
     ChannelManagementWindow,
 };
 pub(crate) use asset_group::AssetGroupItem;
-pub(crate) use asset_item::{asset_placeholder_url, AssetDetailView, AssetItem};
+pub(crate) use asset_editor::AssetDetailView;
+pub(crate) use asset_item::{asset_placeholder_url, AssetItem};
 pub(crate) use asset_viewer::AssetViewer;
 pub(crate) use doc_modal::{DocModal, DocumentViewer};
 pub(crate) use notifications::{NotificationContentView, NotificationQuickSettings};

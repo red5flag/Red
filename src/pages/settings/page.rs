@@ -6,7 +6,7 @@ use leptos::task::spawn_local;
 use uuid::Uuid;
 
 use crate::pages::settings::{
-    accessibility_settings, account_settings, data_settings, display_settings,
+    accessibility_settings, account_settings, api_test, data_settings, display_settings,
     notification_settings, preset_selector, security_settings, SettingsTab,
 };
 
@@ -281,6 +281,7 @@ pub fn SettingsPage() -> impl IntoView {
                         SettingsTab::TwoFactorAuth,
                         SettingsTab::Data,
                         SettingsTab::Developer,
+                        SettingsTab::ApiTest,
                     ].iter().map(|&t| {
                         let label = t.label();
                         view! {
@@ -374,6 +375,7 @@ pub fn SettingsPage() -> impl IntoView {
                         on_toggle_phone_2fa={on_toggle_phone_2fa}
                     />
                 }.into_any(),
+                SettingsTab::ApiTest => view! { <api_test::ApiTestPage /> }.into_any(),
                 _ => ().into_any(),
             }}
         </div>

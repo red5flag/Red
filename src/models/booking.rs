@@ -1,4 +1,5 @@
-use chrono::{DateTime, Utc};
+use crate::types::short_uuid_suffix;
+use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -33,6 +34,8 @@ impl Default for BookingStatus {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Booking {
     pub id: Uuid,
+    #[serde(default)]
+    pub code: String,
     pub asset_id: Uuid,
     pub channel_id: Option<Uuid>,
     #[serde(default)]
@@ -71,9 +74,12 @@ impl Booking {
     ) -> Self {
         let now = Utc::now();
         let nights = (end_datetime.date_naive() - start_datetime.date_naive()).num_days() as u32;
+        let id = Uuid::new_v4();
+        let code = format!("BKG-{}-{}", start_datetime.year(), short_uuid_suffix(id, 6));
         let total = cost_per_night * nights.max(1) as f64;
         Self {
-            id: Uuid::new_v4(),
+            id,
+            code,
             asset_id,
             channel_id,
             guest_name,

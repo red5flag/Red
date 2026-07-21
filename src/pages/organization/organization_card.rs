@@ -198,7 +198,7 @@ pub(crate) fn OrganizationCard(
                         view! { <span>"\u{1F3E2}"</span> }.into_any()
                     }}
                 </div>
-                <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
+                <div class="asset-group-info-wrap">
                     {move || if is_editing {
                         view! {
                             <div class="asset-group-edit-form">

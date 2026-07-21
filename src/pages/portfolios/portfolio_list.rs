@@ -4,8 +4,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, read_image_as_data_url, single_sentence, AssetTarget, AssetViewer, DocModal,
-    NotifTarget, UserAssignmentPanel,
+    detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetTarget,
+    AssetViewer, DocModal, NotifTarget, UserAssignmentPanel,
 };
 
 /// Portfolio list row — accordion style matching AssetGroupItem.
@@ -44,6 +44,8 @@ pub(crate) fn PortfolioListItem(
     let (edit_desc, set_edit_desc) = signal(portfolio.description.clone().unwrap_or_default());
     let (edit_image_url, set_edit_image_url) = signal(portfolio.image_url.clone());
     let (edit_emoji, set_edit_emoji) = signal(portfolio.emoji.clone().unwrap_or_default());
+    let (is_editing_org, set_is_editing_org) = signal(false);
+    let (edit_org_id, set_edit_org_id) = signal(portfolio.organization_id.map(|id| id.to_string()).unwrap_or_default());
     let pid = portfolio.id;
     let doc_count = portfolio.documents.len();
     let name = portfolio.name.clone();
@@ -56,6 +58,25 @@ pub(crate) fn PortfolioListItem(
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
     let organization_store = use_organization_store();
+    let current_user_id = app_store.get().current_user.id;
+    let available_orgs = Memo::new(move |_| {
+        organization_store
+            .get()
+            .organizations
+            .iter()
+            .filter(|o| o.members.contains(&current_user_id) || o.owner_id == current_user_id)
+            .cloned()
+            .collect::<Vec<_>>()
+    });
+
+    let (name_click, name_dblclick) = name_click_handlers(
+        move || on_toggle.run(()),
+        move || if can_edit_here.get() { set_is_editing_name.set(true); },
+    );
+    let (desc_click, desc_dblclick) = name_click_handlers(
+        move || on_toggle.run(()),
+        move || if can_edit_here.get() { set_is_editing_desc.set(true); },
+    );
 
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
 
@@ -67,6 +88,12 @@ pub(crate) fn PortfolioListItem(
         }
         let img = edit_image_url.get();
         let emoji = edit_emoji.get().trim().to_string();
+        let org_id_str = edit_org_id.get();
+        let org_id = if org_id_str.trim().is_empty() {
+            None
+        } else {
+            Uuid::parse_str(&org_id_str).ok()
+        };
         app_store.update(|s| {
             if let Some(p) = s.get_portfolio_mut(pid) {
                 p.name = n.clone();
@@ -77,15 +104,15 @@ pub(crate) fn PortfolioListItem(
                 };
                 p.image_url = img;
                 p.emoji = if emoji.is_empty() { None } else { Some(emoji) };
+                p.organization_id = org_id;
                 p.updated_at = chrono::Utc::now();
             }
         });
         set_is_editing_name.set(false);
         set_is_editing_desc.set(false);
+        set_is_editing_org.set(false);
     };
-    let save_edit = move |_: leptos::ev::FocusEvent| do_save();
     let save_edit_now = move || do_save();
-    let save_edit_callback = Callback::new(move |_| do_save());
 
     let add_doc = move |n: String| {
         if n.trim().is_empty() {
@@ -133,7 +160,7 @@ pub(crate) fn PortfolioListItem(
         <div class="asset-group pf-portfolio" class:expanded={expanded} on:contextmenu=on_context>
             // Header row — same structure as asset-group-header
             <div class="asset-group-header pf-accordion-header"
-                class:editing={move || is_editing_name.get() || is_editing_desc.get()}
+                class:editing={move || is_editing_name.get() || is_editing_desc.get() || is_editing_org.get()}
                 role="button"
                 tabindex="0"
                 aria-expanded={move || expanded.get()}
@@ -148,7 +175,7 @@ pub(crate) fn PortfolioListItem(
                 )}
                 on:click=move |ev: leptos::ev::MouseEvent| {
                     ev.stop_propagation();
-                    if !is_editing_name.get() && !is_editing_desc.get() {
+                    if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
                         on_toggle.run(());
                     }
                 }
@@ -156,7 +183,7 @@ pub(crate) fn PortfolioListItem(
                     if ev.key() == "Enter" || ev.key() == " " {
                         ev.prevent_default();
                         ev.stop_propagation();
-                        if !is_editing_name.get() && !is_editing_desc.get() {
+                        if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
                             on_toggle.run(());
                         }
                     }
@@ -206,7 +233,7 @@ pub(crate) fn PortfolioListItem(
                         view! { <span>{portfolio_emoji.clone()}</span> }.into_any()
                     }}
                 </div>
-                <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
+                <div class="asset-group-info-wrap">
                     {let name_header = name.clone();
                     let desc_header = desc.clone();
                     move || {
@@ -217,15 +244,17 @@ pub(crate) fn PortfolioListItem(
                                 <input class="pf-edit-input" placeholder="Portfolio name"
                                     prop:value=move || edit_name.get()
                                     on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                    on:blur=save_edit
-                                    on:keydown=move |ev| { if ev.key() == "Enter" { save_edit_now(); } }
+                                    on:keydown=move |ev| {
+                                        if ev.key() == "Enter" { save_edit_now(); }
+                                        else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); set_is_editing_org.set(false); }
+                                    }
                                 />
                             }.into_any());
                         } else {
-                            let set_editing = set_is_editing_name;
                             parts.push(view! {
                                 <div class="asset-group-name"
-                                    on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); } }
+                                    on:click={name_click.clone()}
+                                    on:dblclick={name_dblclick.clone()}
                                 >{name_header.clone()}</div>
                             }.into_any());
                         }
@@ -235,22 +264,22 @@ pub(crate) fn PortfolioListItem(
                                 <input class="pf-edit-input" placeholder="Description"
                                     prop:value=move || edit_desc.get()
                                     on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
-                                    on:blur=save_edit
-                                    on:keydown=move |ev| { if ev.key() == "Enter" { save_edit_now(); } }
+                                    on:keydown=move |ev| {
+                                        if ev.key() == "Enter" { save_edit_now(); }
+                                        else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); set_is_editing_org.set(false); }
+                                    }
                                 />
                             }.into_any());
                         } else if !desc_header.is_empty() {
-                            let set_editing = set_is_editing_desc;
                             parts.push(view! {
                                 <div class="asset-group-desc"
-                                    on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); } }
+                                    on:click={desc_click.clone()}
+                                    on:dblclick={desc_dblclick.clone()}
                                 >{desc_header.clone()}</div>
                             }.into_any());
                         }
-                        // Image + emoji editor
-                        if (is_editing_name.get() || is_editing_desc.get()) && can_edit_here.get() {
-                            let save_cb = save_edit_callback.clone();
-                            let save_for_file = save_edit_callback.clone();
+                        // Image + emoji + organization editor
+                        if (is_editing_name.get() || is_editing_desc.get() || is_editing_org.get()) && can_edit_here.get() {
                             parts.push(view! {
                                 <input
                                     class="pf-edit-input"
@@ -258,12 +287,8 @@ pub(crate) fn PortfolioListItem(
                                     accept="image/*"
                                     aria-label="Portfolio image"
                                     on:change=move |ev| {
-                                        read_image_as_data_url(&ev, {
-                                            let save = save_for_file.clone();
-                                            move |url| {
-                                                set_edit_image_url.set(Some(url));
-                                                save.run(());
-                                            }
+                                        read_image_as_data_url(&ev, move |url| {
+                                            set_edit_image_url.set(Some(url));
                                         });
                                     }
                                 />
@@ -271,10 +296,7 @@ pub(crate) fn PortfolioListItem(
                                     class="pf-edit-input"
                                     aria-label="Portfolio emoji"
                                     prop:value={move || edit_emoji.get()}
-                                    on:change=move |ev| {
-                                        set_edit_emoji.set(event_target_value(&ev));
-                                        save_cb.run(());
-                                    }
+                                    on:change=move |ev| set_edit_emoji.set(event_target_value(&ev))
                                 >
                                     <option value="">"Default 🏢"</option>
                                     <option value="🏢">"🏢 Office"</option>
@@ -289,6 +311,25 @@ pub(crate) fn PortfolioListItem(
                                     <option value="🔬">"🔬 Research"</option>
                                     <option value="⚡">"⚡ Energy"</option>
                                 </select>
+                                <select
+                                    class="pf-edit-input"
+                                    aria-label="Organization"
+                                    prop:value={move || edit_org_id.get()}
+                                    on:change=move |ev| set_edit_org_id.set(event_target_value(&ev))
+                                >
+                                    <option value="">"(None)"</option>
+                                    {move || available_orgs.get().into_iter().map(|o| view! {
+                                        <option value={o.id.to_string()} selected=move || edit_org_id.get() == o.id.to_string()>{o.name.clone()}</option>
+                                    }).collect::<Vec<_>>()}
+                                </select>
+                                <div style="display:flex;gap:6px;margin-top:4px;">
+                                    <button class="login-btn" on:click=move |_| save_edit_now()>"Save"</button>
+                                    <button class="view-btn" on:click=move |_| {
+                                        set_is_editing_name.set(false);
+                                        set_is_editing_desc.set(false);
+                                        set_is_editing_org.set(false);
+                                    }>"Cancel"</button>
+                                </div>
                             }.into_any());
                         }
                         // Asset count — double-click to expand

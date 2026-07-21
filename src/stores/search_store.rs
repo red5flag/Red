@@ -446,7 +446,14 @@ impl SearchStore {
 
     fn asset_matches(a: &Asset, query: &str, filters: &SearchFilters) -> bool {
         let type_str = format!("{:?}", a.asset_type).to_lowercase();
-        let status_str = format!("{:?}", a.status).to_lowercase();
+        let status_str = format!(
+            "{} {} {} {}",
+            a.lifecycle_status.as_str(),
+            a.availability_status.as_str(),
+            a.condition_status.as_str(),
+            a.commercial_status.as_str()
+        )
+        .to_lowercase();
         let matches_query = query.is_empty()
             || a.name.to_lowercase().contains(query)
             || a.description

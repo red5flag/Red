@@ -1,5 +1,5 @@
 use super::roles::{default_org_roles, OrgRole};
-use crate::types::OrganizationSettings;
+use crate::types::{name_code_slug, OrganizationSettings};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -8,6 +8,8 @@ use uuid::Uuid;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Organization {
     pub id: Uuid,
+    #[serde(default)]
+    pub code: String,
     pub name: String,
     pub description: Option<String>,
     pub owner_id: Uuid,
@@ -31,8 +33,10 @@ pub struct Organization {
 impl Organization {
     pub fn new(name: String, owner_id: Uuid) -> Self {
         let now = Utc::now();
+        let code = format!("ORG-{}", name_code_slug(&name));
         Self {
             id: Uuid::new_v4(),
+            code,
             name,
             description: None,
             owner_id,

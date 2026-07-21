@@ -1,5 +1,6 @@
 pub mod accessibility_settings;
 pub mod account_settings;
+pub mod api_test;
 pub mod data_settings;
 pub mod display_settings;
 pub mod notification_settings;
@@ -20,6 +21,7 @@ pub enum SettingsTab {
     TwoFactorAuth,
     Data,
     Developer,
+    ApiTest,
 }
 
 impl SettingsTab {
@@ -34,6 +36,7 @@ impl SettingsTab {
             SettingsTab::TwoFactorAuth => "2FA",
             SettingsTab::Data => "Data",
             SettingsTab::Developer => "Developer",
+            SettingsTab::ApiTest => "API",
         }
     }
 }

@@ -1237,7 +1237,7 @@ html, body {
 .asset-viewer {
     width: 100%;
     margin-top: 0;
-    padding-bottom: 8px;
+    padding-bottom: 0;
 }
 
 .asset-section {
@@ -2264,7 +2264,7 @@ html, body {
     background: var(--secondary-bg);
 }
 .pf-accordion > .pf-org-group.expanded {
-    border-bottom: none;
+    border-bottom: 2px solid var(--primary);
 }
 .pf-accordion > .pf-org-group > .pf-org-group-content.hidden {
     display: none;
@@ -6064,6 +6064,10 @@ html, body {
     text-align: left;
 }
 
+.home-screen-pf .context-menu-item {
+    background: rgba(255, 255, 255, 0.1);
+}
+
 .context-menu-item:last-child {
     border-bottom: none;
 }
@@ -6461,6 +6465,10 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
     transition: background 0.15s;
+}
+
+.home-screen-pf .sort-dropdown-item {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .sort-dropdown-item:hover {
@@ -9430,9 +9438,12 @@ html, body {
 .ai-doc-slider-item {
     flex-shrink: 0;
     width: 72px;
+    aspect-ratio: 1 / 1;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 0;
     padding: 0;
     background: var(--primary-bg);
@@ -9443,6 +9454,8 @@ html, body {
     cursor: pointer;
     transition: border-color 0.15s;
     text-align: center;
+    position: relative;
+    overflow: hidden;
 }
 .ai-doc-slider-item:hover {
     border-color: var(--highlight);
@@ -9478,6 +9491,41 @@ html, body {
     font-weight: 700;
     color: var(--text-secondary);
     letter-spacing: 0.5px;
+}
+
+.ai-doc-tooltip {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    background: var(--accent-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--highlight);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    max-width: 200px;
+    white-space: normal;
+    word-break: break-word;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+.ai-doc-notif {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: #ef4444;
+    border-radius: 8px;
+    line-height: 1;
+    z-index: 2;
 }
 
 .ai-list-docs {
@@ -9723,9 +9771,16 @@ html, body {
     border-top: 1px solid var(--border-color);
     background: var(--primary-bg);
     padding: clamp(10px, 1.5vh, 16px) clamp(12px, 1.5vw, 20px);
+    padding-bottom: 0;
     display: flex;
     flex-direction: column;
     gap: clamp(12px, 1.8vh, 18px);
+}
+.ai-detail-panel .ai-channels-section {
+    padding-bottom: 0;
+}
+.ai-detail-panel .assignment-panel {
+    padding-bottom: 0;
 }
 
 .ai-detail-tabs {
@@ -14002,7 +14057,7 @@ html, body {
 }
 .org-sub-tab.active {
     color: var(--text-primary);
-    border-bottom-color: var(--highlight);
+    border-bottom-color: transparent;
     background: var(--depth-1-bg);
 }
 

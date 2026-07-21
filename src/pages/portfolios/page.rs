@@ -1,5 +1,8 @@
 use crate::components::tabs::use_tab_edit_mode;
-use crate::models::{Asset, AssetGroup, AssetStatus, Channel, Organization, Portfolio};
+use crate::models::{
+    Asset, AssetGroup, AvailabilityStatus, Channel, CommercialStatus, ConditionStatus,
+    LifecycleStatus, Organization, Portfolio,
+};
 use crate::stores::{
     use_app_store, use_notification_store, use_organization_store, use_ui_store,
     NotificationDrawerFilter,
@@ -10,8 +13,8 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, read_image_as_data_url, AddPortfolioModal, AssetTarget, NotifTarget,
-    NotificationContentView, NotificationQuickSettings, PortfolioListItem,
+    asset_placeholder_url, name_click_handlers, read_image_as_data_url, AddPortfolioModal,
+    AssetTarget, NotifTarget, NotificationContentView, NotificationQuickSettings, PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -783,6 +786,44 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     let org_color = org.settings.color.clone();
                                     let org_image_url = org.image_url.clone();
                                     let org_image_ref = NodeRef::<leptos::html::Input>::new();
+                                    let (is_editing_org_name, set_is_editing_org_name) = signal(false);
+                                    let (is_editing_org_desc, set_is_editing_org_desc) = signal(false);
+                                    let (edit_org_name, set_edit_org_name) = signal(org.name.clone());
+                                    let (edit_org_desc, set_edit_org_desc) = signal(org.description.clone().unwrap_or_default());
+                                    let can_edit_org = move || can_edit(Some(org_id));
+                                    let save_org_edit = move || {
+                                        let n = edit_org_name.get();
+                                        let d = edit_org_desc.get();
+                                        if n.trim().is_empty() {
+                                            return;
+                                        }
+                                        organization_store.update(|s| {
+                                            if let Some(o) = s.get_organization_mut(org_id) {
+                                                o.name = n;
+                                                o.description = if d.trim().is_empty() { None } else { Some(d) };
+                                                o.updated_at = chrono::Utc::now();
+                                            }
+                                        });
+                                        set_is_editing_org_name.set(false);
+                                        set_is_editing_org_desc.set(false);
+                                    };
+                                    let toggle_org = move || {
+                                        set_expanded_orgs.update(|s| {
+                                            if s.contains(&org_id) {
+                                                s.remove(&org_id);
+                                            } else {
+                                                s.insert(org_id);
+                                            }
+                                        });
+                                    };
+                                    let (org_name_click, org_name_dblclick) = name_click_handlers(
+                                        toggle_org.clone(),
+                                        move || if can_edit_org() { set_is_editing_org_name.set(true); },
+                                    );
+                                    let (org_desc_click, org_desc_dblclick) = name_click_handlers(
+                                        toggle_org,
+                                        move || if can_edit_org() { set_is_editing_org_desc.set(true); },
+                                    );
                                     let is_expanded = move || expanded_orgs.get().contains(&org_id);
                                     view! {
                                         <div class="pf-org-group" class:expanded={move || is_expanded()}>
@@ -790,13 +831,17 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                 aria-expanded={move || is_expanded()}
                                                 on:click=move |ev: leptos::ev::MouseEvent| {
                                                     ev.stop_propagation();
-                                                    set_expanded_orgs.update(|s| { if s.contains(&org_id) { s.remove(&org_id); } else { s.insert(org_id); }});
+                                                    if !is_editing_org_name.get() && !is_editing_org_desc.get() {
+                                                        set_expanded_orgs.update(|s| { if s.contains(&org_id) { s.remove(&org_id); } else { s.insert(org_id); }});
+                                                    }
                                                 }
                                                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                                                     if ev.key() == "Enter" || ev.key() == " " {
                                                         ev.prevent_default();
                                                         ev.stop_propagation();
-                                                        set_expanded_orgs.update(|s| { if s.contains(&org_id) { s.remove(&org_id); } else { s.insert(org_id); }});
+                                                        if !is_editing_org_name.get() && !is_editing_org_desc.get() {
+                                                            set_expanded_orgs.update(|s| { if s.contains(&org_id) { s.remove(&org_id); } else { s.insert(org_id); }});
+                                                        }
                                                     }
                                                 }
                                             >
@@ -838,8 +883,44 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                     }}
                                                 </div>
                                                 <div class="asset-group-info-wrap">
-                                                    <div class="asset-group-name">{org_name}</div>
-                                                    {if !org_desc.is_empty() { view! { <div class="asset-group-desc">{org_desc}</div> }.into_any() } else { ().into_any() }}
+                                                    {move || {
+                                                        let mut parts: Vec<leptos::prelude::AnyView> = Vec::new();
+                                                        if is_editing_org_name.get() && can_edit_org() {
+                                                            parts.push(view! {
+                                                                <input class="pf-edit-input" placeholder="Organization name"
+                                                                    prop:value=move || edit_org_name.get()
+                                                                    on:input=move |ev| set_edit_org_name.set(event_target_value(&ev))
+                                                                    on:blur=move |_| save_org_edit()
+                                                                    on:keydown=move |ev| { if ev.key() == "Enter" { save_org_edit(); } }
+                                                                />
+                                                            }.into_any());
+                                                        } else {
+                                                            parts.push(view! {
+                                                                <div class="asset-group-name"
+                                                                    on:click={org_name_click.clone()}
+                                                                    on:dblclick={org_name_dblclick.clone()}
+                                                                >{org_name.clone()}</div>
+                                                            }.into_any());
+                                                        }
+                                                        if is_editing_org_desc.get() && can_edit_org() {
+                                                            parts.push(view! {
+                                                                <input class="pf-edit-input" placeholder="Description"
+                                                                    prop:value=move || edit_org_desc.get()
+                                                                    on:input=move |ev| set_edit_org_desc.set(event_target_value(&ev))
+                                                                    on:blur=move |_| save_org_edit()
+                                                                    on:keydown=move |ev| { if ev.key() == "Enter" { save_org_edit(); } }
+                                                                />
+                                                            }.into_any());
+                                                        } else if !org_desc.is_empty() {
+                                                            parts.push(view! {
+                                                                <div class="asset-group-desc"
+                                                                    on:click={org_desc_click.clone()}
+                                                                    on:dblclick={org_desc_dblclick.clone()}
+                                                                >{org_desc.clone()}</div>
+                                                            }.into_any());
+                                                        }
+                                                        parts.into_iter().collect_view().into_any()
+                                                    }}
                                                 </div>
                                             </div>
                                             <div class="pf-org-group-content" class:hidden={move || !is_expanded()}>
@@ -1207,9 +1288,24 @@ fn create_mock_asset(
     current: f64,
     uploaded_by: Uuid,
 ) -> Asset {
-    let id = Uuid::new_v4();
-    let image_url = asset_placeholder_url(&asset_type, name);
-    let docs = vec![
+    let mut asset = Asset::new(name.to_string(), asset_type.clone(), purchase);
+    asset.update_value(current);
+    asset.description = Some(
+        "Open Rose Rental Duplex 112, Open Rose Court, Coolangatta, QLD, 4269.".to_string(),
+    );
+    asset.location = Some("Coolangatta, QLD, 4269".to_string());
+    asset.lifecycle_status = LifecycleStatus::Active;
+    asset.availability_status = AvailabilityStatus::Available;
+    asset.condition_status = ConditionStatus::New;
+    asset.commercial_status = CommercialStatus::NotOffered;
+    asset.classification.manufacturer = Some("Mock Manufacturer".to_string());
+    asset.classification.model = Some("Mock Model".to_string());
+    asset.classification.serial_number = Some(format!("SN-{}", Uuid::new_v4()));
+    asset.lifecycle.warranty_start_date = Some(chrono::Utc::now());
+    asset.lifecycle.warranty_expiry_date =
+        Some(chrono::Utc::now() + chrono::Duration::days(365));
+    asset.images = vec![asset_placeholder_url(&asset_type, name)];
+    asset.documents = vec![
         ("Title Deed", "pdf"),
         ("Inspection Report", "pdf"),
         ("Valuation", "xlsx"),
@@ -1230,58 +1326,12 @@ fn create_mock_asset(
         uploaded_by,
     })
     .collect();
-    Asset {
-        id,
-        name: name.to_string(),
-        description: Some(
-            format!("Open Rose Rental Duplex 112, Open Rose Court, Coolangatta, QLD, 4269.")
-                .to_string(),
-        ),
-        asset_type,
-        location: Some("Coolangatta, QLD, 4269".to_string()),
-        organization_id: None,
-        purchase_value: purchase,
-        current_value: current,
-        profit_loss: current - purchase,
-        profit_loss_percent: ((current - purchase) / purchase) * 100.0,
-        revenue: 0.0,
-        purchase_date: chrono::Utc::now(),
-        last_accessed_at: chrono::Utc::now(),
-        images: vec![image_url],
-        documents: docs,
-        tags: vec![],
-        status: AssetStatus::Active,
-        metadata: serde_json::json!({}),
-        assigned_workers: vec![],
-        quick_sale_enabled: false,
-        notification_settings: vec![],
-        calendar_events: vec![],
-        channel_ids: vec![],
-    }
+    asset.initialize_with_creator(uploaded_by, None);
+    asset
 }
 fn create_mock_asset_group(name: &str, assets: Vec<Asset>) -> AssetGroup {
-    let mut group = AssetGroup {
-        id: Uuid::new_v4(),
-        name: name.to_string(),
-        description: None,
-        organization_id: None,
-        assets,
-        total_value: 0.0,
-        purchase_value: 0.0,
-        profit_loss: 0.0,
-        profit_loss_percent: 0.0,
-        revenue: 0.0,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-        tags: vec![],
-        documents: vec![],
-        calendar_events: vec![],
-        assigned_users: vec![],
-        notification_settings: vec![],
-        channel_ids: vec![],
-        image_url: None,
-        emoji: None,
-    };
+    let mut group = AssetGroup::new(name.to_string());
+    group.assets = assets;
     group.recalculate_values();
     group
 }

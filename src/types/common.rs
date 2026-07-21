@@ -72,6 +72,44 @@ impl std::fmt::Display for Currency {
     }
 }
 
+impl Currency {
+    pub fn country_code(&self) -> String {
+        match self {
+            Currency::USD => "US".to_string(),
+            Currency::EUR => "EU".to_string(),
+            Currency::GBP => "GB".to_string(),
+            Currency::JPY => "JP".to_string(),
+            Currency::CAD => "CA".to_string(),
+            Currency::AUD => "AU".to_string(),
+            Currency::CNY => "CN".to_string(),
+            Currency::Custom(s) => s.chars().take(2).collect::<String>().to_uppercase(),
+        }
+    }
+}
+
+/// Generate a fixed-width numeric suffix from a UUID for human-readable codes.
+pub fn short_uuid_suffix(id: Uuid, width: usize) -> String {
+    let divisor = 10_u128.pow(width as u32);
+    let n = (id.as_u128() % divisor) as u64;
+    format!("{:0width$}", n, width = width)
+}
+
+/// Convert a name into an uppercase, hyphen-separated slug for codes.
+pub fn name_code_slug(name: &str) -> String {
+    name.to_uppercase().replace(' ', "-")
+}
+
+/// Short uppercase token taken from the first word of a name (up to 5 chars).
+pub fn short_name_token(name: &str) -> String {
+    name.split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_uppercase()
+        .chars()
+        .take(5)
+        .collect()
+}
+
 // Payment intervals
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PaymentInterval {
@@ -168,6 +206,37 @@ impl AssetType {
             "intellectualproperty" => AssetType::IntellectualProperty,
             "channel" => AssetType::Channel,
             _ => AssetType::Custom(s.trim().to_string()),
+        }
+    }
+
+    /// Known asset type labels (matches from_input/to_input_string for non-custom variants).
+    pub fn all_labels() -> Vec<&'static str> {
+        vec![
+            "RealEstate",
+            "Vehicle",
+            "Equipment",
+            "Stock",
+            "Bond",
+            "Commodity",
+            "Digital",
+            "IntellectualProperty",
+            "Channel",
+        ]
+    }
+
+    /// Common subtype/build options for this asset type.
+    pub fn common_subtypes(&self) -> Vec<&'static str> {
+        match self {
+            AssetType::RealEstate => vec!["House", "Apartment", "Unit", "Townhouse", "Land", "Commercial", "Industrial", "Retail"],
+            AssetType::Vehicle => vec!["Car", "Truck", "Van", "Motorcycle", "Boat", "Trailer", "Bus", "RV"],
+            AssetType::Equipment => vec!["Machinery", "Tools", "Electronics", "Furniture", "Appliances", "IT Hardware"],
+            AssetType::Stock => vec!["Shares", "Bonds", "ETF", "Options", "Futures"],
+            AssetType::Bond => vec!["Government", "Corporate", "Municipal", "Junk"],
+            AssetType::Commodity => vec!["Agricultural", "Metals", "Energy", "Livestock"],
+            AssetType::Digital => vec!["Cryptocurrency", "Software", "Domain", "NFT", "License"],
+            AssetType::IntellectualProperty => vec!["Patent", "Trademark", "Copyright", "Trade Secret"],
+            AssetType::Channel => vec!["Airbnb", "BookingCom", "Expedia", "Vrbo", "Direct", "Website"],
+            AssetType::Custom(_) => vec!["Custom"],
         }
     }
 }

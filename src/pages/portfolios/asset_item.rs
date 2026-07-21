@@ -5,12 +5,13 @@ use crate::stores::{
 };
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
+use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, document_icon, read_images_as_data_urls, shorthand_name,
-    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
-    DocumentViewer, UserAssignmentPanel,
+    detect_file_type, document_icon, name_click_handlers, read_images_as_data_urls,
+    shorthand_name, AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
+    DocModal, DocumentViewer, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -78,7 +79,6 @@ pub(crate) fn AssetItem(
             .unwrap_or_else(|| asset_placeholder_url(&asset_type_for_placeholder, &asset_name_for_placeholder))
     });
     let max_images = if asset.organization_id.is_some() { 100usize } else { 50usize };
-    let has_channels = Memo::new(move |_| !app_store.get().channels_for_asset(asset_id).is_empty());
     let asset_for_highlight = asset.clone();
     let (expanded_detail, set_expanded_detail) = signal(false);
     let (collapsed, set_collapsed) = signal(collapsible);
@@ -133,12 +133,26 @@ pub(crate) fn AssetItem(
     let (edit_name, set_edit_name) = signal(asset.name.clone());
     let (edit_desc, set_edit_desc) = signal(asset.description.clone().unwrap_or_default());
     let (edit_loc, set_edit_loc) = signal(asset.location.clone().unwrap_or_default());
+    let (edit_asset_type, set_edit_asset_type) = signal(asset.asset_type.clone());
+    let (edit_asset_subtype, set_edit_asset_subtype) = signal(asset.asset_subtype.clone().unwrap_or_default());
+    let (edit_org_id, set_edit_org_id) = signal(asset.organization_id.map(|id| id.to_string()).unwrap_or_default());
+    let (editing_type_build, set_editing_type_build) = signal(false);
+    let (editing_address, set_editing_address) = signal(false);
+    let (editing_org, set_editing_org) = signal(false);
+    let (address_suggestions, set_address_suggestions) = signal(Vec::<String>::new());
 
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
+
+    let (name_click, name_dblclick) = name_click_handlers(
+        move || set_collapsed.update(|v| *v = !*v),
+        move || if can_edit_here.get() { set_editing.set(true); set_collapsed.set(false); },
+    );
     let user_id = app_store.get().current_user.id;
     let assigned_workers = asset.assigned_workers.clone();
-    let can_add_images = Memo::new(move |_| can_edit_here.get() || assigned_workers.contains(&user_id));
+    let can_reorder_images = Memo::new(move |_| {
+        can_edit_here.get() || can_edit_documents_here.get() || assigned_workers.contains(&user_id)
+    });
     // doc sort: 0 = recent, 1 = name
     let (_doc_sort, _set_doc_sort) = signal(0u8);
     let (_detail_tab, _set_detail_tab) = signal(0u8);
@@ -227,10 +241,23 @@ pub(crate) fn AssetItem(
     });
 
     let a_name = asset.name.clone();
-    let a_addr = asset.location.clone().unwrap_or_default();
-    let a_addr_grid = if a_addr.is_empty() { "\u{00A0}".to_string() } else { a_addr.clone() };
+    let a_addr = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .flat_map(|p| p.assets.iter().chain(p.asset_groups.iter().flat_map(|g| g.assets.iter())))
+            .find(|a| a.id == asset_id)
+            .and_then(|a| a.location.clone())
+            .unwrap_or_default()
+    });
+    let a_addr_grid = Memo::new(move |_| {
+        let addr = a_addr.get();
+        if addr.is_empty() { "\u{00A0}".to_string() } else { addr }
+    });
     let a_name_tx = a_name.clone();
     let a_org_id = asset.organization_id;
+    let addr_datalist_id = format!("addr-datalist-{}", asset_id);
     let organization_store = use_organization_store();
 
     // Permission-based flags for linking and booking controls
@@ -268,14 +295,29 @@ pub(crate) fn AssetItem(
             .map(|o| o.name.clone())
             .unwrap_or_else(|| "—".to_string())
     };
+    let available_orgs = Memo::new(move |_| {
+        organization_store
+            .get()
+            .organizations
+            .iter()
+            .filter(|o| o.members.contains(&current_user_id) || o.owner_id == current_user_id)
+            .cloned()
+            .collect::<Vec<_>>()
+    });
     let asset_name_for_modal = asset.name.clone();
     let asset_name_for_confirm = asset.name.clone();
     let (_asset_name_signal, _set_asset_name) = signal(a_name.clone());
     // snapshot values for the detail panel
     let a_type = format!("{:?}", asset.asset_type);
     let a_type_grid = a_type.clone();
+    let a_subtype_grid = asset.asset_subtype.clone().unwrap_or_else(|| "—".to_string());
     let _a_desc = asset.description.clone().unwrap_or_else(|| "—".to_string());
-    let _a_status = format!("{:?}", asset.status);
+    let a_status_badges = asset.status_badges();
+    let a_status_label = a_status_badges
+        .iter()
+        .map(|(label, value)| format!("{}: {}", label, value))
+        .collect::<Vec<_>>()
+        .join(", ");
     let _a_purchase_val = asset.purchase_value;
     let a_current_val = asset.current_value;
     let _a_pl = asset.profit_loss;
@@ -287,6 +329,88 @@ pub(crate) fn AssetItem(
         "negative"
     };
     let _a_purchase_date = asset.purchase_date.format("%d %b %Y").to_string();
+
+    // OpenStreetMap/Nominatim address autocomplete generation counter.
+    let address_gen = Arc::new(AtomicU64::new(0));
+
+    let save_type_build = move || {
+        let t = edit_asset_type.get();
+        let st = edit_asset_subtype.get();
+        app_store.update(|s| {
+            for p in s.portfolios.iter_mut() {
+                let all: Vec<_> = p
+                    .assets
+                    .iter_mut()
+                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                    .collect();
+                for a in all {
+                    if a.id == asset_id {
+                        a.asset_type = t;
+                        a.asset_subtype = if st.trim().is_empty() {
+                            None
+                        } else {
+                            Some(st.clone())
+                        };
+                        a.updated_at = chrono::Utc::now();
+                        return;
+                    }
+                }
+            }
+        });
+        set_editing_type_build.set(false);
+    };
+
+    let save_address = move || {
+        let l = edit_loc.get();
+        app_store.update(|s| {
+            for p in s.portfolios.iter_mut() {
+                let all: Vec<_> = p
+                    .assets
+                    .iter_mut()
+                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                    .collect();
+                for a in all {
+                    if a.id == asset_id {
+                        a.location = if l.trim().is_empty() {
+                            None
+                        } else {
+                            Some(l.clone())
+                        };
+                        a.updated_at = chrono::Utc::now();
+                        return;
+                    }
+                }
+            }
+        });
+        set_editing_address.set(false);
+        set_address_suggestions.set(Vec::new());
+    };
+
+    let save_org = move || {
+        let oid_str = edit_org_id.get();
+        let oid = if oid_str.trim().is_empty() {
+            None
+        } else {
+            Uuid::parse_str(&oid_str).ok()
+        };
+        app_store.update(|s| {
+            for p in s.portfolios.iter_mut() {
+                let all: Vec<_> = p
+                    .assets
+                    .iter_mut()
+                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                    .collect();
+                for a in all {
+                    if a.id == asset_id {
+                        a.organization_id = oid;
+                        a.updated_at = chrono::Utc::now();
+                        return;
+                    }
+                }
+            }
+        });
+        set_editing_org.set(false);
+    };
 
     let save_edit = move || {
         let n = edit_name.get();
@@ -438,7 +562,7 @@ pub(crate) fn AssetItem(
             class:ai-item-collapsible={collapsible}
             class:ai-item-collapsed={move || collapsed.get()}
             style={tint_style.clone()}
-            aria-label={format!("Asset {}. Type {}. In {}. {}", a_name, a_type_grid, pname, if a_addr.is_empty() { "No address set" } else { a_addr.as_str() })}
+            aria-label=move || { let addr = a_addr.get(); format!("Asset {}. Type {}. In {}. {}", a_name, a_type_grid, pname, if addr.is_empty() { "No address set" } else { addr.as_str() }) }
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 if can_edit_here.get() {
                     ev.prevent_default();
@@ -457,7 +581,6 @@ pub(crate) fn AssetItem(
                         aria-controls={content_id_for_header.clone()}
                         aria-label={format!("Asset {}. Type {}. {}", a_name_header, a_type_header, if collapsed.get() { "Collapsed" } else { "Expanded" })}
                         on:click=move |_| if !editing.get() { set_collapsed.update(|v| *v = !*v) }
-                        on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_editing.set(true); set_collapsed.set(false); } }
                         on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                             if ev.key() == "Enter" || ev.key() == " " {
                                 ev.prevent_default();
@@ -467,8 +590,8 @@ pub(crate) fn AssetItem(
                     >
                         <img class="ai-list-image" src={image_url} alt={a_name_header.clone()} />
                         <div class="ai-collapsible-summary">
-                            <div class="ai-collapsible-name">{a_name_header.clone()}</div>
-                            <div class="ai-collapsible-meta">{format!("{} · ${:.2}", a_type_header, a_val_header)}</div>
+                            <div class="ai-collapsible-name" on:click={name_click.clone()} on:dblclick={name_dblclick.clone()}>{a_name_header.clone()}</div>
+                            <div class="ai-collapsible-meta">{format!("{} · ${:.2} · {}", a_type_header, a_val_header, a_status_label)}</div>
                             {let channel_count = asset.channel_ids.len();
                             let channel_ids = asset.channel_ids.clone();
                             move || if !channel_ids.is_empty() {
@@ -515,7 +638,7 @@ pub(crate) fn AssetItem(
                             move || {
                                 let images = asset_images.get();
                                 let count = images.len();
-                                let can_add = can_add_images.get() && count < max_images;
+                                let can_add = count < max_images;
                                 let a_name_add = a_name_slider.clone();
                                 let a_name_images = a_name_slider.clone();
                                 view! {
@@ -550,7 +673,7 @@ pub(crate) fn AssetItem(
                                                 <div class="ai-image-slider-item"
                                                     class:ai-image-dragging={is_dragged}
                                                     class:ai-image-drag-over={is_drag_over}
-                                                    draggable={move || if can_add_images.get() { "true" } else { "false" }}
+                                                    draggable={move || if can_reorder_images.get() { "true" } else { "false" }}
                                                     on:dragstart=move |_| { set_dragged_idx.set(Some(idx)); }
                                                     on:dragover=move |ev: leptos::ev::DragEvent| {
                                                         ev.prevent_default();
@@ -581,41 +704,6 @@ pub(crate) fn AssetItem(
                             }
                         }}
                     </div>
-                    // Detail grid inline (always visible)
-                    <div class="pf-detail-grid pf-detail-grid-inline">
-                        <div class="pf-detail-cell">
-                            <span class="pf-detail-label">"TYPE & BUILD"</span>
-                            <span class="pf-detail-value">{a_type_grid.clone()}</span>
-                        </div>
-                        <div class="pf-detail-cell">
-                            <span class="pf-detail-label">"ADDRESS"</span>
-                            <span class="pf-detail-value">{a_addr_grid.clone()}</span>
-                        </div>
-                        <div class="pf-detail-cell">
-                            <span class="pf-detail-label">"ORGANIZATION"</span>
-                            <span class="pf-detail-value">{a_org_name()}</span>
-                        </div>
-                        <div class="pf-detail-cell">
-                            <span class="pf-detail-label">"PRICE"</span>
-                            <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
-                        </div>
-                    </div>
-                    {move || if has_channels.get() { view! {
-                        <div class="ai-controls-row">
-                            <AssetLinkingControls
-                                asset_id={asset_id}
-                                asset_name={asset_name_signal.get()}
-                                portfolio_id={portfolio_id}
-                                can_link={can_link()}
-                            />
-                            <AssetBookingControls
-                                asset_id={asset_id}
-                                asset_name={asset_name_signal.get()}
-                                portfolio_id={portfolio_id}
-                                can_book={can_book()}
-                            />
-                        </div>
-                    }.into_any() } else { ().into_any() }}
                     // Horizontal document slider with + Document card
                     <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
                         // + Document card (always first)
@@ -645,6 +733,30 @@ pub(crate) fn AssetItem(
                                 let (doc_ctx_menu_y, set_doc_ctx_menu_y) = signal(0i32);
                                 let (show_doc_ctx_menu, set_show_doc_ctx_menu) = signal(false);
                                 let (viewing, set_viewing) = signal(false);
+                                let (show_tooltip, set_show_tooltip) = signal(false);
+                                let (tooltip_x, set_tooltip_x) = signal(0i32);
+                                let (tooltip_y, set_tooltip_y) = signal(0i32);
+                                let tooltip_text = dname.clone();
+                                let update_tooltip_pos = {
+                                    let set_x = set_tooltip_x.clone();
+                                    let set_y = set_tooltip_y.clone();
+                                    let text = tooltip_text.clone();
+                                    move |ev: leptos::ev::MouseEvent| {
+                                        let Some(window) = web_sys::window() else { return; };
+                                        let Some(vw) = window.inner_width().ok().and_then(|v| v.as_f64()) else { return; };
+                                        let Some(vh) = window.inner_height().ok().and_then(|v| v.as_f64()) else { return; };
+                                        let offset = 12.0;
+                                        let (mut tx, mut ty) = (ev.client_x() as f64 + offset, ev.client_y() as f64 + offset);
+                                        let char_count = text.chars().count();
+                                        let lines = ((char_count + 29) / 30).max(1).min(5);
+                                        let tw = ((char_count.min(30) as f64 * 7.0 + 16.0)).min(200.0);
+                                        let th = lines as f64 * 14.0 + 8.0;
+                                        if tx + tw > vw { tx = (ev.client_x() as f64 - tw - offset).max(4.0); }
+                                        if ty + th > vh { ty = (ev.client_y() as f64 - th - offset).max(4.0); }
+                                        set_x.set(tx as i32);
+                                        set_y.set(ty as i32);
+                                    }
+                                };
                                 view! {
                                     <div class="ai-doc-slider-item"
                                         aria-label={format!("View document {}. Type {}", dname, ft)}
@@ -656,6 +768,15 @@ pub(crate) fn AssetItem(
                                             set_doc_ctx_menu_y.set(ev.client_y());
                                             set_show_doc_ctx_menu.set(true);
                                         }
+                                        on:mouseenter={
+                                            let update_tooltip_pos = update_tooltip_pos.clone();
+                                            move |ev: leptos::ev::MouseEvent| {
+                                                set_show_tooltip.set(true);
+                                                update_tooltip_pos(ev);
+                                            }
+                                        }
+                                        on:mousemove=update_tooltip_pos
+                                        on:mouseleave=move |_| set_show_tooltip.set(false)
                                     >
                                         <div class="ai-doc-slider-thumb">{icon}</div>
                                         <div class="ai-doc-slider-name">{short_name}</div>
@@ -664,15 +785,23 @@ pub(crate) fn AssetItem(
                                             let ncount = notification_store.get().notifications_for_doc(doc_id_for_notif);
                                             if ncount > 0 {
                                                 view! {
-                                                    <span class="pf-notif-badge pf-notif-badge-inline" role="status" aria-live="polite"
-                                aria-label={format!("{} pending document review{}", ncount, if ncount == 1 { "" } else { "s" })}
-                                title={format!("{} notification{}", ncount, if ncount == 1 { "" } else { "s" })}>
-                                                        "🔔"
-                                                        <span class="pf-notif-count" aria-hidden="true">{ncount}</span>
+                                                    <span class="ai-doc-notif" role="status" aria-live="polite"
+                                                        aria-label={format!("{} pending document review{}", ncount, if ncount == 1 { "" } else { "s" })}
+                                                        title={format!("{} notification{}", ncount, if ncount == 1 { "" } else { "s" })}>
+                                                        {ncount}
                                                     </span>
                                                 }.into_any()
                                             } else { ().into_any() }
                                             }}
+                                        {move || if show_tooltip.get() {
+                                            let text = tooltip_text.clone();
+                                            view! {
+                                                <div class="ai-doc-tooltip"
+                                                    style=move || format!("left:{}px;top:{}px", tooltip_x.get(), tooltip_y.get())>
+                                                    {text}
+                                                </div>
+                                            }.into_any()
+                                        } else { ().into_any() }}
                                     </div>
                                     {move || if viewing.get() {
                                         let d = doc_for_view.clone();
@@ -721,6 +850,139 @@ pub(crate) fn AssetItem(
                                     } else { ().into_any() }}
                                 }
                             }
+                        />
+                    </div>
+                    // Detail grid inline (always visible)
+                    <div class="pf-detail-grid pf-detail-grid-inline">
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_type_build.set(true); } }>
+                            <span class="pf-detail-label">"TYPE & BUILD"</span>
+                            {let type_grid = a_type_grid.clone();
+                            let subtype_grid = a_subtype_grid.clone();
+                            move || if can_edit_here.get() && editing_type_build.get() {
+                                view! {
+                                    <div style="display:flex;flex-direction:column;gap:4px;">
+                                        <select class="pf-edit-input"
+                                            prop:value=move || edit_asset_type.get().to_input_string()
+                                            on:change=move |ev| {
+                                                let new_type = AssetType::from_input(&event_target_value(&ev));
+                                                let st = edit_asset_subtype.get();
+                                                let subs = new_type.common_subtypes();
+                                                if !subs.iter().any(|s| s.to_lowercase() == st.trim().to_lowercase()) {
+                                                    set_edit_asset_subtype.set(subs.first().copied().unwrap_or("").to_string());
+                                                }
+                                                set_edit_asset_type.set(new_type);
+                                            }>
+                                            {move || {
+                                                let labels = AssetType::all_labels();
+                                                let current = edit_asset_type.get().to_input_string();
+                                                let mut opts: Vec<String> = labels.into_iter().map(|l| l.to_string()).collect();
+                                                if !current.trim().is_empty() && !opts.iter().any(|o| o.as_str() == current.as_str()) {
+                                                    opts.push(current.clone());
+                                                }
+                                                opts.into_iter().map(|o| view! { <option value={o.clone()} selected=move || edit_asset_type.get().to_input_string() == o>{o.clone()}</option> }).collect::<Vec<_>>()
+                                            }}
+                                        </select>
+                                        <select class="pf-edit-input"
+                                            prop:value=move || edit_asset_subtype.get()
+                                            on:change=move |ev| set_edit_asset_subtype.set(event_target_value(&ev))>
+                                            {move || {
+                                                let t = edit_asset_type.get();
+                                                let st = edit_asset_subtype.get();
+                                                let mut opts: Vec<String> = t.common_subtypes().into_iter().map(|s| s.to_string()).collect();
+                                                if !st.trim().is_empty() && !opts.iter().any(|o| o.to_lowercase() == st.trim().to_lowercase()) {
+                                                    opts.push(st.clone());
+                                                }
+                                                opts.into_iter().map(|s| view! { <option value={s.clone()} selected=move || edit_asset_subtype.get() == s>{s.clone()}</option> }).collect::<Vec<_>>()
+                                            }}
+                                        </select>
+                                        <div style="display:flex;gap:6px;">
+                                            <button class="login-btn" on:click=move |_| save_type_build()>"Save"</button>
+                                            <button class="view-btn" on:click=move |_| set_editing_type_build.set(false)>"Cancel"</button>
+                                        </div>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! { <span class="pf-detail-value">{format!("{} / {}", type_grid, subtype_grid)}</span> }.into_any()
+                            }}
+                        </div>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_address.set(true); } }>
+                            <span class="pf-detail-label">"ADDRESS"</span>
+                            {move || if can_edit_here.get() && editing_address.get() {
+                                view! {
+                                    <div style="display:flex;flex-direction:column;gap:4px;">
+                                        <input class="pf-edit-input" type="text" list={addr_datalist_id.clone()}
+                                            prop:value=move || edit_loc.get()
+                                            on:input={
+                                                let address_gen = address_gen.clone();
+                                                move |ev| {
+                                                    let v = event_target_value(&ev);
+                                                    set_edit_loc.set(v.clone());
+                                                    if v.trim().len() < 3 {
+                                                        set_address_suggestions.set(Vec::new());
+                                                        return;
+                                                    }
+                                                    let gen = address_gen.fetch_add(1, Ordering::SeqCst) + 1;
+                                                    let address_gen = address_gen.clone();
+                                                    let query = v.clone();
+                                                    leptos::task::spawn_local(async move {
+                                                        gloo_timers::future::TimeoutFuture::new(300).await;
+                                                        if address_gen.load(Ordering::SeqCst) != gen {
+                                                            return;
+                                                        }
+                                                        match crate::server::openmaps_autocomplete(query).await {
+                                                            Ok(sugs) => set_address_suggestions.set(sugs),
+                                                            Err(_) => set_address_suggestions.set(Vec::new()),
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                            on:change=move |_| save_address()
+                                            on:keydown=move |ev: leptos::ev::KeyboardEvent| { if ev.key() == "Escape" { set_editing_address.set(false); } }
+                                        />
+                                        <datalist id={addr_datalist_id.clone()}>
+                                            {move || address_suggestions.get().into_iter().map(|s| view! { <option value={s.clone()}>{s.clone()}</option> }).collect::<Vec<_>>()}
+                                        </datalist>
+                                        <button class="view-btn" on:click=move |_| { set_editing_address.set(false); set_address_suggestions.set(Vec::new()); }>"Cancel"</button>
+                                    </div>
+                                }.into_any()
+                            } else {
+                                view! { <span class="pf-detail-value">{move || a_addr_grid.get()}</span> }.into_any()
+                            }}
+                        </div>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_org.set(true); } }>
+                            <span class="pf-detail-label">"ORGANIZATION"</span>
+                            {move || if can_edit_here.get() && editing_org.get() {
+                                view! {
+                                    <select class="pf-edit-input"
+                                        prop:value=move || edit_org_id.get()
+                                        on:change=move |ev| { set_edit_org_id.set(event_target_value(&ev)); save_org(); }>
+                                        <option value="">"(None)"</option>
+                                        {move || available_orgs.get().into_iter().map(|o| view! {
+                                            <option value={o.id.to_string()} selected=move || edit_org_id.get() == o.id.to_string()>{o.name.clone()}</option>
+                                        }).collect::<Vec<_>>()}
+                                    </select>
+                                }.into_any()
+                            } else {
+                                view! { <span class="pf-detail-value">{a_org_name()}</span> }.into_any()
+                            }}
+                        </div>
+                        <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"PRICE"</span>
+                            <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
+                        </div>
+                    </div>
+                    <div class="ai-controls-row">
+                        <AssetLinkingControls
+                            asset_id={asset_id}
+                            asset_name={asset_name_signal.get()}
+                            portfolio_id={portfolio_id}
+                            can_link={can_link()}
+                        />
+                        <AssetBookingControls
+                            asset_id={asset_id}
+                            asset_name={asset_name_signal.get()}
+                            portfolio_id={portfolio_id}
+                            can_book={can_book()}
                         />
                     </div>
                 </div>
@@ -1256,137 +1518,5 @@ pub(crate) fn AssetItem(
             }.into_any() } else { ().into_any() }}
         </div>
     }.into_any()
-    }
-}
-
-#[component]
-pub(crate) fn AssetDetailView(
-    asset: Asset,
-    #[prop(default = None)] portfolio_id: Option<Uuid>,
-    #[prop(into)] can_edit: Signal<bool>,
-    on_close: Callback<()>,
-) -> impl IntoView {
-    let app_store = use_app_store();
-    let asset_id = asset.id;
-    let user_id = app_store.get().current_user.id;
-    let assigned_workers = asset.assigned_workers.clone();
-    let can_add_images = Memo::new(move |_| can_edit.get() || assigned_workers.contains(&user_id));
-    let (local_asset, set_local_asset) = signal(asset);
-
-    let add_image = Callback::new(move |url: String| {
-        if let Some(pid) = portfolio_id {
-            app_store.update(|s| {
-                if let Some(p) = s.get_portfolio_mut(pid) {
-                    let max = if local_asset.get().organization_id.is_some() { 100 } else { 50 };
-                    let all: Vec<_> = p
-                        .assets
-                        .iter_mut()
-                        .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
-                        .collect();
-                    for a in all {
-                        if a.id == asset_id && a.images.len() < max {
-                            a.images.push(url.clone());
-                            break;
-                        }
-                    }
-                }
-            });
-        }
-        set_local_asset.update(|a| {
-            let max = if a.organization_id.is_some() { 100 } else { 50 };
-            if a.images.len() < max {
-                a.images.push(url.clone());
-            }
-        });
-    });
-
-    view! {
-        {move || {
-            let asset = local_asset.get();
-            let icon = match asset.asset_type {
-                AssetType::RealEstate => "🏢",
-                AssetType::Vehicle => "🚗",
-                AssetType::Equipment => "⚙️",
-                AssetType::Stock => "📈",
-                AssetType::Bond => "📜",
-                AssetType::Commodity => "🌾",
-                AssetType::Digital => "💻",
-                AssetType::IntellectualProperty => "💡",
-                AssetType::Channel => "📡",
-                AssetType::Custom(_) => "📦",
-            };
-            let pl_class = if asset.profit_loss >= 0.0 { "positive" } else { "negative" };
-            let max_images = if asset.organization_id.is_some() { 100 } else { 50 };
-            let can_add = can_add_images.get() && asset.images.len() < max_images;
-            let name = asset.name.clone();
-            let images = asset.images;
-
-            view! {
-                <div class="asset-detail-overlay" on:click=move |_| on_close.run(())>
-                    <div class="asset-detail" on:click=|ev| ev.stop_propagation()>
-                        <div class="asset-detail-header">
-                            <div class="asset-detail-icon">{icon}</div>
-                            <div class="asset-detail-title">{name.clone()}</div>
-                            <button class="asset-detail-close" aria-label={format!("Close details for {}", name)} on:click=move |_| on_close.run(())>"✕"</button>
-                        </div>
-                        <div class="asset-detail-body">
-                            <div class="asset-detail-row">
-                                <span class="asset-detail-label">"Type"</span>
-                                <span class="asset-detail-value">{format!("{:?}", asset.asset_type)}</span>
-                            </div>
-                            <div class="asset-detail-row">
-                                <span class="asset-detail-label">"Location"</span>
-                                <span class="asset-detail-value">{asset.location.clone().unwrap_or_else(|| "—".to_string())}</span>
-                            </div>
-                            <div class="asset-detail-row">
-                                <span class="asset-detail-label">"Current Value"</span>
-                                <span class="asset-detail-value">{format!("${:.2}M", asset.current_value / 1000000.0)}</span>
-                            </div>
-                            <div class="asset-detail-row">
-                                <span class="asset-detail-label">"Profit/Loss"</span>
-                                <span class={format!("asset-detail-value {}", pl_class)}
-                                    aria-label={format!("Profit/Loss is {}: ${:+.0}K", if asset.profit_loss >= 0.0 { "positive" } else { "negative" }, asset.profit_loss / 1000.0)}>
-                                    {format!("${:+.0}K", asset.profit_loss / 1000.0)}
-                                </span>
-                            </div>
-                            <div class="asset-detail-row">
-                                <span class="asset-detail-label">"Organization"</span>
-                                <span class="asset-detail-value">{asset.organization_id.map(|id| id.to_string()).unwrap_or_else(|| "Unassigned".to_string())}</span>
-                            </div>
-                            <div class="asset-detail-row">
-                                <span class="asset-detail-label">"Status"</span>
-                                <span class="asset-detail-value">{format!("{:?}", asset.status)}</span>
-                            </div>
-                            <div class="asset-detail-images">
-                                {if can_add { view! {
-                                    <div class="asset-detail-img asset-detail-add-image" title="Add image">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            class="ai-image-file-input"
-                                            on:change=move |ev| {
-                                                read_images_as_data_urls(&ev, {
-                                                    let cb = add_image.clone();
-                                                    move |url| cb.run(url)
-                                                });
-                                            }
-                                        />
-                                        <span>"➕"</span>
-                                    </div>
-                                }.into_any() } else { ().into_any() }}
-                                {if images.is_empty() && !can_add {
-                                    view! { <div class="asset-detail-no-image">"No images"</div> }.into_any()
-                                } else {
-                                    images.into_iter().map(|url| view! {
-                                        <img class="asset-detail-img" src={url} alt={format!("Image of {}", name)} />
-                                    }).collect::<Vec<_>>().into_any()
-                                }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
-        }}
     }
 }

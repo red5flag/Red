@@ -13,7 +13,7 @@ serde_json = "1.0"
 tokio = { version = "1.35", features = ["macros", "sync", "rt"], optional = true }
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.6", features = ["v4", "serde", "js"] }
+uuid = { version = "1.6", features = ["v4", "v7", "serde", "js"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 

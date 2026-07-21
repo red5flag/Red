@@ -401,10 +401,74 @@ pub(crate) fn AssetLinkingControls(
     let (editing_channel, set_editing_channel) = signal(Option::<Uuid>::None);
     let on_close_channel_window = Callback::new(move |_| set_editing_channel.set(None));
 
-    let link_test_channel = Callback::new(move |_| {
-        let name = format!("Test Channel - {}", asset_name_signal.get_untracked());
-        let channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
-        app_store.update(|s| s.add_channel(channel));
+    let (show_add_form, set_show_add_form) = signal(false);
+    let (new_channel_name, set_new_channel_name) = signal(String::new());
+    let (new_channel_type, set_new_channel_type) = signal("Test".to_string());
+    let (new_channel_rate, set_new_channel_rate) = signal(String::new());
+    let (add_error, set_add_error) = signal(Option::<String>::None);
+
+    let add_channel = Callback::new(move |_| {
+        set_add_error.set(None);
+        let mut name = new_channel_name.get_untracked().trim().to_string();
+        if name.is_empty() {
+            name = format!("Test Channel - {}", asset_name_signal.get_untracked());
+        }
+        let rate = if new_channel_rate.get_untracked().trim().is_empty() {
+            None
+        } else {
+            match new_channel_rate.get_untracked().trim().parse::<f64>() {
+                Ok(v) if v >= 0.0 => Some(v),
+                _ => {
+                    set_add_error.set(Some("Invalid nightly rate".to_string()));
+                    return;
+                }
+            }
+        };
+        let channel_type = match new_channel_type.get_untracked().as_str() {
+            "Airbnb" => ChannelType::Airbnb,
+            "BookingCom" => ChannelType::BookingCom,
+            "Expedia" => ChannelType::Expedia,
+            "Vrbo" => ChannelType::Vrbo,
+            "LinkedIn" => ChannelType::LinkedIn,
+            _ => ChannelType::Test,
+        };
+        let mut channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
+        channel.channel_type = channel_type;
+        channel.nightly_rate_override = rate;
+        let cid = channel.id;
+        app_store.update(|s| {
+            s.add_channel(channel);
+            if let Some(pid) = portfolio_id {
+                if let Some(p) = s.get_portfolio_mut(pid) {
+                    if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                    } else {
+                        for g in p.asset_groups.iter_mut() {
+                            if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                                a.channel_ids.push(cid);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                for p in s.portfolios.iter_mut() {
+                    if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                        break;
+                    }
+                    for g in p.asset_groups.iter_mut() {
+                        if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                            a.channel_ids.push(cid);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+        set_new_channel_name.set(String::new());
+        set_new_channel_rate.set(String::new());
+        set_show_add_form.set(false);
     });
 
     let connect_channel = Callback::new(move |channel_id: Uuid| {
@@ -496,7 +560,16 @@ pub(crate) fn AssetLinkingControls(
                 <span class="ai-channel-management-title">"Linking Controls"</span>
                 {move || if can_link {
                     view! {
-                        <button class="pf-small-btn" on:click=move |_| link_test_channel.run(())>"Link Test Channel"</button>
+                        <button class="pf-small-btn" on:click=move |_| {
+                            set_show_add_form.update(|v| *v = !*v);
+                            if show_add_form.get_untracked() {
+                                set_new_channel_name.set(format!("Test Channel - {}", asset_name_signal.get_untracked()));
+                            } else {
+                                set_new_channel_name.set(String::new());
+                            }
+                        }>
+                            {move || if show_add_form.get() { "Cancel" } else { "Add Channel" }}
+                        </button>
                     }.into_any()
                 } else { ().into_any() }}
             </div>
@@ -524,6 +597,29 @@ pub(crate) fn AssetLinkingControls(
                     </div>
                 }.into_any()
             }}
+
+            {move || if show_add_form.get() && can_link { view! {
+                <div class="ai-channel-management-form">
+                    {move || add_error.get().map(|m| view! { <div class="ai-form-error">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
+                    <label>"Name"
+                        <input type="text" prop:value={move || new_channel_name.get()} on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) style="width: 120px" />
+                    </label>
+                    <label>"Type"
+                        <select prop:value={move || new_channel_type.get()} on:change=move |ev| set_new_channel_type.set(event_target_value(&ev))>
+                            <option value="Test">"Test"</option>
+                            <option value="Airbnb">"Airbnb"</option>
+                            <option value="BookingCom">"Booking.com"</option>
+                            <option value="Expedia">"Expedia"</option>
+                            <option value="Vrbo">"Vrbo"</option>
+                            <option value="LinkedIn">"LinkedIn"</option>
+                        </select>
+                    </label>
+                    <label>"Rate"
+                        <input type="text" prop:value={move || new_channel_rate.get()} on:input=move |ev| set_new_channel_rate.set(event_target_value(&ev)) placeholder="0" style="width: 60px" />
+                    </label>
+                    <button class="pf-small-btn" on:click=move |_| add_channel.run(())>"Add"</button>
+                </div>
+            }.into_any() } else { ().into_any() }}
 
             {move || {
                 let channels = channels_for_asset.get();

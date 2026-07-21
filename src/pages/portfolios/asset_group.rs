@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, read_image_as_data_url, single_sentence, AssetItem, AssetTarget, DocModal,
-    NotifTarget, UserAssignmentPanel,
+    detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetItem,
+    AssetTarget, DocModal, NotifTarget, UserAssignmentPanel,
 };
 
 #[component]
@@ -63,6 +63,16 @@ pub(crate) fn AssetGroupItem(
     let (group_org_name, set_group_org_name) = signal(String::new());
     let (edit_name, set_edit_name) = signal(group.name.clone());
     let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
+
+    let (name_click, name_dblclick) = name_click_handlers(
+        move || on_toggle.run(gid),
+        move || if can_edit_here.get() { set_is_editing.set(true); },
+    );
+    let (desc_click, desc_dblclick) = name_click_handlers(
+        move || on_toggle.run(gid),
+        move || if can_edit_here.get() { set_is_editing.set(true); },
+    );
+
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
     let (new_asset_id, set_new_asset_id) = signal(Option::<Uuid>::None);
@@ -210,7 +220,6 @@ pub(crate) fn AssetGroupItem(
                     ev.stop_propagation();
                     if !is_editing.get() { on_toggle.run(gid); }
                 }
-                on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); set_is_editing.set(true); } }
                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                     if ev.key() == "Enter" || ev.key() == " " {
                         ev.prevent_default();
@@ -265,7 +274,7 @@ pub(crate) fn AssetGroupItem(
                         view! { <span>{group_emoji.clone()}</span> }.into_any()
                     }}
                 </div>
-                <div class="asset-group-info-wrap" on:click=|ev| ev.stop_propagation()>
+                <div class="asset-group-info-wrap">
                     {let g_name_header = g_name.clone();
                     let g_desc_header = g_desc.clone();
                     let group_channel_ids = group.channel_ids.clone();
@@ -290,9 +299,9 @@ pub(crate) fn AssetGroupItem(
                         let has_channels = channel_count > 0;
                         view! {
                             <div>
-                                <div class="asset-group-name">{g_name_header.clone()}</div>
+                                <div class="asset-group-name" on:click={name_click.clone()} on:dblclick={name_dblclick.clone()}>{g_name_header.clone()}</div>
                                 {if !g_desc_header.is_empty() {
-                                    view! { <div class="asset-group-desc">{g_desc_header.clone()}</div> }.into_any()
+                                    view! { <div class="asset-group-desc" on:click={desc_click.clone()} on:dblclick={desc_dblclick.clone()}>{g_desc_header.clone()}</div> }.into_any()
                                 } else { ().into_any() }}
                                 <div class="asset-group-count">{
                                     if asset_count == 0 && has_channels {

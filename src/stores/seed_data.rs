@@ -1,6 +1,8 @@
 use crate::models::{
-    Asset, Booking, BookingSource, BookingStatus, CalendarEvent, Channel, ChannelType,
-    ConnectionStatus, Organization, Portfolio, SyncDirection, User,
+    Asset, AssetRelationship, AssetRelationshipPartyType, AssetRelationshipType, AvailabilityStatus,
+    Booking, BookingSource, BookingStatus, CalendarEvent, Channel, ChannelType, CommercialStatus,
+    ConditionStatus, ConnectionStatus, LifecycleStatus, Organization, Portfolio, RelatedParty,
+    SyncDirection, User,
 };
 use crate::stores::app_store::AppStore;
 use crate::stores::notifications::{NotificationStore, NotificationType};
@@ -62,10 +64,22 @@ pub fn seed_red_family_data(
     red_co.business_phone = Some("1".to_string());
     red_co.business_email = Some("1".to_string());
 
+    let mut red_sales = Organization::new("RedSales".to_string(), owner_id);
+    let red_sales_id = red_sales.id;
+    red_sales.description = Some("RedSales — sales workflow test organization".to_string());
+    red_sales.settings.color = Some("#ef4444".to_string());
+    red_sales.business_type = Some("Company".to_string());
+    red_sales.abn = Some("1".to_string());
+    red_sales.lei = Some("1".to_string());
+    red_sales.business_address = Some("1 RedSales Way, Melbourne VIC 3000, Australia".to_string());
+    red_sales.business_phone = Some("+61 1 234 567 890".to_string());
+    red_sales.business_email = Some("contact@redsales.com".to_string());
+
     organization_store.organizations.push(red_org);
     organization_store.organizations.push(red_corp);
     organization_store.organizations.push(red_comp);
     organization_store.organizations.push(red_co);
+    organization_store.organizations.push(red_sales);
     organization_store.current_organization_id = Some(red_org_id);
 
     // Red as Owner in RedOrg (same ID as current user).
@@ -98,10 +112,19 @@ pub fn seed_red_family_data(
     red_worker.id = owner_id;
     red_worker.organization_id = Some(red_co_id);
 
+    let mut red_sales_user = User::new(
+        "Red".to_string(),
+        "red@redsales.com".to_string(),
+        UserRole::Director,
+    );
+    red_sales_user.id = owner_id;
+    red_sales_user.organization_id = Some(red_sales_id);
+
     organization_store.organization_users.push(red_owner);
     organization_store.organization_users.push(red_director);
     organization_store.organization_users.push(red_manager);
     organization_store.organization_users.push(red_worker);
+    organization_store.organization_users.push(red_sales_user);
 
     // Add Red to every organization's member list.
     for org in &mut organization_store.organizations {
@@ -133,6 +156,14 @@ pub fn seed_red_family_data(
         owner_id,
         "RedWorker Portfolio",
         "RedWorker Equipment Asset",
+    ));
+
+    // RedSales portfolio with a sales asset.
+    app_store.portfolios.push(seed_org_portfolio(
+        red_sales_id,
+        owner_id,
+        "RedSales Portfolio",
+        "Sales",
     ));
 
     seed_notred_data(app_store, organization_store, notification_store);
@@ -182,8 +213,203 @@ pub fn seed_red_family_data(
         }
     }
 
+    // RedAsset test organization with a populated portfolio.
+    seed_redasset_data(app_store, organization_store);
+
     // Start Red as Owner of RedOrg; role updates when switching organizations.
     app_store.current_user.role = UserRole::Owner;
+}
+
+/// Seed the RedAsset organization and a portfolio with diverse, fully populated assets.
+pub fn seed_redasset_data(
+    app_store: &mut AppStore,
+    organization_store: &mut OrganizationStore,
+) {
+    let owner_id = app_store.current_user.id;
+    let owner_name = app_store.current_user.name.clone();
+    let owner_email = app_store.current_user.email.clone();
+    let user_name = Some(owner_name.clone());
+
+    let mut redasset = Organization::new("RedAsset".to_string(), owner_id);
+    let redasset_id = redasset.id;
+    redasset.description = Some("RedAsset — test organization for asset management UI".to_string());
+    redasset.settings.color = Some("#ef4444".to_string());
+    redasset.business_type = Some("Company".to_string());
+    redasset.abn = Some("12 345 678 901".to_string());
+    redasset.lei = Some("12345678901234567890".to_string());
+    redasset.business_address = Some("123 RedAsset Way, Melbourne VIC 3000, Australia".to_string());
+    redasset.business_phone = Some("+61 1 234 567 890".to_string());
+    redasset.business_email = Some("contact@redasset.com".to_string());
+    redasset.add_member(owner_id);
+    organization_store.organizations.push(redasset);
+
+    let mut redasset_user = User::new(owner_name, owner_email, UserRole::Owner);
+    redasset_user.id = owner_id;
+    redasset_user.organization_id = Some(redasset_id);
+    organization_store.organization_users.push(redasset_user);
+
+    let mut p = Portfolio::new(
+        "RedAsset Test Portfolio".to_string(),
+        owner_id,
+        crate::types::Currency::USD,
+    );
+    p.organization_id = Some(redasset_id);
+    p.description = Some("Test portfolio for the RedAsset organization".to_string());
+
+    // Equipment asset
+    let mut equip = Asset::new(
+        "RedAsset CNC Milling Machine".to_string(),
+        crate::types::AssetType::Equipment,
+        250_000.0,
+    );
+    equip.organization_id = Some(redasset_id);
+    equip.reference_code = Some("AREQ-001".to_string());
+    equip.description = Some("Industrial 5-axis CNC mill for precision components.".to_string());
+    equip.location = Some("RedAsset Workshop, Brisbane".to_string());
+    equip.update_value(230_000.0);
+    equip.initialize_with_creator(owner_id, user_name.clone());
+    equip.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, Some("Initial setup"));
+    equip.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::Available, Some("Ready for use"));
+    equip.set_condition_status(owner_id, user_name.clone(), ConditionStatus::Good, None);
+    equip.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::InternalUseOnly, None);
+    equip.classification.manufacturer = Some("Haas".to_string());
+    equip.classification.model = Some("VF-2SS".to_string());
+    equip.classification.serial_number = Some("SN-HAAS-11223".to_string());
+    equip.classification.sku = Some("SKU-CNC-VF2SS".to_string());
+    equip.lifecycle.commissioning_date = Some(chrono::Utc::now() - chrono::Duration::days(365));
+    equip.lifecycle.warranty_start_date = Some(chrono::Utc::now() - chrono::Duration::days(365));
+    equip.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365 * 4));
+    equip.lifecycle.expected_useful_life = Some("10 years".to_string());
+    let maintainer_name = "RedAsset Maintenance Pty Ltd".to_string();
+    let maintainer = RelatedParty {
+        name: maintainer_name.clone(),
+        contact: Some("maintenance@redasset.example".to_string()),
+        party_type: AssetRelationshipPartyType::ServiceProvider,
+        party_id: None,
+    };
+    equip.record_ownership_change(owner_id, user_name.clone(), AssetRelationshipType::MaintenanceProvider.as_str(), None, Some(&maintainer_name), None);
+    equip.relationships.push(AssetRelationship::new(AssetRelationshipType::MaintenanceProvider, maintainer));
+    p.assets.push(equip);
+
+    // Vehicle asset
+    let mut vehicle = Asset::new(
+        "RedAsset Service Van".to_string(),
+        crate::types::AssetType::Vehicle,
+        45_000.0,
+    );
+    vehicle.organization_id = Some(redasset_id);
+    vehicle.reference_code = Some("ARVH-002".to_string());
+    vehicle.description = Some("Ford Transit service van for site visits.".to_string());
+    vehicle.location = Some("RedAsset Depot, Brisbane".to_string());
+    vehicle.update_value(42_000.0);
+    vehicle.initialize_with_creator(owner_id, user_name.clone());
+    vehicle.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
+    vehicle.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::InUse, None);
+    vehicle.set_condition_status(owner_id, user_name.clone(), ConditionStatus::Good, None);
+    vehicle.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::InternalUseOnly, None);
+    vehicle.classification.manufacturer = Some("Ford".to_string());
+    vehicle.classification.model = Some("Transit 350L".to_string());
+    vehicle.classification.vin = Some("1FTBW2XM9HKA12345".to_string());
+    vehicle.classification.registration_number = Some("ARVAN-02".to_string());
+    vehicle.classification.model_year = Some("2023".to_string());
+    vehicle.lifecycle.commissioning_date = Some(chrono::Utc::now() - chrono::Duration::days(180));
+    vehicle.lifecycle.warranty_start_date = Some(chrono::Utc::now() - chrono::Duration::days(180));
+    vehicle.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365 * 3));
+    let custodian_name = "RedAsset Fleet Team".to_string();
+    let custodian = RelatedParty {
+        name: custodian_name.clone(),
+        contact: Some("fleet@redasset.example".to_string()),
+        party_type: AssetRelationshipPartyType::Team,
+        party_id: None,
+    };
+    vehicle.record_custodian_change(owner_id, user_name.clone(), None, Some(&custodian_name), None);
+    vehicle.relationships.push(AssetRelationship::new(AssetRelationshipType::CurrentCustodian, custodian));
+    p.assets.push(vehicle);
+
+    // Real estate asset
+    let mut warehouse = Asset::new(
+        "RedAsset Warehouse".to_string(),
+        crate::types::AssetType::RealEstate,
+        1_200_000.0,
+    );
+    warehouse.organization_id = Some(redasset_id);
+    warehouse.reference_code = Some("ARRE-003".to_string());
+    warehouse.description = Some("Industrial warehouse with loading dock and offices.".to_string());
+    warehouse.location = Some("45 Logistics Drive, Brisbane QLD 4000".to_string());
+    warehouse.update_value(1_350_000.0);
+    warehouse.initialize_with_creator(owner_id, user_name.clone());
+    warehouse.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
+    warehouse.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::Available, None);
+    warehouse.set_condition_status(owner_id, user_name.clone(), ConditionStatus::Excellent, None);
+    warehouse.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::NotOffered, None);
+    warehouse.classification.title = Some("Title Ref: 123456/7".to_string());
+    warehouse.classification.lot = Some("Lot 12".to_string());
+    warehouse.classification.plan = Some("SP 987654".to_string());
+    warehouse.lifecycle.commissioning_date = Some(chrono::Utc::now() - chrono::Duration::days(365 * 2));
+    warehouse.lifecycle.warranty_start_date = Some(chrono::Utc::now() - chrono::Duration::days(365 * 2));
+    warehouse.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365 * 10));
+    warehouse.lifecycle.expected_useful_life = Some("30 years".to_string());
+    let owner_party = RelatedParty {
+        name: "RedAsset Holdings Pty Ltd".to_string(),
+        contact: Some("legal@redasset.example".to_string()),
+        party_type: AssetRelationshipPartyType::Organization,
+        party_id: None,
+    };
+    warehouse.record_ownership_change(owner_id, user_name.clone(), AssetRelationshipType::LegalOwner.as_str(), None, Some("RedAsset Holdings Pty Ltd"), None);
+    warehouse.relationships.push(AssetRelationship::new(AssetRelationshipType::LegalOwner, owner_party));
+    p.assets.push(warehouse);
+
+    // Stock asset
+    let mut shares = Asset::new(
+        "RedAsset Tech Shares".to_string(),
+        crate::types::AssetType::Stock,
+        100_000.0,
+    );
+    shares.organization_id = Some(redasset_id);
+    shares.reference_code = Some("ARST-004".to_string());
+    shares.description = Some("Portfolio of ASX-listed technology securities.".to_string());
+    shares.update_value(125_000.0);
+    shares.initialize_with_creator(owner_id, user_name.clone());
+    shares.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
+    shares.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::Available, None);
+    shares.set_condition_status(owner_id, user_name.clone(), ConditionStatus::New, None);
+    shares.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::ListedForSale, Some("Placed on market"));
+    shares.classification.licence = Some("HIN: X123456789".to_string());
+    shares.lifecycle.expected_useful_life = Some("Indefinite".to_string());
+    p.assets.push(shares);
+
+    // Digital asset
+    let mut license = Asset::new(
+        "RedAsset Software License".to_string(),
+        crate::types::AssetType::Digital,
+        10_000.0,
+    );
+    license.organization_id = Some(redasset_id);
+    license.reference_code = Some("ARDG-005".to_string());
+    license.description = Some("Enterprise SaaS license for design tools.".to_string());
+    license.location = Some("Cloud hosted".to_string());
+    license.update_value(8_000.0);
+    license.initialize_with_creator(owner_id, user_name.clone());
+    license.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
+    license.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::InUse, None);
+    license.set_condition_status(owner_id, user_name.clone(), ConditionStatus::New, None);
+    license.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::InternalUseOnly, None);
+    license.classification.domain = Some("redasset.example".to_string());
+    license.classification.renewal_date = Some((chrono::Utc::now() + chrono::Duration::days(365)).format("%Y-%m-%d").to_string());
+    license.lifecycle.expected_useful_life = Some("1 year".to_string());
+    let supplier_name = "DesignSaaS Vendor".to_string();
+    let supplier = RelatedParty {
+        name: supplier_name.clone(),
+        contact: Some("renewals@designsaas.example".to_string()),
+        party_type: AssetRelationshipPartyType::Supplier,
+        party_id: None,
+    };
+    license.record_ownership_change(owner_id, user_name.clone(), AssetRelationshipType::Supplier.as_str(), None, Some(&supplier_name), None);
+    license.relationships.push(AssetRelationship::new(AssetRelationshipType::Supplier, supplier));
+    p.assets.push(license);
+
+    p.recalculate_values();
+    app_store.portfolios.push(p);
 }
 
 pub fn seed_org_portfolio(org_id: Uuid, owner_id: Uuid, name: &str, asset_name: &str) -> Portfolio {

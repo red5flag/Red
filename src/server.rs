@@ -1,6 +1,41 @@
 use crate::models::Portfolio;
 use leptos::prelude::*;
 
+/// Nominatim/OpenStreetMap search result (subset of response fields).
+#[cfg(feature = "ssr")]
+#[derive(serde::Deserialize, Debug, Clone)]
+struct NominatimResult {
+    display_name: String,
+}
+
+#[server(OpenMapsAutocomplete, "/api")]
+pub async fn openmaps_autocomplete(query: String) -> Result<Vec<String>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        if query.trim().len() < 3 {
+            return Ok(Vec::new());
+        }
+        let client = reqwest::Client::new();
+        let res = client
+            .get("https://nominatim.openstreetmap.org/search")
+            .query(&[("format", "json"), ("q", &query), ("limit", "5")])
+            .header("User-Agent", "FarleyApp/0.1")
+            .send()
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        let text = res.text().await.map_err(|e| ServerFnError::new(e.to_string()))?;
+        let results: Vec<NominatimResult> =
+            serde_json::from_str(&text).map_err(|e| ServerFnError::new(e.to_string()))?;
+        Ok(results.into_iter().map(|r| r.display_name).collect())
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "OpenMaps autocomplete is only available on the server",
+        ))
+    }
+}
+
 #[server(SavePortfolio, "/api")]
 pub async fn save_portfolio(portfolio: Portfolio) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
