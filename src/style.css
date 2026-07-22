@@ -570,6 +570,54 @@ html, body {
     animation: nav-click-flash 1s ease-out;
 }
 
+/* Overview sort tools row in navbar (same style as portfolio controls row) */
+.navbar-row-overview-tools {
+    height: var(--bar-h);
+    min-height: var(--bar-h);
+    background: var(--accent-bg);
+    border-bottom: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    z-index: 999;
+}
+
+.navbar-row-overview-tools .nav-sort-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: clamp(14px, 2vh, 16px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.navbar-row-overview-tools .nav-sort-btn:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.navbar-row-overview-tools .nav-sort-btn.active {
+    background: var(--highlight);
+    color: #fff;
+}
+
 /* Contextual portfolio controls row (navbar row 2) */
 .navbar-row-portfolio {
     height: var(--bar-h);
@@ -1346,19 +1394,28 @@ html, body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: clamp(36px, 6vh, 52px);
+    height: clamp(36px, 6vh, 52px);
     margin-left: 8px;
 }
 .pf-accordion .pf-accordion-header .asset-group-icon .pf-org-color-tag {
-    width: 32px;
-    height: 32px;
+    width: 100%;
+    height: 100%;
     border-radius: 4px;
 }
 
+/* Uploaded logo/preview images scale to their container/screen */
+.pf-header-image {
+    max-width: 100%;
+    min-width: 0;
+    height: auto;
+    object-fit: contain;
+    display: block;
+}
+
 .asset-group-icon .pf-header-image {
-    width: 32px;
-    height: 32px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
     border-radius: 4px;
     background: var(--primary-bg);
@@ -8220,7 +8277,7 @@ html, body {
    OVERVIEW CONTENT
    ═══════════════════════════════════════════ */
 .overview-content {
-    padding: 2vh 3vw;
+    padding: calc(2vh + var(--bar-h)) 3vw 2vh 3vw;
     display: flex;
     flex-direction: column;
     gap: 2vh;
@@ -8486,9 +8543,55 @@ html, body {
     padding: 12px 0;
 }
 
+.overview-controls-bar {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.overview-sort-tab {
+    background: var(--secondary-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: clamp(10px, 1.5vh, 12px);
+    font-weight: 700;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.overview-sort-tab:hover {
+    border-color: var(--highlight);
+    color: var(--text-primary);
+}
+
+.overview-sort-tab.active {
+    background: var(--accent-bg);
+    border-color: var(--highlight);
+    color: var(--text-primary);
+}
+
+.overview-section-dragging {
+    opacity: 0.7;
+    border: 2px dashed var(--highlight) !important;
+    cursor: grabbing !important;
+}
+
+.overview-section-drag-over {
+    border-color: var(--highlight) !important;
+    background: var(--accent-bg) !important;
+}
+
 .overview-square-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-flow: dense;
+    grid-auto-rows: minmax(0, auto);
     gap: 12px;
     padding-bottom: 2vh;
     flex-shrink: 0;
@@ -8942,6 +9045,103 @@ html, body {
 .pf-action-stack .pf-action-count {
     font-size: clamp(12px, 1.6vh, 14px);
 }
+
+/* Portfolio documents dropdown (under parent tab) */
+.pf-doc-dropdown {
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: clamp(180px, 40vh, 320px);
+    display: flex;
+    flex-direction: column;
+}
+.pf-doc-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: clamp(6px, 1vh, 10px) clamp(10px, 1.5vw, 16px);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+}
+.pf-doc-dropdown-title {
+    font-weight: 600;
+    font-size: clamp(14px, 2vh, 18px);
+}
+.pf-doc-dropdown-close {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: clamp(14px, 2vh, 18px);
+    cursor: pointer;
+}
+.pf-doc-dropdown-body {
+    overflow-y: auto;
+    padding: clamp(6px, 1vh, 10px) clamp(10px, 1.5vw, 16px);
+    flex: 1 1 0;
+}
+.pf-doc-dropdown-empty {
+    color: var(--text-secondary);
+    font-size: clamp(12px, 1.8vh, 15px);
+    padding: 8px 0;
+}
+.pf-doc-dropdown-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: clamp(12px, 1.8vh, 15px);
+}
+.pf-doc-dropdown-row:last-child {
+    border-bottom: none;
+}
+.pf-doc-dropdown-icon {
+    flex-shrink: 0;
+}
+.pf-doc-dropdown-name {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pf-doc-dropdown-kind {
+    color: var(--text-secondary);
+    font-size: clamp(10px, 1.5vh, 12px);
+    flex-shrink: 0;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pf-doc-dropdown-type {
+    background: var(--primary-bg);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: clamp(10px, 1.4vh, 12px);
+    flex-shrink: 0;
+}
+.pf-doc-dropdown-view {
+    background: transparent;
+    border: none;
+    color: var(--highlight);
+    cursor: pointer;
+    font-size: clamp(11px, 1.6vh, 13px);
+    flex-shrink: 0;
+}
+.pf-doc-dropdown-footer {
+    display: flex;
+    gap: 8px;
+    padding: clamp(6px, 1vh, 10px) clamp(10px, 1.5vw, 16px);
+    border-top: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+}
+.pf-doc-dropdown-footer .pf-edit-input {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 .pf-notif-action-icon {
     position: relative;
     display: inline-flex;

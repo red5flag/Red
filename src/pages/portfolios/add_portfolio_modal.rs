@@ -40,7 +40,11 @@ pub(crate) fn AddPortfolioModal() -> impl IntoView {
         let owner_id = app_store.get().current_user.id;
         let mut p = Portfolio::new(name_str, owner_id, Currency::USD);
         let desc_str = desc.get().trim().to_string();
-        p.description = if desc_str.is_empty() { None } else { Some(desc_str) };
+        p.description = if desc_str.is_empty() {
+            None
+        } else {
+            Some(desc_str)
+        };
         p.image_url = image_url.get();
         if p.image_url.is_none() {
             p.emoji = Some(random_emoji().to_string());

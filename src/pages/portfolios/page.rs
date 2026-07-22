@@ -1,20 +1,17 @@
 use crate::components::tabs::use_tab_edit_mode;
 use crate::models::{
-    Asset, AssetGroup, AvailabilityStatus, Channel, CommercialStatus, ConditionStatus,
+    Asset, AssetGroup, AvailabilityStatus, Channel, CommercialStatus, ConditionStatus, Document,
     LifecycleStatus, Organization, Portfolio,
 };
-use crate::stores::{
-    use_app_store, use_notification_store, use_organization_store, use_ui_store,
-    NotificationDrawerFilter,
-};
+use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, name_click_handlers, read_image_as_data_url, AddPortfolioModal,
-    AssetTarget, NotifTarget, NotificationContentView, NotificationQuickSettings, PortfolioListItem,
+    asset_placeholder_url, detect_file_type, name_click_handlers, read_image_as_data_url,
+    AddPortfolioModal, AssetTarget, DocModal, PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -211,17 +208,13 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Modal signal for editing portfolio assets
     let (edit_portfolio_id, set_edit_portfolio_id) = signal(Option::<Uuid>::None);
     let (context_menu, set_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
+    let (pf_image_upload_target, set_pf_image_upload_target) = signal(Option::<Uuid>::None);
+    let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
     let (new_asset_name, set_new_asset_name) = signal(String::new());
     let (new_asset_type, set_new_asset_type) = signal(AssetType::RealEstate);
     let (new_asset_value, set_new_asset_value) = signal(String::new());
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
-
-    // Notification quick settings popover state (right-click / edit)
-    let (notif_qs_target, set_notif_qs_target) = signal(Option::<(NotifTarget, String)>::None);
-    // Notification content view popover state (left-click / read)
-    let (notif_content_target, set_notif_content_target) =
-        signal(Option::<(NotifTarget, String)>::None);
 
     // Context menu modal signals (Add Role, Add Organization)
     let (show_pf_add_role, set_show_pf_add_role) = signal(Option::<Uuid>::None);
@@ -399,21 +392,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                     ev.stop_propagation();
                     set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
                 }
-                on_open_notif_qs={Callback::new(move |(target, name, is_settings)| {
-                    if is_settings {
-                        set_notif_qs_target.set(Some((target, name)));
-                    } else {
-                        notification_store.update(|s| {
-                            s.clear_drawer_scope();
-                            s.set_drawer_filter(NotificationDrawerFilter::Portfolios);
-                            match target {
-                                NotifTarget::Portfolio(pid) => s.scope_drawer_to_portfolio(pid),
-                                NotifTarget::Group(pid, gid) => s.scope_drawer_to_group(pid, gid),
-                            }
-                            s.open_drawer();
-                        });
-                    }
-                })}
                 show_add_group={show_add_group}
                 set_show_add_group={set_show_add_group}
                 _new_group_name={new_group_name}
@@ -430,7 +408,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                 on_add_asset={on_add_asset}
                 view_mode={view_mode}
             />
-        }.into_any()
+        }
+        .into_any()
     };
 
     view! {
@@ -560,6 +539,29 @@ pub fn PortfoliosPage() -> impl IntoView {
                     }.into_any()
                 } else { ().into_any() }}
             </div>
+
+            // Hidden portfolio image uploader
+            <input
+                type="file"
+                accept="image/*"
+                style="display:none"
+                node_ref=pf_image_input_ref
+                on:change=move |ev| {
+                    read_image_as_data_url(&ev, {
+                        move |url| {
+                            if let Some(pid) = pf_image_upload_target.get() {
+                                app_store.update(|s| {
+                                    if let Some(p) = s.get_portfolio_mut(pid) {
+                                        p.image_url = Some(url);
+                                        p.updated_at = chrono::Utc::now();
+                                    }
+                                });
+                            }
+                            set_pf_image_upload_target.set(None);
+                        }
+                    });
+                }
+            />
 
             // Edit portfolio assets modal
             {move || edit_portfolio_id.get().map(|pid| {
@@ -782,6 +784,9 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 if let Some(org) = organization {
                                     let org_id = org.id;
                                     let org_name = org.name.clone();
+                                    let org_name_for_info = org_name.clone();
+                                    let org_name_for_aria = org_name.clone();
+                                    let org_name_for_modal = org_name.clone();
                                     let org_desc = org.description.clone().unwrap_or_default();
                                     let org_color = org.settings.color.clone();
                                     let org_image_url = org.image_url.clone();
@@ -791,6 +796,56 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     let (edit_org_name, set_edit_org_name) = signal(org.name.clone());
                                     let (edit_org_desc, set_edit_org_desc) = signal(org.description.clone().unwrap_or_default());
                                     let can_edit_org = move || can_edit(Some(org_id));
+                                    let org_doc_count = Memo::new(move |_| {
+                                        organization_store
+                                            .get()
+                                            .get_organization(org_id)
+                                            .map(|o| o.documents.len())
+                                            .unwrap_or(0)
+                                    });
+                                    let org_can_edit_docs = move || can_edit_documents(Some(org_id));
+                                    let add_org_doc = {
+                                        let app_store = app_store;
+                                        let organization_store = organization_store;
+                                        let notification_store = notification_store;
+                                        move |n: String| {
+                                            if n.trim().is_empty() {
+                                                return;
+                                            }
+                                            let ft = detect_file_type(&n);
+                                            let doc = Document {
+                                                id: Uuid::new_v4(),
+                                                name: n.clone(),
+                                                file_type: ft,
+                                                url: String::new(),
+                                                uploaded_at: chrono::Utc::now(),
+                                                uploaded_by: app_store.get().current_user.id,
+                                                content: None,
+                                            };
+                                            let doc_id = doc.id;
+                                            let uploader = app_store.get().current_user.name.clone();
+                                            organization_store.update(|s| {
+                                                if let Some(o) = s.get_organization_mut(org_id) {
+                                                    o.documents.push(doc);
+                                                    o.updated_at = chrono::Utc::now();
+                                                }
+                                            });
+                                            notification_store.update(|ns| {
+                                                ns.add_document_notification(
+                                                    doc_id,
+                                                    &n,
+                                                    &uploader,
+                                                    &format!("Document \"{}\" added to organization — pending review.", n),
+                                                    crate::stores::NotificationType::Info,
+                                                    None,
+                                                    Some(uploader.clone()),
+                                                    None,
+                                                    None,
+                                                    None,
+                                                );
+                                            });
+                                        }
+                                    };
                                     let save_org_edit = move || {
                                         let n = edit_org_name.get();
                                         let d = edit_org_desc.get();
@@ -899,7 +954,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                                 <div class="asset-group-name"
                                                                     on:click={org_name_click.clone()}
                                                                     on:dblclick={org_name_dblclick.clone()}
-                                                                >{org_name.clone()}</div>
+                                                                >{org_name_for_info.clone()}</div>
                                                             }.into_any());
                                                         }
                                                         if is_editing_org_desc.get() && can_edit_org() {
@@ -922,7 +977,31 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                         parts.into_iter().collect_view().into_any()
                                                     }}
                                                 </div>
+                                                <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
+                                                    <button class="pf-action-btn pf-doc-action-btn"
+                                                        class:active=move || ui_store.get().is_doc_modal_open(org_id)
+                                                        aria-label={move || format!("View documents for {} organization. {} document{}", org_name_for_aria, org_doc_count.get(), if org_doc_count.get() == 1 { "" } else { "s" })}
+                                                        on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(org_id))>
+                                                        <div class="pf-action-stack">
+                                                            <span class="pf-action-icon">"📄"</span>
+                                                            <span class="pf-action-count">{move || org_doc_count.get()}</span>
+                                                        </div>
+                                                    </button>
+                                                </div>
                                             </div>
+                                            {move || if ui_store.get().is_doc_modal_open(org_id) {
+                                                let add_cb = if org_can_edit_docs() { Some(Callback::new(add_org_doc)) } else { None };
+                                                view! {
+                                                    <DocModal
+                                                        entity_id={org_id}
+                                                        title={org_name_for_modal.clone()}
+                                                        on_close=move || ui_store.update(|s| s.close_doc_modal(org_id))
+                                                        can_edit={org_can_edit_docs()}
+                                                        on_add={add_cb}
+                                                        organization_id={Some(org_id)}
+                                                    />
+                                                }.into_any()
+                                            } else { ().into_any() }}
                                             <div class="pf-org-group-content" class:hidden={move || !is_expanded()}>
                                                 <For
                                                     each=move || portfolios.clone()
@@ -1030,6 +1109,18 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 class="context-menu-item"
                                 on:click=move |_| {
                                     set_context_menu.set(None);
+                                    set_pf_image_upload_target.set(Some(pid_doc));
+                                    if let Some(input) = pf_image_input_ref.get() {
+                                        let _ = input.click();
+                                    }
+                                }
+                            >
+                                "🖼 Add Image"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
                                     ui_store.update(|s| s.open_doc_modal(pid_doc));
                                 }
                             >
@@ -1097,28 +1188,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                             {content}
                         </div>
                     </div>
-                }.into_any()
-            })}
-
-            // Notification content view popover (left-click on bell badge)
-            {move || notif_content_target.get().map(|(target, name)| {
-                view! {
-                    <NotificationContentView
-                        target={target}
-                        entity_name={name}
-                        on_close=move || set_notif_content_target.set(None)
-                    />
-                }.into_any()
-            })}
-
-            // Notification quick settings popover (right-click on bell badge)
-            {move || notif_qs_target.get().map(|(target, name)| {
-                view! {
-                    <NotificationQuickSettings
-                        target={target}
-                        entity_name={name}
-                        on_close=move || set_notif_qs_target.set(None)
-                    />
                 }.into_any()
             })}
 
@@ -1290,9 +1359,8 @@ fn create_mock_asset(
 ) -> Asset {
     let mut asset = Asset::new(name.to_string(), asset_type.clone(), purchase);
     asset.update_value(current);
-    asset.description = Some(
-        "Open Rose Rental Duplex 112, Open Rose Court, Coolangatta, QLD, 4269.".to_string(),
-    );
+    asset.description =
+        Some("Open Rose Rental Duplex 112, Open Rose Court, Coolangatta, QLD, 4269.".to_string());
     asset.location = Some("Coolangatta, QLD, 4269".to_string());
     asset.lifecycle_status = LifecycleStatus::Active;
     asset.availability_status = AvailabilityStatus::Available;
@@ -1302,8 +1370,7 @@ fn create_mock_asset(
     asset.classification.model = Some("Mock Model".to_string());
     asset.classification.serial_number = Some(format!("SN-{}", Uuid::new_v4()));
     asset.lifecycle.warranty_start_date = Some(chrono::Utc::now());
-    asset.lifecycle.warranty_expiry_date =
-        Some(chrono::Utc::now() + chrono::Duration::days(365));
+    asset.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365));
     asset.images = vec![asset_placeholder_url(&asset_type, name)];
     asset.documents = vec![
         ("Title Deed", "pdf"),

@@ -1,8 +1,8 @@
 use crate::models::{
-    Asset, AssetRelationship, AssetRelationshipPartyType, AssetRelationshipType, AvailabilityStatus,
-    Booking, BookingSource, BookingStatus, CalendarEvent, Channel, ChannelType, CommercialStatus,
-    ConditionStatus, ConnectionStatus, LifecycleStatus, Organization, Portfolio, RelatedParty,
-    SyncDirection, User,
+    Asset, AssetRelationship, AssetRelationshipPartyType, AssetRelationshipType,
+    AvailabilityStatus, Booking, BookingSource, BookingStatus, CalendarEvent, Channel, ChannelType,
+    CommercialStatus, ConditionStatus, ConnectionStatus, LifecycleStatus, Organization, Portfolio,
+    RelatedParty, SyncDirection, User,
 };
 use crate::stores::app_store::AppStore;
 use crate::stores::notifications::{NotificationStore, NotificationType};
@@ -221,10 +221,7 @@ pub fn seed_red_family_data(
 }
 
 /// Seed the RedAsset organization and a portfolio with diverse, fully populated assets.
-pub fn seed_redasset_data(
-    app_store: &mut AppStore,
-    organization_store: &mut OrganizationStore,
-) {
+pub fn seed_redasset_data(app_store: &mut AppStore, organization_store: &mut OrganizationStore) {
     let owner_id = app_store.current_user.id;
     let owner_name = app_store.current_user.name.clone();
     let owner_email = app_store.current_user.email.clone();
@@ -268,17 +265,33 @@ pub fn seed_redasset_data(
     equip.location = Some("RedAsset Workshop, Brisbane".to_string());
     equip.update_value(230_000.0);
     equip.initialize_with_creator(owner_id, user_name.clone());
-    equip.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, Some("Initial setup"));
-    equip.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::Available, Some("Ready for use"));
+    equip.set_lifecycle_status(
+        owner_id,
+        user_name.clone(),
+        LifecycleStatus::Active,
+        Some("Initial setup"),
+    );
+    equip.set_availability_status(
+        owner_id,
+        user_name.clone(),
+        AvailabilityStatus::Available,
+        Some("Ready for use"),
+    );
     equip.set_condition_status(owner_id, user_name.clone(), ConditionStatus::Good, None);
-    equip.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::InternalUseOnly, None);
+    equip.set_commercial_status(
+        owner_id,
+        user_name.clone(),
+        CommercialStatus::InternalUseOnly,
+        None,
+    );
     equip.classification.manufacturer = Some("Haas".to_string());
     equip.classification.model = Some("VF-2SS".to_string());
     equip.classification.serial_number = Some("SN-HAAS-11223".to_string());
     equip.classification.sku = Some("SKU-CNC-VF2SS".to_string());
     equip.lifecycle.commissioning_date = Some(chrono::Utc::now() - chrono::Duration::days(365));
     equip.lifecycle.warranty_start_date = Some(chrono::Utc::now() - chrono::Duration::days(365));
-    equip.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365 * 4));
+    equip.lifecycle.warranty_expiry_date =
+        Some(chrono::Utc::now() + chrono::Duration::days(365 * 4));
     equip.lifecycle.expected_useful_life = Some("10 years".to_string());
     let maintainer_name = "RedAsset Maintenance Pty Ltd".to_string();
     let maintainer = RelatedParty {
@@ -287,8 +300,18 @@ pub fn seed_redasset_data(
         party_type: AssetRelationshipPartyType::ServiceProvider,
         party_id: None,
     };
-    equip.record_ownership_change(owner_id, user_name.clone(), AssetRelationshipType::MaintenanceProvider.as_str(), None, Some(&maintainer_name), None);
-    equip.relationships.push(AssetRelationship::new(AssetRelationshipType::MaintenanceProvider, maintainer));
+    equip.record_ownership_change(
+        owner_id,
+        user_name.clone(),
+        AssetRelationshipType::MaintenanceProvider.as_str(),
+        None,
+        Some(&maintainer_name),
+        None,
+    );
+    equip.relationships.push(AssetRelationship::new(
+        AssetRelationshipType::MaintenanceProvider,
+        maintainer,
+    ));
     p.assets.push(equip);
 
     // Vehicle asset
@@ -306,7 +329,12 @@ pub fn seed_redasset_data(
     vehicle.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
     vehicle.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::InUse, None);
     vehicle.set_condition_status(owner_id, user_name.clone(), ConditionStatus::Good, None);
-    vehicle.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::InternalUseOnly, None);
+    vehicle.set_commercial_status(
+        owner_id,
+        user_name.clone(),
+        CommercialStatus::InternalUseOnly,
+        None,
+    );
     vehicle.classification.manufacturer = Some("Ford".to_string());
     vehicle.classification.model = Some("Transit 350L".to_string());
     vehicle.classification.vin = Some("1FTBW2XM9HKA12345".to_string());
@@ -314,7 +342,8 @@ pub fn seed_redasset_data(
     vehicle.classification.model_year = Some("2023".to_string());
     vehicle.lifecycle.commissioning_date = Some(chrono::Utc::now() - chrono::Duration::days(180));
     vehicle.lifecycle.warranty_start_date = Some(chrono::Utc::now() - chrono::Duration::days(180));
-    vehicle.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365 * 3));
+    vehicle.lifecycle.warranty_expiry_date =
+        Some(chrono::Utc::now() + chrono::Duration::days(365 * 3));
     let custodian_name = "RedAsset Fleet Team".to_string();
     let custodian = RelatedParty {
         name: custodian_name.clone(),
@@ -322,8 +351,17 @@ pub fn seed_redasset_data(
         party_type: AssetRelationshipPartyType::Team,
         party_id: None,
     };
-    vehicle.record_custodian_change(owner_id, user_name.clone(), None, Some(&custodian_name), None);
-    vehicle.relationships.push(AssetRelationship::new(AssetRelationshipType::CurrentCustodian, custodian));
+    vehicle.record_custodian_change(
+        owner_id,
+        user_name.clone(),
+        None,
+        Some(&custodian_name),
+        None,
+    );
+    vehicle.relationships.push(AssetRelationship::new(
+        AssetRelationshipType::CurrentCustodian,
+        custodian,
+    ));
     p.assets.push(vehicle);
 
     // Real estate asset
@@ -339,15 +377,33 @@ pub fn seed_redasset_data(
     warehouse.update_value(1_350_000.0);
     warehouse.initialize_with_creator(owner_id, user_name.clone());
     warehouse.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
-    warehouse.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::Available, None);
-    warehouse.set_condition_status(owner_id, user_name.clone(), ConditionStatus::Excellent, None);
-    warehouse.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::NotOffered, None);
+    warehouse.set_availability_status(
+        owner_id,
+        user_name.clone(),
+        AvailabilityStatus::Available,
+        None,
+    );
+    warehouse.set_condition_status(
+        owner_id,
+        user_name.clone(),
+        ConditionStatus::Excellent,
+        None,
+    );
+    warehouse.set_commercial_status(
+        owner_id,
+        user_name.clone(),
+        CommercialStatus::NotOffered,
+        None,
+    );
     warehouse.classification.title = Some("Title Ref: 123456/7".to_string());
     warehouse.classification.lot = Some("Lot 12".to_string());
     warehouse.classification.plan = Some("SP 987654".to_string());
-    warehouse.lifecycle.commissioning_date = Some(chrono::Utc::now() - chrono::Duration::days(365 * 2));
-    warehouse.lifecycle.warranty_start_date = Some(chrono::Utc::now() - chrono::Duration::days(365 * 2));
-    warehouse.lifecycle.warranty_expiry_date = Some(chrono::Utc::now() + chrono::Duration::days(365 * 10));
+    warehouse.lifecycle.commissioning_date =
+        Some(chrono::Utc::now() - chrono::Duration::days(365 * 2));
+    warehouse.lifecycle.warranty_start_date =
+        Some(chrono::Utc::now() - chrono::Duration::days(365 * 2));
+    warehouse.lifecycle.warranty_expiry_date =
+        Some(chrono::Utc::now() + chrono::Duration::days(365 * 10));
     warehouse.lifecycle.expected_useful_life = Some("30 years".to_string());
     let owner_party = RelatedParty {
         name: "RedAsset Holdings Pty Ltd".to_string(),
@@ -355,8 +411,18 @@ pub fn seed_redasset_data(
         party_type: AssetRelationshipPartyType::Organization,
         party_id: None,
     };
-    warehouse.record_ownership_change(owner_id, user_name.clone(), AssetRelationshipType::LegalOwner.as_str(), None, Some("RedAsset Holdings Pty Ltd"), None);
-    warehouse.relationships.push(AssetRelationship::new(AssetRelationshipType::LegalOwner, owner_party));
+    warehouse.record_ownership_change(
+        owner_id,
+        user_name.clone(),
+        AssetRelationshipType::LegalOwner.as_str(),
+        None,
+        Some("RedAsset Holdings Pty Ltd"),
+        None,
+    );
+    warehouse.relationships.push(AssetRelationship::new(
+        AssetRelationshipType::LegalOwner,
+        owner_party,
+    ));
     p.assets.push(warehouse);
 
     // Stock asset
@@ -371,9 +437,19 @@ pub fn seed_redasset_data(
     shares.update_value(125_000.0);
     shares.initialize_with_creator(owner_id, user_name.clone());
     shares.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
-    shares.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::Available, None);
+    shares.set_availability_status(
+        owner_id,
+        user_name.clone(),
+        AvailabilityStatus::Available,
+        None,
+    );
     shares.set_condition_status(owner_id, user_name.clone(), ConditionStatus::New, None);
-    shares.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::ListedForSale, Some("Placed on market"));
+    shares.set_commercial_status(
+        owner_id,
+        user_name.clone(),
+        CommercialStatus::ListedForSale,
+        Some("Placed on market"),
+    );
     shares.classification.licence = Some("HIN: X123456789".to_string());
     shares.lifecycle.expected_useful_life = Some("Indefinite".to_string());
     p.assets.push(shares);
@@ -393,9 +469,18 @@ pub fn seed_redasset_data(
     license.set_lifecycle_status(owner_id, user_name.clone(), LifecycleStatus::Active, None);
     license.set_availability_status(owner_id, user_name.clone(), AvailabilityStatus::InUse, None);
     license.set_condition_status(owner_id, user_name.clone(), ConditionStatus::New, None);
-    license.set_commercial_status(owner_id, user_name.clone(), CommercialStatus::InternalUseOnly, None);
+    license.set_commercial_status(
+        owner_id,
+        user_name.clone(),
+        CommercialStatus::InternalUseOnly,
+        None,
+    );
     license.classification.domain = Some("redasset.example".to_string());
-    license.classification.renewal_date = Some((chrono::Utc::now() + chrono::Duration::days(365)).format("%Y-%m-%d").to_string());
+    license.classification.renewal_date = Some(
+        (chrono::Utc::now() + chrono::Duration::days(365))
+            .format("%Y-%m-%d")
+            .to_string(),
+    );
     license.lifecycle.expected_useful_life = Some("1 year".to_string());
     let supplier_name = "DesignSaaS Vendor".to_string();
     let supplier = RelatedParty {
@@ -404,8 +489,18 @@ pub fn seed_redasset_data(
         party_type: AssetRelationshipPartyType::Supplier,
         party_id: None,
     };
-    license.record_ownership_change(owner_id, user_name.clone(), AssetRelationshipType::Supplier.as_str(), None, Some(&supplier_name), None);
-    license.relationships.push(AssetRelationship::new(AssetRelationshipType::Supplier, supplier));
+    license.record_ownership_change(
+        owner_id,
+        user_name.clone(),
+        AssetRelationshipType::Supplier.as_str(),
+        None,
+        Some(&supplier_name),
+        None,
+    );
+    license.relationships.push(AssetRelationship::new(
+        AssetRelationshipType::Supplier,
+        supplier,
+    ));
     p.assets.push(license);
 
     p.recalculate_values();
@@ -898,7 +993,8 @@ pub fn seed_direct_portfolio(owner_id: Uuid, org_id: Option<Uuid>) -> Portfolio 
         crate::types::Currency::USD,
     );
     p.organization_id = org_id;
-    p.description = Some("Portfolio with only direct assets for single-asset viewport testing".to_string());
+    p.description =
+        Some("Portfolio with only direct assets for single-asset viewport testing".to_string());
     p.tags = vec!["direct-only".to_string(), "test".to_string()];
     p.documents = vec![make_doc("Direct Portfolio Overview", "pdf")];
 
@@ -921,14 +1017,13 @@ pub fn seed_groups_only_portfolio(owner_id: Uuid, org_id: Option<Uuid>) -> Portf
         crate::types::Currency::USD,
     );
     p.organization_id = org_id;
-    p.description = Some("Portfolio with only two asset groups for group viewport testing".to_string());
+    p.description =
+        Some("Portfolio with only two asset groups for group viewport testing".to_string());
     p.tags = vec!["groups-only".to_string(), "test".to_string()];
     p.documents = vec![make_doc("Groups Portfolio Overview", "pdf")];
 
-    let group_specs: [(usize, &str, f64); 2] = [
-        (0, "Group Alpha", 300_000.0),
-        (1, "Group Beta", 350_000.0),
-    ];
+    let group_specs: [(usize, &str, f64); 2] =
+        [(0, "Group Alpha", 300_000.0), (1, "Group Beta", 350_000.0)];
 
     let mut groups = Vec::new();
     for (group_idx, name, base_value) in group_specs {
@@ -1018,10 +1113,7 @@ fn make_channel_asset(
 }
 
 /// Seed the RedChannel organization with Red as owner, two channel-test portfolios, and multiple assets.
-pub fn seed_red_channel_data(
-    app_store: &mut AppStore,
-    organization_store: &mut OrganizationStore,
-) {
+pub fn seed_red_channel_data(app_store: &mut AppStore, organization_store: &mut OrganizationStore) {
     let owner_id = app_store.current_user.id;
     let owner_email = app_store.current_user.email.clone();
 
@@ -1031,7 +1123,8 @@ pub fn seed_red_channel_data(
     red_channel.business_type = Some("Company".to_string());
     red_channel.abn = Some("1".to_string());
     red_channel.lei = Some("1".to_string());
-    red_channel.business_address = Some("1 RedChannel Way, Melbourne VIC 3000, Australia".to_string());
+    red_channel.business_address =
+        Some("1 RedChannel Way, Melbourne VIC 3000, Australia".to_string());
     red_channel.business_phone = Some("+61 1 234 567 890".to_string());
     red_channel.business_email = Some("contact@redchannel.com".to_string());
     red_channel.add_member(owner_id);
@@ -1041,7 +1134,9 @@ pub fn seed_red_channel_data(
     let mut red_channel_owner = User::new("Red".to_string(), owner_email, UserRole::Owner);
     red_channel_owner.id = owner_id;
     red_channel_owner.organization_id = Some(red_channel_id);
-    organization_store.organization_users.push(red_channel_owner);
+    organization_store
+        .organization_users
+        .push(red_channel_owner);
 
     // Portfolio 1: short-stay rentals
     let mut p1 = Portfolio::new(
@@ -1161,7 +1256,8 @@ pub fn seed_red_channel_data(
         crate::types::Currency::USD,
     );
     p2.organization_id = Some(red_channel_id);
-    p2.description = Some("Long-stay and corporate rental portfolio for channel management testing".to_string());
+    p2.description =
+        Some("Long-stay and corporate rental portfolio for channel management testing".to_string());
     p2.tags = vec!["channel".to_string(), "long-stay".to_string()];
     p2.assigned_users.push(owner_id);
 
@@ -1176,7 +1272,11 @@ pub fn seed_red_channel_data(
             vec![
                 (ChannelType::Test, 125.0, "Test Channel"),
                 (ChannelType::Vrbo, 120.0, "Vrbo"),
-                (ChannelType::Other("Corporate Portal".to_string()), 130.0, "Corporate Portal"),
+                (
+                    ChannelType::Other("Corporate Portal".to_string()),
+                    130.0,
+                    "Corporate Portal",
+                ),
             ],
         ),
         (
@@ -1188,7 +1288,11 @@ pub fn seed_red_channel_data(
             vec![
                 (ChannelType::Test, 150.0, "Test Channel"),
                 (ChannelType::LinkedIn, 145.0, "LinkedIn"),
-                (ChannelType::Other("Corporate Portal".to_string()), 155.0, "Corporate Portal"),
+                (
+                    ChannelType::Other("Corporate Portal".to_string()),
+                    155.0,
+                    "Corporate Portal",
+                ),
             ],
         ),
         (

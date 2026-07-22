@@ -1,9 +1,17 @@
 use crate::models::ConnectionStatus;
 use crate::stores::{
     use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
-    use_organization_store, use_transaction_store,
+    use_organization_store, use_transaction_store, use_ui_store, AppStore, CalendarStore,
+    MessengerStore, NotificationStore, OrganizationStore, TransactionStore,
 };
+use crate::types::OverviewSortMode;
+use chrono::{DateTime, Duration, Utc};
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use std::collections::HashMap;
+use std::sync::Arc;
+use web_sys::window;
 
 fn fmt_time(ts: chrono::DateTime<chrono::Utc>) -> String {
     let now = chrono::Utc::now();
@@ -21,6 +29,288 @@ fn fmt_time(ts: chrono::DateTime<chrono::Utc>) -> String {
     }
 }
 
+fn section_last_changed(
+    id: &str,
+    app: &AppStore,
+    org: &OrganizationStore,
+    cal: &CalendarStore,
+    messenger: &MessengerStore,
+    notif: &NotificationStore,
+    txn: &TransactionStore,
+    now: DateTime<Utc>,
+) -> Option<DateTime<Utc>> {
+    match id {
+        "recent-messages" => messenger.messages.iter().map(|m| m.timestamp).max(),
+        "recent-bookings" => app.bookings.iter().map(|b| b.updated_at).max(),
+        "updated-investments" => app.portfolios.iter().map(|p| p.updated_at).max(),
+        "recent-transactions" => txn.transactions.iter().map(|t| t.created_at).max(),
+        "recent-contacts" => org.organization_users.iter().map(|u| u.updated_at).max(),
+        "notifications" => notif.notifications.iter().map(|n| n.timestamp).max(),
+        "property-overview" => app
+            .portfolios
+            .iter()
+            .flat_map(|p| {
+                std::iter::once(p.updated_at).chain(
+                    p.asset_groups
+                        .iter()
+                        .flat_map(|g| g.assets.iter().map(|a| a.updated_at)),
+                )
+            })
+            .max(),
+        "recent-activity" => {
+            let mut times: Vec<DateTime<Utc>> = Vec::new();
+            times.extend(notif.notifications.iter().map(|n| n.timestamp));
+            times.extend(txn.transactions.iter().map(|t| t.created_at));
+            times.extend(messenger.messages.iter().map(|m| m.timestamp));
+            times.extend(cal.calendar_events.iter().map(|e| e.start));
+            times.extend(app.service_tasks.iter().map(|st| st.updated_at));
+            times.into_iter().max()
+        }
+        "organizations" => org.organizations.iter().map(|o| o.updated_at).max(),
+        "top-portfolios" => app.portfolios.iter().map(|p| p.updated_at).max(),
+        "top-assets" => app
+            .portfolios
+            .iter()
+            .flat_map(|p| {
+                p.asset_groups
+                    .iter()
+                    .flat_map(|g| g.assets.iter().map(|a| a.updated_at))
+            })
+            .max(),
+        "channels" => app
+            .channels
+            .iter()
+            .map(|c| c.last_sync_at.unwrap_or(c.updated_at))
+            .max(),
+        "upcoming-bookings" => cal
+            .calendar_events
+            .iter()
+            .filter(|e| e.start >= now && e.start <= now + Duration::hours(24))
+            .map(|e| e.start)
+            .max(),
+        "top-transactions" => txn.transactions.iter().map(|t| t.created_at).max(),
+        _ => None,
+    }
+}
+
+fn section_change_count(
+    id: &str,
+    app: &AppStore,
+    org: &OrganizationStore,
+    cal: &CalendarStore,
+    messenger: &MessengerStore,
+    notif: &NotificationStore,
+    txn: &TransactionStore,
+    now: DateTime<Utc>,
+    window: Duration,
+) -> usize {
+    let cutoff = now - window;
+    match id {
+        "recent-messages" => messenger
+            .messages
+            .iter()
+            .filter(|m| m.timestamp >= cutoff)
+            .count(),
+        "recent-bookings" => app
+            .bookings
+            .iter()
+            .filter(|b| b.updated_at >= cutoff)
+            .count(),
+        "updated-investments" => app
+            .portfolios
+            .iter()
+            .filter(|p| p.updated_at >= cutoff)
+            .count(),
+        "recent-transactions" => txn
+            .transactions
+            .iter()
+            .filter(|t| t.created_at >= cutoff)
+            .count(),
+        "recent-contacts" => org
+            .organization_users
+            .iter()
+            .filter(|u| u.updated_at >= cutoff)
+            .count(),
+        "notifications" => notif
+            .notifications
+            .iter()
+            .filter(|n| n.timestamp >= cutoff)
+            .count(),
+        "property-overview" => {
+            let portfolio_count = app
+                .portfolios
+                .iter()
+                .filter(|p| p.updated_at >= cutoff)
+                .count();
+            let asset_count = app
+                .portfolios
+                .iter()
+                .flat_map(|p| p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                .filter(|a| a.updated_at >= cutoff)
+                .count();
+            portfolio_count + asset_count
+        }
+        "recent-activity" => {
+            notif
+                .notifications
+                .iter()
+                .filter(|n| n.timestamp >= cutoff)
+                .count()
+                + txn
+                    .transactions
+                    .iter()
+                    .filter(|t| t.created_at >= cutoff)
+                    .count()
+                + messenger
+                    .messages
+                    .iter()
+                    .filter(|m| m.timestamp >= cutoff)
+                    .count()
+                + cal
+                    .calendar_events
+                    .iter()
+                    .filter(|e| e.start >= cutoff && e.start <= now)
+                    .count()
+                + app
+                    .service_tasks
+                    .iter()
+                    .filter(|st| st.updated_at >= cutoff)
+                    .count()
+        }
+        "organizations" => org
+            .organizations
+            .iter()
+            .filter(|o| o.updated_at >= cutoff)
+            .count(),
+        "top-portfolios" => app
+            .portfolios
+            .iter()
+            .filter(|p| p.updated_at >= cutoff)
+            .count(),
+        "top-assets" => app
+            .portfolios
+            .iter()
+            .flat_map(|p| p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+            .filter(|a| a.updated_at >= cutoff)
+            .count(),
+        "channels" => app
+            .channels
+            .iter()
+            .filter(|c| c.last_sync_at.unwrap_or(c.updated_at) >= cutoff)
+            .count(),
+        "upcoming-bookings" => cal
+            .calendar_events
+            .iter()
+            .filter(|e| e.start >= now && e.start <= now + window)
+            .count(),
+        "top-transactions" => txn
+            .transactions
+            .iter()
+            .filter(|t| t.created_at >= cutoff)
+            .count(),
+        _ => 0,
+    }
+}
+
+#[component]
+fn OverviewSection(
+    id: &'static str,
+    #[prop(optional)] wide: bool,
+    #[prop(optional)] on_click: Option<Arc<dyn Fn() + Send + Sync>>,
+    section_order: Memo<HashMap<String, usize>>,
+    children: Children,
+) -> impl IntoView {
+    let ui_store = use_ui_store();
+    view! {
+        <div
+            class="overview-square"
+            class:overview-square-wide=wide
+            class:clickable={on_click.is_some()}
+            class:overview-section-dragging={move || ui_store.get().overview_dragging_id.as_deref() == Some(id)}
+            class:overview-section-drag-over={move || ui_store.get().overview_drag_over_id.as_deref() == Some(id)}
+            data-section-id=id
+            style:order={move || section_order.with(|m| m.get(id).copied().unwrap_or(0).to_string())}
+            draggable={move || if ui_store.get().overview_sort_mode == OverviewSortMode::Selected { "true" } else { "false" }}
+            on:click={move |_: leptos::ev::MouseEvent| { if let Some(cb) = on_click.as_ref() { cb(); } }}
+            on:dragstart={move |_: leptos::ev::DragEvent| {
+                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                ui_store.update(|s| s.set_overview_dragging_id(Some(id.to_string())));
+            }}
+            on:dragover={move |ev: leptos::ev::DragEvent| {
+                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                ev.prevent_default();
+                ui_store.update(|s| s.set_overview_drag_over_id(Some(id.to_string())));
+            }}
+            on:dragleave={move |_| { ui_store.update(|s| s.set_overview_drag_over_id(None)); }}
+            on:drop={move |ev: leptos::ev::DragEvent| {
+                ev.prevent_default();
+                let from = ui_store.get().overview_dragging_id.clone();
+                let to = id.to_string();
+                if let Some(from) = from {
+                    if from != to {
+                        ui_store.update(|s| s.reorder_overview_section(&from, &to));
+                    }
+                }
+                ui_store.update(|s| s.clear_overview_drag());
+            }}
+            on:dragend={move |_| { ui_store.update(|s| s.clear_overview_drag()); }}
+            on:touchstart={move |ev: leptos::ev::TouchEvent| {
+                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                if let Some(t) = ev.touches().get(0) {
+                    let start_id = id.to_string();
+                    let x = t.client_x();
+                    let y = t.client_y();
+                    ui_store.update(|s| s.set_overview_touch_anchor(Some(start_id.clone()), Some((x, y))));
+                    spawn_local(async move {
+                        TimeoutFuture::new(500).await;
+                        if ui_store.get().overview_touch_long_id.as_ref() == Some(&start_id) && ui_store.get().overview_dragging_id.is_none() {
+                            ui_store.update(|s| s.set_overview_dragging_id(Some(start_id)));
+                        }
+                    });
+                }
+            }}
+            on:touchmove={move |ev: leptos::ev::TouchEvent| {
+                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                let mut cancel = false;
+                if let (Some(t), Some((ax, ay))) = (ev.touches().get(0), ui_store.get().overview_touch_anchor) {
+                    let dx = (t.client_x() - ax).abs();
+                    let dy = (t.client_y() - ay).abs();
+                    if dx > 10 || dy > 10 { cancel = true; }
+                }
+                if cancel {
+                    ui_store.update(|s| { s.set_overview_touch_anchor(None, None); s.set_overview_drag_over_id(None); });
+                }
+                if ui_store.get().overview_dragging_id.is_some() {
+                    if let Some(t) = ev.touches().get(0) {
+                        if let Some(doc) = window().and_then(|w| w.document()) {
+                            if let Some(elem) = doc.element_from_point(t.client_x() as f32, t.client_y() as f32) {
+                                if let Ok(Some(target)) = elem.closest(".overview-square") {
+                                    if let Some(target_id) = target.get_attribute("data-section-id") {
+                                        if target_id != id { ui_store.update(|s| s.set_overview_drag_over_id(Some(target_id))); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }}
+            on:touchend={move |ev: leptos::ev::TouchEvent| {
+                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                let was_dragging = ui_store.get().overview_dragging_id.is_some();
+                if was_dragging { ev.prevent_default(); }
+                let from = ui_store.get().overview_dragging_id.clone();
+                let to = ui_store.get().overview_drag_over_id.clone();
+                if let (Some(from), Some(to)) = (from, to) {
+                    if from != to { ui_store.update(|s| s.reorder_overview_section(&from, &to)); }
+                }
+                ui_store.update(|s| s.clear_overview_drag());
+            }}
+        >
+            {children()}
+        </div>
+    }
+}
+
 #[component]
 pub fn OverviewPage() -> impl IntoView {
     let app_store = use_app_store();
@@ -29,6 +319,7 @@ pub fn OverviewPage() -> impl IntoView {
     let messenger_store = use_messenger_store();
     let notification_store = use_notification_store();
     let transaction_store = use_transaction_store();
+    let ui_store = use_ui_store();
 
     let unread_message_count = move || {
         let current_user_id = app_store.get().current_user.id;
@@ -59,21 +350,21 @@ pub fn OverviewPage() -> impl IntoView {
             .unwrap_or_else(|| "Unknown".to_string())
     };
 
-    let on_open_messages = move |_| {
+    let on_open_messages: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         messenger_store.update(|s| s.set_message_drawer(true));
-    };
+    });
 
-    let on_open_bookings = move |_| {
+    let on_open_bookings: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         app_store.update(|s| s.expand_tab(crate::types::TabType::Calendar));
-    };
+    });
 
-    let on_open_transactions = move |_| {
+    let on_open_transactions: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         app_store.update(|s| s.expand_tab(crate::types::TabType::Transactions));
-    };
+    });
 
-    let on_open_portfolios = move |_| {
+    let on_open_portfolios: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         app_store.update(|s| s.expand_tab(crate::types::TabType::Portfolios));
-    };
+    });
 
     // Recent bookings = upcoming/recent calendar events
     let recent_bookings = move || {
@@ -160,7 +451,10 @@ pub fn OverviewPage() -> impl IntoView {
 
         for t in &txns.transactions {
             let label = txn_type_label(&t.transaction_type);
-            let desc = t.description.clone().unwrap_or_else(|| t.to_entity.name.clone());
+            let desc = t
+                .description
+                .clone()
+                .unwrap_or_else(|| t.to_entity.name.clone());
             let desc_short = if desc.len() > 24 {
                 format!("{}…", &desc[..24])
             } else {
@@ -218,12 +512,20 @@ pub fn OverviewPage() -> impl IntoView {
         let current_org = orgs
             .current_organization_id
             .and_then(|id| orgs.organizations.iter().find(|o| o.id == id));
-        let current_org_name = current_org.map(|o| o.name.clone()).unwrap_or_else(|| "None".to_string());
+        let current_org_name = current_org
+            .map(|o| o.name.clone())
+            .unwrap_or_else(|| "None".to_string());
         let current_org_type = current_org
             .and_then(|o| o.business_type.clone())
             .unwrap_or_else(|| "—".to_string());
         let total_roles: usize = current_org.map(|o| o.roles.len()).unwrap_or(0);
-        (total_orgs, total_members, current_org_name, current_org_type, total_roles)
+        (
+            total_orgs,
+            total_members,
+            current_org_name,
+            current_org_type,
+            total_roles,
+        )
     };
 
     // Portfolio stats
@@ -234,16 +536,31 @@ pub fn OverviewPage() -> impl IntoView {
         let total_assets: usize = portfolios.iter().map(|p| p.get_all_assets().len()).sum();
         let total_groups: usize = portfolios.iter().map(|p| p.asset_groups.len()).sum();
         let total_docs: usize = portfolios.iter().map(|p| p.documents.len()).sum();
-        (portfolios.len(), total_value, total_assets, total_groups, total_docs)
+        (
+            portfolios.len(),
+            total_value,
+            total_assets,
+            total_groups,
+            total_docs,
+        )
     };
 
     // Channel stats
     let channel_stats = move || {
         let store = app_store.get();
         let channels = &store.channels;
-        let connected = channels.iter().filter(|c| c.connection_status == ConnectionStatus::Connected).count();
-        let disconnected = channels.iter().filter(|c| c.connection_status == ConnectionStatus::Disconnected).count();
-        let errors = channels.iter().filter(|c| c.connection_status == ConnectionStatus::Error).count();
+        let connected = channels
+            .iter()
+            .filter(|c| c.connection_status == ConnectionStatus::Connected)
+            .count();
+        let disconnected = channels
+            .iter()
+            .filter(|c| c.connection_status == ConnectionStatus::Disconnected)
+            .count();
+        let errors = channels
+            .iter()
+            .filter(|c| c.connection_status == ConnectionStatus::Error)
+            .count();
         let enabled = channels.iter().filter(|c| c.enabled).count();
         (channels.len(), connected, disconnected, errors, enabled)
     };
@@ -252,8 +569,19 @@ pub fn OverviewPage() -> impl IntoView {
     let service_task_stats = move || {
         let store = app_store.get();
         let total = store.service_tasks.len();
-        let pending = store.service_tasks.iter().filter(|t| t.status != crate::models::ServiceTaskStatus::Done && t.status != crate::models::ServiceTaskStatus::Cancelled).count();
-        let completed = store.service_tasks.iter().filter(|t| t.status == crate::models::ServiceTaskStatus::Done).count();
+        let pending = store
+            .service_tasks
+            .iter()
+            .filter(|t| {
+                t.status != crate::models::ServiceTaskStatus::Done
+                    && t.status != crate::models::ServiceTaskStatus::Cancelled
+            })
+            .count();
+        let completed = store
+            .service_tasks
+            .iter()
+            .filter(|t| t.status == crate::models::ServiceTaskStatus::Done)
+            .count();
         (total, pending, completed)
     };
 
@@ -370,25 +698,100 @@ pub fn OverviewPage() -> impl IntoView {
             .get()
             .transactions
             .iter()
-            .map(|t| (t.transaction_type.clone(), t.amount, t.to_entity.name.clone(), t.created_at))
+            .map(|t| {
+                (
+                    t.transaction_type.clone(),
+                    t.amount,
+                    t.to_entity.name.clone(),
+                    t.created_at,
+                )
+            })
             .collect();
         txns.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         txns.into_iter().take(4).collect::<Vec<_>>()
     };
 
-    let on_open_organization = move |_| {
+    let on_open_organization: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         app_store.update(|s| s.expand_tab(crate::types::TabType::Organization));
-    };
+    });
 
-    let on_open_networking = move |_| {
+    let on_open_networking: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
         app_store.update(|s| s.expand_tab(crate::types::TabType::Networking));
-    };
+    });
+
+    // Section ordering for Selected/Recent/Trending tabs
+    let sorted_section_order = Memo::new(move |_| {
+        use crate::stores::OVERVIEW_DEFAULT_ORDER;
+        let mode = ui_store.get().overview_sort_mode;
+        let mut ids: Vec<String> = OVERVIEW_DEFAULT_ORDER
+            .iter()
+            .map(|&s| s.to_string())
+            .collect();
+        match mode {
+            OverviewSortMode::Selected => {
+                let selected = ui_store.get().overview_selected_order;
+                if !selected.is_empty() {
+                    let mut ordered = selected.clone();
+                    for id in ids {
+                        if !ordered.contains(&id) {
+                            ordered.push(id);
+                        }
+                    }
+                    ids = ordered;
+                }
+            }
+            OverviewSortMode::Recent => {
+                let app = app_store.get();
+                let org = organization_store.get();
+                let cal = calendar_store.get();
+                let messenger = messenger_store.get();
+                let notif = notification_store.get();
+                let txn = transaction_store.get();
+                let now = Utc::now();
+                ids.sort_by(|a, b| {
+                    let a_time =
+                        section_last_changed(a, &app, &org, &cal, &messenger, &notif, &txn, now);
+                    let b_time =
+                        section_last_changed(b, &app, &org, &cal, &messenger, &notif, &txn, now);
+                    b_time.cmp(&a_time)
+                });
+            }
+            OverviewSortMode::Trending => {
+                let app = app_store.get();
+                let org = organization_store.get();
+                let cal = calendar_store.get();
+                let messenger = messenger_store.get();
+                let notif = notification_store.get();
+                let txn = transaction_store.get();
+                let now = Utc::now();
+                let window = Duration::hours(24);
+                ids.sort_by(|a, b| {
+                    let a_count = section_change_count(
+                        a, &app, &org, &cal, &messenger, &notif, &txn, now, window,
+                    );
+                    let b_count = section_change_count(
+                        b, &app, &org, &cal, &messenger, &notif, &txn, now, window,
+                    );
+                    b_count.cmp(&a_count)
+                });
+            }
+        }
+        ids.into_iter()
+            .enumerate()
+            .map(|(i, id)| (id, i))
+            .collect::<HashMap<String, usize>>()
+    });
+
+    // Cloned click handlers for detail cards (move closures consume Arcs)
+    let on_open_organization_detail = on_open_organization.clone();
+    let on_open_portfolios_detail = on_open_portfolios.clone();
+    let on_open_networking_detail = on_open_networking.clone();
 
     view! {
         <div class="overview-content">
             // Organization + Portfolio detail row
             <div class="overview-detail-row">
-                <div class="overview-detail-card clickable" on:click=on_open_organization>
+                <div class="overview-detail-card clickable" on:click=move |_| on_open_organization_detail()>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"🏢"</span>
                         <span class="overview-detail-title">"Current Organization"</span>
@@ -413,7 +816,7 @@ pub fn OverviewPage() -> impl IntoView {
                     </div>
                 </div>
 
-                <div class="overview-detail-card clickable" on:click=on_open_portfolios>
+                <div class="overview-detail-card clickable" on:click=move |_| on_open_portfolios_detail()>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"📊"</span>
                         <span class="overview-detail-title">"Portfolio Summary"</span>
@@ -438,7 +841,7 @@ pub fn OverviewPage() -> impl IntoView {
                     </div>
                 </div>
 
-                <div class="overview-detail-card clickable" on:click=on_open_networking>
+                <div class="overview-detail-card clickable" on:click=move |_| on_open_networking_detail()>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"📡"</span>
                         <span class="overview-detail-title">"Channel Status"</span>
@@ -466,7 +869,7 @@ pub fn OverviewPage() -> impl IntoView {
 
             <div class="overview-square-grid">
                 // Recent Messages
-                <div class="overview-square overview-square-messages" on:click=on_open_messages>
+                <OverviewSection id="recent-messages" section_order=sorted_section_order on_click={on_open_messages.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"💬"</span>
                         <span class="overview-square-label">"Recent Messages"</span>
@@ -500,10 +903,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Recent Bookings
-                <div class="overview-square overview-square-booking clickable" on:click=on_open_bookings>
+                <OverviewSection id="recent-bookings" section_order=sorted_section_order on_click={on_open_bookings.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📅"</span>
                         <span class="overview-square-label">"Recent Bookings"</span>
@@ -535,10 +938,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Updated Investments
-                <div class="overview-square overview-square-change">
+                <OverviewSection id="updated-investments" section_order=sorted_section_order>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📈"</span>
                         <span class="overview-square-label">"Updated Investments"</span>
@@ -571,10 +974,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Recent Transactions
-                <div class="overview-square overview-square-report clickable" on:click=on_open_transactions>
+                <OverviewSection id="recent-transactions" section_order=sorted_section_order on_click={on_open_transactions.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"💰"</span>
                         <span class="overview-square-label">"Recent Transactions"</span>
@@ -608,10 +1011,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Recent Contacts
-                <div class="overview-square overview-square-contact">
+                <OverviewSection id="recent-contacts" section_order=sorted_section_order>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"�"</span>
                         <span class="overview-square-label">"Recent Contacts"</span>
@@ -644,10 +1047,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Notifications
-                <div class="overview-square overview-square-notifications">
+                <OverviewSection id="notifications" section_order=sorted_section_order>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🔔"</span>
                         <span class="overview-square-label">"Notifications"</span>
@@ -679,10 +1082,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Property Overview (full width)
-                <div class="overview-square overview-square-wide clickable" on:click=on_open_portfolios>
+                <OverviewSection id="property-overview" section_order=sorted_section_order wide=true on_click={on_open_portfolios.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🏠"</span>
                         <span class="overview-square-label">"Property Overview"</span>
@@ -709,10 +1112,10 @@ pub fn OverviewPage() -> impl IntoView {
                             view! { <div class="overview-square-empty">"No property overview available"</div> }.into_any()
                         }
                     }}
-                </div>
+                </OverviewSection>
 
                 // Recent Activity (full width)
-                <div class="overview-square overview-square-wide">
+                <OverviewSection id="recent-activity" section_order=sorted_section_order wide=true>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🔔"</span>
                         <span class="overview-square-label">"Recent Activity"</span>
@@ -742,13 +1145,13 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
             </div>
 
             // Linked-content continuation
             <div class="overview-square-grid">
                 // Organizations (wide rectangle)
-                <div class="overview-square overview-square-wide clickable" on:click=on_open_organization>
+                <OverviewSection id="organizations" section_order=sorted_section_order wide=true on_click={on_open_organization.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🏢"</span>
                         <span class="overview-square-label">"Organizations"</span>
@@ -778,10 +1181,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Top Portfolios
-                <div class="overview-square clickable" on:click=on_open_portfolios>
+                <OverviewSection id="top-portfolios" section_order=sorted_section_order on_click={on_open_portfolios.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📊"</span>
                         <span class="overview-square-label">"Top Portfolios"</span>
@@ -811,10 +1214,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Top Assets
-                <div class="overview-square clickable" on:click=on_open_portfolios>
+                <OverviewSection id="top-assets" section_order=sorted_section_order on_click={on_open_portfolios.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🏠"</span>
                         <span class="overview-square-label">"Top Assets"</span>
@@ -844,10 +1247,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Channels (wide rectangle)
-                <div class="overview-square overview-square-wide clickable" on:click=on_open_networking>
+                <OverviewSection id="channels" section_order=sorted_section_order wide=true on_click={on_open_networking.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📡"</span>
                         <span class="overview-square-label">"Channels"</span>
@@ -877,10 +1280,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Upcoming Bookings
-                <div class="overview-square clickable" on:click=on_open_bookings>
+                <OverviewSection id="upcoming-bookings" section_order=sorted_section_order on_click={on_open_bookings.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📅"</span>
                         <span class="overview-square-label">"Upcoming Bookings"</span>
@@ -910,10 +1313,10 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
 
                 // Top Transactions
-                <div class="overview-square clickable" on:click=on_open_transactions>
+                <OverviewSection id="top-transactions" section_order=sorted_section_order on_click={on_open_transactions.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"💰"</span>
                         <span class="overview-square-label">"Top Transactions"</span>
@@ -945,7 +1348,7 @@ pub fn OverviewPage() -> impl IntoView {
                             }
                         }}
                     </div>
-                </div>
+                </OverviewSection>
             </div>
         </div>
     }

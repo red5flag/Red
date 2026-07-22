@@ -1,0 +1,201 @@
+    Checking farley v0.1.0 (/home/red/Rust/Carly)
+src/pages/portfolios/asset_item.rs:785:50: warning: unnecessary parentheses: help: remove them: `(char_count.min(30) as f64 * 7.0 + 16.0)`
+src/components/calendar.rs:143:9: warning: consider using `sort_by_key`
+src/components/calendar.rs:231:13: warning: this let-binding has unit value
+src/components/calendar.rs:236:13: warning: this let-binding has unit value
+src/components/calendar.rs:345:34: warning: using `clone` on type `Callback<CalendarEventType>` which implements the `Copy` trait: help: try removing the `clone` call: `toggle_type`
+src/components/calendar.rs:361:62: warning: using `clone` on type `Callback<CalendarEvent>` which implements the `Copy` trait: help: try removing the `clone` call: `on_save`
+src/components/calendar.rs:361:90: warning: using `clone` on type `Callback<()>` which implements the `Copy` trait: help: try removing the `clone` call: `on_cancel`
+src/components/calendar.rs:383:44: warning: using `clone` on type `Callback<NaiveDate>` which implements the `Copy` trait: help: try removing the `clone` call: `on_day_click`
+src/components/calendar.rs:384:42: warning: using `clone` on type `Callback<NaiveDate>` which implements the `Copy` trait: help: try removing the `clone` call: `on_day_add`
+src/components/calendar.rs:385:39: warning: using `clone` on type `Callback<CalendarEvent>` which implements the `Copy` trait: help: try removing the `clone` call: `on_edit`
+src/components/calendar.rs:388:41: warning: using `clone` on type `Callback<NaiveDate>` which implements the `Copy` trait: help: try removing the `clone` call: `on_day_click`
+src/components/calendar.rs:389:41: warning: using `clone` on type `Callback<NaiveDate>` which implements the `Copy` trait: help: try removing the `clone` call: `on_day_add`
+src/components/calendar.rs:390:40: warning: using `clone` on type `Callback<CalendarEvent>` which implements the `Copy` trait: help: try removing the `clone` call: `on_edit`
+src/components/calendar.rs:415:65: warning: using `clone` on type `Callback<CalendarEvent>` which implements the `Copy` trait: help: try removing the `clone` call: `on_e`
+src/components/calendar.rs:462:32: warning: using `clone` on type `Callback<CalendarEvent>` which implements the `Copy` trait: help: try removing the `clone` call: `on_edit`
+src/components/calendar.rs:463:34: warning: using `clone` on type `Callback<Uuid>` which implements the `Copy` trait: help: try removing the `clone` call: `on_delete`
+src/components/calendar.rs:464:31: warning: using `clone` on type `Callback<NaiveDate>` which implements the `Copy` trait: help: try removing the `clone` call: `on_day_add`
+src/components/calendar.rs:480:49: warning: using `clone` on type `Callback<CalendarEvent>` which implements the `Copy` trait: help: try removing the `clone` call: `on_edit2`
+src/components/calendar.rs:481:49: warning: using `clone` on type `Callback<Uuid>` which implements the `Copy` trait: help: try removing the `clone` call: `on_delete2`
+src/components/navbar/mod.rs:44:27: warning: using `clone` on type `WriteSignal<HashSet<usize>>` which implements the `Copy` trait: help: try removing the `clone` call: `set_clicked`
+src/components/navbar/mod.rs:49:31: warning: using `clone` on type `WriteSignal<HashSet<usize>>` which implements the `Copy` trait: help: try removing the `clone` call: `set_clicked`
+src/components/navbar/mod.rs:290:47: warning: consider using `sort_by_key`
+src/components/navbar/mod.rs:291:47: warning: consider using `sort_by_key`
+src/components/navbar/mod.rs:394:42: warning: using `clone` on type `WriteSignal<bool>` which implements the `Copy` trait: help: try removing the `clone` call: `set_show_sort_menu`
+src/components/navbar/mod.rs:659:13: warning: consider using `sort_by_key`
+src/components/navbar/mod.rs:673:9: warning: consider using `sort_by_key`
+src/models/booking.rs:12:1: warning: this `impl` can be derived
+src/models/booking.rs:27:1: warning: this `impl` can be derived
+src/models/business_validation.rs:53:5: warning: implicitly performing saturating subtraction: help: try: `first_digit = first_digit.saturating_sub(1);`
+src/models/business_validation.rs:62:20: warning: manual implementation of `.is_multiple_of()`: help: replace with: `sum.is_multiple_of(89)`
+src/models/channel.rs:16:1: warning: this `impl` can be derived
+src/models/channel.rs:29:1: warning: this `impl` can be derived
+src/models/channel.rs:42:1: warning: this `impl` can be derived
+src/models/messenger.rs:20:1: warning: this `impl` can be derived
+src/models/messenger.rs:66:1: warning: this `impl` can be derived
+src/models/messenger.rs:162:5: warning: this function has too many arguments (8/7)
+src/models/order.rs:15:1: warning: this `impl` can be derived
+src/models/portfolio.rs:133:24: warning: this `map_or` can be simplified
+src/models/portfolio.rs:145:37: warning: this `map_or` can be simplified
+src/models/portfolio.rs:264:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/models/portfolio.rs:298:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/models/portfolio.rs:336:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/models/portfolio.rs:379:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/models/portfolio.rs:503:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/models/portfolio.rs:555:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/models/portfolio.rs:1137:16: warning: this `map_or` can be simplified
+src/models/portfolio.rs:1148:9: warning: this `if` statement can be collapsed
+src/models/portfolio.rs:1156:16: warning: this `map_or` can be simplified
+src/models/rule_engine.rs:837:21: warning: this `if` can be collapsed into the outer `match`
+src/models/service_task.rs:38:1: warning: this `impl` can be derived
+src/models/user/roles.rs:108:50: warning: called `iter().copied().collect()` on a slice to create a `Vec`. Calling `to_vec()` is both faster and more readable: help: try: `.to_vec()`
+src/models/user/mod.rs:7:1: warning: module has the same name as its containing module
+src/pages/agent/agent_controls.rs:67:62: warning: this let-binding has unit value
+src/pages/agent/agent_controls.rs:71:63: warning: this let-binding has unit value
+src/pages/agent/agent_controls.rs:94:41: warning: using `clone` on type `Callback<AgentTab>` which implements the `Copy` trait: help: try removing the `clone` call: `on_tab_switch`
+src/pages/agent/page.rs:31:28: warning: using `clone` on type `WriteSignal<Vec<ChatMessage>>` which implements the `Copy` trait: help: try removing the `clone` call: `set_messages`
+src/pages/agent/page.rs:32:27: warning: using `clone` on type `WriteSignal<u32>` which implements the `Copy` trait: help: try removing the `clone` call: `set_next_id`
+src/pages/history/page.rs:26:9: warning: field assignment outside of initializer for an instance created with Default::default()
+src/pages/history/page.rs:41:33: warning: consider using `sort_by_key`
+src/pages/history/page.rs:42:18: warning: consider using `sort_by_key`
+src/pages/history/page.rs:194:52: warning: redundant closure: help: replace the closure with the function itself: `on_history_undo`
+src/pages/login/page.rs:367:34: warning: using `clone` on type `{closure@page.rs:93:24}` which implements the `Copy` trait: help: try removing the `clone` call: `finish_login`
+src/pages/login/page.rs:368:33: warning: using `clone` on type `WriteSignal<Option<&str>>` which implements the `Copy` trait: help: try removing the `clone` call: `set_fa_mode`
+src/pages/login/page.rs:369:36: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_fa_message`
+src/pages/login/page.rs:444:23: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_su_error`
+src/pages/login/page.rs:445:24: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_su_success`
+src/pages/login/page.rs:446:21: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_su_username`
+src/pages/login/page.rs:447:21: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_su_password`
+src/pages/login/page.rs:448:21: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_su_confirm`
+src/pages/login/page.rs:449:21: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_su_email`
+src/pages/networking/networking_forms.rs:103:13: warning: this `if` statement can be collapsed
+src/pages/networking/networking_forms.rs:137:38: warning: useless use of `format!`: help: consider using `.to_string()`: `user.id.to_string().split_at(8).0.to_string()`
+src/pages/networking/page.rs:381:13: warning: this let-binding has unit value
+src/pages/networking/page.rs:388:13: warning: this let-binding has unit value
+src/pages/organization/organization_card.rs:42:20: warning: very complex type used. Consider factoring parts into `type` definitions
+src/pages/organization/organization_forms.rs:185:20: warning: very complex type used. Consider factoring parts into `type` definitions
+src/pages/organization/organization_list.rs:39:20: warning: very complex type used. Consider factoring parts into `type` definitions
+src/pages/organization/page.rs:33:32: warning: consider using `sort_by_key`
+src/pages/organization/page.rs:35:13: warning: consider using `sort_by_key`
+src/pages/organization/page.rs:38:13: warning: consider using `sort_by_key`
+src/pages/organization/page.rs:40:33: warning: consider using `sort_by_key`
+src/pages/organization/page.rs:41:31: warning: consider using `sort_by_key`
+src/pages/organization/page.rs:479:171: warning: very complex type used. Consider factoring parts into `type` definitions
+src/pages/organization/page.rs:537:163: warning: very complex type used. Consider factoring parts into `type` definitions
+src/pages/organization/roles.rs:32:5: warning: consider using `sort_by_key`
+src/pages/organization/mod.rs:40:34: warning: unneeded `return` statement
+src/pages/overview.rs:40:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:81:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:88:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:95:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:102:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:109:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:181:50: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `m`
+src/pages/overview.rs:212:9: warning: consider using `sort_by_key`
+src/pages/overview.rs:375:26: warning: redundant closure: help: replace the closure with the function itself: `fmt_time`
+src/pages/overview.rs:397:9: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_channels.rs:529:17: warning: called `Iterator::last` on a `DoubleEndedIterator`; this will needlessly iterate the entire iterator
+src/pages/portfolios/asset_editor.rs:634:34: warning: unneeded cloning of iterator items
+src/pages/portfolios/asset_group.rs:249:45: warning: using `clone` on type `RwSignal<AppStore>` which implements the `Copy` trait: help: try removing the `clone` call: `app_store`
+src/pages/portfolios/asset_group.rs:274:33: warning: this let-binding has unit value
+src/pages/portfolios/asset_group.rs:452:37: warning: using `clone` on type `ViewMode` which implements the `Copy` trait: help: try removing the `clone` call: `view_mode`
+src/pages/portfolios/asset_group.rs:466:49: warning: using `clone` on type `ViewMode` which implements the `Copy` trait: help: try removing the `clone` call: `view_mode`
+src/pages/portfolios/asset_group.rs:468:159: warning: using `clone` on type `ViewMode` which implements the `Copy` trait: help: try removing the `clone` call: `view_mode`
+src/pages/portfolios/asset_item.rs:688:77: warning: using `clone` on type `Callback<String>` which implements the `Copy` trait: help: try removing the `clone` call: `add_image`
+src/pages/portfolios/asset_item.rs:774:49: warning: using `clone` on type `WriteSignal<i32>` which implements the `Copy` trait: help: try removing the `clone` call: `set_tooltip_x`
+src/pages/portfolios/asset_item.rs:775:49: warning: using `clone` on type `WriteSignal<i32>` which implements the `Copy` trait: help: try removing the `clone` call: `set_tooltip_y`
+src/pages/portfolios/asset_item.rs:784:53: warning: clamp-like pattern without using clamp function: help: replace with clamp: `((char_count + 29) / 30).clamp(1, 5)`
+src/pages/portfolios/asset_item.rs:784:53: warning: manually reimplementing `div_ceil`: help: consider using `.div_ceil()`: `char_count.div_ceil(30)`
+src/pages/portfolios/asset_item.rs:1026:26: warning: using `clone` on type `Option<Callback<String>>` which implements the `Copy` trait: help: try removing the `clone` call: `add_cb`
+src/pages/portfolios/asset_viewer.rs:21:34: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_viewer.rs:23:13: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_viewer.rs:26:13: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_viewer.rs:47:34: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_viewer.rs:49:13: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_viewer.rs:52:13: warning: consider using `sort_by_key`
+src/pages/portfolios/asset_viewer.rs:194:67: warning: redundant closure: help: replace the closure with the function itself: `&page_size`
+src/pages/portfolios/asset_viewer.rs:231:23: warning: using `clone` on type `Signal<ViewMode>` which implements the `Copy` trait: help: try removing the `clone` call: `view_mode_groups_content`
+src/pages/portfolios/asset_viewer.rs:335:63: warning: using `clone` on type `Callback<(NotifTarget, String, bool)>` which implements the `Copy` trait: help: try removing the `clone` call: `on_open_notif_qs`
+src/pages/portfolios/doc_modal.rs:225:47: warning: using `clone` on type `{closure@doc_modal.rs:189:21}` which implements the `Copy` trait: help: try removing the `clone` call: `close_tab`
+src/pages/portfolios/doc_modal.rs:246:37: warning: using `clone` on type `Option<Callback<String>>` which implements the `Copy` trait: help: try removing the `clone` call: `on_add`
+src/pages/portfolios/doc_modal.rs:324:96: warning: this manual char comparison can be written more succinctly: help: consider using an array of `char`: `[' ', ',', '.']`
+src/pages/portfolios/notifications.rs:491:9: warning: consider using `sort_by_key`
+src/pages/portfolios/page.rs:880:41: warning: using `clone` on type `{closure@page.rs:870:54}` which implements the `Copy` trait: help: try removing the `clone` call: `toggle_org`
+src/pages/portfolios/page.rs:934:65: warning: this let-binding has unit value
+src/pages/portfolios/portfolio_list.rs:215:45: warning: using `clone` on type `RwSignal<AppStore>` which implements the `Copy` trait: help: try removing the `clone` call: `app_store`
+src/pages/portfolios/portfolio_list.rs:238:33: warning: this let-binding has unit value
+src/pages/portfolios/portfolio_list.rs:459:39: warning: using `clone` on type `Callback<(NotifTarget, String, bool)>` which implements the `Copy` trait: help: try removing the `clone` call: `on_open_notif_qs`
+src/pages/reporting/page.rs:60:34: warning: using `clone` on type `NodeRef<Div>` which implements the `Copy` trait: help: try removing the `clone` call: `tabs_container_ref`
+src/pages/reporting/page.rs:61:31: warning: using `clone` on type `StoredValue<Option<i32>>` which implements the `Copy` trait: help: try removing the `clone` call: `scroll_interval`
+src/pages/reporting/page.rs:70:31: warning: using `clone` on type `StoredValue<Option<i32>>` which implements the `Copy` trait: help: try removing the `clone` call: `scroll_interval`
+src/pages/reporting/page.rs:79:28: warning: using `clone` on type `{closure@page.rs:62:9}` which implements the `Copy` trait: help: try removing the `clone` call: `start_scroll`
+src/pages/reporting/page.rs:83:28: warning: using `clone` on type `{closure@page.rs:62:9}` which implements the `Copy` trait: help: try removing the `clone` call: `start_scroll`
+src/pages/reporting/page.rs:89:28: warning: using `clone` on type `{closure@page.rs:62:9}` which implements the `Copy` trait: help: try removing the `clone` call: `start_scroll`
+src/pages/reporting/page.rs:93:28: warning: using `clone` on type `{closure@page.rs:62:9}` which implements the `Copy` trait: help: try removing the `clone` call: `start_scroll`
+src/pages/reporting/page.rs:98:27: warning: using `clone` on type `{closure@page.rs:71:9}` which implements the `Copy` trait: help: try removing the `clone` call: `stop_scroll`
+src/pages/reporting/page.rs:102:27: warning: using `clone` on type `{closure@page.rs:71:9}` which implements the `Copy` trait: help: try removing the `clone` call: `stop_scroll`
+src/pages/settings/page.rs:112:26: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_secret`
+src/pages/settings/page.rs:113:23: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_uri`
+src/pages/settings/page.rs:114:24: warning: using `clone` on type `WriteSignal<u8>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_step`
+src/pages/settings/page.rs:115:23: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_error`
+src/pages/settings/page.rs:160:24: warning: using `clone` on type `WriteSignal<u8>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_step`
+src/pages/settings/page.rs:161:23: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_error`
+src/pages/settings/page.rs:162:24: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_setup_success`
+src/pages/settings/page.rs:208:26: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_phone_2fa_status`
+src/pages/settings/page.rs:243:26: warning: using `clone` on type `WriteSignal<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_email_2fa_status`
+src/pages/transactions/approval_panel.rs:33:25: warning: using `clone` on type `Callback<(Uuid, ApprovalAction, Option<String>)>` which implements the `Copy` trait: help: try removing the `clone` call: `on_action`
+src/pages/transactions/approval_panel.rs:34:9: warning: redundant redefinition of a binding `tx_id`
+src/pages/transactions/page.rs:338:86: warning: using `clone` on type `Callback<Transaction>` which implements the `Copy` trait: help: try removing the `clone` call: `on_create_txn`
+src/pages/transactions/page.rs:344:49: warning: using `clone` on type `Callback<Invoice>` which implements the `Copy` trait: help: try removing the `clone` call: `on_create_invoice`
+src/pages/transactions/page.rs:382:114: warning: using `clone` on type `Callback<Payment>` which implements the `Copy` trait: help: try removing the `clone` call: `on_send`
+src/pages/transactions/page.rs:388:117: warning: using `clone` on type `Callback<Payment>` which implements the `Copy` trait: help: try removing the `clone` call: `on_receive`
+src/pages/transactions/page.rs:392:77: warning: using `clone` on type `Callback<String>` which implements the `Copy` trait: help: try removing the `clone` call: `set_active_tab_callback`
+src/pages/transactions/page.rs:465:53: warning: using `clone` on type `Callback<(Uuid, ApprovalAction, Option<String>)>` which implements the `Copy` trait: help: try removing the `clone` call: `on_approval_action`
+src/pages/transactions/transaction_list.rs:97:41: warning: using `clone` on type `Callback<(Uuid, ApprovalAction, Option<String>)>` which implements the `Copy` trait: help: try removing the `clone` call: `on_approval_action`
+src/stores/app_store.rs:1075:5: warning: this function has too many arguments (8/7)
+src/stores/app_store.rs:1270:24: warning: this `map_or` can be simplified
+src/stores/calendar_store.rs:14:1: warning: this `impl` can be derived
+src/stores/credentials.rs:173:5: warning: this function has too many arguments (9/7)
+src/stores/messenger_store.rs:16:1: warning: this `impl` can be derived
+src/stores/notifications.rs:192:5: warning: this function has too many arguments (11/7)
+src/stores/notifications.rs:247:5: warning: this function has too many arguments (9/7)
+src/stores/notifications.rs:396:9: warning: consider using `sort_by_key`
+src/stores/organization_store.rs:16:1: warning: this `impl` can be derived
+src/stores/organization_store.rs:161:36: warning: writing `&mut Vec` instead of `&mut [_]` involves a new object where a slice will do
+src/stores/portfolio_store.rs:356:9: warning: manual implementation of `Option::map`: help: try: `portfolios.iter().position(|p| p.id == id).map(|pos| portfolios.remove(pos))`
+src/stores/rule_store.rs:14:1: warning: this `impl` can be derived
+src/stores/search_store.rs:59:1: warning: large size difference between variants: the entire enum is at least 1648 bytes
+src/stores/search_store.rs:134:9: warning: match expression looks like `matches!` macro
+src/stores/search_store.rs:274:20: warning: this `map_or` can be simplified
+src/stores/search_store.rs:287:24: warning: this `map_or` can be simplified
+src/stores/search_store.rs:413:16: warning: this `map_or` can be simplified
+src/stores/search_store.rs:426:16: warning: this `map_or` can be simplified
+src/stores/search_store.rs:433:29: warning: this `map_or` can be simplified
+src/stores/search_store.rs:436:28: warning: this `map_or` can be simplified
+src/stores/search_store.rs:439:30: warning: this `map_or` can be simplified
+src/stores/search_store.rs:459:16: warning: this `map_or` can be simplified
+src/stores/search_store.rs:464:16: warning: this `map_or` can be simplified
+src/stores/search_store.rs:470:29: warning: this `map_or` can be simplified
+src/stores/search_store.rs:473:28: warning: this `map_or` can be simplified
+src/stores/search_store.rs:476:30: warning: this `map_or` can be simplified
+src/stores/seed_data.rs:1079:1: warning: this function has too many arguments (8/7)
+src/stores/seed_data.rs:1153:28: warning: very complex type used. Consider factoring parts into `type` definitions
+src/stores/seed_data.rs:1265:27: warning: very complex type used. Consider factoring parts into `type` definitions
+src/stores/transaction_store.rs:14:1: warning: this `impl` can be derived
+src/stores/undo_redo.rs:11:1: warning: this function has too many arguments (8/7)
+src/stores/undo_redo.rs:387:1: warning: this `impl` can be derived
+src/types/common.rs:54:1: warning: this `impl` can be derived
+src/types/common.rs:127:1: warning: this `impl` can be derived
+src/types/common.rs:302:1: warning: this `impl` can be derived
+src/types/common.rs:346:1: warning: this `impl` can be derived
+src/types/common.rs:529:1: warning: this `impl` can be derived
+src/types/common.rs:562:1: warning: this `impl` can be derived
+src/types/common.rs:586:1: warning: this `impl` can be derived
+src/types/common.rs:610:1: warning: this `impl` can be derived
+src/types/common.rs:730:5: warning: method `from_str` can be confused for the standard trait method `std::str::FromStr::from_str`
+src/utils/crypto.rs:13:5: warning: the variable `i` is used as a loop counter: help: consider using: `for (i, byte) in hash_bytes.iter().cycle().take(64).enumerate()`
+src/pages/portfolios/notifications.rs:102:24: warning: useless use of `vec!`
+src/pages/portfolios/notifications.rs:120:21: warning: useless use of `vec!`
+warning: `farley` (lib) generated 204 warnings (6 duplicates) (run `cargo clippy --fix --lib -p farley -- ` to apply 146 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 7.46s

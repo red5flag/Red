@@ -227,15 +227,49 @@ impl AssetType {
     /// Common subtype/build options for this asset type.
     pub fn common_subtypes(&self) -> Vec<&'static str> {
         match self {
-            AssetType::RealEstate => vec!["House", "Apartment", "Unit", "Townhouse", "Land", "Commercial", "Industrial", "Retail"],
-            AssetType::Vehicle => vec!["Car", "Truck", "Van", "Motorcycle", "Boat", "Trailer", "Bus", "RV"],
-            AssetType::Equipment => vec!["Machinery", "Tools", "Electronics", "Furniture", "Appliances", "IT Hardware"],
+            AssetType::RealEstate => vec![
+                "House",
+                "Apartment",
+                "Unit",
+                "Townhouse",
+                "Land",
+                "Commercial",
+                "Industrial",
+                "Retail",
+            ],
+            AssetType::Vehicle => vec![
+                "Car",
+                "Truck",
+                "Van",
+                "Motorcycle",
+                "Boat",
+                "Trailer",
+                "Bus",
+                "RV",
+            ],
+            AssetType::Equipment => vec![
+                "Machinery",
+                "Tools",
+                "Electronics",
+                "Furniture",
+                "Appliances",
+                "IT Hardware",
+            ],
             AssetType::Stock => vec!["Shares", "Bonds", "ETF", "Options", "Futures"],
             AssetType::Bond => vec!["Government", "Corporate", "Municipal", "Junk"],
             AssetType::Commodity => vec!["Agricultural", "Metals", "Energy", "Livestock"],
             AssetType::Digital => vec!["Cryptocurrency", "Software", "Domain", "NFT", "License"],
-            AssetType::IntellectualProperty => vec!["Patent", "Trademark", "Copyright", "Trade Secret"],
-            AssetType::Channel => vec!["Airbnb", "BookingCom", "Expedia", "Vrbo", "Direct", "Website"],
+            AssetType::IntellectualProperty => {
+                vec!["Patent", "Trademark", "Copyright", "Trade Secret"]
+            }
+            AssetType::Channel => vec![
+                "Airbnb",
+                "BookingCom",
+                "Expedia",
+                "Vrbo",
+                "Direct",
+                "Website",
+            ],
             AssetType::Custom(_) => vec!["Custom"],
         }
     }
@@ -312,6 +346,15 @@ impl Default for ViewCount {
     fn default() -> Self {
         ViewCount::V10
     }
+}
+
+// Sort modes for overview dashboard sections
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum OverviewSortMode {
+    #[default]
+    Selected,
+    Recent,
+    Trending,
 }
 
 // Sort modes for lists

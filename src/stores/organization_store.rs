@@ -42,6 +42,18 @@ impl OrganizationStore {
         self.organizations.iter_mut().find(|o| o.id == id)
     }
 
+    pub fn update_document_name(&mut self, doc_id: Uuid, new_name: String) {
+        for org in &mut self.organizations {
+            for d in &mut org.documents {
+                if d.id == doc_id {
+                    d.name = new_name;
+                    org.updated_at = chrono::Utc::now();
+                    return;
+                }
+            }
+        }
+    }
+
     pub fn remove_organization(&mut self, id: Uuid) -> Option<Organization> {
         if let Some(pos) = self.organizations.iter().position(|o| o.id == id) {
             Some(self.organizations.remove(pos))
@@ -133,7 +145,11 @@ impl OrganizationStore {
     /// Collect all `Perm` values from every `OrgRole` the user is a member of
     /// in the given organization. Returns an empty set if the org or user is
     /// not found.
-    pub fn user_perms_in_org(&self, org_id: Uuid, user_id: Uuid) -> std::collections::HashSet<Perm> {
+    pub fn user_perms_in_org(
+        &self,
+        org_id: Uuid,
+        user_id: Uuid,
+    ) -> std::collections::HashSet<Perm> {
         let mut perms = std::collections::HashSet::new();
         if let Some(org) = self.get_organization(org_id) {
             for role in &org.roles {

@@ -23,7 +23,10 @@ pub async fn openmaps_autocomplete(query: String) -> Result<Vec<String>, ServerF
             .send()
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
-        let text = res.text().await.map_err(|e| ServerFnError::new(e.to_string()))?;
+        let text = res
+            .text()
+            .await
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
         let results: Vec<NominatimResult> =
             serde_json::from_str(&text).map_err(|e| ServerFnError::new(e.to_string()))?;
         Ok(results.into_iter().map(|r| r.display_name).collect())

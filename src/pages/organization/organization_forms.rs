@@ -200,6 +200,7 @@ pub(crate) fn OrgContextMenu(
     >,
     on_start_new_role: Callback<Uuid, ()>,
     on_delete_org: Callback<Uuid, ()>,
+    on_add_image: Callback<Uuid, ()>,
 ) -> impl IntoView {
     view! {
         {move || context_menu.get().map(|(x, y, id)| {
@@ -230,6 +231,13 @@ pub(crate) fn OrgContextMenu(
                                 set_context_menu.set(None);
                                 on_start_edit.run((id, name_for_edit.clone(), image_url.clone(), desc.clone(), color.clone(), abn.clone(), lei.clone(), business_type.clone(), business_address.clone(), business_phone.clone(), business_email.clone()));
                             }>"\u{270E} Edit Organization"</button>
+                        <button class="context-menu-item org-context-menu-item"
+                            on:click=move |_| {
+                                set_context_menu.set(None);
+                                on_add_image.run(id);
+                            }>
+                            "\u{1F5BC} Add Image"
+                        </button>
                         <button class="context-menu-item org-context-menu-item" disabled>
                             "\u{2795} Assign Portfolio (coming soon)"
                         </button>

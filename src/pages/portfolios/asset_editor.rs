@@ -26,20 +26,29 @@ fn input_to_date(s: &str) -> Option<DateTime<Utc>> {
 }
 
 fn status_options() -> Vec<&'static str> {
-    vec![
-        "Active", "Retired", "Disposed", "Archived", "Draft",
-    ]
+    vec!["Active", "Retired", "Disposed", "Archived", "Draft"]
 }
 
 fn availability_options() -> Vec<&'static str> {
     vec![
-        "Available", "Reserved", "Booked", "Rented", "In use", "Unavailable",
+        "Available",
+        "Reserved",
+        "Booked",
+        "Rented",
+        "In use",
+        "Unavailable",
     ]
 }
 
 fn condition_options() -> Vec<&'static str> {
     vec![
-        "New", "Excellent", "Good", "Fair", "Poor", "Damaged", "Unsafe",
+        "New",
+        "Excellent",
+        "Good",
+        "Fair",
+        "Poor",
+        "Damaged",
+        "Unsafe",
     ]
 }
 
@@ -90,7 +99,12 @@ fn relationship_type_options() -> Vec<&'static str> {
 
 fn party_type_options() -> Vec<&'static str> {
     vec![
-        "Organization", "Team", "Member", "Supplier", "Service provider", "External contact",
+        "Organization",
+        "Team",
+        "Member",
+        "Supplier",
+        "Service provider",
+        "External contact",
     ]
 }
 
@@ -273,7 +287,8 @@ pub(crate) fn AssetDetailView(
     let add_relationship = move || {
         let rel_type_str = new_rel_type.get_untracked();
         let rel_type = AssetRelationshipType::from_str(&rel_type_str).unwrap_or_default();
-        let party_type = AssetRelationshipPartyType::from_str(&new_rel_party_type.get_untracked()).unwrap_or_default();
+        let party_type = AssetRelationshipPartyType::from_str(&new_rel_party_type.get_untracked())
+            .unwrap_or_default();
         let name = new_rel_party.get_untracked().trim().to_string();
         let contact = new_rel_contact.get_untracked().trim().to_string();
         if name.is_empty() {
@@ -282,7 +297,11 @@ pub(crate) fn AssetDetailView(
         let user_name = Some(app_store.get().current_user.name.clone());
         let party = RelatedParty {
             name,
-            contact: if contact.is_empty() { None } else { Some(contact) },
+            contact: if contact.is_empty() {
+                None
+            } else {
+                Some(contact)
+            },
             party_type,
             party_id: None,
         };
@@ -309,12 +328,29 @@ pub(crate) fn AssetDetailView(
                     existing.end_date = Some(Utc::now());
                 }
             }
-            let previous = if party_name.is_empty() { None } else { Some(party_name.as_str()) };
+            let previous = if party_name.is_empty() {
+                None
+            } else {
+                Some(party_name.as_str())
+            };
             let new_name = rel.related_party.name.as_str();
             if rel_type == AssetRelationshipType::CurrentCustodian {
-                a.record_custodian_change(user_id, user_name.clone(), previous, Some(new_name), None);
+                a.record_custodian_change(
+                    user_id,
+                    user_name.clone(),
+                    previous,
+                    Some(new_name),
+                    None,
+                );
             } else {
-                a.record_ownership_change(user_id, user_name.clone(), rel_type.as_str(), previous, Some(new_name), None);
+                a.record_ownership_change(
+                    user_id,
+                    user_name.clone(),
+                    rel_type.as_str(),
+                    previous,
+                    Some(new_name),
+                    None,
+                );
             }
             a.relationships.push(rel);
         });

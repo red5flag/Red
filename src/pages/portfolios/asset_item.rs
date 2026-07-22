@@ -1,17 +1,17 @@
 use crate::models::Asset;
-use crate::stores::{
-    use_app_store, use_notification_store, use_organization_store, use_transaction_store,
-    use_ui_store,
-};
+use crate::stores::{use_app_store, use_organization_store, use_transaction_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
-use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, document_icon, name_click_handlers, read_images_as_data_urls,
-    shorthand_name, AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
-    DocModal, DocumentViewer, UserAssignmentPanel,
+    detect_file_type, document_icon, name_click_handlers, read_images_as_data_urls, shorthand_name,
+    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
+    DocumentViewer, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -50,7 +50,6 @@ pub(crate) fn AssetItem(
     #[prop(default = None)] highlight: Option<Signal<Option<Uuid>>>,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let notification_store = use_notification_store();
     let transaction_store = use_transaction_store();
     let ui_store = use_ui_store();
     let asset_id = asset.id;
@@ -72,13 +71,15 @@ pub(crate) fn AssetItem(
     let asset_type_for_placeholder = asset.asset_type.clone();
     let asset_name_for_placeholder = asset.name.clone();
     let image_url: Signal<String> = Signal::derive(move || {
-        asset_images
-            .get()
-            .first()
-            .cloned()
-            .unwrap_or_else(|| asset_placeholder_url(&asset_type_for_placeholder, &asset_name_for_placeholder))
+        asset_images.get().first().cloned().unwrap_or_else(|| {
+            asset_placeholder_url(&asset_type_for_placeholder, &asset_name_for_placeholder)
+        })
     });
-    let max_images = if asset.organization_id.is_some() { 100usize } else { 50usize };
+    let max_images = if asset.organization_id.is_some() {
+        100usize
+    } else {
+        50usize
+    };
     let asset_for_highlight = asset.clone();
     let (expanded_detail, set_expanded_detail) = signal(false);
     let (collapsed, set_collapsed) = signal(collapsible);
@@ -134,8 +135,14 @@ pub(crate) fn AssetItem(
     let (edit_desc, set_edit_desc) = signal(asset.description.clone().unwrap_or_default());
     let (edit_loc, set_edit_loc) = signal(asset.location.clone().unwrap_or_default());
     let (edit_asset_type, set_edit_asset_type) = signal(asset.asset_type.clone());
-    let (edit_asset_subtype, set_edit_asset_subtype) = signal(asset.asset_subtype.clone().unwrap_or_default());
-    let (edit_org_id, set_edit_org_id) = signal(asset.organization_id.map(|id| id.to_string()).unwrap_or_default());
+    let (edit_asset_subtype, set_edit_asset_subtype) =
+        signal(asset.asset_subtype.clone().unwrap_or_default());
+    let (edit_org_id, set_edit_org_id) = signal(
+        asset
+            .organization_id
+            .map(|id| id.to_string())
+            .unwrap_or_default(),
+    );
     let (editing_type_build, set_editing_type_build) = signal(false);
     let (editing_address, set_editing_address) = signal(false);
     let (editing_org, set_editing_org) = signal(false);
@@ -146,7 +153,15 @@ pub(crate) fn AssetItem(
 
     let (name_click, name_dblclick) = name_click_handlers(
         move || set_collapsed.update(|v| *v = !*v),
-        move || if can_edit_here.get() { set_editing.set(true); set_collapsed.set(false); },
+        move || {
+            if can_edit_here.get() {
+                set_editing_type_build.set(false);
+                set_editing_address.set(false);
+                set_editing_org.set(false);
+                set_editing.set(true);
+                set_collapsed.set(false);
+            }
+        },
     );
     let user_id = app_store.get().current_user.id;
     let assigned_workers = asset.assigned_workers.clone();
@@ -246,18 +261,28 @@ pub(crate) fn AssetItem(
             .get()
             .portfolios
             .iter()
-            .flat_map(|p| p.assets.iter().chain(p.asset_groups.iter().flat_map(|g| g.assets.iter())))
+            .flat_map(|p| {
+                p.assets
+                    .iter()
+                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+            })
             .find(|a| a.id == asset_id)
             .and_then(|a| a.location.clone())
             .unwrap_or_default()
     });
     let a_addr_grid = Memo::new(move |_| {
         let addr = a_addr.get();
-        if addr.is_empty() { "\u{00A0}".to_string() } else { addr }
+        if addr.is_empty() {
+            "\u{00A0}".to_string()
+        } else {
+            addr
+        }
     });
     let a_name_tx = a_name.clone();
     let a_org_id = asset.organization_id;
     let addr_datalist_id = format!("addr-datalist-{}", asset_id);
+    let type_datalist_id = format!("type-datalist-{}", asset_id);
+    let subtype_datalist_id = format!("subtype-datalist-{}", asset_id);
     let organization_store = use_organization_store();
 
     // Permission-based flags for linking and booking controls
@@ -267,24 +292,30 @@ pub(crate) fn AssetItem(
             return can_edit.get();
         }
         let oid = a_org_id.unwrap();
-        organization_store
-            .get()
-            .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditDirectAssetLinking)
-            || organization_store
-                .get()
-                .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditChannels)
+        organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::EditDirectAssetLinking,
+        ) || organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::EditChannels,
+        )
     };
     let can_book = move || {
         if a_org_id.is_none() {
             return can_edit.get();
         }
         let oid = a_org_id.unwrap();
-        organization_store
-            .get()
-            .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::CreateDirectAssetBookings)
-            || organization_store
-                .get()
-                .user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::CreateBookings)
+        organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::CreateDirectAssetBookings,
+        ) || organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::CreateBookings,
+        )
     };
     let a_org_name = move || {
         organization_store
@@ -310,7 +341,10 @@ pub(crate) fn AssetItem(
     // snapshot values for the detail panel
     let a_type = format!("{:?}", asset.asset_type);
     let a_type_grid = a_type.clone();
-    let a_subtype_grid = asset.asset_subtype.clone().unwrap_or_else(|| "—".to_string());
+    let a_subtype_grid = asset
+        .asset_subtype
+        .clone()
+        .unwrap_or_else(|| "—".to_string());
     let _a_desc = asset.description.clone().unwrap_or_else(|| "—".to_string());
     let a_status_badges = asset.status_badges();
     let a_status_label = a_status_badges
@@ -320,6 +354,20 @@ pub(crate) fn AssetItem(
         .join(", ");
     let _a_purchase_val = asset.purchase_value;
     let a_current_val = asset.current_value;
+    let a_uuid = asset.id;
+    let child_asset_count = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .flat_map(|p| {
+                p.assets
+                    .iter()
+                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+            })
+            .filter(|a| a.parent_asset_id == Some(asset_id))
+            .count()
+    });
     let _a_pl = asset.profit_loss;
     let _a_pl_pct = asset.profit_loss_percent;
     let _a_revenue = asset.revenue;
@@ -332,6 +380,18 @@ pub(crate) fn AssetItem(
 
     // OpenStreetMap/Nominatim address autocomplete generation counter.
     let address_gen = Arc::new(AtomicU64::new(0));
+
+    // Persist the owning portfolio to RocksDB after asset field changes.
+    let persist_portfolio = move || {
+        if let Some(pid) = portfolio_id {
+            let portfolio_clone = app_store.get().get_portfolio(pid).cloned();
+            if let Some(p) = portfolio_clone {
+                leptos::task::spawn_local(async move {
+                    let _ = crate::server::save_portfolio(p).await;
+                });
+            }
+        }
+    };
 
     let save_type_build = move || {
         let t = edit_asset_type.get();
@@ -357,6 +417,7 @@ pub(crate) fn AssetItem(
                 }
             }
         });
+        persist_portfolio();
         set_editing_type_build.set(false);
     };
 
@@ -382,6 +443,7 @@ pub(crate) fn AssetItem(
                 }
             }
         });
+        persist_portfolio();
         set_editing_address.set(false);
         set_address_suggestions.set(Vec::new());
     };
@@ -409,6 +471,7 @@ pub(crate) fn AssetItem(
                 }
             }
         });
+        persist_portfolio();
         set_editing_org.set(false);
     };
 
@@ -444,6 +507,7 @@ pub(crate) fn AssetItem(
                 }
             }
         });
+        persist_portfolio();
         set_editing.set(false);
     };
 
@@ -728,7 +792,6 @@ pub(crate) fn AssetItem(
                                 };
                                 let doc_for_view = doc.clone();
                                 let doc_id = doc.id;
-                                let doc_id_for_notif = doc.id;
                                 let (doc_ctx_menu_x, set_doc_ctx_menu_x) = signal(0i32);
                                 let (doc_ctx_menu_y, set_doc_ctx_menu_y) = signal(0i32);
                                 let (show_doc_ctx_menu, set_show_doc_ctx_menu) = signal(false);
@@ -781,18 +844,6 @@ pub(crate) fn AssetItem(
                                         <div class="ai-doc-slider-thumb">{icon}</div>
                                         <div class="ai-doc-slider-name">{short_name}</div>
                                         <div class="ai-doc-slider-type">{ft.clone()}</div>
-                                        {move || {
-                                            let ncount = notification_store.get().notifications_for_doc(doc_id_for_notif);
-                                            if ncount > 0 {
-                                                view! {
-                                                    <span class="ai-doc-notif" role="status" aria-live="polite"
-                                                        aria-label={format!("{} pending document review{}", ncount, if ncount == 1 { "" } else { "s" })}
-                                                        title={format!("{} notification{}", ncount, if ncount == 1 { "" } else { "s" })}>
-                                                        {ncount}
-                                                    </span>
-                                                }.into_any()
-                                            } else { ().into_any() }
-                                            }}
                                         {move || if show_tooltip.get() {
                                             let text = tooltip_text.clone();
                                             view! {
@@ -854,16 +905,17 @@ pub(crate) fn AssetItem(
                     </div>
                     // Detail grid inline (always visible)
                     <div class="pf-detail-grid pf-detail-grid-inline">
-                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_type_build.set(true); } }>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_address.set(false); set_editing_org.set(false); set_editing_type_build.set(true); } }>
                             <span class="pf-detail-label">"TYPE & BUILD"</span>
                             {let type_grid = a_type_grid.clone();
                             let subtype_grid = a_subtype_grid.clone();
                             move || if can_edit_here.get() && editing_type_build.get() {
                                 view! {
                                     <div style="display:flex;flex-direction:column;gap:4px;">
-                                        <select class="pf-edit-input"
+                                        <input class="pf-edit-input" type="text" list={type_datalist_id.clone()}
+                                            placeholder="Type"
                                             prop:value=move || edit_asset_type.get().to_input_string()
-                                            on:change=move |ev| {
+                                            on:input=move |ev| {
                                                 let new_type = AssetType::from_input(&event_target_value(&ev));
                                                 let st = edit_asset_subtype.get();
                                                 let subs = new_type.common_subtypes();
@@ -871,20 +923,27 @@ pub(crate) fn AssetItem(
                                                     set_edit_asset_subtype.set(subs.first().copied().unwrap_or("").to_string());
                                                 }
                                                 set_edit_asset_type.set(new_type);
-                                            }>
-                                            {move || {
-                                                let labels = AssetType::all_labels();
-                                                let current = edit_asset_type.get().to_input_string();
-                                                let mut opts: Vec<String> = labels.into_iter().map(|l| l.to_string()).collect();
-                                                if !current.trim().is_empty() && !opts.iter().any(|o| o.as_str() == current.as_str()) {
-                                                    opts.push(current.clone());
-                                                }
-                                                opts.into_iter().map(|o| view! { <option value={o.clone()} selected=move || edit_asset_type.get().to_input_string() == o>{o.clone()}</option> }).collect::<Vec<_>>()
-                                            }}
-                                        </select>
-                                        <select class="pf-edit-input"
+                                            }
+                                            on:blur=move |_| save_type_build()
+                                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                                if ev.key() == "Enter" { save_type_build(); }
+                                                if ev.key() == "Escape" { set_editing_type_build.set(false); }
+                                            }
+                                        />
+                                        <datalist id={type_datalist_id.clone()}>
+                                            {AssetType::all_labels().into_iter().map(|l| view! { <option value={l.to_string()}>{l.to_string()}</option> }).collect::<Vec<_>>()}
+                                        </datalist>
+                                        <input class="pf-edit-input" type="text" list={subtype_datalist_id.clone()}
+                                            placeholder="Build"
                                             prop:value=move || edit_asset_subtype.get()
-                                            on:change=move |ev| set_edit_asset_subtype.set(event_target_value(&ev))>
+                                            on:input=move |ev| set_edit_asset_subtype.set(event_target_value(&ev))
+                                            on:blur=move |_| save_type_build()
+                                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                                if ev.key() == "Enter" { save_type_build(); }
+                                                if ev.key() == "Escape" { set_editing_type_build.set(false); }
+                                            }
+                                        />
+                                        <datalist id={subtype_datalist_id.clone()}>
                                             {move || {
                                                 let t = edit_asset_type.get();
                                                 let st = edit_asset_subtype.get();
@@ -892,20 +951,16 @@ pub(crate) fn AssetItem(
                                                 if !st.trim().is_empty() && !opts.iter().any(|o| o.to_lowercase() == st.trim().to_lowercase()) {
                                                     opts.push(st.clone());
                                                 }
-                                                opts.into_iter().map(|s| view! { <option value={s.clone()} selected=move || edit_asset_subtype.get() == s>{s.clone()}</option> }).collect::<Vec<_>>()
+                                                opts.into_iter().map(|s| view! { <option value={s.clone()}>{s.clone()}</option> }).collect::<Vec<_>>()
                                             }}
-                                        </select>
-                                        <div style="display:flex;gap:6px;">
-                                            <button class="login-btn" on:click=move |_| save_type_build()>"Save"</button>
-                                            <button class="view-btn" on:click=move |_| set_editing_type_build.set(false)>"Cancel"</button>
-                                        </div>
+                                        </datalist>
                                     </div>
                                 }.into_any()
                             } else {
                                 view! { <span class="pf-detail-value">{format!("{} / {}", type_grid, subtype_grid)}</span> }.into_any()
                             }}
                         </div>
-                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_address.set(true); } }>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_type_build.set(false); set_editing_org.set(false); set_editing_address.set(true); } }>
                             <span class="pf-detail-label">"ADDRESS"</span>
                             {move || if can_edit_here.get() && editing_address.get() {
                                 view! {
@@ -949,13 +1004,14 @@ pub(crate) fn AssetItem(
                                 view! { <span class="pf-detail-value">{move || a_addr_grid.get()}</span> }.into_any()
                             }}
                         </div>
-                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_org.set(true); } }>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_type_build.set(false); set_editing_address.set(false); set_editing_org.set(true); } }>
                             <span class="pf-detail-label">"ORGANIZATION"</span>
                             {move || if can_edit_here.get() && editing_org.get() {
                                 view! {
                                     <select class="pf-edit-input"
                                         prop:value=move || edit_org_id.get()
-                                        on:change=move |ev| { set_edit_org_id.set(event_target_value(&ev)); save_org(); }>
+                                        on:change=move |ev| { set_edit_org_id.set(event_target_value(&ev)); save_org(); }
+                                        on:focusout=move |_| set_editing_org.set(false)>
                                         <option value="">"(None)"</option>
                                         {move || available_orgs.get().into_iter().map(|o| view! {
                                             <option value={o.id.to_string()} selected=move || edit_org_id.get() == o.id.to_string()>{o.name.clone()}</option>
@@ -969,6 +1025,14 @@ pub(crate) fn AssetItem(
                         <div class="pf-detail-cell">
                             <span class="pf-detail-label">"PRICE"</span>
                             <span class="pf-detail-value">{format!("${:.2}", a_current_val)}</span>
+                        </div>
+                        <div class="pf-detail-cell">
+                            <span class="pf-detail-label">"# ASSETS"</span>
+                            <span class="pf-detail-value">{move || child_asset_count.get().to_string()}</span>
+                        </div>
+                        <div class="pf-detail-cell" title={a_uuid.to_string()}>
+                            <span class="pf-detail-label">"UUID"</span>
+                            <span class="pf-detail-value">{a_uuid.to_string().chars().take(8).collect::<String>()}</span>
                         </div>
                     </div>
                     <div class="ai-controls-row">

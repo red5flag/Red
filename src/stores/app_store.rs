@@ -882,7 +882,8 @@ impl AppStore {
                 notification_store,
             );
             // Mixed Investments is NOT part of any organization
-            self.portfolios.push(seed_default_portfolio(self.current_user.id));
+            self.portfolios
+                .push(seed_default_portfolio(self.current_user.id));
             self.portfolios.push(seed_portfolio_2(self.current_user.id));
             let red_org_id = organization_store.current_organization_id;
             self.current_user.organization_id = red_org_id;
@@ -1056,15 +1057,16 @@ impl AppStore {
 
     /// Save password to credential store (for "Remember Password" feature).
     /// The remembered password is always encrypted locally so saved profiles can auto-fill it.
-    pub fn save_password_to_credentials(
-        &mut self,
-        username: &str,
-        password: &str,
-    ) {
+    pub fn save_password_to_credentials(&mut self, username: &str, password: &str) {
         let display_name = self.current_user.name.clone();
         let email = self.current_user.email.clone();
-        self.credentials
-            .save_password(username, password, &display_name, &email, Some(password.to_string()));
+        self.credentials.save_password(
+            username,
+            password,
+            &display_name,
+            &email,
+            Some(password.to_string()),
+        );
         #[cfg(feature = "hydrate")]
         self.credentials.save_to_local_storage();
     }

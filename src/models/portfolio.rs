@@ -1,6 +1,6 @@
 use crate::types::{
-    short_name_token, short_uuid_suffix, AssetType, Currency, NotificationTrigger, NotificationType,
-    SearchFilters, ViewMode,
+    short_name_token, short_uuid_suffix, AssetType, Currency, NotificationTrigger,
+    NotificationType, SearchFilters, ViewMode,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,11 @@ impl Portfolio {
     pub fn new(name: String, owner_id: Uuid, currency: Currency) -> Self {
         let now = Utc::now();
         let id = Uuid::new_v4();
-        let code = format!("PORT-{}-{}", currency.country_code(), short_uuid_suffix(id, 4));
+        let code = format!(
+            "PORT-{}-{}",
+            currency.country_code(),
+            short_uuid_suffix(id, 4)
+        );
         Self {
             id,
             code,
@@ -180,7 +184,11 @@ impl AssetGroup {
     pub fn new(name: String) -> Self {
         let now = Utc::now();
         let id = Uuid::new_v4();
-        let code = format!("GROUP-{}-{}", short_name_token(&name), short_uuid_suffix(id, 3));
+        let code = format!(
+            "GROUP-{}-{}",
+            short_name_token(&name),
+            short_uuid_suffix(id, 3)
+        );
         Self {
             id,
             code,
@@ -496,16 +504,26 @@ impl AssetRelationshipType {
         match s.trim().to_lowercase().as_str() {
             "legal owner" | "legalowner" => Some(AssetRelationshipType::LegalOwner),
             "beneficial owner" | "beneficialowner" => Some(AssetRelationshipType::BeneficialOwner),
-            "managing organization" | "managingorganization" => Some(AssetRelationshipType::ManagingOrganization),
-            "responsible department" | "responsibledepartment" => Some(AssetRelationshipType::ResponsibleDepartment),
+            "managing organization" | "managingorganization" => {
+                Some(AssetRelationshipType::ManagingOrganization)
+            }
+            "responsible department" | "responsibledepartment" => {
+                Some(AssetRelationshipType::ResponsibleDepartment)
+            }
             "asset manager" | "assetmanager" => Some(AssetRelationshipType::AssetManager),
-            "current custodian" | "currentcustodian" => Some(AssetRelationshipType::CurrentCustodian),
-            "assigned employee" | "assignedemployee" => Some(AssetRelationshipType::AssignedEmployee),
+            "current custodian" | "currentcustodian" => {
+                Some(AssetRelationshipType::CurrentCustodian)
+            }
+            "assigned employee" | "assignedemployee" => {
+                Some(AssetRelationshipType::AssignedEmployee)
+            }
             "assigned team" | "assignedteam" => Some(AssetRelationshipType::AssignedTeam),
             "cost centre" | "costcenter" | "costcentre" => Some(AssetRelationshipType::CostCentre),
             "supplier" => Some(AssetRelationshipType::Supplier),
             "manufacturer" => Some(AssetRelationshipType::Manufacturer),
-            "maintenance provider" | "maintenanceprovider" => Some(AssetRelationshipType::MaintenanceProvider),
+            "maintenance provider" | "maintenanceprovider" => {
+                Some(AssetRelationshipType::MaintenanceProvider)
+            }
             _ => None,
         }
     }
@@ -540,8 +558,12 @@ impl AssetRelationshipPartyType {
             "team" => Some(AssetRelationshipPartyType::Team),
             "member" => Some(AssetRelationshipPartyType::Member),
             "supplier" => Some(AssetRelationshipPartyType::Supplier),
-            "service provider" | "serviceprovider" => Some(AssetRelationshipPartyType::ServiceProvider),
-            "external contact" | "externalcontact" => Some(AssetRelationshipPartyType::ExternalContact),
+            "service provider" | "serviceprovider" => {
+                Some(AssetRelationshipPartyType::ServiceProvider)
+            }
+            "external contact" | "externalcontact" => {
+                Some(AssetRelationshipPartyType::ExternalContact)
+            }
             _ => None,
         }
     }
@@ -568,10 +590,7 @@ pub struct AssetRelationship {
 }
 
 impl AssetRelationship {
-    pub fn new(
-        relationship_type: AssetRelationshipType,
-        related_party: RelatedParty,
-    ) -> Self {
+    pub fn new(relationship_type: AssetRelationshipType, related_party: RelatedParty) -> Self {
         Self {
             id: Uuid::new_v4(),
             relationship_type,
@@ -880,9 +899,7 @@ impl Asset {
     pub fn current_custodian(&self) -> Option<&str> {
         self.relationships
             .iter()
-            .find(|r| {
-                r.relationship_type == AssetRelationshipType::CurrentCustodian && r.active
-            })
+            .find(|r| r.relationship_type == AssetRelationshipType::CurrentCustodian && r.active)
             .and_then(|r| {
                 let name = r.related_party.name.trim();
                 if name.is_empty() {

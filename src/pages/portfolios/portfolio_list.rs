@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::{
     detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetTarget,
-    AssetViewer, DocModal, NotifTarget, UserAssignmentPanel,
+    AssetViewer, DocModal, UserAssignmentPanel,
 };
 
 /// Portfolio list row — accordion style matching AssetGroupItem.
@@ -17,7 +17,6 @@ pub(crate) fn PortfolioListItem(
     #[prop(into)] expanded: Signal<bool>,
     on_toggle: Callback<()>,
     on_context: impl Fn(leptos::ev::MouseEvent) + 'static,
-    on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
     // AssetViewer props forwarded for expanded content
     #[prop(into)] show_add_group: Signal<Option<Uuid>>,
     set_show_add_group: WriteSignal<Option<Uuid>>,
@@ -45,9 +44,24 @@ pub(crate) fn PortfolioListItem(
     let (edit_image_url, set_edit_image_url) = signal(portfolio.image_url.clone());
     let (edit_emoji, set_edit_emoji) = signal(portfolio.emoji.clone().unwrap_or_default());
     let (is_editing_org, set_is_editing_org) = signal(false);
-    let (edit_org_id, set_edit_org_id) = signal(portfolio.organization_id.map(|id| id.to_string()).unwrap_or_default());
+    let (edit_org_id, set_edit_org_id) = signal(
+        portfolio
+            .organization_id
+            .map(|id| id.to_string())
+            .unwrap_or_default(),
+    );
+    let (show_doc_dropdown, set_show_doc_dropdown) = signal(false);
+    let (doc_modal_target, set_doc_modal_target) =
+        signal(Option::<(Uuid, String, Option<Uuid>, Option<Uuid>, Option<Uuid>)>::None);
+    let (new_doc_name_input, set_new_doc_name_input) = signal(String::new());
     let pid = portfolio.id;
-    let doc_count = portfolio.documents.len();
+    let doc_count = Memo::new(move |_| {
+        app_store
+            .get()
+            .get_portfolio(pid)
+            .map(|p| p.documents.len())
+            .unwrap_or(0)
+    });
     let name = portfolio.name.clone();
     let name_for_modal = portfolio.name.clone();
     let name_for_doc_btn = portfolio.name.clone();
@@ -71,11 +85,19 @@ pub(crate) fn PortfolioListItem(
 
     let (name_click, name_dblclick) = name_click_handlers(
         move || on_toggle.run(()),
-        move || if can_edit_here.get() { set_is_editing_name.set(true); },
+        move || {
+            if can_edit_here.get() {
+                set_is_editing_name.set(true);
+            }
+        },
     );
     let (desc_click, desc_dblclick) = name_click_handlers(
         move || on_toggle.run(()),
-        move || if can_edit_here.get() { set_is_editing_desc.set(true); },
+        move || {
+            if can_edit_here.get() {
+                set_is_editing_desc.set(true);
+            }
+        },
     );
 
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
@@ -136,6 +158,65 @@ pub(crate) fn PortfolioListItem(
 
     let portfolio_for_viewer = portfolio.clone();
     let assigned_users = portfolio.assigned_users.clone();
+
+    // Reactive combined document list for the portfolio dropdown, including asset docs.
+    let doc_entries = Memo::new(move |_| {
+        let store = app_store.get();
+        let mut entries = Vec::new();
+        if let Some(p) = store.get_portfolio(pid) {
+            for d in &p.documents {
+                entries.push((
+                    p.id,
+                    p.name.clone(),
+                    "Portfolio".to_string(),
+                    d.clone(),
+                    Some(p.id),
+                    None,
+                    None,
+                ));
+            }
+            for g in &p.asset_groups {
+                for d in &g.documents {
+                    entries.push((
+                        g.id,
+                        g.name.clone(),
+                        "Group".to_string(),
+                        d.clone(),
+                        None,
+                        Some(g.id),
+                        None,
+                    ));
+                }
+                for a in &g.assets {
+                    for d in &a.documents {
+                        entries.push((
+                            a.id,
+                            a.name.clone(),
+                            "Asset".to_string(),
+                            d.clone(),
+                            None,
+                            None,
+                            Some(a.id),
+                        ));
+                    }
+                }
+            }
+            for a in &p.assets {
+                for d in &a.documents {
+                    entries.push((
+                        a.id,
+                        a.name.clone(),
+                        "Asset".to_string(),
+                        d.clone(),
+                        None,
+                        None,
+                        Some(a.id),
+                    ));
+                }
+            }
+        }
+        entries
+    });
     let org_users = move || organization_store.get().organization_users.clone();
 
     let toggle_portfolio_assignment = Callback::new(move |uid: Uuid| {
@@ -169,8 +250,8 @@ pub(crate) fn PortfolioListItem(
                     name,
                     asset_count,
                     if asset_count == 1 { "" } else { "s" },
-                    doc_count,
-                    if doc_count == 1 { "" } else { "s" },
+                    doc_count.get(),
+                    if doc_count.get() == 1 { "" } else { "s" },
                     if expanded.get() { "Expanded" } else { "Collapsed" }
                 )}
                 on:click=move |ev: leptos::ev::MouseEvent| {
@@ -343,56 +424,16 @@ pub(crate) fn PortfolioListItem(
                         parts.collect_view().into_any()
                     }}
                 </div>
-                // Action strip — notification bell above document icon, hidden when count is zero
-                <div class="pf-list-actions pf-list-actions-stacked" on:click=|ev| ev.stop_propagation()>
-                    {let name_for_notif = name_for_doc_btn.clone();
-                    move || {
-                        let count = app_store.get().doc_notifications_for_portfolio(pid, &notification_store.get().notifications);
-                        let pname = name_for_notif.clone();
-                        let pname_click = pname.clone();
-                        let pname_ctx = pname.clone();
-                        let pname_keydown = pname.clone();
-                        if count > 0 {
-                            view! {
-                                <button
-                                    class="pf-action-btn pf-notif-action-btn"
-                                    type="button"
-                                    aria-label={format!("Notifications for {} portfolio. {} unread", pname, count)}
-                                    title="Left-click to view notifications, right-click to edit settings"
-                                    on:click=move |ev| {
-                                        ev.stop_propagation();
-                                        on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_click.clone(), false));
-                                    }
-                                    on:contextmenu=move |ev| {
-                                        ev.prevent_default();
-                                        ev.stop_propagation();
-                                        on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_ctx.clone(), true));
-                                    }
-                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                        if ev.key() == "Enter" || ev.key() == " " {
-                                            ev.prevent_default();
-                                            ev.stop_propagation();
-                                            on_open_notif_qs.run((NotifTarget::Portfolio(pid), pname_keydown.clone(), false));
-                                        }
-                                    }
-                                >
-                                    <div class="pf-action-stack">
-                                        <span class="pf-action-icon">"🔔"</span>
-                                        <span class="pf-action-count">{count}</span>
-                                    </div>
-                                </button>
-                            }.into_any()
-                        } else { ().into_any() }
-                    }}
+                // Document icon for portfolio
+                <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
                     <button class="pf-action-btn pf-doc-action-btn"
-                        class:active=move || ui_store.get().is_doc_modal_open(pid)
-                        aria-label={format!("View documents for {} portfolio. {} document{}", name_for_doc_btn, doc_count, if doc_count == 1 { "" } else { "s" })}
-                        on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(pid))
-                        on:dblclick=move |ev| { if can_edit_here.get() { ev.stop_propagation(); ui_store.update(|s| s.open_doc_modal(pid)); } }
+                        class:active=move || show_doc_dropdown.get()
+                        aria-label={move || format!("View documents for {} portfolio. {} document{}", name_for_doc_btn, doc_count.get(), if doc_count.get() == 1 { "" } else { "s" })}
+                        on:click=move |_| set_show_doc_dropdown.update(|s| *s = !*s)
                     >
                         <div class="pf-action-stack">
                             <span class="pf-action-icon">"📄"</span>
-                            <span class="pf-action-count">{doc_count}</span>
+                            <span class="pf-action-count">{move || doc_count.get()}</span>
                         </div>
                     </button>
                 </div>
@@ -410,6 +451,72 @@ pub(crate) fn PortfolioListItem(
                         can_edit={can_edit_documents_here.get()}
                         on_add={add_cb}
                         portfolio_id={Some(pid)}
+                    />
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Portfolio documents dropdown (portfolio + asset/group docs)
+            {move || if show_doc_dropdown.get() {
+                let total = doc_entries.get().len();
+                view! {
+                    <div class="pf-doc-dropdown" on:click=|ev| ev.stop_propagation()>
+                        <div class="pf-doc-dropdown-header">
+                            <span class="pf-doc-dropdown-title">"Documents"</span>
+                            <button class="pf-doc-dropdown-close" aria-label="Close documents" on:click=move |_| set_show_doc_dropdown.set(false)>"✕"</button>
+                        </div>
+                        <div class="pf-doc-dropdown-body">
+                            {if total == 0 {
+                                view! { <div class="pf-doc-dropdown-empty">"No documents yet"</div> }.into_any()
+                            } else { ().into_any() }}
+                            <For
+                                each=move || doc_entries.get()
+                                key=|(_, _, _, doc, _, _, _)| doc.id
+                                children=move |(entity_id, source_name, source_kind, doc, portfolio_id, group_id, asset_id): (Uuid, String, String, crate::models::Document, Option<Uuid>, Option<Uuid>, Option<Uuid>)| {
+                                    let dname = doc.name.clone();
+                                    let ft = doc.file_type.to_uppercase();
+                                    let source_name_for_view = source_name.clone();
+                                    view! {
+                                        <div class="pf-doc-dropdown-row">
+                                            <span class="pf-doc-dropdown-icon">"📄"</span>
+                                            <span class="pf-doc-dropdown-name" title={dname.clone()}>{dname.clone()}</span>
+                                            <span class="pf-doc-dropdown-kind">{format!("{} • {}", source_name_for_view, source_kind)}</span>
+                                            <span class="pf-doc-dropdown-type">{ft}</span>
+                                            <button class="pf-doc-dropdown-view" on:click=move |_| {
+                                                set_doc_modal_target.set(Some((entity_id, source_name_for_view.clone(), portfolio_id, group_id, asset_id)));
+                                                set_show_doc_dropdown.set(false);
+                                            }>"View"</button>
+                                        </div>
+                                    }
+                                }
+                            />
+                        </div>
+                        {if can_edit_documents_here.get() {
+                            view! {
+                                <div class="pf-doc-dropdown-footer">
+                                    <input class="pf-edit-input" type="text" placeholder="New document name" prop:value={move || new_doc_name_input.get()} on:input=move |ev| set_new_doc_name_input.set(event_target_value(&ev)) on:keydown=move |ev: leptos::ev::KeyboardEvent| { if ev.key() == "Enter" { let n = new_doc_name_input.get(); if !n.trim().is_empty() { add_doc(n); set_new_doc_name_input.set(String::new()); } } } />
+                                    <button class="login-btn" on:click=move |_| { let n = new_doc_name_input.get(); if !n.trim().is_empty() { add_doc(n); set_new_doc_name_input.set(String::new()); } }>"Add"</button>
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            // Doc viewer for a document selected from the dropdown (supports portfolio, group or asset docs)
+            {move || if let Some((entity_id, title, portfolio_id, group_id, asset_id)) = doc_modal_target.get() {
+                let modal_title = title;
+                let can_edit_here_docs = portfolio_id == Some(pid) && can_edit_documents_here.get();
+                let add_cb = if can_edit_here_docs { Some(Callback::new(move |n: String| add_doc(n))) } else { None };
+                view! {
+                    <DocModal
+                        entity_id={entity_id}
+                        title={modal_title}
+                        on_close=move || set_doc_modal_target.set(None)
+                        can_edit={can_edit_here_docs}
+                        on_add={add_cb}
+                        portfolio_id={portfolio_id}
+                        group_id={group_id}
+                        asset_id={asset_id}
                     />
                 }.into_any()
             } else { ().into_any() }}
@@ -443,7 +550,6 @@ pub(crate) fn PortfolioListItem(
                     new_asset_value={new_asset_value}
                     set_new_asset_value={set_new_asset_value}
                     on_add_asset={on_add_asset}
-                    on_open_notif_qs={on_open_notif_qs.clone()}
                 />
             </div>
         </div>

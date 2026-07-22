@@ -544,7 +544,11 @@ fn EventEditor(
                     .get()
                     .portfolios
                     .iter()
-                    .flat_map(|p| p.assets.iter().chain(p.asset_groups.iter().flat_map(|g| g.assets.iter())))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
                     .find(|a| a.id == aid)
                     .map(|a| a.name.clone())
             })

@@ -95,13 +95,7 @@ pub fn LoginPage() -> impl IntoView {
         let mut org = organization_store.get_untracked();
         let mut notif = notification_store.get_untracked();
         app_store.update(|store| {
-            store.login_server_validated(
-                &username,
-                &name,
-                &email,
-                &mut notif,
-                &mut org,
-            );
+            store.login_server_validated(&username, &name, &email, &mut notif, &mut org);
         });
         organization_store.set(org);
         notif.add_notification(
@@ -193,12 +187,7 @@ pub fn LoginPage() -> impl IntoView {
             let mut notif = notification_store.get_untracked();
             let mut result: Option<Result<(String, String), String>> = None;
             app_store.update(|store| {
-                result = Some(store.login_with_credentials(
-                    &u,
-                    &p,
-                    &mut notif,
-                    &mut org,
-                ));
+                result = Some(store.login_with_credentials(&u, &p, &mut notif, &mut org));
             });
 
             if let Some(Ok((name, role_str))) = result {

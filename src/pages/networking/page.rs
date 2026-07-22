@@ -509,29 +509,60 @@ pub fn NetworkingPage() -> impl IntoView {
         match tab {
             NetTab::Contacts => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::Contacts));
-                render_contacts(filtered_contacts.get(), set_selected_contact, visible_count, expand_scope)
-                    .into_any()
+                render_contacts(
+                    filtered_contacts.get(),
+                    set_selected_contact,
+                    visible_count,
+                    expand_scope,
+                )
+                .into_any()
             }
             NetTab::ExternalOrgs => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::ExternalOrgs));
-                render_external_orgs(filtered_orgs.get(), set_selected_org, visible_count, expand_scope)
-                    .into_any()
+                render_external_orgs(
+                    filtered_orgs.get(),
+                    set_selected_org,
+                    visible_count,
+                    expand_scope,
+                )
+                .into_any()
             }
             NetTab::Channels => render_channels().into_any(),
             NetTab::Partners => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::Partners));
-                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Partner", NetTab::Partners, visible_count, expand_scope)
-                    .into_any()
+                render_by_type(
+                    &contacts.get_value(),
+                    &external_orgs.get_value(),
+                    "Partner",
+                    NetTab::Partners,
+                    visible_count,
+                    expand_scope,
+                )
+                .into_any()
             }
             NetTab::Clients => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::Clients));
-                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Client", NetTab::Clients, visible_count, expand_scope)
-                    .into_any()
+                render_by_type(
+                    &contacts.get_value(),
+                    &external_orgs.get_value(),
+                    "Client",
+                    NetTab::Clients,
+                    visible_count,
+                    expand_scope,
+                )
+                .into_any()
             }
             NetTab::Suppliers => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::Suppliers));
-                render_by_type(&contacts.get_value(), &external_orgs.get_value(), "Supplier", NetTab::Suppliers, visible_count, expand_scope)
-                    .into_any()
+                render_by_type(
+                    &contacts.get_value(),
+                    &external_orgs.get_value(),
+                    "Supplier",
+                    NetTab::Suppliers,
+                    visible_count,
+                    expand_scope,
+                )
+                .into_any()
             }
             NetTab::Integrations => render_integrations(&integrations.get_value()).into_any(),
             NetTab::RelationshipMap => {

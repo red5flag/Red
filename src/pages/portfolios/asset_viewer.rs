@@ -5,7 +5,7 @@ use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-use super::{AssetDetailView, AssetGroupItem, AssetItem, AssetTarget, NotifTarget};
+use super::{AssetDetailView, AssetGroupItem, AssetItem, AssetTarget};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AssetSortMode {
@@ -39,7 +39,10 @@ fn sort_assets(mut assets: Vec<Asset>, mode: AssetSortMode) -> Vec<Asset> {
     assets
 }
 
-fn sort_groups(mut groups: Vec<crate::models::AssetGroup>, mode: AssetSortMode) -> Vec<crate::models::AssetGroup> {
+fn sort_groups(
+    mut groups: Vec<crate::models::AssetGroup>,
+    mode: AssetSortMode,
+) -> Vec<crate::models::AssetGroup> {
     match mode {
         AssetSortMode::Recent => groups.sort_by(|a, b| b.updated_at.cmp(&a.updated_at)),
         AssetSortMode::NameAsc => {
@@ -92,7 +95,6 @@ pub(crate) fn AssetViewer(
     new_asset_value: ReadSignal<String>,
     set_new_asset_value: WriteSignal<String>,
     on_add_asset: Callback<AssetTarget, Option<Uuid>>,
-    on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
 ) -> impl IntoView {
     let pid = portfolio.id;
     let portfolio_name_groups = portfolio.name.clone();
@@ -159,7 +161,7 @@ pub(crate) fn AssetViewer(
                 .assets
                 .clone()
                 .into_iter()
-            .filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all))
+                .filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all))
                 .collect(),
             direct_sort_mode.get(),
         )
@@ -329,7 +331,6 @@ pub(crate) fn AssetViewer(
                                             on_select_asset={on_select_asset}
                                             portfolio_name={portfolio_name.clone()}
                                             tint_index={idx + 1}
-                                            on_open_notif_qs={on_open_notif_qs.clone()}
                                             visible_counts={visible_counts}
                                             set_visible_counts={set_visible_counts}
                                         />

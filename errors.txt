@@ -1,6 +1,308 @@
-error[E0599]: no method named `is_empty` found for struct `leptos::prelude::Memo<T, S>` in the current scope
-error[E0599]: no method named `as_str` found for struct `leptos::prelude::Memo<T, S>` in the current scope
-error[E0599]: no method named `is_empty` found for struct `leptos::prelude::Memo<T, S>` in the current scope
-error[E0599]: no method named `as_str` found for struct `leptos::prelude::Memo<T, S>` in the current scope
+warning: unused variable: `persist_portfolio`
+warning: unused variable: `persist_portfolio`
+warning: unused variable: `type_datalist_id`
+warning: unused variable: `subtype_datalist_id`
+warning: unused variable: `type_datalist_id`
+warning: unused variable: `subtype_datalist_id`
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: unused import: `TabType`
+warning: unused import: `TabType`
+warning: unused import: `OverviewSortMode`
+warning: unused import: `TabType`
+warning: unused import: `OverviewSortMode`
+warning: unused import: `TabType`
+warning: unused import: `OverviewSortMode`
+warning: unused import: `TabType`
+warning: unused import: `OverviewSortMode`
+warning: unused import: `TabType`
+warning: unused variable: `is_overview_active`
+warning: unused variable: `is_overview_active`
+error: unexpected closing delimiter: `}`
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused import: `TabType`
+warning: unused import: `TabType`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
 error: could not compile `farley` (lib) due to 2 previous errors
 error: could not compile `farley` (lib) due to 2 previous errors
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error[E0599]: no method named `data_transfer` found for struct `DragEvent` in the current scope
+error: could not compile `farley` (lib) due to 2 previous errors
+error: could not compile `farley` (lib) due to 2 previous errors
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `organization_id`
+warning: unused variable: `organization_store`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `organization_id`
+warning: unused variable: `organization_store`
+warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 2 warnings (run `cargo fix --lib -p farley` to apply 2 suggestions)
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused import: `DocModal`
+warning: unused import: `DocModal`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: `farley` (lib) generated 4 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: unused import: `Document`
+warning: unused import: `DocModal`
+warning: unused import: `Document`
+warning: unused import: `DocModal`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused import: `Document`
+warning: unused imports: `DocModal` and `detect_file_type`
+warning: unused import: `Document`
+warning: unused imports: `DocModal` and `detect_file_type`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 5 warnings (run `cargo fix --lib -p farley` to apply 5 suggestions)
+warning: `farley` (lib) generated 5 warnings (run `cargo fix --lib -p farley` to apply 5 suggestions)
+warning: unused import: `DocModal`
+warning: unused import: `DocModal`
+error[E0505]: cannot move out of `uploader` because it is borrowed
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `org_doc_count`
+warning: unused variable: `org_can_edit_docs`
+warning: unused variable: `add_org_doc`
+error[E0505]: cannot move out of `uploader` because it is borrowed
+warning: `farley` (lib) generated 7 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 7 warnings emitted
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `org_doc_count`
+warning: unused variable: `org_can_edit_docs`
+warning: unused variable: `add_org_doc`
+warning: `farley` (lib) generated 7 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 7 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+error[E0382]: use of moved value: `org_name`
+error[E0382]: use of moved value: `org_name`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 3 warnings
+error: could not compile `farley` (lib) due to 3 previous errors; 3 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+error[E0382]: use of moved value: `org_name`
+error[E0382]: use of moved value: `org_name`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 3 warnings
+error: could not compile `farley` (lib) due to 3 previous errors; 3 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+error[E0382]: use of moved value: `org_name`
+error[E0382]: use of moved value: `org_name`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `org_name_for_info`
+warning: unused variable: `org_name_for_aria`
+warning: unused variable: `org_name_for_modal`
+error[E0505]: cannot move out of `uploader` because it is borrowed
+warning: `farley` (lib) generated 6 warnings
+error: could not compile `farley` (lib) due to 3 previous errors; 6 warnings emitted
+error[E0382]: use of moved value: `org_name`
+error[E0382]: use of moved value: `org_name`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `org_name_for_info`
+warning: unused variable: `org_name_for_aria`
+warning: unused variable: `org_name_for_modal`
+warning: `farley` (lib) generated 6 warnings
+error: could not compile `farley` (lib) due to 3 previous errors; 6 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+error[E0382]: use of moved value: `org_name`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `org_name_for_aria`
+warning: unused variable: `org_name_for_modal`
+warning: `farley` (lib) generated 5 warnings
+error: could not compile `farley` (lib) due to 2 previous errors; 5 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+error[E0382]: use of moved value: `org_name`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `org_name_for_aria`
+warning: unused variable: `org_name_for_modal`
+warning: `farley` (lib) generated 5 warnings
+error: could not compile `farley` (lib) due to 2 previous errors; 5 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 3 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 3 warnings emitted
+error[E0505]: cannot move out of `uploader` because it is borrowed
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 3 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 3 warnings emitted
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: unused variable: `on_open_notif_qs`
+warning: unused variable: `notification_store`
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 3 suggestions)
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 3 suggestions)
+error[E0599]: no method named `on_open_notif_qs` found for struct `AssetGroupItemPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `on_open_notif_qs` found for struct `AssetGroupItemPropsBuilder<TypedBuilderFields>` in the current scope
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0425]: cannot find value `on_open_notif_qs` in this scope
+error[E0425]: cannot find value `on_open_notif_qs` in this scope
+error[E0599]: no method named `on_open_notif_qs` found for struct `AssetGroupItemPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `on_open_notif_qs` found for struct `AssetViewerPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `on_open_notif_qs` found for struct `AssetViewerPropsBuilder<TypedBuilderFields>` in the current scope
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0599]: no method named `on_open_notif_qs` found for struct `AssetViewerPropsBuilder<TypedBuilderFields>` in the current scope
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0425]: cannot find value `on_open_notif_qs` in this scope
+error[E0425]: cannot find value `on_open_notif_qs` in this scope
+error[E0599]: no method named `on_open_notif_qs` found for struct `PortfolioListItemPropsBuilder<__ImplTrait0, TypedBuilderFields>` in the current scope
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0599]: no method named `on_open_notif_qs` found for struct `PortfolioListItemPropsBuilder<__ImplTrait0, TypedBuilderFields>` in the current scope
+warning: unused variable: `oid`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: unused import: `NotificationDrawerFilter`
+warning: unused import: `NotificationDrawerFilter`
+warning: unused variable: `oid`
+warning: unused variable: `oid`
+error[E0425]: cannot find value `notif_content_target` in this scope
+error[E0425]: cannot find value `set_notif_content_target` in this scope
+error[E0425]: cannot find value `notif_qs_target` in this scope
+error[E0425]: cannot find value `set_notif_qs_target` in this scope
+warning: unused import: `NotificationDrawerFilter`
+warning: unused import: `NotifTarget`
+error[E0425]: cannot find value `notif_content_target` in this scope
+error[E0425]: cannot find value `set_notif_content_target` in this scope
+error[E0425]: cannot find value `notif_qs_target` in this scope
+error[E0425]: cannot find value `set_notif_qs_target` in this scope
+warning: unused import: `NotificationDrawerFilter`
+warning: unused import: `NotifTarget`
+warning: unused import: `NotificationDrawerFilter`
+warning: unused imports: `NotifTarget`, `NotificationContentView`, and `NotificationQuickSettings`
+warning: unused import: `NotificationDrawerFilter`
+warning: unused imports: `NotifTarget`, `NotificationContentView`, and `NotificationQuickSettings`
+warning: unused variable: `oid`
+warning: function `trigger_label` is never used
+warning: function `trigger_short` is never used
+warning: function `notif_type_label` is never used
+warning: function `role_label` is never used
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: unused variable: `oid`
+warning: function `trigger_label` is never used
+warning: function `trigger_short` is never used
+warning: function `notif_type_label` is never used
+warning: function `role_label` is never used
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: unused imports: `NotificationContentView` and `NotificationQuickSettings`
+warning: unused imports: `NotificationContentView` and `NotificationQuickSettings`
+warning: unused variable: `oid`
+warning: function `trigger_label` is never used
+warning: function `trigger_short` is never used
+warning: function `notif_type_label` is never used
+warning: function `role_label` is never used
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: unused imports: `NotificationContentView` and `NotificationQuickSettings`
+warning: unused imports: `NotificationContentView` and `NotificationQuickSettings`
+warning: function `trigger_label` is never used
+warning: function `trigger_short` is never used
+warning: function `notif_type_label` is never used
+warning: function `role_label` is never used
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: function `trigger_label` is never used
+warning: function `trigger_short` is never used
+warning: function `notif_type_label` is never used
+warning: function `role_label` is never used
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: fields `target`, `entity_name`, and `on_close` are never read
+warning: `farley` (lib) generated 7 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 7 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
+error[E0432]: unresolved import `super::NotifTarget`
+error[E0432]: unresolved import `super::NotifTarget`
+warning: unused imports: `NotificationContentView` and `NotificationQuickSettings`
+warning: unused imports: `NotificationContentView` and `NotificationQuickSettings`
+error[E0432]: unresolved import `notifications`
+error[E0432]: unresolved import `notifications`
+error[E0425]: cannot find value `doc_id_for_notif` in this scope
+error[E0425]: cannot find value `doc_id_for_notif` in this scope
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+error[E0425]: cannot find function `use_notification_store` in this scope
+error[E0425]: cannot find function `use_notification_store` in this scope

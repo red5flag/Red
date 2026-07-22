@@ -2,6 +2,7 @@ use crate::pages::agent::{
     agent_chat, agent_controls, agent_status, make_greeting, simulate_agent_reply, AgentTab,
     AttachmentKind, ChatMessage, MessageRole,
 };
+use crate::stores::use_ui_store;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use web_sys::HtmlInputElement;
@@ -81,6 +82,18 @@ pub fn AgentPage() -> impl IntoView {
         if ev.key() == "Enter" && !ev.shift_key() {
             ev.prevent_default();
             do_send();
+        }
+    });
+
+    let ui_store = use_ui_store();
+    Effect::new(move |_| {
+        let msg = ui_store.get().agent_input.clone();
+        if let Some(msg) = msg {
+            if !msg.trim().is_empty() {
+                set_input_text.set(msg);
+                do_send();
+            }
+            ui_store.update(|s| s.agent_input = None);
         }
     });
 

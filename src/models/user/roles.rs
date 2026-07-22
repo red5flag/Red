@@ -67,7 +67,13 @@ impl RoleScope {
     pub fn with_groups(groups: &[(PermGroup, bool, bool)]) -> Self {
         let mut scope = Self::default();
         for (group, view, edit) in groups {
-            scope.areas.insert(*group, ScopePermissions { view: *view, edit: *edit });
+            scope.areas.insert(
+                *group,
+                ScopePermissions {
+                    view: *view,
+                    edit: *edit,
+                },
+            );
         }
         scope
     }

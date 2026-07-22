@@ -1,10 +1,28 @@
 use crate::types::{
-    ButtonStyle, Density, EdgeStyle, ReportSortMode, SettingsPreset, SortMode, Theme, ViewCount,
-    ViewMode,
+    ButtonStyle, Density, EdgeStyle, OverviewSortMode, ReportSortMode, SettingsPreset, SortMode,
+    Theme, ViewCount, ViewMode,
 };
 use leptos::prelude::*;
 use std::collections::HashSet;
 use uuid::Uuid;
+
+/// Default order of sections on the Overview dashboard.
+pub const OVERVIEW_DEFAULT_ORDER: [&str; 14] = [
+    "recent-messages",
+    "recent-bookings",
+    "updated-investments",
+    "recent-transactions",
+    "recent-contacts",
+    "notifications",
+    "property-overview",
+    "recent-activity",
+    "organizations",
+    "top-portfolios",
+    "top-assets",
+    "channels",
+    "upcoming-bookings",
+    "top-transactions",
+];
 
 /// UI-only state: drawers, modals, layout, sorting, and display preferences.
 ///
@@ -46,6 +64,15 @@ pub struct UiStore {
     pub networking_add_member_open: bool,
     // Networking view count
     pub net_view_count: ViewCount,
+    // Overview dashboard sort/order state
+    pub overview_sort_mode: OverviewSortMode,
+    pub overview_selected_order: Vec<String>,
+    pub overview_dragging_id: Option<String>,
+    pub overview_drag_over_id: Option<String>,
+    pub overview_touch_long_id: Option<String>,
+    pub overview_touch_anchor: Option<(i32, i32)>,
+    // Agent chat input queued from other screens
+    pub agent_input: Option<String>,
     // Display/accessibility preferences
     pub theme: Theme,
     pub blind_mode: bool,
@@ -112,6 +139,13 @@ impl Default for UiStore {
             net_sort_ascending: true,
             networking_add_member_open: false,
             net_view_count: ViewCount::V50,
+            overview_sort_mode: OverviewSortMode::default(),
+            overview_selected_order: Vec::new(),
+            overview_dragging_id: None,
+            overview_drag_over_id: None,
+            overview_touch_long_id: None,
+            overview_touch_anchor: None,
+            agent_input: None,
             theme: Theme::default(),
             blind_mode: false,
             font_size: "default".to_string(),
@@ -316,6 +350,56 @@ impl UiStore {
     // Networking add member
     pub fn toggle_networking_add_member(&mut self) {
         self.networking_add_member_open = !self.networking_add_member_open;
+    }
+
+    // Overview dashboard sort
+    pub fn set_overview_sort_mode(&mut self, mode: OverviewSortMode) {
+        self.overview_sort_mode = mode;
+    }
+
+    pub fn reorder_overview_section(&mut self, from_id: &str, to_id: &str) {
+        if from_id == to_id {
+            return;
+        }
+        if self.overview_selected_order.is_empty() {
+            self.overview_selected_order = OVERVIEW_DEFAULT_ORDER
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+        }
+        let from_pos = self
+            .overview_selected_order
+            .iter()
+            .position(|id| id == from_id);
+        let to_pos = self
+            .overview_selected_order
+            .iter()
+            .position(|id| id == to_id);
+        if let (Some(from), Some(to)) = (from_pos, to_pos) {
+            let id = self.overview_selected_order.remove(from);
+            let insert_at = if from < to { to.saturating_sub(1) } else { to };
+            self.overview_selected_order.insert(insert_at, id);
+        }
+    }
+
+    pub fn set_overview_dragging_id(&mut self, id: Option<String>) {
+        self.overview_dragging_id = id;
+    }
+
+    pub fn set_overview_drag_over_id(&mut self, id: Option<String>) {
+        self.overview_drag_over_id = id;
+    }
+
+    pub fn set_overview_touch_anchor(&mut self, id: Option<String>, anchor: Option<(i32, i32)>) {
+        self.overview_touch_long_id = id;
+        self.overview_touch_anchor = anchor;
+    }
+
+    pub fn clear_overview_drag(&mut self) {
+        self.overview_dragging_id = None;
+        self.overview_drag_over_id = None;
+        self.overview_touch_long_id = None;
+        self.overview_touch_anchor = None;
     }
 }
 

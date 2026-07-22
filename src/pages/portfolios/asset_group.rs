@@ -1,5 +1,5 @@
 use crate::models::{Asset, AssetGroup, Channel};
-use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
+use crate::stores::{use_app_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::{
     detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetItem,
-    AssetTarget, DocModal, NotifTarget, UserAssignmentPanel,
+    AssetTarget, DocModal, UserAssignmentPanel,
 };
 
 #[component]
@@ -33,12 +33,10 @@ pub(crate) fn AssetGroupItem(
     on_select_asset: Callback<Asset>,
     portfolio_name: String,
     #[prop(default = 0)] tint_index: usize,
-    on_open_notif_qs: Callback<(NotifTarget, String, bool)>,
     visible_counts: ReadSignal<HashMap<String, usize>>,
     set_visible_counts: WriteSignal<HashMap<String, usize>>,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let notification_store = use_notification_store();
     let ui_store = use_ui_store();
     let _ = view_mode;
 
@@ -66,11 +64,19 @@ pub(crate) fn AssetGroupItem(
 
     let (name_click, name_dblclick) = name_click_handlers(
         move || on_toggle.run(gid),
-        move || if can_edit_here.get() { set_is_editing.set(true); },
+        move || {
+            if can_edit_here.get() {
+                set_is_editing.set(true);
+            }
+        },
     );
     let (desc_click, desc_dblclick) = name_click_handlers(
         move || on_toggle.run(gid),
-        move || if can_edit_here.get() { set_is_editing.set(true); },
+        move || {
+            if can_edit_here.get() {
+                set_is_editing.set(true);
+            }
+        },
     );
 
     let (new_channel_name, set_new_channel_name) = signal(String::new());
@@ -321,51 +327,16 @@ pub(crate) fn AssetGroupItem(
                         }.into_any()
                     }}
                 </div>
-                // Action buttons
+                // Document icon for asset group
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
-                    {let g_name_for_notif = g_name_for_doc_btn.clone();
-                    move || {
-                        let count = app_store.get().doc_notifications_for_group(pid, gid, &notification_store.get().notifications);
-                        let gname = g_name_for_notif.clone();
-                        let gname_click = gname.clone();
-                        let gname_ctx = gname.clone();
-                        let gname_keydown = gname.clone();
-                        view! {
-                            <span class="pf-notif-badge pf-notif-badge-clickable"
-                                role="button"
-                                tabindex="0"
-                                aria-label={format!("Notifications for {} group. {} unread", gname, count)}
-                                title="Left-click to view notifications, right-click to edit settings"
-                                on:click=move |ev| {
-                                    ev.stop_propagation();
-                                    on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname_click.clone(), false));
-                                }
-                                on:contextmenu=move |ev| {
-                                    ev.prevent_default();
-                                    ev.stop_propagation();
-                                    on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname_ctx.clone(), true));
-                                }
-                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                    if ev.key() == "Enter" || ev.key() == " " {
-                                        ev.prevent_default();
-                                        ev.stop_propagation();
-                                        on_open_notif_qs.run((NotifTarget::Group(pid, gid), gname_keydown.clone(), false));
-                                    }
-                                }>
-                                "🔔"
-                                {move || if count > 0 {
-                                    Some(view! { <span class="pf-notif-count">{count}</span> })
-                                } else {
-                                    None
-                                }}
-                            </span>
-                        }.into_any()
-                    }}
-                    <button class="pf-action-btn"
+                    <button class="pf-action-btn pf-doc-action-btn"
                         class:active=move || ui_store.get().is_doc_modal_open(gid)
                         aria-label={format!("View documents for {} group. {} document{}", g_name_for_doc_btn, doc_count, if doc_count == 1 { "" } else { "s" })}
                         on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(gid))>
-                        {format!("📄 {}", doc_count)}
+                        <div class="pf-action-stack">
+                            <span class="pf-action-icon">"📄"</span>
+                            <span class="pf-action-count">{doc_count}</span>
+                        </div>
                     </button>
                 </div>
             </div>

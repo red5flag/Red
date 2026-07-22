@@ -47,14 +47,19 @@ pub(crate) fn DataSettings(
     // Add Organization form state (mirrors Organization page)
     let (settings_show_add_org, set_settings_show_add_org) = signal(false);
     let (settings_new_org_name, set_settings_new_org_name) = signal(String::new());
-    let (settings_new_org_image_url, set_settings_new_org_image_url) = signal(Option::<String>::None);
+    let (settings_new_org_image_url, set_settings_new_org_image_url) =
+        signal(Option::<String>::None);
     let (settings_new_org_desc, set_settings_new_org_desc) = signal(String::new());
     let (settings_new_org_abn, set_settings_new_org_abn) = signal(String::new());
     let (settings_new_org_lei, set_settings_new_org_lei) = signal(String::new());
-    let (settings_new_org_business_type, set_settings_new_org_business_type) = signal(String::new());
-    let (settings_new_org_business_address, set_settings_new_org_business_address) = signal(String::new());
-    let (settings_new_org_business_phone, set_settings_new_org_business_phone) = signal(String::new());
-    let (settings_new_org_business_email, set_settings_new_org_business_email) = signal(String::new());
+    let (settings_new_org_business_type, set_settings_new_org_business_type) =
+        signal(String::new());
+    let (settings_new_org_business_address, set_settings_new_org_business_address) =
+        signal(String::new());
+    let (settings_new_org_business_phone, set_settings_new_org_business_phone) =
+        signal(String::new());
+    let (settings_new_org_business_email, set_settings_new_org_business_email) =
+        signal(String::new());
 
     let on_settings_add_org = move |_| {
         let name = settings_new_org_name.get();
@@ -63,13 +68,41 @@ pub(crate) fn DataSettings(
         }
         let owner_id = app_store.get().current_user.id;
         let mut org = crate::models::Organization::new(name, owner_id);
-        org.description = if settings_new_org_desc.get().trim().is_empty() { None } else { Some(settings_new_org_desc.get()) };
-        org.abn = if settings_new_org_abn.get().trim().is_empty() { None } else { Some(settings_new_org_abn.get()) };
-        org.lei = if settings_new_org_lei.get().trim().is_empty() { None } else { Some(settings_new_org_lei.get()) };
-        org.business_type = if settings_new_org_business_type.get().trim().is_empty() { None } else { Some(settings_new_org_business_type.get()) };
-        org.business_address = if settings_new_org_business_address.get().trim().is_empty() { None } else { Some(settings_new_org_business_address.get()) };
-        org.business_phone = if settings_new_org_business_phone.get().trim().is_empty() { None } else { Some(settings_new_org_business_phone.get()) };
-        org.business_email = if settings_new_org_business_email.get().trim().is_empty() { None } else { Some(settings_new_org_business_email.get()) };
+        org.description = if settings_new_org_desc.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_desc.get())
+        };
+        org.abn = if settings_new_org_abn.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_abn.get())
+        };
+        org.lei = if settings_new_org_lei.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_lei.get())
+        };
+        org.business_type = if settings_new_org_business_type.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_business_type.get())
+        };
+        org.business_address = if settings_new_org_business_address.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_business_address.get())
+        };
+        org.business_phone = if settings_new_org_business_phone.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_business_phone.get())
+        };
+        org.business_email = if settings_new_org_business_email.get().trim().is_empty() {
+            None
+        } else {
+            Some(settings_new_org_business_email.get())
+        };
         org.image_url = settings_new_org_image_url.get();
         organization_store.update(|s| s.add_organization(org));
         set_settings_new_org_name.set(String::new());

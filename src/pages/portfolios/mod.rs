@@ -4,12 +4,6 @@ use uuid::Uuid;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-#[derive(Clone, PartialEq)]
-pub enum NotifTarget {
-    Portfolio(Uuid),
-    Group(Uuid, Uuid),
-}
-
 #[derive(Clone, PartialEq, Default)]
 pub enum AssetTarget {
     #[default]
@@ -126,7 +120,10 @@ pub(crate) fn read_image_as_data_url(
 pub(crate) fn name_click_handlers(
     on_toggle: impl Fn() + Clone + Send + Sync + 'static,
     on_edit: impl Fn() + Clone + Send + Sync + 'static,
-) -> (impl Fn(leptos::ev::MouseEvent) + Clone, impl Fn(leptos::ev::MouseEvent) + Clone) {
+) -> (
+    impl Fn(leptos::ev::MouseEvent) + Clone,
+    impl Fn(leptos::ev::MouseEvent) + Clone,
+) {
     use std::sync::Arc;
 
     let (pending, set_pending) = signal(false);
@@ -247,7 +244,6 @@ mod asset_group;
 mod asset_item;
 mod asset_viewer;
 mod doc_modal;
-mod notifications;
 mod page;
 mod portfolio_list;
 
@@ -256,12 +252,11 @@ pub(crate) use asset_channels::{
     AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
     ChannelManagementWindow,
 };
-pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_editor::AssetDetailView;
+pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetItem};
 pub(crate) use asset_viewer::AssetViewer;
 pub(crate) use doc_modal::{DocModal, DocumentViewer};
-pub(crate) use notifications::{NotificationContentView, NotificationQuickSettings};
 pub(crate) use portfolio_list::PortfolioListItem;
 
 pub use page::PortfoliosPage;

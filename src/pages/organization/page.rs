@@ -3,6 +3,7 @@ use crate::pages::organization::{
     organization_forms::{AddOrgForm, OrgContextMenu, RoleContextMenu, RoleEditorModal},
     organization_list::OrganizationList,
 };
+use crate::pages::portfolios::read_image_as_data_url;
 use crate::stores::{use_app_store, use_organization_store, use_ui_store};
 use crate::types::UserRole;
 use leptos::prelude::*;
@@ -62,8 +63,7 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_role_name, set_edit_role_name) = signal(String::new());
     let (edit_role_desc, set_edit_role_desc) = signal(String::new());
     let (edit_role_color, set_edit_role_color) = signal(String::new());
-    let (edit_role_scope, set_edit_role_scope) =
-        signal(crate::models::RoleScope::entire());
+    let (edit_role_scope, set_edit_role_scope) = signal(crate::models::RoleScope::entire());
     let (show_add_org, set_show_add_org) = signal(false);
     let (new_org_name, set_new_org_name) = signal(String::new());
     let (new_org_image_url, set_new_org_image_url) = signal(Option::<String>::None);
@@ -90,6 +90,8 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_business_phone, set_edit_business_phone) = signal(String::new());
     let (edit_business_email, set_edit_business_email) = signal(String::new());
     let (context_menu, set_context_menu) = signal(Option::<(i32, i32, Uuid)>::None);
+    let (org_image_upload_target, set_org_image_upload_target) = signal(Option::<Uuid>::None);
+    let org_image_input_ref = NodeRef::<leptos::html::Input>::new();
     let (role_context_menu, set_role_context_menu) = signal(Option::<(i32, i32, Uuid, Uuid)>::None);
     let (org_sort_mode, set_org_sort_mode) = signal(OrgSortMode::Recent);
 
@@ -513,6 +515,29 @@ pub fn OrganizationPage() -> impl IntoView {
                 }
             }}
 
+            // Hidden organization image uploader
+            <input
+                type="file"
+                accept="image/*"
+                style="display:none"
+                node_ref=org_image_input_ref
+                on:change=move |ev| {
+                    read_image_as_data_url(&ev, {
+                        move |url| {
+                            if let Some(oid) = org_image_upload_target.get() {
+                                organization_store.update(|s| {
+                                    if let Some(o) = s.get_organization_mut(oid) {
+                                        o.image_url = Some(url);
+                                        o.updated_at = chrono::Utc::now();
+                                    }
+                                });
+                            }
+                            set_org_image_upload_target.set(None);
+                        }
+                    });
+                }
+            />
+
             <RoleEditorModal
                 editing_role={editing_role}
                 set_editing_role={set_editing_role}
@@ -538,6 +563,12 @@ pub fn OrganizationPage() -> impl IntoView {
                 on_start_edit={Callback::new(move |(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
                 on_start_new_role={Callback::new(move |v: Uuid| on_start_new_role(v))}
                 on_delete_org={Callback::new(move |v: Uuid| on_delete_org(v))}
+                on_add_image={Callback::new(move |oid: Uuid| {
+                    set_org_image_upload_target.set(Some(oid));
+                    if let Some(input) = org_image_input_ref.get() {
+                        let _ = input.click();
+                    }
+                })}
             />
 
             <RoleContextMenu

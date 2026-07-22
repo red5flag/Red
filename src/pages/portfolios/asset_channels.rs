@@ -5,6 +5,7 @@ use crate::stores::{use_app_store, use_calendar_store};
 use chrono::{Duration, NaiveDate, Utc};
 use leptos::prelude::*;
 use uuid::Uuid;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub(crate) fn AssetChannelsSection(
@@ -402,6 +403,7 @@ pub(crate) fn AssetLinkingControls(
     let on_close_channel_window = Callback::new(move |_| set_editing_channel.set(None));
 
     let (show_add_form, set_show_add_form) = signal(false);
+    let form_ref = NodeRef::<leptos::html::Div>::new();
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_type, set_new_channel_type) = signal("Test".to_string());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
@@ -554,13 +556,29 @@ pub(crate) fn AssetLinkingControls(
         (price_per_day, booked_days, unbooked_days, channels.len())
     });
 
+    let close_link_form_on_outside = move |ev: leptos::ev::MouseEvent| {
+        if !show_add_form.get_untracked() {
+            return;
+        }
+        if let Some(form) = form_ref.get() {
+            let outside = ev.target().map_or(true, |t| {
+                t.dyn_ref::<web_sys::Node>()
+                    .map_or(true, |n| !form.contains(Some(n)))
+            });
+            if outside {
+                set_show_add_form.set(false);
+            }
+        }
+    };
+
     view! {
-        <div class="ai-channel-management ai-linking-controls">
+        <div class="ai-channel-management ai-linking-controls" on:click=close_link_form_on_outside>
             <div class="ai-channel-management-header">
                 <span class="ai-channel-management-title">"Linking Controls"</span>
                 {move || if can_link {
                     view! {
-                        <button class="pf-small-btn" on:click=move |_| {
+                        <button class="pf-small-btn" on:click=move |ev| {
+                            ev.stop_propagation();
                             set_show_add_form.update(|v| *v = !*v);
                             if show_add_form.get_untracked() {
                                 set_new_channel_name.set(format!("Test Channel - {}", asset_name_signal.get_untracked()));
@@ -568,7 +586,7 @@ pub(crate) fn AssetLinkingControls(
                                 set_new_channel_name.set(String::new());
                             }
                         }>
-                            {move || if show_add_form.get() { "Cancel" } else { "Add Channel" }}
+                            {move || if show_add_form.get() { "Close" } else { "Add Channel" }}
                         </button>
                     }.into_any()
                 } else { ().into_any() }}
@@ -599,7 +617,7 @@ pub(crate) fn AssetLinkingControls(
             }}
 
             {move || if show_add_form.get() && can_link { view! {
-                <div class="ai-channel-management-form">
+                <div class="ai-channel-management-form" node_ref=form_ref on:click=move |ev| ev.stop_propagation()>
                     {move || add_error.get().map(|m| view! { <div class="ai-form-error">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
                     <label>"Name"
                         <input type="text" prop:value={move || new_channel_name.get()} on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) style="width: 120px" />
@@ -706,6 +724,7 @@ pub(crate) fn AssetBookingControls(
     });
 
     let (show_booking_form, set_show_booking_form) = signal(false);
+    let booking_form_ref = NodeRef::<leptos::html::Div>::new();
     let (guest_name, set_guest_name) = signal(String::new());
     let (start_date, set_start_date) = signal(String::new());
     let (end_date, set_end_date) = signal(String::new());
@@ -861,19 +880,37 @@ pub(crate) fn AssetBookingControls(
         });
     });
 
+    let close_booking_form_on_outside = move |ev: leptos::ev::MouseEvent| {
+        if !show_booking_form.get_untracked() {
+            return;
+        }
+        if let Some(form) = booking_form_ref.get() {
+            let outside = ev.target().map_or(true, |t| {
+                t.dyn_ref::<web_sys::Node>()
+                    .map_or(true, |n| !form.contains(Some(n)))
+            });
+            if outside {
+                set_show_booking_form.set(false);
+            }
+        }
+    };
+
     view! {
-        <div class="ai-channel-management ai-booking-controls">
+        <div class="ai-channel-management ai-booking-controls" on:click=close_booking_form_on_outside>
             <div class="ai-channel-management-header">
                 <span class="ai-channel-management-title">"Booking Controls"</span>
                 {move || if can_book { view! {
-                    <button class="pf-small-btn" on:click=move |_| set_show_booking_form.update(|v| *v = !*v)>
+                    <button class="pf-small-btn" on:click=move |ev| {
+                        ev.stop_propagation();
+                        set_show_booking_form.update(|v| *v = !*v);
+                    }>
                         {move || if show_booking_form.get() { "Close" } else { "+ Add Booking" }}
                     </button>
                 }.into_any() } else { ().into_any() }}
             </div>
 
             {move || if show_booking_form.get() && can_book { view! {
-                <div class="ai-channel-management-form">
+                <div class="ai-channel-management-form" node_ref=booking_form_ref on:click=move |ev| ev.stop_propagation()>
                     {move || form_error.get().map(|m| view! { <div class="ai-form-error">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
                     {move || conflict_msg.get().map(|m| view! { <div class="ai-form-warning">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
                     <label>"Guest"

@@ -36,11 +36,19 @@ pub(crate) fn render_by_type(
     let contact_total = filtered_contacts.len();
     let visible_orgs = Memo::new(move |_| {
         let visible = visible_count.get().min(org_total);
-        orgs_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+        orgs_memo
+            .get()
+            .into_iter()
+            .take(visible)
+            .collect::<Vec<_>>()
     });
     let visible_contacts = Memo::new(move |_| {
         let visible = visible_count.get().min(contact_total);
-        contacts_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+        contacts_memo
+            .get()
+            .into_iter()
+            .take(visible)
+            .collect::<Vec<_>>()
     });
 
     view! {

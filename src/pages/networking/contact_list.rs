@@ -13,7 +13,11 @@ pub(crate) fn render_contacts(
     let visible_items = Memo::new(move |_| {
         let total = items_memo.get().len();
         let visible = visible_count.get().min(total);
-        items_memo.get().into_iter().take(visible).collect::<Vec<_>>()
+        items_memo
+            .get()
+            .into_iter()
+            .take(visible)
+            .collect::<Vec<_>>()
     });
     view! {
         <div class="net-tab-content">

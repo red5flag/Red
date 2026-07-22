@@ -4,10 +4,10 @@ use crate::components::tabs::TabList;
 use crate::models::Action;
 use crate::stores::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, use_app_store,
-    use_messenger_store, use_notification_store, use_ui_store, use_undo_redo_store,
-    Notification, NotificationDrawerFilter, NotificationDrawerSort, NotificationType,
+    use_messenger_store, use_notification_store, use_ui_store, use_undo_redo_store, Notification,
+    NotificationDrawerFilter, NotificationDrawerSort, NotificationType,
 };
-use crate::types::{ActionType, TabType};
+use crate::types::{ActionType, OverviewSortMode, TabType};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -209,13 +209,21 @@ pub fn Navbar() -> impl IntoView {
 
     let is_tabs_drawer_open = move || ui_store.get().tabs_drawer_open;
     let is_notifications_drawer_open = move || notification_store.get().drawer_open;
+    let is_overview_active = move || app_store.get().active_tabs.contains(&TabType::Overview);
     let notification_count = move || {
         let store = notification_store.get();
         let filter = &store.drawer_filter;
         store
             .notifications
             .iter()
-            .filter(|n| matches_filter(n, filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
+            .filter(|n| {
+                matches_filter(
+                    n,
+                    filter,
+                    &store.drawer_scoped_portfolio,
+                    &store.drawer_scoped_group,
+                )
+            })
             .count()
     };
 
@@ -248,10 +256,16 @@ pub fn Navbar() -> impl IntoView {
     ) -> bool {
         let category_matches = match filter {
             NotificationDrawerFilter::All => true,
-            NotificationDrawerFilter::Portfolios => n.target_tab.as_ref() == Some(&TabType::Portfolios),
-            NotificationDrawerFilter::Networking => n.target_tab.as_ref() == Some(&TabType::Networking),
+            NotificationDrawerFilter::Portfolios => {
+                n.target_tab.as_ref() == Some(&TabType::Portfolios)
+            }
+            NotificationDrawerFilter::Networking => {
+                n.target_tab.as_ref() == Some(&TabType::Networking)
+            }
             NotificationDrawerFilter::Files => {
-                n.linked_doc_id.is_some() || n.linked_asset_id.is_some() || n.linked_group_id.is_some()
+                n.linked_doc_id.is_some()
+                    || n.linked_asset_id.is_some()
+                    || n.linked_group_id.is_some()
             }
             NotificationDrawerFilter::Type(t) => &n.notification_type == t,
         };
@@ -277,7 +291,8 @@ pub fn Navbar() -> impl IntoView {
             NotificationDrawerSort::Newest => notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp)),
             NotificationDrawerSort::Oldest => notifs.sort_by(|a, b| a.timestamp.cmp(&b.timestamp)),
             NotificationDrawerSort::Type => notifs.sort_by(|a, b| {
-                let type_order = type_rank(&a.notification_type).cmp(&type_rank(&b.notification_type));
+                let type_order =
+                    type_rank(&a.notification_type).cmp(&type_rank(&b.notification_type));
                 if type_order != std::cmp::Ordering::Equal {
                     type_order
                 } else {
@@ -302,7 +317,9 @@ pub fn Navbar() -> impl IntoView {
             NotificationDrawerFilter::All => NotificationDrawerFilter::Portfolios,
             NotificationDrawerFilter::Portfolios => NotificationDrawerFilter::Networking,
             NotificationDrawerFilter::Networking => NotificationDrawerFilter::Files,
-            NotificationDrawerFilter::Files => NotificationDrawerFilter::Type(NotificationType::Success),
+            NotificationDrawerFilter::Files => {
+                NotificationDrawerFilter::Type(NotificationType::Success)
+            }
             NotificationDrawerFilter::Type(NotificationType::Success) => {
                 NotificationDrawerFilter::Type(NotificationType::Warning)
             }
@@ -352,6 +369,35 @@ pub fn Navbar() -> impl IntoView {
                     </button>
                 </div>
             </div>
+
+            // ROW 2: Overview sort tools (visible when Overview tab is active)
+            {move || if is_overview_active() {
+                view! {
+                    <div class="navbar-row navbar-row-overview-tools">
+                        <button
+                            class={move || format!("nav-sort-btn{}", if ui_store.get().overview_sort_mode == OverviewSortMode::Selected { " active" } else { "" })}
+                            on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Selected))
+                            title="Selected order; drag and drop boxes"
+                        >
+                            "Selected"
+                        </button>
+                        <button
+                            class={move || format!("nav-sort-btn{}", if ui_store.get().overview_sort_mode == OverviewSortMode::Recent { " active" } else { "" })}
+                            on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Recent))
+                            title="Recently updated"
+                        >
+                            "Recent"
+                        </button>
+                        <button
+                            class={move || format!("nav-sort-btn{}", if ui_store.get().overview_sort_mode == OverviewSortMode::Trending { " active" } else { "" })}
+                            on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Trending))
+                            title="Most interaction recently"
+                        >
+                            "Trending"
+                        </button>
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
         </nav>
 
         // Tabs drawer (left-side panel from ☰ button)

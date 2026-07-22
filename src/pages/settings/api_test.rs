@@ -29,7 +29,10 @@ pub(crate) fn ApiTestPage() -> impl IntoView {
 
     let selected = Memo::new(move |_| {
         let id = selected_id.get()?;
-        let (asset, pid, _, _) = all_assets.get().into_iter().find(|(a, _, _, _)| a.id == id)?;
+        let (asset, pid, _, _) = all_assets
+            .get()
+            .into_iter()
+            .find(|(a, _, _, _)| a.id == id)?;
         Some((asset, pid))
     });
 

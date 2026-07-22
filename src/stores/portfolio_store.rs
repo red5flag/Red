@@ -432,13 +432,19 @@ impl PortfolioStore {
         target_pid: Uuid,
     ) -> bool {
         let source_pid = portfolios.iter().find_map(|p| {
-            if p.assets.iter().any(|a| a.id == asset_id) || p.asset_groups.iter().any(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+            if p.assets.iter().any(|a| a.id == asset_id)
+                || p.asset_groups
+                    .iter()
+                    .any(|g| g.assets.iter().any(|a| a.id == asset_id))
+            {
                 Some(p.id)
             } else {
                 None
             }
         });
-        let Some(source_pid) = source_pid else { return false; };
+        let Some(source_pid) = source_pid else {
+            return false;
+        };
         if source_pid == target_pid {
             // ensure it is a direct asset
             let already_direct = portfolios
@@ -454,8 +460,16 @@ impl PortfolioStore {
             let source = portfolios.iter_mut().find(|p| p.id == source_pid).unwrap();
             if let Some(pos) = source.assets.iter().position(|a| a.id == asset_id) {
                 asset = Some(source.assets.remove(pos));
-            } else if let Some(gpos) = source.asset_groups.iter().position(|g| g.assets.iter().any(|a| a.id == asset_id)) {
-                if let Some(apos) = source.asset_groups[gpos].assets.iter().position(|a| a.id == asset_id) {
+            } else if let Some(gpos) = source
+                .asset_groups
+                .iter()
+                .position(|g| g.assets.iter().any(|a| a.id == asset_id))
+            {
+                if let Some(apos) = source.asset_groups[gpos]
+                    .assets
+                    .iter()
+                    .position(|a| a.id == asset_id)
+                {
                     asset = Some(source.asset_groups[gpos].assets.remove(apos));
                     source.asset_groups[gpos].recalculate_values();
                 }
@@ -464,7 +478,9 @@ impl PortfolioStore {
                 source.recalculate_values();
             }
         }
-        let Some(asset) = asset else { return false; };
+        let Some(asset) = asset else {
+            return false;
+        };
         let target = portfolios.iter_mut().find(|p| p.id == target_pid).unwrap();
         target.assets.push(asset);
         target.recalculate_values();
@@ -479,25 +495,39 @@ impl PortfolioStore {
         target_gid: Uuid,
     ) -> bool {
         let source_pid = portfolios.iter().find_map(|p| {
-            if p.assets.iter().any(|a| a.id == asset_id) || p.asset_groups.iter().any(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+            if p.assets.iter().any(|a| a.id == asset_id)
+                || p.asset_groups
+                    .iter()
+                    .any(|g| g.assets.iter().any(|a| a.id == asset_id))
+            {
                 Some(p.id)
             } else {
                 None
             }
         });
-        let Some(source_pid) = source_pid else { return false; };
+        let Some(source_pid) = source_pid else {
+            return false;
+        };
 
         let mut asset: Option<Asset> = None;
         {
             let source = portfolios.iter_mut().find(|p| p.id == source_pid).unwrap();
             if let Some(pos) = source.assets.iter().position(|a| a.id == asset_id) {
                 asset = Some(source.assets.remove(pos));
-            } else if let Some(gpos) = source.asset_groups.iter().position(|g| g.assets.iter().any(|a| a.id == asset_id)) {
+            } else if let Some(gpos) = source
+                .asset_groups
+                .iter()
+                .position(|g| g.assets.iter().any(|a| a.id == asset_id))
+            {
                 if source_pid == target_pid && source.asset_groups[gpos].id == target_gid {
                     // already in the target group
                     return true;
                 }
-                if let Some(apos) = source.asset_groups[gpos].assets.iter().position(|a| a.id == asset_id) {
+                if let Some(apos) = source.asset_groups[gpos]
+                    .assets
+                    .iter()
+                    .position(|a| a.id == asset_id)
+                {
                     asset = Some(source.asset_groups[gpos].assets.remove(apos));
                     source.asset_groups[gpos].recalculate_values();
                 }
@@ -506,7 +536,9 @@ impl PortfolioStore {
                 source.recalculate_values();
             }
         }
-        let Some(asset) = asset else { return false; };
+        let Some(asset) = asset else {
+            return false;
+        };
         let target = portfolios.iter_mut().find(|p| p.id == target_pid).unwrap();
         if let Some(g) = target.asset_groups.iter_mut().find(|g| g.id == target_gid) {
             g.assets.push(asset);
@@ -531,7 +563,9 @@ impl PortfolioStore {
                 None
             }
         });
-        let Some(source_pid) = source_pid else { return false; };
+        let Some(source_pid) = source_pid else {
+            return false;
+        };
         if source_pid == target_pid {
             return true;
         }
@@ -544,7 +578,9 @@ impl PortfolioStore {
                 source.recalculate_values();
             }
         }
-        let Some(group) = group else { return false; };
+        let Some(group) = group else {
+            return false;
+        };
         let target = portfolios.iter_mut().find(|p| p.id == target_pid).unwrap();
         target.asset_groups.push(group);
         target.recalculate_values();

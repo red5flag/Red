@@ -129,9 +129,10 @@ pub fn DocModal(
     #[prop(default = None)] portfolio_id: Option<Uuid>,
     #[prop(default = None)] group_id: Option<Uuid>,
     #[prop(default = None)] asset_id: Option<Uuid>,
+    #[prop(default = None)] organization_id: Option<Uuid>,
 ) -> impl IntoView {
     let app_store = use_app_store();
-    let _organization_store = use_organization_store();
+    let organization_store = use_organization_store();
     let notification_store = use_notification_store();
     // open_tabs: vec of (tab_id, Document); tab_id=0 is reserved for the list tab
     let (open_tabs, set_open_tabs) = signal::<Vec<(u32, Document)>>(vec![]);
@@ -144,6 +145,11 @@ pub fn DocModal(
     let docs = Memo::new(move |_| {
         let store = app_store.get();
         let mut docs = Vec::new();
+        if let Some(oid) = organization_id {
+            if let Some(org) = organization_store.get().get_organization(oid) {
+                docs.extend(org.documents.clone());
+            }
+        }
         for p in &store.portfolios {
             if p.id == entity_id {
                 docs.extend(p.documents.clone());
@@ -285,7 +291,11 @@ pub fn DocModal(
                                                                 on:blur=move |_| {
                                                                     let n = edit_name.get();
                                                                     if !n.trim().is_empty() {
-                                                                        app_store.update(|s| s.update_document_name(doc_id, n, &mut notification_store.get_untracked()));
+                                                                        if let Some(_oid) = organization_id {
+                                                                            organization_store.update(|s| s.update_document_name(doc_id, n));
+                                                                        } else {
+                                                                            app_store.update(|s| s.update_document_name(doc_id, n, &mut notification_store.get_untracked()));
+                                                                        }
                                                                     }
                                                                     set_editing_name.set(false);
                                                                 }
