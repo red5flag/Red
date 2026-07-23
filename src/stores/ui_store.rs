@@ -7,7 +7,10 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 /// Default order of sections on the Overview dashboard.
-pub const OVERVIEW_DEFAULT_ORDER: [&str; 14] = [
+pub const OVERVIEW_DEFAULT_ORDER: [&str; 17] = [
+    "current-organization",
+    "portfolio-summary",
+    "channel-status",
     "recent-messages",
     "recent-bookings",
     "updated-investments",
@@ -140,7 +143,10 @@ impl Default for UiStore {
             networking_add_member_open: false,
             net_view_count: ViewCount::V50,
             overview_sort_mode: OverviewSortMode::default(),
-            overview_selected_order: Vec::new(),
+            overview_selected_order: OVERVIEW_DEFAULT_ORDER
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             overview_dragging_id: None,
             overview_drag_over_id: None,
             overview_touch_long_id: None,
@@ -377,8 +383,7 @@ impl UiStore {
             .position(|id| id == to_id);
         if let (Some(from), Some(to)) = (from_pos, to_pos) {
             let id = self.overview_selected_order.remove(from);
-            let insert_at = if from < to { to.saturating_sub(1) } else { to };
-            self.overview_selected_order.insert(insert_at, id);
+            self.overview_selected_order.insert(to, id);
         }
     }
 

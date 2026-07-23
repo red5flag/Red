@@ -171,6 +171,13 @@ pub enum Perm {
     EditDirectAssets,
     DeleteDirectAssets,
     MoveDirectAssetsIntoGroups,
+    // Asset visibility
+    ViewAssetGroups,
+    ViewAssets,
+    // Asset Media & Details
+    ViewAssetImages,
+    UploadAssetImages,
+    ViewAssetGeneralInformation,
     // Networking
     ViewNetworkingContacts,
     CreateContacts,
@@ -228,6 +235,9 @@ pub enum Perm {
     ManageDocumentCategories,
     ManageDocumentVisibility,
     ManageDocumentOwnership,
+    // Asset Documents
+    ViewAssetDocuments,
+    UploadAssetDocuments,
     // Calendar
     ViewCalendar,
     CreateCalendarEvents,
@@ -330,6 +340,11 @@ impl Perm {
             Perm::EditDirectAssets => "Edit direct assets",
             Perm::DeleteDirectAssets => "Delete direct assets",
             Perm::MoveDirectAssetsIntoGroups => "Move direct assets into groups",
+            Perm::ViewAssetGroups => "View asset groups",
+            Perm::ViewAssets => "View assets",
+            Perm::ViewAssetImages => "View asset images",
+            Perm::UploadAssetImages => "Upload asset images",
+            Perm::ViewAssetGeneralInformation => "View asset general information",
             Perm::ViewNetworkingContacts => "View networking contacts",
             Perm::CreateContacts => "Create contacts",
             Perm::EditContacts => "Edit contacts",
@@ -383,6 +398,8 @@ impl Perm {
             Perm::ManageDocumentCategories => "Manage document categories",
             Perm::ManageDocumentVisibility => "Manage document visibility",
             Perm::ManageDocumentOwnership => "Manage document ownership",
+            Perm::ViewAssetDocuments => "View asset documents",
+            Perm::UploadAssetDocuments => "Upload asset documents",
             Perm::ViewCalendar => "View calendar",
             Perm::CreateCalendarEvents => "Create calendar events",
             Perm::EditOwnEvents => "Edit own events",
@@ -479,7 +496,12 @@ impl Perm {
             | Perm::CreateDirectAssets
             | Perm::EditDirectAssets
             | Perm::DeleteDirectAssets
-            | Perm::MoveDirectAssetsIntoGroups => PermGroup::Portfolio,
+            | Perm::MoveDirectAssetsIntoGroups
+            | Perm::ViewAssetGroups
+            | Perm::ViewAssets
+            | Perm::ViewAssetImages
+            | Perm::UploadAssetImages
+            | Perm::ViewAssetGeneralInformation => PermGroup::Portfolio,
 
             Perm::ViewNetworkingContacts
             | Perm::CreateContacts
@@ -535,7 +557,9 @@ impl Perm {
             | Perm::RestoreArchivedDocuments
             | Perm::ManageDocumentCategories
             | Perm::ManageDocumentVisibility
-            | Perm::ManageDocumentOwnership => PermGroup::Reporting,
+            | Perm::ManageDocumentOwnership
+            | Perm::ViewAssetDocuments
+            | Perm::UploadAssetDocuments => PermGroup::Reporting,
 
             Perm::ViewCalendar
             | Perm::CreateCalendarEvents
@@ -639,6 +663,13 @@ impl Perm {
             Perm::EditDirectAssets,
             Perm::DeleteDirectAssets,
             Perm::MoveDirectAssetsIntoGroups,
+            // Asset visibility
+            Perm::ViewAssetGroups,
+            Perm::ViewAssets,
+            // Asset Media & Details
+            Perm::ViewAssetImages,
+            Perm::UploadAssetImages,
+            Perm::ViewAssetGeneralInformation,
             // Networking
             Perm::ViewNetworkingContacts,
             Perm::CreateContacts,
@@ -696,6 +727,9 @@ impl Perm {
             Perm::ManageDocumentCategories,
             Perm::ManageDocumentVisibility,
             Perm::ManageDocumentOwnership,
+            // Asset Documents
+            Perm::ViewAssetDocuments,
+            Perm::UploadAssetDocuments,
             // Calendar
             Perm::ViewCalendar,
             Perm::CreateCalendarEvents,

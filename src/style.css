@@ -1310,6 +1310,18 @@ html, body {
     cursor: pointer;
 }
 
+.asset-section-count {
+    font-size: clamp(11px, 1.6vh, 13px);
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    min-width: 22px;
+    text-align: center;
+}
+
 .asset-list {
     display: flex;
     flex-direction: column;
@@ -2307,6 +2319,8 @@ html, body {
 .pf-accordion .asset-group.pf-portfolio > .asset-group-content {
     border-top: none;
     background: var(--primary-bg);
+    gap: 0;
+    padding: 0;
 }
 
 .pf-accordion > .pf-org-group {
@@ -2337,7 +2351,7 @@ html, body {
     min-height: calc(var(--bar-h) * 1.65);
     max-height: calc(var(--bar-h) * 1.65);
     padding: 6px 16px 6px var(--bar-h);
-    overflow: hidden;
+    overflow: visible;
 }
 .pf-accordion .pf-accordion-header.editing {
     height: auto;
@@ -2840,29 +2854,72 @@ html, body {
     letter-spacing: 0.5px;
 }
 
-/* Networking top controls wrapper */
-.net-top-controls {
-    position: sticky;
+/* Networking controls bar attached below the navbar */
+.networking-controls-bar {
+    position: fixed;
     top: var(--navbar-height);
-    z-index: 100;
+    left: 0;
+    right: 0;
+    z-index: 150;
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 0;
-    background: var(--secondary-bg);
-    border: 2px solid var(--border-color);
-    border-bottom: none;
+    padding: 0;
+    height: var(--controls-h);
+    background: var(--accent-bg);
+    border-bottom: 2px solid var(--border-color);
 }
 
-.net-top-controls .net-quick-tabs {
-    border-top: none;
-    border-left: none;
+.home-screen.net-page {
+    padding-top: var(--controls-h);
+}
+
+.networking-controls-bar .net-action-bar {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    overflow: visible;
+}
+
+.networking-controls-bar .net-action-bar .net-action-btn,
+.networking-controls-bar .net-action-bar .net-sort-btn-wrap .net-action-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    padding: 0 10px;
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: clamp(14px, 2vh, 16px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.networking-controls-bar .net-action-bar > .net-action-btn:last-child,
+.networking-controls-bar .net-action-bar .net-sort-btn-wrap:last-child .net-action-btn {
     border-right: none;
 }
 
-.net-top-controls .org-metrics-bar,
-.net-top-controls .net-action-bar {
-    border-left: none;
-    border-right: none;
+.networking-controls-bar .net-action-bar .net-action-btn:hover,
+.networking-controls-bar .net-action-bar .net-action-btn.active {
+    background: var(--highlight);
+    color: #fff;
 }
 
 .net-quick-tabs-outer {
@@ -2990,75 +3047,6 @@ html, body {
 
 .net-quick-tab-primary.active,
 .net-quick-tab-primary:hover {
-    background: var(--highlight);
-    color: var(--primary-bg);
-}
-
-/* Organization top controls wrapper */
-.org-top-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    background: var(--secondary-bg);
-    border: 2px solid var(--border-color);
-    border-bottom: none;
-    margin-bottom: 12px;
-}
-
-.org-top-controls .org-quick-tabs {
-    border: none;
-}
-
-/* Organization quick sort tabs */
-.org-quick-tabs {
-    display: flex;
-    flex-wrap: nowrap;
-    width: 100%;
-    border: 2px solid var(--border-color);
-    background: var(--secondary-bg);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-color) var(--secondary-bg);
-}
-
-.org-quick-tabs::-webkit-scrollbar {
-    height: 6px;
-    background: var(--secondary-bg);
-}
-
-.org-quick-tabs::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 3px;
-}
-
-.org-quick-tabs::-webkit-scrollbar-thumb:hover {
-    background: var(--highlight);
-}
-
-.org-quick-tab {
-    flex: 0 0 auto;
-    min-height: 44px;
-    background: var(--secondary-bg);
-    border: none;
-    border-right: 2px solid var(--border-color);
-    border-bottom: 2px solid var(--border-color);
-    color: var(--text-primary);
-    font-size: 14px;
-    font-weight: 600;
-    text-transform: uppercase;
-    cursor: pointer;
-    margin: 0;
-    padding: 8px 16px;
-    white-space: nowrap;
-}
-
-.org-quick-tab:last-child {
-    border-right: none;
-}
-
-.org-quick-tab.active,
-.org-quick-tab:hover {
     background: var(--highlight);
     color: var(--primary-bg);
 }
@@ -6564,11 +6552,11 @@ html, body {
     grid-template-columns: repeat(12, 1fr);
 }
 
-/* Asset list layout - flush, no padding/gap (new styles at bottom of file) */
+/* Asset list layout - flush, no padding, small gap between items */
 .asset-list {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 8px;
     padding: 0;
 }
 
@@ -6777,10 +6765,12 @@ html, body {
 
 /* Reporting page */
 .reporting-page {
-    padding: 24px;
+    width: 100%;
     max-width: 1200px;
+    padding: clamp(8px, 3vw, 24px);
     margin: 0 auto;
     box-sizing: border-box;
+    overflow-x: hidden;
 }
 
 .reporting-header {
@@ -6856,15 +6846,20 @@ html, body {
 
 .reporting-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 12px;
 }
 
 .reporting-controls-bar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     margin-bottom: 12px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .reporting-sort-select {
@@ -6876,7 +6871,9 @@ html, body {
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    flex: 1;
+    flex: 1 1 140px;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .reporting-sort-select:hover {
@@ -7051,6 +7048,110 @@ html, body {
     border-right: none;
 }
 
+/* Reporting sort bar attached below navbar and sized to the viewport, matching Portfolio controls */
+.reporting-page {
+    padding-top: var(--controls-h);
+}
+
+.reporting-page .reporting-tabs-outer.reporting-tabs-top {
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
+    right: 0;
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    margin: 0;
+    background: var(--accent-bg);
+    border: none;
+    border-bottom: 2px solid var(--border-color);
+    box-sizing: border-box;
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tabs {
+    flex: 1;
+    height: var(--controls-h);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--secondary-bg);
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab,
+.reporting-page .reporting-tabs-outer .reporting-tab-camscan {
+    flex: 0 0 auto;
+    min-width: 0;
+    height: var(--controls-h);
+    padding: 0 clamp(4px, 1.5vw, 10px);
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    border-radius: 0;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: clamp(10px, 1.8vw, 14px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 1;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab-camscan {
+    border-left: none;
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab:last-child {
+    border-right: none;
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab:hover,
+.reporting-page .reporting-tabs-outer .reporting-tab.active,
+.reporting-page .reporting-tabs-outer .reporting-tab-camscan:hover,
+.reporting-page .reporting-tabs-outer .reporting-tab-camscan.active {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab-arrow {
+    flex: 0 0 auto;
+    width: var(--controls-h);
+    min-width: var(--controls-h);
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: clamp(14px, 2.5vh, 20px);
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    transition: background 0.15s, color 0.15s;
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab-arrow:last-child {
+    border-right: none;
+    border-left: 1px solid var(--border-color);
+}
+
+.reporting-page .reporting-tabs-outer .reporting-tab-arrow:hover {
+    background: var(--highlight);
+    color: #fff;
+}
+
 .reporting-camscan-wrap {
     width: 100%;
     max-width: 100%;
@@ -7063,12 +7164,18 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .reporting-section {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .reporting-section-title {
@@ -7085,13 +7192,19 @@ html, body {
 .reporting-table {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    min-width: 0;
     background: var(--secondary-bg);
     border: 2px solid var(--border-color);
+    box-sizing: border-box;
+    overflow-x: auto;
 }
 
 .reporting-table-head {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
     background: var(--accent-bg);
     border-bottom: 2px solid var(--border-color);
 }
@@ -7104,6 +7217,10 @@ html, body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     border-right: 1px solid var(--border-color);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .reporting-th:last-child {
@@ -7113,6 +7230,8 @@ html, body {
 .reporting-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -7127,6 +7246,8 @@ html, body {
 .reporting-table-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -7225,9 +7346,11 @@ html, body {
 
 .reporting-export-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
     gap: 16px;
     padding: 16px 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .reporting-export-card {
@@ -7235,25 +7358,27 @@ html, body {
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    padding: 24px 16px;
+    padding: clamp(16px, 3vw, 24px) clamp(12px, 2vw, 16px);
     background: var(--secondary-bg);
     border: 2px solid var(--border-color);
     border-radius: 8px;
     text-align: center;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .reporting-export-icon {
-    font-size: 36px;
+    font-size: clamp(28px, 5vw, 36px);
 }
 
 .reporting-export-title {
-    font-size: 14px;
+    font-size: clamp(12px, 2vw, 14px);
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .reporting-export-count {
-    font-size: 12px;
+    font-size: clamp(10px, 1.8vw, 12px);
     color: var(--text-secondary);
 }
 
@@ -7264,9 +7389,15 @@ html, body {
     color: #fff;
     border: none;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: clamp(10px, 1.8vw, 12px);
     font-weight: 700;
     cursor: pointer;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .reporting-export-btn:hover {
@@ -7279,11 +7410,12 @@ html, body {
 
 @media (max-width: 768px) {
     .reporting-page {
-        padding: 12px;
+        padding: clamp(8px, 2vw, 12px);
+        padding-top: var(--controls-h);
     }
     .reporting-tab {
-        padding: 0 clamp(6px, 2vw, 10px);
-        font-size: clamp(9px, 2.5vw, 12px);
+        padding: 0 clamp(4px, 1.5vw, 8px);
+        font-size: clamp(9px, 2vw, 12px);
     }
     .reporting-th,
     .reporting-td {
@@ -7300,6 +7432,7 @@ html, body {
 @media (max-width: 480px) {
     .reporting-page {
         padding: 8px;
+        padding-top: var(--controls-h);
         max-width: 100%;
         overflow-x: hidden;
     }
@@ -7354,7 +7487,7 @@ html, body {
         font-size: 10px;
     }
     .reporting-export-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
         gap: 8px;
         padding: 8px 0;
     }
@@ -8277,10 +8410,10 @@ html, body {
    OVERVIEW CONTENT
    ═══════════════════════════════════════════ */
 .overview-content {
-    padding: calc(2vh + var(--bar-h)) 3vw 2vh 3vw;
+    padding: var(--controls-h) 3vw 2vh 3vw;
     display: flex;
     flex-direction: column;
-    gap: 2vh;
+    gap: 0;
     box-sizing: border-box;
 }
 
@@ -8390,6 +8523,14 @@ html, body {
     flex-direction: column;
     padding: 8px 12px;
     gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.overview-square .overview-detail-header,
+.overview-square .overview-detail-body {
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .overview-detail-row-item {
@@ -8544,36 +8685,53 @@ html, body {
 }
 
 .overview-controls-bar {
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
+    right: 0;
+    z-index: 150;
     display: flex;
-    flex-direction: row;
-    gap: 8px;
-    padding: 8px 0;
-    margin-bottom: 8px;
     align-items: center;
-    flex-shrink: 0;
+    gap: 0;
+    padding: 0;
+    height: var(--controls-h);
+    background: var(--accent-bg);
+    border-bottom: 2px solid var(--border-color);
+    box-sizing: border-box;
 }
 
 .overview-sort-tab {
-    background: var(--secondary-bg);
-    border: 2px solid var(--border-color);
-    border-radius: 6px;
-    color: var(--text-secondary);
-    font-size: clamp(10px, 1.5vh, 12px);
-    font-weight: 700;
-    padding: 4px 10px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
     cursor: pointer;
-    transition: border-color 0.15s, background 0.15s, color 0.15s;
+    font-size: clamp(14px, 2vh, 16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.overview-sort-tab:last-child {
+    border-right: none;
 }
 
 .overview-sort-tab:hover {
-    border-color: var(--highlight);
-    color: var(--text-primary);
+    background: rgba(255,255,255,0.08);
 }
 
 .overview-sort-tab.active {
-    background: var(--accent-bg);
-    border-color: var(--highlight);
-    color: var(--text-primary);
+    background: var(--highlight);
+    color: #fff;
 }
 
 .overview-section-dragging {
@@ -9610,6 +9768,21 @@ html, body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* Inline document slider panel under portfolio/group parents */
+.pf-doc-slider-panel {
+    width: 100%;
+    padding: 0;
+    background: var(--secondary-bg);
+    border-bottom: none;
+    box-sizing: border-box;
+}
+.pf-doc-slider-panel .pf-doc-slider {
+    width: 100%;
+}
+.pf-doc-slider-panel .ai-doc-slider-item {
+    border-top: none;
 }
 
 /* Horizontal document slider in asset list items */
@@ -11651,7 +11824,44 @@ html, body {
 
 .calendar-manager-actions {
     display: flex;
-    gap: 8px;
+    gap: 0;
+    align-items: center;
+}
+
+.calendar-manager-actions .calendar-nav-btn,
+.calendar-manager-actions .calendar-today-btn,
+.calendar-manager-actions .calendar-manager-btn {
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    padding: 0 10px;
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: clamp(14px, 2vh, 16px);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.calendar-manager-actions .calendar-manager-btn:last-child {
+    border-right: none;
+}
+
+.calendar-manager-actions .calendar-nav-btn:hover,
+.calendar-manager-actions .calendar-today-btn:hover,
+.calendar-manager-actions .calendar-manager-btn:hover {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.calendar-manager-actions .calendar-nav-btn {
+    width: var(--controls-h);
+    min-width: var(--controls-h);
+    font-size: 18px;
 }
 
 .calendar-manager-btn,
@@ -11676,13 +11886,35 @@ html, body {
 
 .calendar-filter-bar {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px 0;
+    flex-wrap: nowrap;
     align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--highlight) var(--secondary-bg);
+    box-sizing: border-box;
+}
+
+.calendar-filter-bar::-webkit-scrollbar {
+    height: 6px;
+}
+
+.calendar-filter-bar::-webkit-scrollbar-track {
+    background: var(--secondary-bg);
+}
+
+.calendar-filter-bar::-webkit-scrollbar-thumb {
+    background: var(--highlight);
+    border-radius: 3px;
 }
 
 .calendar-filter-btn {
+    flex: 0 0 auto;
     padding: 4px 10px;
     border: 2px solid var(--border-color);
     background: var(--accent-bg);
@@ -11691,6 +11923,7 @@ html, body {
     font-weight: 600;
     cursor: pointer;
     border-radius: 4px;
+    white-space: nowrap;
 }
 
 .calendar-filter-btn:hover {
@@ -12032,64 +12265,45 @@ html, body {
 
 .calendar-view-controls {
     display: flex;
+    align-items: center;
     gap: 0;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
 }
 
 .calendar-view-btn {
-    height: 32px;
+    flex: 0 0 auto;
+    min-width: 0;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
     padding: 0 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--secondary-bg);
-    border: 2px solid var(--border-color);
-    border-left: none;
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
     color: var(--text-primary);
-    font-size: 12px;
-    font-weight: 600;
     cursor: pointer;
+    font-size: clamp(14px, 2vh, 16px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.calendar-view-controls .calendar-view-btn:first-child {
-    border-left: 2px solid var(--border-color);
+.calendar-view-controls .calendar-view-btn:last-child {
+    border-right: none;
 }
 
-.calendar-view-btn.calendar-view-active {
+.calendar-view-btn.calendar-view-active,
+.calendar-view-btn:hover {
     background: var(--highlight);
     color: #fff;
-    border-color: var(--highlight);
-}
-
-.calendar-view-btn:hover {
-    border-color: var(--highlight);
-    color: var(--highlight);
-}
-
-.calendar-view-btn.calendar-view-active:hover {
-    color: #fff;
-}
-
-.calendar-zoom-controls {
-    display: flex;
-    gap: 0;
-    margin-left: 8px;
-}
-
-.calendar-zoom-label {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 32px;
-    min-width: 40px;
-    padding: 0 8px;
-    background: var(--secondary-bg);
-    border: 2px solid var(--border-color);
-    border-left: none;
-    border-right: none;
-    color: var(--text-primary);
-    font-size: 12px;
-    font-weight: 700;
-    user-select: none;
 }
 
 .calendar-grid-wrapper {
@@ -12132,7 +12346,7 @@ html, body {
     gap: 2px;
     cursor: pointer;
     transition: background 0.12s;
-    min-height: 70px;
+    min-height: 0;
     overflow: hidden;
 }
 
@@ -13112,7 +13326,7 @@ html, body {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.3);
-    z-index: 998;
+    z-index: 1001;
 }
 
 .tabs-drawer {
@@ -13125,7 +13339,7 @@ html, body {
     border-right: 2px solid var(--border-color);
     box-shadow: 4px 4px 16px rgba(0, 0, 0, 0.25);
     overflow: hidden;
-    z-index: 999;
+    z-index: 1002;
     animation: tabs-drawer-slide-in 0.2s ease-out;
 }
 
@@ -13221,6 +13435,15 @@ html, body {
     padding: 14px 20px;
 }
 
+/* Ensure the selected tab in the navigation drawer remains visible and highlighted */
+.tab-list .tab-item.expanded .tab-header {
+    background: var(--highlight);
+}
+
+.tab-list .tab-item.expanded .tab-title {
+    color: var(--primary-bg);
+}
+
 .portfolio-controls-bar {
     position: fixed;
     top: var(--navbar-height);
@@ -13243,6 +13466,69 @@ html, body {
 .home-screen-pf > .pf-accordion,
 .home-screen-pf > .grid-view {
     margin-top: 0;
+}
+
+.organization-controls-bar {
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
+    right: 0;
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    height: var(--controls-h);
+    background: var(--accent-bg);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.home-screen-org {
+    padding-top: var(--controls-h);
+}
+
+.home-screen-org > .org-empty-state,
+.home-screen-org > .organization-list {
+    margin-top: 0;
+}
+
+.organization-controls-bar .nav-sort-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: clamp(14px, 2vh, 16px);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.organization-controls-bar .nav-sort-btn:last-child {
+    border-right: none;
+}
+
+.organization-controls-bar .nav-sort-btn:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.organization-controls-bar .nav-sort-btn.active {
+    background: var(--highlight);
+    color: #fff;
 }
 
 .portfolio-controls-bar .nav-portfolio-btn {
@@ -15919,9 +16205,48 @@ html, body {
     display: none !important;
 }
 
+.ai-perm-hidden {
+    display: none !important;
+}
+
+.ai-perm-notice {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary, #6b7280);
+    background: var(--surface-1, #f3f4f6);
+    border-left: 3px solid var(--danger, #ef4444);
+    margin-top: 0.5rem;
+}
+
 .settings-page .reporting-tabs-outer {
     position: sticky;
     top: var(--navbar-height);
     z-index: 100;
     margin-bottom: 12px;
+}
+
+/* Document dropdown under action buttons */
+.pf-doc-dropdown-wrap {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+}
+
+.pf-doc-dropdown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+}
+
+.pf-doc-slider-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 121;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    max-width: min(80vw, 480px);
+    min-width: 120px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }

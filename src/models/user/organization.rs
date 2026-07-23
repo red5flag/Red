@@ -34,6 +34,14 @@ impl Organization {
     pub fn new(name: String, owner_id: Uuid) -> Self {
         let now = Utc::now();
         let code = format!("ORG-{}", name_code_slug(&name));
+        let mut roles = default_org_roles();
+        // Ensure the owner is a member of the Owner role so permission checks resolve.
+        for role in &mut roles {
+            if role.name == "Owner" {
+                role.member_ids.push(owner_id);
+                break;
+            }
+        }
         Self {
             id: Uuid::new_v4(),
             code,
@@ -42,7 +50,7 @@ impl Organization {
             owner_id,
             members: vec![owner_id],
             settings: OrganizationSettings::default(),
-            roles: default_org_roles(),
+            roles,
             documents: Vec::new(),
             created_at: now,
             updated_at: now,

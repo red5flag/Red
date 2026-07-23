@@ -243,7 +243,9 @@ mod asset_editor;
 mod asset_group;
 mod asset_item;
 mod asset_viewer;
+mod doc_dropdown;
 mod doc_modal;
+mod doc_slider;
 mod page;
 mod portfolio_list;
 
@@ -256,7 +258,9 @@ pub(crate) use asset_editor::AssetDetailView;
 pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetItem};
 pub(crate) use asset_viewer::AssetViewer;
+pub(crate) use doc_dropdown::DocEntry;
 pub(crate) use doc_modal::{DocModal, DocumentViewer};
+pub(crate) use doc_slider::DocSlider;
 pub(crate) use portfolio_list::PortfolioListItem;
 
 pub use page::PortfoliosPage;

@@ -584,9 +584,8 @@ pub fn NetworkingPage() -> impl IntoView {
 
     view! {
         <div class="home-screen net-page">
-            // Top navigation / controls bar attached directly under navbar
-            <div class="net-top-controls">
-                // Action bar
+            // Networking controls bar attached below the navbar
+            <div class="networking-controls-bar">
                 <div class="net-action-bar">
                     <button class="net-action-btn" on:click=move |_| ui_store.update(|s| s.toggle_networking_add_member())>"Add Contact"</button>
                     // View dropdown: contains the view tabs and the number-of-view control

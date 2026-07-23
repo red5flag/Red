@@ -1,4 +1,4 @@
-use crate::models::ConnectionStatus;
+use crate::models::{ConnectionStatus, Perm};
 use crate::stores::{
     use_app_store, use_calendar_store, use_messenger_store, use_notification_store,
     use_organization_store, use_transaction_store, use_ui_store, AppStore, CalendarStore,
@@ -11,6 +11,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::collections::HashMap;
 use std::sync::Arc;
+use uuid::Uuid;
 use web_sys::window;
 
 fn fmt_time(ts: chrono::DateTime<chrono::Utc>) -> String {
@@ -29,6 +30,42 @@ fn fmt_time(ts: chrono::DateTime<chrono::Utc>) -> String {
     }
 }
 
+fn portfolio_is_visible(
+    p: &crate::models::Portfolio,
+    user_id: Uuid,
+    can_view_all: bool,
+    orgs: &OrganizationStore,
+) -> bool {
+    p.is_visible_to(user_id, can_view_all)
+        || p.organization_id.map_or(can_view_all, |oid| {
+            orgs.user_has_perm_in_org(oid, user_id, &Perm::ViewPortfolios)
+        })
+}
+
+fn asset_is_visible(
+    a: &crate::models::Asset,
+    user_id: Uuid,
+    can_view_all: bool,
+    orgs: &OrganizationStore,
+) -> bool {
+    a.is_visible_to(user_id, can_view_all)
+        || a.organization_id.map_or(can_view_all, |oid| {
+            orgs.user_has_perm_in_org(oid, user_id, &Perm::ViewAssets)
+        })
+}
+
+fn org_is_visible(
+    o: &crate::models::Organization,
+    user_id: Uuid,
+    can_view_all: bool,
+    orgs: &OrganizationStore,
+) -> bool {
+    o.owner_id == user_id
+        || o.members.contains(&user_id)
+        || orgs.user_has_perm_in_org(o.id, user_id, &Perm::ViewOrganization)
+        || can_view_all
+}
+
 fn section_last_changed(
     id: &str,
     app: &AppStore,
@@ -38,23 +75,32 @@ fn section_last_changed(
     notif: &NotificationStore,
     txn: &TransactionStore,
     now: DateTime<Utc>,
+    user_id: Uuid,
+    can_view_all: bool,
 ) -> Option<DateTime<Utc>> {
     match id {
         "recent-messages" => messenger.messages.iter().map(|m| m.timestamp).max(),
         "recent-bookings" => app.bookings.iter().map(|b| b.updated_at).max(),
-        "updated-investments" => app.portfolios.iter().map(|p| p.updated_at).max(),
+        "updated-investments" => app
+            .portfolios
+            .iter()
+            .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
+            .map(|p| p.updated_at)
+            .max(),
         "recent-transactions" => txn.transactions.iter().map(|t| t.created_at).max(),
         "recent-contacts" => org.organization_users.iter().map(|u| u.updated_at).max(),
         "notifications" => notif.notifications.iter().map(|n| n.timestamp).max(),
         "property-overview" => app
             .portfolios
             .iter()
+            .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
             .flat_map(|p| {
-                std::iter::once(p.updated_at).chain(
-                    p.asset_groups
+                std::iter::once(p.updated_at).chain(p.asset_groups.iter().flat_map(|g| {
+                    g.assets
                         .iter()
-                        .flat_map(|g| g.assets.iter().map(|a| a.updated_at)),
-                )
+                        .filter(|a| asset_is_visible(*a, user_id, can_view_all, org))
+                        .map(|a| a.updated_at)
+                }))
             })
             .max(),
         "recent-activity" => {
@@ -66,15 +112,29 @@ fn section_last_changed(
             times.extend(app.service_tasks.iter().map(|st| st.updated_at));
             times.into_iter().max()
         }
-        "organizations" => org.organizations.iter().map(|o| o.updated_at).max(),
-        "top-portfolios" => app.portfolios.iter().map(|p| p.updated_at).max(),
+        "organizations" => org
+            .organizations
+            .iter()
+            .filter(|o| org_is_visible(*o, user_id, can_view_all, org))
+            .map(|o| o.updated_at)
+            .max(),
+        "top-portfolios" => app
+            .portfolios
+            .iter()
+            .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
+            .map(|p| p.updated_at)
+            .max(),
         "top-assets" => app
             .portfolios
             .iter()
+            .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
             .flat_map(|p| {
-                p.asset_groups
-                    .iter()
-                    .flat_map(|g| g.assets.iter().map(|a| a.updated_at))
+                p.asset_groups.iter().flat_map(|g| {
+                    g.assets
+                        .iter()
+                        .filter(|a| asset_is_visible(*a, user_id, can_view_all, org))
+                        .map(|a| a.updated_at)
+                })
             })
             .max(),
         "channels" => app
@@ -89,6 +149,23 @@ fn section_last_changed(
             .map(|e| e.start)
             .max(),
         "top-transactions" => txn.transactions.iter().map(|t| t.created_at).max(),
+        "current-organization" => org
+            .organizations
+            .iter()
+            .filter(|o| org_is_visible(*o, user_id, can_view_all, org))
+            .map(|o| o.updated_at)
+            .max(),
+        "portfolio-summary" => app
+            .portfolios
+            .iter()
+            .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
+            .map(|p| p.updated_at)
+            .max(),
+        "channel-status" => app
+            .channels
+            .iter()
+            .map(|c| c.last_sync_at.unwrap_or(c.updated_at))
+            .max(),
         _ => None,
     }
 }
@@ -103,6 +180,8 @@ fn section_change_count(
     txn: &TransactionStore,
     now: DateTime<Utc>,
     window: Duration,
+    user_id: Uuid,
+    can_view_all: bool,
 ) -> usize {
     let cutoff = now - window;
     match id {
@@ -119,7 +198,9 @@ fn section_change_count(
         "updated-investments" => app
             .portfolios
             .iter()
-            .filter(|p| p.updated_at >= cutoff)
+            .filter(|p| {
+                p.updated_at >= cutoff && portfolio_is_visible(*p, user_id, can_view_all, org)
+            })
             .count(),
         "recent-transactions" => txn
             .transactions
@@ -140,13 +221,22 @@ fn section_change_count(
             let portfolio_count = app
                 .portfolios
                 .iter()
-                .filter(|p| p.updated_at >= cutoff)
+                .filter(|p| {
+                    p.updated_at >= cutoff && portfolio_is_visible(*p, user_id, can_view_all, org)
+                })
                 .count();
             let asset_count = app
                 .portfolios
                 .iter()
-                .flat_map(|p| p.asset_groups.iter().flat_map(|g| g.assets.iter()))
-                .filter(|a| a.updated_at >= cutoff)
+                .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
+                .flat_map(|p| {
+                    p.asset_groups.iter().flat_map(|g| {
+                        g.assets.iter().filter(|a| {
+                            a.updated_at >= cutoff
+                                && asset_is_visible(*a, user_id, can_view_all, org)
+                        })
+                    })
+                })
                 .count();
             portfolio_count + asset_count
         }
@@ -180,18 +270,26 @@ fn section_change_count(
         "organizations" => org
             .organizations
             .iter()
-            .filter(|o| o.updated_at >= cutoff)
+            .filter(|o| o.updated_at >= cutoff && org_is_visible(*o, user_id, can_view_all, org))
             .count(),
         "top-portfolios" => app
             .portfolios
             .iter()
-            .filter(|p| p.updated_at >= cutoff)
+            .filter(|p| {
+                p.updated_at >= cutoff && portfolio_is_visible(*p, user_id, can_view_all, org)
+            })
             .count(),
         "top-assets" => app
             .portfolios
             .iter()
-            .flat_map(|p| p.asset_groups.iter().flat_map(|g| g.assets.iter()))
-            .filter(|a| a.updated_at >= cutoff)
+            .filter(|p| portfolio_is_visible(*p, user_id, can_view_all, org))
+            .flat_map(|p| {
+                p.asset_groups.iter().flat_map(|g| {
+                    g.assets.iter().filter(|a| {
+                        a.updated_at >= cutoff && asset_is_visible(*a, user_id, can_view_all, org)
+                    })
+                })
+            })
             .count(),
         "channels" => app
             .channels
@@ -207,6 +305,23 @@ fn section_change_count(
             .transactions
             .iter()
             .filter(|t| t.created_at >= cutoff)
+            .count(),
+        "current-organization" => org
+            .organizations
+            .iter()
+            .filter(|o| o.updated_at >= cutoff && org_is_visible(*o, user_id, can_view_all, org))
+            .count(),
+        "portfolio-summary" => app
+            .portfolios
+            .iter()
+            .filter(|p| {
+                p.updated_at >= cutoff && portfolio_is_visible(*p, user_id, can_view_all, org)
+            })
+            .count(),
+        "channel-status" => app
+            .channels
+            .iter()
+            .filter(|c| c.last_sync_at.unwrap_or(c.updated_at) >= cutoff)
             .count(),
         _ => 0,
     }
@@ -321,6 +436,30 @@ pub fn OverviewPage() -> impl IntoView {
     let transaction_store = use_transaction_store();
     let ui_store = use_ui_store();
 
+    let current_user_id = app_store.get().current_user.id;
+    let can_view_all = app_store.get().current_user.can_view_all();
+
+    let portfolio_visible = move |p: &crate::models::Portfolio| -> bool {
+        p.is_visible_to(current_user_id, can_view_all)
+            || p.organization_id.map_or(can_view_all, |oid| {
+                organization_store.get().user_has_perm_in_org(
+                    oid,
+                    current_user_id,
+                    &Perm::ViewPortfolios,
+                )
+            })
+    };
+    let asset_visible = move |a: &crate::models::Asset| -> bool {
+        a.is_visible_to(current_user_id, can_view_all)
+            || a.organization_id.map_or(can_view_all, |oid| {
+                organization_store.get().user_has_perm_in_org(
+                    oid,
+                    current_user_id,
+                    &Perm::ViewAssets,
+                )
+            })
+    };
+
     let unread_message_count = move || {
         let current_user_id = app_store.get().current_user.id;
         messenger_store.get().unread_message_count(current_user_id)
@@ -375,7 +514,13 @@ pub fn OverviewPage() -> impl IntoView {
 
     // Updated investments = recently updated portfolios
     let recent_investments = move || {
-        let mut portfolios: Vec<_> = app_store.get().portfolios.clone();
+        let mut portfolios: Vec<_> = app_store
+            .get()
+            .portfolios
+            .iter()
+            .filter(|p| portfolio_visible(*p))
+            .cloned()
+            .collect();
         portfolios.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         portfolios.into_iter().take(4).collect::<Vec<_>>()
     };
@@ -531,7 +676,11 @@ pub fn OverviewPage() -> impl IntoView {
     // Portfolio stats
     let portfolio_stats = move || {
         let store = app_store.get();
-        let portfolios = &store.portfolios;
+        let portfolios: Vec<_> = store
+            .portfolios
+            .iter()
+            .filter(|p| portfolio_visible(*p))
+            .collect();
         let total_value: f64 = portfolios.iter().map(|p| p.total_value).sum();
         let total_assets: usize = portfolios.iter().map(|p| p.get_all_assets().len()).sum();
         let total_groups: usize = portfolios.iter().map(|p| p.asset_groups.len()).sum();
@@ -590,8 +739,10 @@ pub fn OverviewPage() -> impl IntoView {
         let orgs = organization_store.get();
         orgs.organizations
             .iter()
+            .filter(|o| org_is_visible(*o, current_user_id, can_view_all, &orgs))
             .map(|o| {
-                let member_count = orgs
+                let member_count = organization_store
+                    .get()
                     .organization_users
                     .iter()
                     .filter(|u| u.organization_id == Some(o.id))
@@ -611,6 +762,7 @@ pub fn OverviewPage() -> impl IntoView {
             .get()
             .portfolios
             .iter()
+            .filter(|p| portfolio_visible(*p))
             .map(|p| {
                 (
                     p.name.clone(),
@@ -628,7 +780,13 @@ pub fn OverviewPage() -> impl IntoView {
         let app = app_store.get();
         let mut assets: Vec<_> = Vec::new();
         for p in &app.portfolios {
+            if !portfolio_visible(p) {
+                continue;
+            }
             for a in p.get_all_assets() {
+                if !asset_visible(a) {
+                    continue;
+                }
                 assets.push((
                     a.name.clone(),
                     a.current_value,
@@ -749,10 +907,30 @@ pub fn OverviewPage() -> impl IntoView {
                 let txn = transaction_store.get();
                 let now = Utc::now();
                 ids.sort_by(|a, b| {
-                    let a_time =
-                        section_last_changed(a, &app, &org, &cal, &messenger, &notif, &txn, now);
-                    let b_time =
-                        section_last_changed(b, &app, &org, &cal, &messenger, &notif, &txn, now);
+                    let a_time = section_last_changed(
+                        a,
+                        &app,
+                        &org,
+                        &cal,
+                        &messenger,
+                        &notif,
+                        &txn,
+                        now,
+                        current_user_id,
+                        can_view_all,
+                    );
+                    let b_time = section_last_changed(
+                        b,
+                        &app,
+                        &org,
+                        &cal,
+                        &messenger,
+                        &notif,
+                        &txn,
+                        now,
+                        current_user_id,
+                        can_view_all,
+                    );
                     b_time.cmp(&a_time)
                 });
             }
@@ -767,10 +945,30 @@ pub fn OverviewPage() -> impl IntoView {
                 let window = Duration::hours(24);
                 ids.sort_by(|a, b| {
                     let a_count = section_change_count(
-                        a, &app, &org, &cal, &messenger, &notif, &txn, now, window,
+                        a,
+                        &app,
+                        &org,
+                        &cal,
+                        &messenger,
+                        &notif,
+                        &txn,
+                        now,
+                        window,
+                        current_user_id,
+                        can_view_all,
                     );
                     let b_count = section_change_count(
-                        b, &app, &org, &cal, &messenger, &notif, &txn, now, window,
+                        b,
+                        &app,
+                        &org,
+                        &cal,
+                        &messenger,
+                        &notif,
+                        &txn,
+                        now,
+                        window,
+                        current_user_id,
+                        can_view_all,
                     );
                     b_count.cmp(&a_count)
                 });
@@ -789,9 +987,29 @@ pub fn OverviewPage() -> impl IntoView {
 
     view! {
         <div class="overview-content">
-            // Organization + Portfolio detail row
-            <div class="overview-detail-row">
-                <div class="overview-detail-card clickable" on:click=move |_| on_open_organization_detail()>
+            <div class="overview-controls-bar">
+                <button
+                    class="overview-sort-tab"
+                    class:active={move || ui_store.get().overview_sort_mode == OverviewSortMode::Selected}
+                    on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Selected))
+                    title="Selected order; drag and drop boxes"
+                >"Selected"</button>
+                <button
+                    class="overview-sort-tab"
+                    class:active={move || ui_store.get().overview_sort_mode == OverviewSortMode::Recent}
+                    on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Recent))
+                    title="Recently updated"
+                >"Recent"</button>
+                <button
+                    class="overview-sort-tab"
+                    class:active={move || ui_store.get().overview_sort_mode == OverviewSortMode::Trending}
+                    on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Trending))
+                    title="Most interaction recently"
+                >"Trending"</button>
+            </div>
+            <div class="overview-square-grid">
+                // Summary cards
+                <OverviewSection id="current-organization" section_order=sorted_section_order wide=true on_click={on_open_organization_detail.clone()}>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"🏢"</span>
                         <span class="overview-detail-title">"Current Organization"</span>
@@ -814,9 +1032,9 @@ pub fn OverviewPage() -> impl IntoView {
                             <span class="overview-detail-val">{move || org_summary().4}</span>
                         </div>
                     </div>
-                </div>
+                </OverviewSection>
 
-                <div class="overview-detail-card clickable" on:click=move |_| on_open_portfolios_detail()>
+                <OverviewSection id="portfolio-summary" section_order=sorted_section_order wide=true on_click={on_open_portfolios_detail.clone()}>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"📊"</span>
                         <span class="overview-detail-title">"Portfolio Summary"</span>
@@ -839,9 +1057,9 @@ pub fn OverviewPage() -> impl IntoView {
                             <span class="overview-detail-val">{move || format!("{} pending", service_task_stats().1)}</span>
                         </div>
                     </div>
-                </div>
+                </OverviewSection>
 
-                <div class="overview-detail-card clickable" on:click=move |_| on_open_networking_detail()>
+                <OverviewSection id="channel-status" section_order=sorted_section_order wide=true on_click={on_open_networking_detail.clone()}>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"📡"</span>
                         <span class="overview-detail-title">"Channel Status"</span>
@@ -864,10 +1082,8 @@ pub fn OverviewPage() -> impl IntoView {
                             <span class="overview-detail-val">{move || channel_stats().4}</span>
                         </div>
                     </div>
-                </div>
-            </div>
+                </OverviewSection>
 
-            <div class="overview-square-grid">
                 // Recent Messages
                 <OverviewSection id="recent-messages" section_order=sorted_section_order on_click={on_open_messages.clone()}>
                     <div class="overview-square-header">

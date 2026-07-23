@@ -229,7 +229,9 @@ pub fn default_org_roles() -> Vec<OrgRole> {
             description: "Can manage assigned portfolios, asset groups, assets, direct assets, and portfolio-level access. Can add reports/documents and edit own drafts. Cannot unlock final documents unless explicitly given that permission.".to_string(),
             scope: RoleScope::entire(),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::CreatePortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::UploadAssetImages, Perm::ViewAssetDocuments, Perm::UploadAssetDocuments, Perm::ViewAssetGeneralInformation,
+                Perm::CreatePortfolios,
                 Perm::EditAssignedPortfolios, Perm::ManagePortfolioAccess,
                 Perm::CreateAssetGroups, Perm::EditAssetGroups, Perm::DeleteAssetGroups,
                 Perm::CreateAssets, Perm::EditAssets, Perm::DeleteAssets,
@@ -260,7 +262,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
             description: "Can manage reports and document workflows. Can approve, publish, lock, archive, and create new revisions of documents if granted. Cannot manage organization roles unless separately granted.".to_string(),
             scope: RoleScope::with_group(PermGroup::Reporting, true, true),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::UploadAssetImages, Perm::ViewAssetDocuments, Perm::UploadAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::ViewReports, Perm::CreateReports, Perm::EditOwnReports,
                 Perm::EditAnyDraftReport, Perm::SubmitReports, Perm::ApproveReports,
                 Perm::PublishReports, Perm::ArchiveReports, Perm::DeleteOwnDraftReports,
@@ -285,7 +288,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
             description: "Can create, edit, submit, approve, lock, and export transactions depending on permission level. Cannot manage documents or organization roles unless separately granted.".to_string(),
             scope: RoleScope::with_group(PermGroup::Transaction, true, true),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::UploadAssetImages, Perm::ViewAssetDocuments, Perm::UploadAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::ViewTransactions, Perm::CreateTransactions,
                 Perm::EditOwnDraftTransactions, Perm::EditAnyDraftTransaction,
                 Perm::SubmitTransactions, Perm::ApproveTransactions,
@@ -311,7 +315,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 (PermGroup::Transaction, true, true),
             ]),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::UploadAssetImages, Perm::ViewAssetDocuments, Perm::UploadAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::CreateAssets, Perm::EditAssets,
                 Perm::CreateDirectAssets, Perm::EditDirectAssets,
                 Perm::ViewReports, Perm::CreateReports, Perm::EditOwnReports,
@@ -342,7 +347,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 (PermGroup::History, true, false),
             ]),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::UploadAssetImages, Perm::ViewAssetDocuments, Perm::UploadAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::ViewChannels, Perm::CreateChannels, Perm::EditChannels, Perm::DeleteChannels,
                 Perm::ViewDirectAssetLinking, Perm::EditDirectAssetLinking,
                 Perm::ViewAssetGroupLinking, Perm::EditAssetGroupLinking,
@@ -373,7 +379,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 (PermGroup::History, true, false),
             ]),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::ViewAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::ViewServiceTasks, Perm::CompleteServiceTasks, Perm::AssignServiceTasks,
                 Perm::ViewCalendar,
                 Perm::ViewOwnActivityHistory,
@@ -397,7 +404,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
                 (PermGroup::History, true, false),
             ]),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::UploadAssetImages, Perm::ViewAssetDocuments, Perm::UploadAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::ViewReports, Perm::CreateReports, Perm::EditOwnReports, Perm::ApproveReports,
                 Perm::ViewBookings, Perm::ViewBookingFinancials,
                 Perm::ViewDirectAssetBookings, Perm::ViewAssetGroupBookings,
@@ -419,7 +427,8 @@ pub fn default_org_roles() -> Vec<OrgRole> {
             description: "Can view assigned content and history. Cannot edit, add, delete, approve, or lock anything unless explicitly granted.".to_string(),
             scope: RoleScope::view_all(),
             permissions: vec![
-                Perm::ViewOrganization, Perm::ViewPortfolios,
+                Perm::ViewOrganization, Perm::ViewPortfolios, Perm::ViewAssetGroups, Perm::ViewAssets,
+                Perm::ViewAssetImages, Perm::ViewAssetDocuments, Perm::ViewAssetGeneralInformation,
                 Perm::ViewReports, Perm::ViewDocuments, Perm::ViewLockedDocuments,
                 Perm::ViewCalendar, Perm::ViewTransactions,
                 Perm::ViewBookings, Perm::ViewServiceTasks,

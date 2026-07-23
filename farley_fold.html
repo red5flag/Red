@@ -1,0 +1,629 @@
+<!--hot-reload|src-app.rs-13|open--><!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><!--hot-reload|-home-red-.cargo-regis
+try-src-index.crates.io-1949cf8c6b5b557f-leptos-0.8.20-src-hydration-mod.rs-40|open--><script nonce="fZ5c-zD1lzAv80SxYW_rvw">(function (reload_port, protocol) { console.log("[HOT RELOADING] Connected 
+to server.");
+function patch(json) {
+  try {
+    const views = JSON.parse(json);
+    for (const [id, patches] of views) {
+      console.log("[HOT RELOAD]", id, patches);
+      const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_COMMENT,
+        ),
+        open = `hot-reload|${id}|open`,
+        close = `hot-reload|${id}|close`;
+      let start, end;
+      const instances = [];
+      while (walker.nextNode()) {
+        if (walker.currentNode.textContent == open) {
+          start = walker.currentNode;
+        } else if (walker.currentNode.textContent == close) {
+          end = walker.currentNode;
+          instances.push([start, end]);
+          start = undefined;
+          end = undefined;
+        }
+      }
+
+      for (const [start, end] of instances) {
+        for (const patch of patches) {
+          const actualChildren = childrenFromRange(
+            start.parentElement,
+            start,
+            end,
+          );
+          const child = childAtPath(
+            actualChildren.length > 1
+              ? { children: actualChildren }
+              : actualChildren[0],
+            patch.path,
+          );
+          const action = patch.action;
+          if (action == "ClearChildren") {
+            console.log("[HOT RELOAD] > ClearChildren", child.node);
+            if (child.node) {
+              child.node.textContent = "";
+            } else {
+              for (const existingChild of child.children) {
+                let parent = existingChild.node.parentElement;
+                parent.removeChild(existingChild.node);
+              }
+            }
+          } else if (action.ReplaceWith) {
+            console.log(
+              "[HOT RELOAD] > ReplaceWith",
+              child,
+              action.ReplaceWith,
+            );
+            const replacement = fromReplacementNode(
+              action.ReplaceWith,
+              actualChildren,
+            );
+            if (child.node) {
+              child.node.replaceWith(replacement);
+            } else {
+              if (child.children) {
+                child.children[0].node.parentElement.insertBefore(
+                  replacement,
+                  child.children[0].node,
+                );
+                for (const existingChild of child.children) {
+                  existingChild.node.parentElement.removeChild(
+                    existingChild.node,
+                  );
+                }
+              }
+            }
+          } else if (action.ChangeTagName) {
+            const oldNode = child.node;
+            console.log(
+              "[HOT RELOAD] > ChangeTagName",
+              child.node,
+              action.ChangeTagName,
+            );
+            const newElement = document.createElement(action.ChangeTagName);
+            for (const attr of oldNode.attributes) {
+              newElement.setAttribute(attr.name, attr.value);
+            }
+            for (const childNode of child.node.childNodes) {
+              newElement.appendChild(childNode);
+            }
+
+            child.node.replaceWith(newElement);
+          } else if (action.RemoveAttribute) {
+            console.log(
+              "[HOT RELOAD] > RemoveAttribute",
+              child.node,
+              action.RemoveAttribute,
+            );
+            child.node.removeAttribute(action.RemoveAttribute);
+          } else if (action.SetAttribute) {
+            const [name, value] = action.SetAttribute;
+            console.log(
+              "[HOT RELOAD] > SetAttribute",
+              child.node,
+              action.SetAttribute,
+            );
+            child.node.setAttribute(name, value);
+          } else if (action.SetText) {
+            const node = child.node;
+            console.log("[HOT RELOAD] > SetText", child.node, action.SetText);
+            node.textContent = action.SetText;
+          } else if (action.AppendChildren) {
+            console.log(
+              "[HOT RELOAD] > AppendChildren",
+              child.node,
+              action.AppendChildren,
+            );
+            const newChildren = action.AppendChildren.map((x) =>
+              fromReplacementNode(x, actualChildren),
+            );
+            child.node.append(...newChildren);
+          } else if (action.RemoveChild) {
+            console.log(
+              "[HOT RELOAD] > RemoveChild",
+              child.node,
+              child.children,
+              action.RemoveChild,
+            );
+            const toRemove = child.children[action.RemoveChild.at];
+            let toRemoveNode = toRemove.node;
+            if (!toRemoveNode) {
+              const range = new Range();
+              range.setStartBefore(toRemove.start);
+              range.setEndAfter(toRemove.end);
+              toRemoveNode = range.deleteContents();
+            } else {
+              toRemoveNode.parentNode.removeChild(toRemoveNode);
+            }
+          } else if (action.InsertChild) {
+            const newChild = fromReplacementNode(
+              action.InsertChild.child,
+              actualChildren,
+            );
+            let children = [];
+            if (child.children) {
+              children = child.children;
+            } else if (child.start && child.end) {
+              children = childrenFromRange(
+                child.node || child.start.parentElement,
+                start,
+                end,
+              );
+            } else {
+              console.warn("InsertChildAfter could not build children.");
+            }
+            const beforeNode = children[action.InsertChild.before];
+            console.log(
+              "[HOT RELOAD] > InsertChild",
+              child,
+              child.node,
+              action.InsertChild,
+              " before ",
+              beforeNode,
+            );
+            if (beforeNode) {
+              let node = beforeNode.node || beforeNode.start.previousSibling;
+              node.parentElement.insertBefore(newChild, node);
+            } else if (child.node) {
+              child.node.appendChild(newChild);
+            } else if (children) {
+              let lastNode = children[children.length - 1];
+              let afterNode = lastNode.node || lastNode.end.nextSibling;
+              afterNode.after(newChild);
+            }
+          } else if (action.InsertChildAfter) {
+            const newChild = fromReplacementNode(
+              action.InsertChildAfter.child,
+              actualChildren,
+            );
+            let children = [];
+            if (child.children) {
+              children = child.children;
+            } else if (child.start && child.end) {
+              children = childrenFromRange(
+                child.node || child.start.parentElement,
+                start,
+                end,
+              );
+            } else {
+              console.warn("InsertChildAfter could not build children.");
+            }
+            const after = children[action.InsertChildAfter.after];
+            console.log(
+              "[HOT RELOAD] > InsertChildAfter",
+              child,
+              child.node,
+              action.InsertChildAfter,
+              " after ",
+              after,
+            );
+            if (
+              child.node &&
+              (!after || !(after.node || after.start).nextSibling)
+            ) {
+              child.node.appendChild(newChild);
+            } else {
+              const node = child.node || child.end;
+              const parent =
+                node.nodeType === Node.COMMENT_NODE ? node.parentNode : node;
+              if (!after) {
+                parent.appendChild(newChild);
+              } else {
+                parent.insertBefore(
+                  newChild,
+                  (after.node || after.start).nextSibling,
+                );
+              }
+            }
+          } else {
+            console.warn("[HOT RELOADING] Unmatched action", action);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[HOT RELOADING] Error: ", e);
+  }
+
+  function fromReplacementNode(node, actualChildren) {
+    if (node.Html) {
+      return fromHTML(node.Html);
+    } else if (node.Fragment) {
+      const frag = document.createDocumentFragment();
+      for (const child of node.Fragment) {
+        frag.appendChild(fromReplacementNode(child, actualChildren));
+      }
+      return frag;
+    } else if (node.Element) {
+      const element = document.createElement(node.Element.name);
+      for (const [name, value] of node.Element.attrs) {
+        element.setAttribute(name, value);
+      }
+      for (const child of node.Element.children) {
+        element.appendChild(fromReplacementNode(child, actualChildren));
+      }
+      return element;
+    } else {
+      const child = childAtPath(
+        actualChildren.length > 1
+          ? { children: actualChildren }
+          : actualChildren[0],
+        node.Path,
+      );
+      if (child) {
+        let childNode = child.node;
+        if (!childNode) {
+          const range = new Range();
+          range.setStartBefore(child.start);
+          range.setEndAfter(child.end);
+          // okay this is somewhat silly
+          // if we do cloneContents() here to return it,
+          // we strip away the event listeners
+          // if we're moving just one object, this is less than ideal
+          // so I'm actually going to *extract* them, then clone and reinsert
+          /* const toReinsert = range.cloneContents();
+					if (child.end.nextSibling) {
+						child.end.parentNode.insertBefore(toReinsert, child.end.nextSibling);
+					} else {
+						child.end.parentNode.appendChild(toReinsert);
+					} */
+          childNode = range.cloneContents();
+        }
+        return childNode;
+      } else {
+        console.warn(
+          "[HOT RELOADING] Could not find replacement node at ",
+          node.Path,
+        );
+        return undefined;
+      }
+    }
+  }
+
+  function buildActualChildren(element, range) {
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT,
+      {
+        acceptNode(node) {
+          if (
+            node.parentNode == element &&
+            (!range || range.isPointInRange(node, 0))
+          ) {
+            return NodeFilter.FILTER_ACCEPT;
+          } else {
+            return NodeFilter.FILTER_REJECT;
+          }
+        },
+      },
+    );
+    const actualChildren = [],
+      elementCount = {};
+    while (walker.nextNode()) {
+      if (walker.currentNode.nodeType == Node.ELEMENT_NODE) {
+        if (elementCount[walker.currentNode.nodeName]) {
+          elementCount[walker.currentNode.nodeName] += 1;
+        } else {
+          elementCount[walker.currentNode.nodeName] = 0;
+        }
+        elementCount[walker.currentNode.nodeName];
+
+        actualChildren.push({
+          type: "element",
+          name: walker.currentNode.nodeName,
+          number: elementCount[walker.currentNode.nodeName],
+          node: walker.currentNode,
+          children: buildActualChildren(walker.currentNode),
+        });
+      } else if (walker.currentNode.nodeType == Node.TEXT_NODE) {
+        actualChildren.push({
+          type: "text",
+          node: walker.currentNode,
+        });
+      } else if (walker.currentNode.nodeType == Node.COMMENT_NODE) {
+        if (walker.currentNode.textContent.trim().startsWith("hot-reload|")) {
+          if (walker.currentNode.textContent.trim().endsWith("|open")) {
+            const startingName = walker.currentNode.textContent.trim();
+            const componentName = startingName
+              .replace("|open", "")
+              .replace("hot-reload|", "");
+            const endingName = `hot-reload|${componentName}|close`;
+            let start = walker.currentNode;
+            let depth = 1;
+
+            while (walker.nextNode()) {
+              if (walker.currentNode.textContent.trim() == endingName) {
+                depth--;
+              } else if (
+                walker.currentNode.textContent.trim() == startingName
+              ) {
+                depth++;
+              }
+
+              if (depth == 0) {
+                break;
+              }
+            }
+            let end = walker.currentNode;
+            actualChildren.push({
+              type: "fragment",
+              start: start.nextSibling,
+              end: end.previousSibling,
+              children: childrenFromRange(
+                start.parentElement,
+                start.nextSibling,
+                end.previousSibling,
+              ),
+            });
+          }
+        } else if (walker.currentNode.textContent.trim() == "<() />") {
+          actualChildren.push({
+            type: "unit",
+            node: walker.currentNode,
+          });
+        } else if (walker.currentNode.textContent.trim() == "<DynChild>") {
+          let start = walker.currentNode;
+          let depth = 1;
+
+          while (walker.nextNode()) {
+            if (walker.currentNode.textContent.trim() == "</DynChild>") {
+              depth--;
+            } else if (walker.currentNode.textContent.trim() == "<DynChild>") {
+              depth++;
+            }
+
+            if (depth == 0) {
+              break;
+            }
+          }
+          let end = walker.currentNode;
+          actualChildren.push({
+            type: "dyn-child",
+            start,
+            end,
+          });
+        } else if (walker.currentNode.textContent.trim() == "<>") {
+          let start = walker.currentNode;
+          let depth = 1;
+
+          while (walker.nextNode()) {
+            if (walker.currentNode.textContent.trim() == "</>") {
+              depth--;
+            } else if (walker.currentNode.textContent.trim() == "<>") {
+              depth++;
+            }
+
+            if (depth == 0) {
+              break;
+            }
+          }
+          let end = walker.currentNode;
+          actualChildren.push({
+            type: "fragment",
+            children: childrenFromRange(start.parentElement, start, end),
+            start,
+            end,
+          });
+        } else if (walker.currentNode.textContent.trim().startsWith("<")) {
+          let componentName = walker.currentNode.textContent.trim();
+          let endMarker = componentName.replace("<", "</");
+          let depth = 1;
+          let start = walker.currentNode;
+          while (walker.nextNode()) {
+            if (walker.currentNode.textContent.trim() == endMarker) {
+              depth--;
+            } else if (walker.currentNode.textContent.trim() == componentName) {
+              depth++;
+            }
+
+            if (depth == 0) {
+              break;
+            }
+          }
+          let end = walker.currentNode;
+          actualChildren.push({
+            type: "component",
+            start,
+            end,
+          });
+        }
+      } else {
+        console.warn(
+          "[HOT RELOADING] Building children, encountered",
+          walker.currentNode,
+        );
+      }
+    }
+    return actualChildren;
+  }
+
+  function childAtPath(element, path) {
+    if (path.length == 0) {
+      return element;
+    } else if (element.children) {
+      const next = element.children[path[0]],
+        rest = path.slice(1);
+      return childAtPath(next, rest);
+    } else if (path == [0]) {
+      return element;
+    } else if (element.start && element.end) {
+      const actualChildren = childrenFromRange(
+        element.node || element.start.parentElement,
+        element.start,
+        element.end,
+      );
+      return childAtPath({ children: actualChildren }, path);
+    } else {
+      console.warn("[HOT RELOADING] Child at ", path, "not found in ", element);
+      return element;
+    }
+  }
+
+  function childrenFromRange(parent, start, end) {
+    const range = new Range();
+    range.setStartAfter(start);
+    range.setEndBefore(end);
+    return buildActualChildren(parent, range);
+  }
+
+  function fromHTML(html) {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    return template.content.cloneNode(true);
+  }
+}
+ if (window.location.protocol === "https:") {
+	protocol = "wss://";
+}
+
+let host = window.location.hostname;
+
+function connect() {
+	let ws = new WebSocket(`${protocol}${host}:${reload_port}/live_reload`);
+
+	ws.onmessage = (ev) => {
+		let msg = JSON.parse(ev.data);
+		if (msg.all) window.location.reload();
+		if (msg.css) {
+			let found = false;
+			document.querySelectorAll("link").forEach((link) => {
+				if (link.getAttribute("href").includes(msg.css)) {
+					let newHref = "/" + msg.css + "?version=" + Date.now();
+					link.setAttribute("href", newHref);
+					found = true;
+				}
+			});
+			if (!found)
+				console.warn(
+					`CSS hot-reload: Could not find a <link href=/\"${msg.css}\"> element`,
+				);
+		}
+		if (msg.view) {
+			patch(msg.view);
+		}
+	};
+
+	ws.onclose = () => {
+		console.warn("Live-reload disconnected. Reconnecting...");
+		setTimeout(connect, 1000);
+	};
+
+	ws.onerror = () => {
+		ws.close();
+	};
+}
+
+connect();
+ })(3001, 'ws://')</script><!--hot-reload|-home-red-.cargo-registry-src-index.crates.io-1949cf8c6b5b557f-leptos-0.8.20-src-hydration-mod.rs-40|close--><!--hot-reload|-home-red-.cargo-registry-src-inde
+x.crates.io-1949cf8c6b5b557f-leptos-0.8.20-src-hydration-mod.rs-178|open--><link rel="modulepreload" href="/pkg/farley.js" crossorigin="fZ5c-zD1lzAv80SxYW_rvw"><link rel="preload" href="/pkg/farley.wa
+sm" as="fetch" type="application/wasm" crossorigin="fZ5c-zD1lzAv80SxYW_rvw"><script type="module" nonce="fZ5c-zD1lzAv80SxYW_rvw">(function (root, pkg_path, output_name, wasm_output_name) {
+	import(`${root}/${pkg_path}/${output_name}.js`)
+		.then(mod => {
+			mod.default({module_or_path: `${root}/${pkg_path}/${wasm_output_name}.wasm`}).then(() => {
+				mod.hydrate();
+			});
+		})
+})
+("", "pkg", "farley", "farley");</script><!><!--hot-reload|-home-red-.cargo-registry-src-index.crates.io-1949cf8c6b5b557f-leptos-0.8.20-src-hydration-mod.rs-178|close--><link rel="stylesheet" href="/p
+kg/farley.css"><!--HEAD--><!><!></head><body><!--hot-reload|src-app.rs-93|open--><div data-theme="light" data-font-size="default" data-reduced-motion="false" data-talkback-enabled="false" data-edge-st
+yle="square" data-button-style="filled" data-density="comfortable" class="app-container" style="--accent-color: #3b82f6;"><main class="main-content"><!--hot-reload|src-components-tabs-mod.rs-233|open-
+-><div class="tabs-container"><div class="tabs-viewport"><!--hot-reload|src-components-tabs-mod.rs-241|open--><!--hot-reload|src-components-tabs-mod.rs-245|open--><!--hot-reload|src-components-tabs-mo
+d.rs-141|open--><div id="tab-content-overview" class="tab-content"><!--hot-reload|src-components-tabs-mod.rs-93|open--><!--hot-reload|src-pages-overview.rs-812|open--><div class="overview-content"><di
+v class="overview-square-grid"><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="current-organization" draggable="true" class="overview-square overview-square-wide clickable" style
+="order:0;"><div class="overview-detail-header"><span class="overview-detail-icon">🏢</span><span class="overview-detail-title">Current Organization</span><!><!></div><div class="overview-detail-body"
+><div class="overview-detail-row-item"><span class="overview-detail-key">Name</span><span class="overview-detail-val">None<!></span><!><!></div><div class="overview-detail-row-item"><span class="overv
+iew-detail-key">Type</span><span class="overview-detail-val">—<!></span><!><!></div><div class="overview-detail-row-item"><span class="overview-detail-key">Members</span><span class="overview-detail-v
+al">0<!></span><!><!></div><div class="overview-detail-row-item"><span class="overview-detail-key">Roles</span><span class="overview-detail-val">0<!></span><!><!></div><!><!></div><!><!></div><!--hot-
+reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="portfolio-summary" draggable="true" class="overview-square overview-square-wide clickable
+" style="order:1;"><div class="overview-detail-header"><span class="overview-detail-icon">📊</span><span class="overview-detail-title">Portfolio Summary</span><!><!></div><div class="overview-detail-b
+ody"><div class="overview-detail-row-item"><span class="overview-detail-key">Total Value</span><span class="overview-detail-val">$-0.00M<!></span><!><!></div><div class="overview-detail-row-item"><spa
+n class="overview-detail-key">Asset Groups</span><span class="overview-detail-val">0<!></span><!><!></div><div class="overview-detail-row-item"><span class="overview-detail-key">Documents</span><span 
+class="overview-detail-val">0<!></span><!><!></div><div class="overview-detail-row-item"><span class="overview-detail-key">Service Tasks</span><span class="overview-detail-val">0 pending<!></span><!><
+!></div><!><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="channel-status" draggable="true" class="overview-
+square overview-square-wide clickable" style="order:2;"><div class="overview-detail-header"><span class="overview-detail-icon">📡</span><span class="overview-detail-title">Channel Status</span><!><!><
+/div><div class="overview-detail-body"><div class="overview-detail-row-item"><span class="overview-detail-key">Connected</span><span class="overview-detail-val overview-detail-val-good">0<!></span><!>
+<!></div><div class="overview-detail-row-item"><span class="overview-detail-key">Disconnected</span><span class="overview-detail-val">0<!></span><!><!></div><div class="overview-detail-row-item"><span
+ class="overview-detail-key">Errors</span><span class="overview-detail-val">0<!></span><!><!></div><div class="overview-detail-row-item"><span class="overview-detail-key">Enabled</span><span class="ov
+erview-detail-val">0<!></span><!><!></div><!><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="recent-messages
+" draggable="true" class="overview-square  clickable" style="order:3;"><div class="overview-square-header"><span class="overview-square-icon">💬</span><span class="overview-square-label">Recent Messag
+es</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-902|open--><div class="overview-square-empty">No messages
+ yet<!></div><!--hot-reload|src-pages-overview.rs-902|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id
+="recent-bookings" draggable="true" class="overview-square  clickable" style="order:4;"><div class="overview-square-header"><span class="overview-square-icon">📅</span><span class="overview-square-lab
+el">Recent Bookings</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-939|open--><div class="overview-square-e
+mpty">No bookings yet<!></div><!--hot-reload|src-pages-overview.rs-939|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><di
+v data-section-id="updated-investments" draggable="true" class="overview-square" style="order:5;"><div class="overview-square-header"><span class="overview-square-icon">📈</span><span class="overview-
+square-label">Updated Investments</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-974|open--><div class="ove
+rview-square-empty">No portfolios yet<!></div><!--hot-reload|src-pages-overview.rs-974|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.r
+s-246|open--><div data-section-id="recent-transactions" draggable="true" class="overview-square  clickable" style="order:6;"><div class="overview-square-header"><span class="overview-square-icon">💰</
+span><span class="overview-square-label">Recent Transactions</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs
+-1010|open--><div class="overview-square-empty">No transactions yet<!></div><!--hot-reload|src-pages-overview.rs-1010|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--
+hot-reload|src-pages-overview.rs-246|open--><div data-section-id="recent-contacts" draggable="true" class="overview-square" style="order:7;"><div class="overview-square-header"><span class="overview-s
+quare-icon">�</span><span class="overview-square-label">Recent Contacts</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-
+overview.rs-1047|open--><div class="overview-square-empty">No contacts yet<!></div><!--hot-reload|src-pages-overview.rs-1047|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close
+--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="notifications" draggable="true" class="overview-square" style="order:8;"><div class="overview-square-header"><span class="overv
+iew-square-icon">🔔</span><span class="overview-square-label">Notifications</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pa
+ges-overview.rs-1083|open--><div class="overview-square-empty">No notifications<!></div><!--hot-reload|src-pages-overview.rs-1083|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|
+close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="property-overview" draggable="true" class="overview-square overview-square-wide clickable" style="order:9;"><div class="ov
+erview-square-header"><span class="overview-square-icon">🏠</span><span class="overview-square-label">Property Overview</span><!><!></div><!--hot-reload|src-pages-overview.rs-1132|open--><div class="o
+verview-square-empty">No property overview available<!></div><!--hot-reload|src-pages-overview.rs-1132|close--><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-ove
+rview.rs-246|open--><div data-section-id="recent-activity" draggable="true" class="overview-square overview-square-wide" style="order:10;"><div class="overview-square-header"><span class="overview-squ
+are-icon">🔔</span><span class="overview-square-label">Recent Activity</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-o
+verview.rs-1148|open--><div class="overview-square-empty">No recent activity<!></div><!--hot-reload|src-pages-overview.rs-1148|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|clo
+se--><!><!></div><div class="overview-square-grid"><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="organizations" draggable="true" class="overview-square overview-square-wide cli
+ckable" style="order:11;"><div class="overview-square-header"><span class="overview-square-icon">🏢</span><span class="overview-square-label">Organizations</span><span class="overview-square-count">0<
+!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-1184|open--><div class="overview-square-empty">No organizations<!></div><!--hot-reload|src-pages-overvie
+w.rs-1184|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="top-portfolios" draggable="true" class="ov
+erview-square  clickable" style="order:12;"><div class="overview-square-header"><span class="overview-square-icon">📊</span><span class="overview-square-label">Top Portfolios</span><span class="overvi
+ew-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-1217|open--><div class="overview-square-empty">No portfolios<!></div><!--hot-reload|s
+rc-pages-overview.rs-1217|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="top-assets" draggable="tru
+e" class="overview-square  clickable" style="order:13;"><div class="overview-square-header"><span class="overview-square-icon">🏠</span><span class="overview-square-label">Top Assets</span><span class
+="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-1250|open--><div class="overview-square-empty">No assets<!></div><!--hot-relo
+ad|src-pages-overview.rs-1250|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="channels" draggable="t
+rue" class="overview-square overview-square-wide clickable" style="order:14;"><div class="overview-square-header"><span class="overview-square-icon">📡</span><span class="overview-square-label">Channe
+ls</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-1283|open--><div class="overview-square-empty">No channel
+s<!></div><!--hot-reload|src-pages-overview.rs-1283|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|open--><div data-section-id="
+upcoming-bookings" draggable="true" class="overview-square  clickable" style="order:15;"><div class="overview-square-header"><span class="overview-square-icon">📅</span><span class="overview-square-la
+bel">Upcoming Bookings</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-1316|open--><div class="overview-squa
+re-empty">No upcoming bookings<!></div><!--hot-reload|src-pages-overview.rs-1316|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!--hot-reload|src-pages-overview.rs-246|
+open--><div data-section-id="top-transactions" draggable="true" class="overview-square  clickable" style="order:16;"><div class="overview-square-header"><span class="overview-square-icon">💰</span><sp
+an class="overview-square-label">Top Transactions</span><span class="overview-square-count">0<!></span><!><!></div><div class="overview-square-messages"><!--hot-reload|src-pages-overview.rs-1349|open-
+-><div class="overview-square-empty">No transactions<!></div><!--hot-reload|src-pages-overview.rs-1349|close--><!></div><!><!></div><!--hot-reload|src-pages-overview.rs-246|close--><!><!></div><!><!><
+/div><!--hot-reload|src-pages-overview.rs-812|close--><!--hot-reload|src-components-tabs-mod.rs-93|close--><!></div><!--hot-reload|src-components-tabs-mod.rs-141|close--><!--hot-reload|src-components-
+tabs-mod.rs-245|close--><!><!--hot-reload|src-components-tabs-mod.rs-241|close--><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-233|close--><!></main><!--hot-reload|src-components-navbar-
+mod.rs-382|open--><nav class="navbar"><div class="navbar-row navbar-row-1"><div class="nav-row1-left"><button title="Tabs" class="nav-btn">☰<!></button><button title="Search" class="nav-btn nav-searc
+h-btn">🔍<!></button><button disabled title="Redo (hold for list)" class="nav-btn">↻<!></button><!><!></div><div class="nav-row1-right"><button disabled title="Undo (hold for list)" class="nav-btn">↺<
+!></button><button title="Open messages" aria-label="Open messages" class="nav-btn"><span aria-hidden="true">💬</span><!><!--<() />--><!><!></button><button title="Notifications" aria-label="Notificat
+ions" class="nav-btn"><span aria-hidden="true">🔔</span><!><!--<() />--><!><!></button><!><!></div><!><!></div><!--hot-reload|src-components-navbar-mod.rs-421|open--><div class="navbar-row navbar-row-
+overview-tools"><button title="Selected order; drag and drop boxes" class="nav-sort-btn active">Selected<!></button><button title="Recently updated" class="nav-sort-btn">Recent<!></button><button titl
+e="Most interaction recently" class="nav-sort-btn">Trending<!></button><!><!></div><!--hot-reload|src-components-navbar-mod.rs-421|close--><!><!></nav><!--hot-reload|src-components-navbar-mod.rs-451|o
+pen--><div class="tabs-drawer-overlay"><div class="tabs-drawer"><div class="tabs-drawer-content"><!--hot-reload|src-components-tabs-mod.rs-204|open--><div class="tab-list"><!--hot-reload|src-component
+s-tabs-mod.rs-208|open--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-item expanded"><div class="tab-header"><span class="t
+ab-title">Overview<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-componen
+ts-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-item"><div class="tab-header"><span class="tab-title">Portfolios<!></span><!><!--<() />--><!><!></div><!>
+</div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tab
+s-mod.rs-115|open--><div class="tab-item"><div class="tab-header"><span class="tab-title">Networking<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--
+><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-item"><div class="tab-h
+eader"><span class="tab-title">Organization<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!
+--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-item"><div class="tab-header"><span class="tab-title">Reporting<!></span><!><!--
+<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-r
+eload|src-components-tabs-mod.rs-115|open--><div class="tab-item"><div class="tab-header"><span class="tab-title">Calendar<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-t
+abs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-i
+tem"><div class="tab-header"><span class="tab-title">Transactions<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs
+-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-item"><div class="tab-header"><span class="tab-title">Hist
+ory<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-
+213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open--><div class="tab-item"><div class="tab-header"><span class="tab-title">Settings<!></span><!><!--<() />--><!><!></div><!></div><!--hot-rel
+oad|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-components-tabs-mod.rs-213|close--><!--hot-reload|src-components-tabs-mod.rs-213|open--><!--hot-reload|src-components-tabs-mod.rs-115|open
+--><div class="tab-item"><div class="tab-header"><span class="tab-title">Agent<!></span><!><!--<() />--><!><!></div><!></div><!--hot-reload|src-components-tabs-mod.rs-115|close--><!--hot-reload|src-co
+mponents-tabs-mod.rs-213|close--><!><!--hot-reload|src-components-tabs-mod.rs-208|close--><!></div><!--hot-reload|src-components-tabs-mod.rs-204|close--><!></div><!></div><!></div><!--hot-reload|src-c
+omponents-navbar-mod.rs-451|close--><!><!--<() />--><!><!--<() />--><div class="search-drop-overlay"></div><div class="search-drop-panel"><!--hot-reload|src-components-search-mod.rs-139|open--><div cl
+ass="sd-panel"><div class="sd-search-bar"><input type="text" placeholder="Search..." class="sd-search-input"><button class="sd-search-close-btn">✕<!></button><button class="sd-search-close-btn sd-sear
+ch-submit-btn">⏎<!></button><!><!></div><!><!--<() />--><div class="sd-section"><div class="sd-section-header"><span class="sd-section-title">ADVANCED SEARCH</span><span class="sd-arrow">▼<!></span><!
+><!></div><!><!--<() />--><!><!></div><!--hot-reload|src-components-search-mod.rs-349|open--><div class="sd-results"><!><!--<() />--><!></div><!--hot-reload|src-components-search-mod.rs-349|close--><!
+><!></div><!--hot-reload|src-components-search-mod.rs-139|close--><!></div><!><!--<() />--><!><!--hot-reload|src-components-navbar-mod.rs-382|close--><!--hot-reload|src-components-footer-mod.rs-54|ope
+n--><footer class="app-footer"><div class="footer-section"><button title="Logout" class="footer-btn">⏻ Logout<!></button><!></div><div class="footer-section"><button title="Contact" class="footer-btn"
+>✉ Contact<!></button><!></div><div class="footer-section"><button title="Quick access to Portfolios" class="footer-btn">📁 Portfolios<!></button><!></div><div class="footer-section footer-section-rig
+ht"><a class="footer-btn footer-changelog-link" href="https://github.com/red5flag/Carly" target="_blank" rel="noopener noreferrer" title="View Red repo and latest branch changes on GitHub">📜 Changelo
+g</a></div><!><!></footer><!--hot-reload|src-components-footer-mod.rs-54|close--><!><!></div><!--hot-reload|src-app.rs-93|close--><!></body><!><!></html><!><!--hot-reload|src-app.rs-13|close--><script
+ nonce="fZ5c-zD1lzAv80SxYW_rvw">__RESOLVED_RESOURCES=[];__SERIALIZED_ERRORS=[];__PENDING_RESOURCES=[];__RESOURCE_RESOLVERS=[];</script><script nonce="fZ5c-zD1lzAv80SxYW_rvw">__INCOMPLETE_CHUNKS=[];</s
+cript>

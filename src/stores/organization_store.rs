@@ -152,6 +152,13 @@ impl OrganizationStore {
     ) -> std::collections::HashSet<Perm> {
         let mut perms = std::collections::HashSet::new();
         if let Some(org) = self.get_organization(org_id) {
+            // Organization owners always have full permissions, even when role
+            // memberships have not been persisted or are empty.
+            if org.owner_id == user_id {
+                for p in Perm::all() {
+                    perms.insert(p);
+                }
+            }
             for role in &org.roles {
                 if role.member_ids.contains(&user_id) {
                     for p in &role.permissions {

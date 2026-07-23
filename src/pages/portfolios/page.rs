@@ -1,7 +1,7 @@
 use crate::components::tabs::use_tab_edit_mode;
 use crate::models::{
     Asset, AssetGroup, AvailabilityStatus, Channel, CommercialStatus, ConditionStatus, Document,
-    LifecycleStatus, Organization, Portfolio,
+    LifecycleStatus, Organization, Perm, Portfolio,
 };
 use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::{
     asset_placeholder_url, detect_file_type, name_click_handlers, read_image_as_data_url,
-    AddPortfolioModal, AssetTarget, DocModal, PortfolioListItem,
+    AddPortfolioModal, AssetTarget, DocEntry, DocSlider, PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -57,7 +57,16 @@ pub fn PortfoliosPage() -> impl IntoView {
                 .get()
                 .portfolios
                 .iter()
-                .filter(|p| p.is_visible_to(user_id, can_view_all))
+                .filter(|p| {
+                    p.is_visible_to(user_id, can_view_all)
+                        || p.organization_id.map_or(can_view_all, |oid| {
+                            organization_store.get().user_has_perm_in_org(
+                                oid,
+                                user_id,
+                                &Perm::ViewPortfolios,
+                            )
+                        })
+                })
                 .cloned()
                 .collect::<Vec<_>>()
         },
@@ -785,8 +794,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     let org_id = org.id;
                                     let org_name = org.name.clone();
                                     let org_name_for_info = org_name.clone();
-                                    let org_name_for_aria = org_name.clone();
-                                    let org_name_for_modal = org_name.clone();
                                     let org_desc = org.description.clone().unwrap_or_default();
                                     let org_color = org.settings.color.clone();
                                     let org_image_url = org.image_url.clone();
@@ -796,14 +803,34 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     let (edit_org_name, set_edit_org_name) = signal(org.name.clone());
                                     let (edit_org_desc, set_edit_org_desc) = signal(org.description.clone().unwrap_or_default());
                                     let can_edit_org = move || can_edit(Some(org_id));
-                                    let org_doc_count = Memo::new(move |_| {
+                                    let dropdown_entries = Memo::new(move |_| {
                                         organization_store
                                             .get()
                                             .get_organization(org_id)
-                                            .map(|o| o.documents.len())
-                                            .unwrap_or(0)
+                                            .map(|o| {
+                                                o.documents
+                                                    .iter()
+                                                    .map(|d| DocEntry {
+                                                        doc: d.clone(),
+                                                        portfolio_id: None,
+                                                        group_id: None,
+                                                        asset_id: None,
+                                                        organization_id: Some(org_id),
+                                                    })
+                                                    .collect::<Vec<_>>()
+                                            })
+                                            .unwrap_or_default()
                                     });
                                     let org_can_edit_docs = move || can_edit_documents(Some(org_id));
+                                    let org_can_edit_docs_signal = Signal::derive(move || org_can_edit_docs());
+                                    let current_user_id = app_store.get().current_user.id;
+                                    let org_can_view_docs = Memo::new(move |_| {
+                                        organization_store.get().user_has_perm_in_org(
+                                            org_id,
+                                            current_user_id,
+                                            &Perm::ViewDocuments,
+                                        )
+                                    });
                                     let add_org_doc = {
                                         let app_store = app_store;
                                         let organization_store = organization_store;
@@ -880,6 +907,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                                         move || if can_edit_org() { set_is_editing_org_desc.set(true); },
                                     );
                                     let is_expanded = move || expanded_orgs.get().contains(&org_id);
+                                    let (show_doc_slider, set_show_doc_slider) = signal(false);
+                                    let org_name_for_slider = StoredValue::new(org.name.clone());
                                     view! {
                                         <div class="pf-org-group" class:expanded={move || is_expanded()}>
                                             <div class="asset-group-header pf-org-group-header pf-accordion-header" role="button" tabindex="0"
@@ -977,31 +1006,44 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                         parts.into_iter().collect_view().into_any()
                                                     }}
                                                 </div>
-                                                <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
-                                                    <button class="pf-action-btn pf-doc-action-btn"
-                                                        class:active=move || ui_store.get().is_doc_modal_open(org_id)
-                                                        aria-label={move || format!("View documents for {} organization. {} document{}", org_name_for_aria, org_doc_count.get(), if org_doc_count.get() == 1 { "" } else { "s" })}
-                                                        on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(org_id))>
-                                                        <div class="pf-action-stack">
-                                                            <span class="pf-action-icon">"📄"</span>
-                                                            <span class="pf-action-count">{move || org_doc_count.get()}</span>
+                                                {move || if org_can_view_docs.get() {
+                                                    view! {
+                                                        <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
+                                                            <button
+                                                                class="pf-action-btn pf-doc-action-btn"
+                                                                class:active=move || show_doc_slider.get()
+                                                                aria-label={move || {
+                                                                    let count = dropdown_entries.get().len();
+                                                                    format!("View documents for {}. {} document{}", org_name_for_slider.get_value(), count, if count == 1 { "" } else { "s" })
+                                                                }}
+                                                                on:click=move |_| set_show_doc_slider.update(|v| *v = !*v)
+                                                            >
+                                                                <div class="pf-action-stack">
+                                                                    <span class="pf-action-icon">"📄"</span>
+                                                                    <span class="pf-action-count">{move || dropdown_entries.get().len()}</span>
+                                                                </div>
+                                                            </button>
                                                         </div>
-                                                    </button>
-                                                </div>
+                                                    }.into_any()
+                                                } else { ().into_any() }}
                                             </div>
-                                            {move || if ui_store.get().is_doc_modal_open(org_id) {
-                                                let add_cb = if org_can_edit_docs() { Some(Callback::new(add_org_doc)) } else { None };
+
+                                            {move || if show_doc_slider.get() && org_can_view_docs.get() {
                                                 view! {
-                                                    <DocModal
-                                                        entity_id={org_id}
-                                                        title={org_name_for_modal.clone()}
-                                                        on_close=move || ui_store.update(|s| s.close_doc_modal(org_id))
-                                                        can_edit={org_can_edit_docs()}
-                                                        on_add={add_cb}
-                                                        organization_id={Some(org_id)}
-                                                    />
+                                                    <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
+                                                        <DocSlider
+                                                            entity_id={org_id}
+                                                            title={org_name_for_slider.get_value()}
+                                                            entity_name={org_name_for_slider.get_value()}
+                                                            can_edit_documents={org_can_edit_docs_signal}
+                                                            entries={dropdown_entries}
+                                                            on_add={Some(Callback::new(add_org_doc))}
+                                                            organization_id={Some(org_id)}
+                                                        />
+                                                    </div>
                                                 }.into_any()
                                             } else { ().into_any() }}
+
                                             <div class="pf-org-group-content" class:hidden={move || !is_expanded()}>
                                                 <For
                                                     each=move || portfolios.clone()

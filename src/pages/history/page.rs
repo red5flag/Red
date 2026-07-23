@@ -47,33 +47,29 @@ pub fn HistoryPage() -> impl IntoView {
     let action_count = move || filtered_actions().len();
     let total_count = move || undo_store.get().past.len();
 
-    let record_undo_redo = move |kind: ActionType, description: String| {
+    let build_history_action = move |kind: ActionType, description: String| {
         let store = app_store.get();
         let uid = store.current_user.id;
         let name = store.current_user.name.clone();
         let role = format!("{:?}", store.current_user.role);
         let org = store.current_user.organization_id;
         drop(store);
-        let action = create_action(kind, "Action", &description, uid, &name, &role, org, None);
-        undo_store.update(|u| u.record_history_action(action));
+        create_action(kind, "Action", &description, uid, &name, &role, org, None)
     };
 
     let on_history_undo = move |action_id: uuid::Uuid| {
-        if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
-            record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
-            app_store.update(|store| {
-                apply_undo_side_effects(&undone, store);
-            });
-        }
-    };
-
-    let _on_history_redo = move |action_id: uuid::Uuid| {
-        if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
-            record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
-            app_store.update(|store| {
-                apply_redo_side_effects(&redone, store);
-            });
-        }
+        undo_store.update(|u| {
+            if let Some(undone) = u.undo_action_by_id(action_id) {
+                let action = build_history_action(
+                    ActionType::Undo,
+                    format!("Undid: {}", undone.description),
+                );
+                u.record_history_action(action);
+                app_store.update(|store| {
+                    apply_undo_side_effects(&undone, store);
+                });
+            }
+        });
     };
 
     let can_redo = move || undo_store.get().can_redo();
@@ -90,12 +86,18 @@ pub fn HistoryPage() -> impl IntoView {
     };
 
     let on_history_redo = move |action_id: uuid::Uuid| {
-        if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
-            record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
-            app_store.update(|store| {
-                apply_redo_side_effects(&redone, store);
-            });
-        }
+        undo_store.update(|u| {
+            if let Some(redone) = u.redo_action_by_id(action_id) {
+                let action = build_history_action(
+                    ActionType::Redo,
+                    format!("Redid: {}", redone.description),
+                );
+                u.record_history_action(action);
+                app_store.update(|store| {
+                    apply_redo_side_effects(&redone, store);
+                });
+            }
+        });
     };
 
     view! {
@@ -148,12 +150,15 @@ pub fn HistoryPage() -> impl IntoView {
                         class="card-action-btn"
                         disabled={move || !can_redo()}
                         on:click=move |_| {
-                            if let Some(redone) = undo_store.get().redo() {
-                                record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
-                                app_store.update(|store| {
-                                    apply_redo_side_effects(&redone, store);
-                                });
-                            }
+                            undo_store.update(|u| {
+                                if let Some(redone) = u.redo() {
+                                    let action = build_history_action(ActionType::Redo, format!("Redid: {}", redone.description));
+                                    u.record_history_action(action);
+                                    app_store.update(|store| {
+                                        apply_redo_side_effects(&redone, store);
+                                    });
+                                }
+                            });
                         }
                         title="Redo last undone action"
                         aria-label="Redo last undone action"

@@ -1,5 +1,5 @@
-use crate::models::{Asset, Channel, Portfolio};
-use crate::stores::{use_app_store, use_ui_store};
+use crate::models::{Asset, Channel, Perm, Portfolio};
+use crate::stores::{use_app_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -104,7 +104,15 @@ pub(crate) fn AssetViewer(
     let current_user = app_store_inner.get().current_user.clone();
     let user_id = current_user.id;
     let can_view_all = current_user.can_view_all();
-    let portfolio_visible_to_user = portfolio.is_visible_to(user_id, can_view_all);
+    let organization_store = use_organization_store();
+
+    let has_org_perm = move |org_id: Option<Uuid>, perm: &Perm| -> bool {
+        org_id.map_or(can_view_all, |oid| {
+            organization_store
+                .get()
+                .user_has_perm_in_org(oid, user_id, perm)
+        })
+    };
 
     let (expanded_groups, set_expanded_groups) = signal(HashSet::<Uuid>::new());
     let toggle_group = Callback::new(move |gid: Uuid| {
@@ -149,7 +157,10 @@ pub(crate) fn AssetViewer(
                 .asset_groups
                 .clone()
                 .into_iter()
-                .filter(|g| portfolio_visible_to_user || g.is_visible_to(user_id, can_view_all))
+                .filter(|g| {
+                    g.is_visible_to(user_id, can_view_all)
+                        || has_org_perm(g.organization_id, &Perm::ViewAssetGroups)
+                })
                 .collect(),
             group_sort_mode.get(),
         )
@@ -161,7 +172,10 @@ pub(crate) fn AssetViewer(
                 .assets
                 .clone()
                 .into_iter()
-                .filter(|a| portfolio_visible_to_user || a.is_visible_to(user_id, can_view_all))
+                .filter(|a| {
+                    a.is_visible_to(user_id, can_view_all)
+                        || has_org_perm(a.organization_id, &Perm::ViewAssets)
+                })
                 .collect(),
             direct_sort_mode.get(),
         )

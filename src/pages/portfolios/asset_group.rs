@@ -1,4 +1,4 @@
-use crate::models::{Asset, AssetGroup, Channel};
+use crate::models::{Asset, AssetGroup, Channel, Perm};
 use crate::stores::{use_app_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::{
     detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetItem,
-    AssetTarget, DocModal, UserAssignmentPanel,
+    AssetTarget, DocEntry, DocSlider, UserAssignmentPanel,
 };
 
 #[component]
@@ -43,12 +43,21 @@ pub(crate) fn AssetGroupItem(
     let current_user = app_store.get().current_user.clone();
     let user_id = current_user.id;
     let can_view_all = current_user.can_view_all();
-    let group_visible_to_user = group.is_visible_to(user_id, can_view_all);
+    let organization_store = use_organization_store();
+
+    let has_org_perm = move |org_id: Option<Uuid>, perm: &Perm| -> bool {
+        org_id.map_or(can_view_all, |oid| {
+            organization_store
+                .get()
+                .user_has_perm_in_org(oid, user_id, perm)
+        })
+    };
 
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
 
     let (is_editing, set_is_editing) = signal(false);
+    let (show_doc_slider, set_show_doc_slider) = signal(false);
     let (group_context_menu, set_group_context_menu) = signal(Option::<(i32, i32)>::None);
     let (show_group_add_role, set_show_group_add_role) = signal(false);
     let (show_group_add_org, set_show_group_add_org) = signal(false);
@@ -113,12 +122,33 @@ pub(crate) fn AssetGroupItem(
     };
 
     let g_name = group.name.clone();
+    let g_name_for_aria = g_name.clone();
+    let g_name_for_doc_btn = g_name.clone();
+    let g_name_for_slider = StoredValue::new(g_name.clone());
     let g_desc = single_sentence(&group.description.clone().unwrap_or_default());
-    let g_name_for_modal = group.name.clone();
-    let g_name_for_doc_btn = group.name.clone();
     let g_name_for_confirm = group.name.clone();
-    let docs = group.documents.clone();
-    let doc_count = docs.len();
+    let dropdown_entries = Memo::new(move |_| {
+        app_store
+            .get()
+            .portfolios
+            .iter()
+            .find(|p| p.id == pid)
+            .and_then(|p| p.asset_groups.iter().find(|g| g.id == gid))
+            .map(|g| {
+                g.documents
+                    .iter()
+                    .map(|d| DocEntry {
+                        doc: d.clone(),
+                        portfolio_id: Some(pid),
+                        group_id: Some(gid),
+                        asset_id: None,
+                        organization_id: None,
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
+    let doc_count = Memo::new(move |_| dropdown_entries.get().len());
     let asset_count = group.assets.len();
     let assigned_users = group.assigned_users.clone();
     let organization_store = use_organization_store();
@@ -214,11 +244,11 @@ pub(crate) fn AssetGroupItem(
                 aria-controls={format!("ag-content-{}", gid)}
                 aria-label={move || {
                     format!("{} group. {} asset{}. {} document{}. {}",
-                        g_name,
+                        g_name_for_aria,
                         asset_count,
                         if asset_count == 1 { "" } else { "s" },
-                        doc_count,
-                        if doc_count == 1 { "" } else { "s" },
+                        doc_count.get(),
+                        if doc_count.get() == 1 { "" } else { "s" },
                         if expanded.get() { "Expanded" } else { "Collapsed" }
                     )
                 }}
@@ -327,33 +357,39 @@ pub(crate) fn AssetGroupItem(
                         }.into_any()
                     }}
                 </div>
-                // Document icon for asset group
+                // Document icon for asset group — toggles inline slider under the parent
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
-                    <button class="pf-action-btn pf-doc-action-btn"
-                        class:active=move || ui_store.get().is_doc_modal_open(gid)
-                        aria-label={format!("View documents for {} group. {} document{}", g_name_for_doc_btn, doc_count, if doc_count == 1 { "" } else { "s" })}
-                        on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(gid))>
+                    <button
+                        class="pf-action-btn pf-doc-action-btn"
+                        class:active=move || show_doc_slider.get()
+                        aria-label={move || {
+                            let count = dropdown_entries.get().len();
+                            format!("View documents for {}. {} document{}", g_name_for_doc_btn, count, if count == 1 { "" } else { "s" })
+                        }}
+                        on:click=move |_| set_show_doc_slider.update(|v| *v = !*v)
+                    >
                         <div class="pf-action-stack">
                             <span class="pf-action-icon">"📄"</span>
-                            <span class="pf-action-count">{doc_count}</span>
+                            <span class="pf-action-count">{move || dropdown_entries.get().len()}</span>
                         </div>
                     </button>
                 </div>
             </div>
-            // Docs modal for group
-            {move || if ui_store.get().is_doc_modal_open(gid) {
-                let modal_title = g_name_for_modal.clone();
-                let add_cb = if can_edit_documents_here.get() { Some(Callback::new(move |n: String| add_group_doc(n))) } else { None };
+
+            {move || if show_doc_slider.get() {
                 view! {
-                    <DocModal
-                        entity_id={gid}
-                        title={modal_title}
-                        on_close=move || ui_store.update(|s| s.close_doc_modal(gid))
-                        can_edit={can_edit_documents_here.get()}
-                        on_add={add_cb}
-                        portfolio_id={Some(pid)}
-                        group_id={Some(gid)}
-                    />
+                    <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
+                        <DocSlider
+                            entity_id={gid}
+                            title={g_name_for_slider.get_value()}
+                            entity_name={g_name_for_slider.get_value()}
+                            can_edit_documents={can_edit_documents_here}
+                            entries={dropdown_entries}
+                            on_add={Some(Callback::new(move |n: String| add_group_doc(n)))}
+                            portfolio_id={Some(pid)}
+                            group_id={Some(gid)}
+                        />
+                    </div>
                 }.into_any()
             } else { ().into_any() }}
 
@@ -413,7 +449,10 @@ pub(crate) fn AssetGroupItem(
 
                 {{
                     let view_mode = view_mode.clone();
-                    let group_assets: Vec<_> = group.assets.into_iter().filter(|a| group_visible_to_user || a.is_visible_to(user_id, can_view_all)).collect();
+                    let group_assets: Vec<_> = group.assets.into_iter().filter(|a| {
+                        a.is_visible_to(user_id, can_view_all)
+                            || has_org_perm(a.organization_id, &Perm::ViewAssets)
+                    }).collect();
                     let total_assets = group_assets.len();
                     let class_str = if view_mode == ViewMode::Grid {
                         format!("asset-group-assets grid-view-{}", grid_columns)

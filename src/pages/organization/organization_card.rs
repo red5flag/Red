@@ -91,6 +91,17 @@ pub(crate) fn OrganizationCard(
     let (section_menu, set_section_menu) = signal(Option::<(i32, i32, &'static str, Uuid)>::None);
     let role_context_menu = on_role_context_menu;
     let oid = org.id;
+    let current_user = app_store.get().current_user.clone();
+    let can_view_organization = org.owner_id == current_user.id
+        || org.members.contains(&current_user.id)
+        || organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user.id,
+            &Perm::ViewOrganization,
+        );
+    if !can_view_organization {
+        return ().into_any();
+    }
     let member_count = org.members.len();
     let portfolio_count = app_store
         .get()
@@ -530,5 +541,5 @@ pub(crate) fn OrganizationCard(
                 }.into_any()
             })}
         </div>
-    }
+    }.into_any()
 }

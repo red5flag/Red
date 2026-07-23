@@ -382,26 +382,25 @@ pub fn OrganizationPage() -> impl IntoView {
     };
 
     view! {
-        <div class="home-screen">
-            <div class="org-top-controls">
-                <div class="org-quick-tabs" role="tablist" aria-label="Organization sort options">
-                    {[OrgSortMode::Members, OrgSortMode::Roles, OrgSortMode::Recent, OrgSortMode::NameAsc, OrgSortMode::NameDesc]
-                        .iter().map(|&mode| {
-                            let mode_for_click = mode;
-                            let label = sort_mode_label(mode);
-                            view! {
-                                <button
-                                    class="org-quick-tab"
-                                    class:active={move || org_sort_mode.get() == mode_for_click}
-                                    role="tab"
-                                    aria-selected={move || org_sort_mode.get() == mode_for_click}
-                                    on:click=move |_| set_org_sort_mode.set(mode_for_click)
-                                >
-                                    {label}
-                                </button>
-                            }
-                        }).collect::<Vec<_>>()}
-                </div>
+        <div class="home-screen home-screen-org">
+            // Organization controls bar (attached below navbar)
+            <div class="organization-controls-bar" role="tablist" aria-label="Organization sort options">
+                {[OrgSortMode::Members, OrgSortMode::Roles, OrgSortMode::Recent, OrgSortMode::NameAsc, OrgSortMode::NameDesc]
+                    .iter().map(|&mode| {
+                        let mode_for_click = mode;
+                        let label = sort_mode_label(mode);
+                        view! {
+                            <button
+                                class="nav-sort-btn"
+                                class:active={move || org_sort_mode.get() == mode_for_click}
+                                role="tab"
+                                aria-selected={move || org_sort_mode.get() == mode_for_click}
+                                on:click=move |_| set_org_sort_mode.set(mode_for_click)
+                            >
+                                {label}
+                            </button>
+                        }
+                    }).collect::<Vec<_>>()}
             </div>
 
             {move || if organizations.get().is_empty() && !show_add_org.get() {

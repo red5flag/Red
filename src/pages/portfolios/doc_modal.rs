@@ -130,6 +130,7 @@ pub fn DocModal(
     #[prop(default = None)] group_id: Option<Uuid>,
     #[prop(default = None)] asset_id: Option<Uuid>,
     #[prop(default = None)] organization_id: Option<Uuid>,
+    #[prop(default = None)] initial_doc: Option<Document>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let organization_store = use_organization_store();
@@ -201,6 +202,16 @@ pub fn DocModal(
             }
         });
     };
+
+    if let Some(d) = initial_doc {
+        let initial_opened = StoredValue::new(false);
+        Effect::new(move |_| {
+            if !initial_opened.get_value() {
+                open_doc_tab(d.clone());
+                initial_opened.set_value(true);
+            }
+        });
+    }
 
     view! {
         <div class="doc-modal-overlay" on:click=move |_| on_close()>

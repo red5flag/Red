@@ -317,6 +317,111 @@ pub(crate) fn AssetItem(
             &crate::models::Perm::CreateBookings,
         )
     };
+
+    let can_view_images = move || {
+        if a_org_id.is_none() {
+            return true;
+        }
+        let oid = a_org_id.unwrap();
+        organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::ViewAssetImages,
+        )
+    };
+    let can_upload_images = move || {
+        if a_org_id.is_none() {
+            return can_edit.get();
+        }
+        let oid = a_org_id.unwrap();
+        organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::UploadAssetImages,
+        )
+    };
+    let can_view_documents = move || {
+        if a_org_id.is_none() {
+            return true;
+        }
+        let oid = a_org_id.unwrap();
+        let store = organization_store.get();
+        store.user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::ViewAssetDocuments,
+        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewDocuments)
+    };
+    let can_upload_documents = move || {
+        if a_org_id.is_none() {
+            return can_edit_documents.get();
+        }
+        let oid = a_org_id.unwrap();
+        let store = organization_store.get();
+        store.user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::UploadAssetDocuments,
+        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::UploadDocuments)
+    };
+    let can_view_linking = move || {
+        if a_org_id.is_none() {
+            return can_link();
+        }
+        let oid = a_org_id.unwrap();
+        let store = organization_store.get();
+        store.user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::ViewDirectAssetLinking,
+        ) || store.user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::EditDirectAssetLinking,
+        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewChannels)
+            || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditChannels)
+            || can_link()
+    };
+    let can_view_booking = move || {
+        if a_org_id.is_none() {
+            return can_book();
+        }
+        let oid = a_org_id.unwrap();
+        let store = organization_store.get();
+        store.user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::ViewDirectAssetBookings,
+        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewBookings)
+            || store.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::CreateDirectAssetBookings,
+            )
+            || store.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::CreateBookings,
+            )
+            || can_book()
+    };
+    let can_view_general_info = move || {
+        if a_org_id.is_none() {
+            return true;
+        }
+        let oid = a_org_id.unwrap();
+        organization_store.get().user_has_perm_in_org(
+            oid,
+            current_user_id,
+            &crate::models::Perm::ViewAssetGeneralInformation,
+        )
+    };
+    let can_view_content =
+        move || can_view_images() || can_view_documents() || can_view_general_info();
+    if !can_view_content() {
+        return ().into_any();
+    }
+
     let a_org_name = move || {
         organization_store
             .get()
@@ -542,7 +647,7 @@ pub(crate) fn AssetItem(
             }
         });
     };
-    let add_cb = if can_edit_documents_here.get() {
+    let add_cb = if can_upload_documents() {
         Some(Callback::new(add_doc))
     } else {
         None
@@ -696,7 +801,7 @@ pub(crate) fn AssetItem(
                         }.into_any()
                     } else { ().into_any() }}
                     // Image slider with upload outline
-                    <div class="ai-image-slider" on:click=|ev| ev.stop_propagation()>
+                    <div class="ai-image-slider" class:ai-perm-hidden={move || !can_view_images()} on:click=|ev| ev.stop_propagation()>
                         {{
                             let a_name_slider = a_name.clone();
                             move || {
@@ -708,7 +813,7 @@ pub(crate) fn AssetItem(
                                 view! {
                                     {if can_add {
                                         view! {
-                                            <div class="ai-image-slider-item ai-image-add-card" aria-label={format!("Add image to {} (max {})", a_name_add, max_images)}>
+                                            <div class="ai-image-slider-item ai-image-add-card" class:ai-perm-hidden={move || !can_upload_images()} aria-label={format!("Add image to {} (max {})", a_name_add, max_images)}>
                                                 <input
                                                     type="file"
                                                     accept="image/*"
@@ -769,9 +874,9 @@ pub(crate) fn AssetItem(
                         }}
                     </div>
                     // Horizontal document slider with + Document card
-                    <div class="ai-doc-slider" on:click=|ev| ev.stop_propagation()>
+                    <div class="ai-doc-slider" class:ai-perm-hidden={move || !can_view_documents()} on:click=|ev| ev.stop_propagation()>
                         // + Document card (always first)
-                        <div class="ai-doc-slider-item ai-doc-add-card"
+                        <div class="ai-doc-slider-item ai-doc-add-card" class:ai-perm-hidden={move || !can_upload_documents()}
                             aria-label={format!("Add document to {}", a_name)}
                             on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(asset_id))>
                             <div class="ai-doc-slider-thumb">"➕"</div>
@@ -904,7 +1009,7 @@ pub(crate) fn AssetItem(
                         />
                     </div>
                     // Detail grid inline (always visible)
-                    <div class="pf-detail-grid pf-detail-grid-inline">
+                    <div class="pf-detail-grid pf-detail-grid-inline" class:ai-perm-hidden={move || !can_view_general_info()}>
                         <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_address.set(false); set_editing_org.set(false); set_editing_type_build.set(true); } }>
                             <span class="pf-detail-label">"TYPE & BUILD"</span>
                             {let type_grid = a_type_grid.clone();
@@ -1035,7 +1140,7 @@ pub(crate) fn AssetItem(
                             <span class="pf-detail-value">{a_uuid.to_string().chars().take(8).collect::<String>()}</span>
                         </div>
                     </div>
-                    <div class="ai-controls-row">
+                    <div class="ai-controls-row" class:ai-perm-hidden={move || !(can_view_linking() || can_view_booking())}>
                         <AssetLinkingControls
                             asset_id={asset_id}
                             asset_name={asset_name_signal.get()}
@@ -1105,7 +1210,7 @@ pub(crate) fn AssetItem(
                                     set_show_add_org.set(true);
                                 }
                             >"🏢 Add to Organization"</button>
-                            <button class="context-menu-item"
+                            <button class="context-menu-item" class:ai-perm-hidden={move || !can_upload_documents()}
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);
                                     ui_store.update(|s| s.toggle_doc_modal(asset_id));

@@ -7,7 +7,7 @@ use crate::stores::{
     use_messenger_store, use_notification_store, use_ui_store, use_undo_redo_store, Notification,
     NotificationDrawerFilter, NotificationDrawerSort, NotificationType,
 };
-use crate::types::{ActionType, OverviewSortMode, TabType};
+use crate::types::{ActionType, TabType};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -82,24 +82,31 @@ pub fn Navbar() -> impl IntoView {
         click_feedback(0);
     };
 
-    let record_undo_redo = move |kind: ActionType, description: String| {
-        let (uid, name, role, org) = user_info(&app_store);
-        let action = create_action(kind, "Action", &description, uid, &name, &role, org, None);
-        undo_store.update(|u| u.record_history_action(action));
-    };
-
     let on_redo = move |_| {
         if dropdown.get().is_some() {
             return;
         }
         let uid = current_user_id();
-        if let Some(redone) = undo_store.get().redo_by_user(uid) {
-            record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
-            tracing::info!("Redo: {:?}", redone);
-            app_store.update(|store| {
-                apply_redo_side_effects(&redone, store);
-            });
-        }
+        undo_store.update(|u| {
+            if let Some(redone) = u.redo_by_user(uid) {
+                let (uid, name, role, org) = user_info(&app_store);
+                let action = create_action(
+                    ActionType::Redo,
+                    "Action",
+                    &format!("Redid: {}", redone.description),
+                    uid,
+                    &name,
+                    &role,
+                    org,
+                    None,
+                );
+                u.record_history_action(action);
+                tracing::info!("Redo: {:?}", redone);
+                app_store.update(|store| {
+                    apply_redo_side_effects(&redone, store);
+                });
+            }
+        });
     };
 
     let on_undo = move |_| {
@@ -107,13 +114,26 @@ pub fn Navbar() -> impl IntoView {
             return;
         }
         let uid = current_user_id();
-        if let Some(undone) = undo_store.get().undo_by_user(uid) {
-            record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
-            tracing::info!("Undo: {:?}", undone);
-            app_store.update(|store| {
-                apply_undo_side_effects(&undone, store);
-            });
-        }
+        undo_store.update(|u| {
+            if let Some(undone) = u.undo_by_user(uid) {
+                let (uid, name, role, org) = user_info(&app_store);
+                let action = create_action(
+                    ActionType::Undo,
+                    "Action",
+                    &format!("Undid: {}", undone.description),
+                    uid,
+                    &name,
+                    &role,
+                    org,
+                    None,
+                );
+                u.record_history_action(action);
+                tracing::info!("Undo: {:?}", undone);
+                app_store.update(|store| {
+                    apply_undo_side_effects(&undone, store);
+                });
+            }
+        });
         click_feedback(2);
     };
 
@@ -148,21 +168,47 @@ pub fn Navbar() -> impl IntoView {
     let on_dropdown_action = move |action_id: uuid::Uuid, is_redo: bool| {
         set_dropdown.set(None);
         if is_redo {
-            if let Some(redone) = undo_store.get().redo_action_by_id(action_id) {
-                record_undo_redo(ActionType::Redo, format!("Redid: {}", redone.description));
-                tracing::info!("Redo by dropdown: {:?}", redone);
-                app_store.update(|store| {
-                    apply_redo_side_effects(&redone, store);
-                });
-            }
+            undo_store.update(|u| {
+                if let Some(redone) = u.redo_action_by_id(action_id) {
+                    let (uid, name, role, org) = user_info(&app_store);
+                    let action = create_action(
+                        ActionType::Redo,
+                        "Action",
+                        &format!("Redid: {}", redone.description),
+                        uid,
+                        &name,
+                        &role,
+                        org,
+                        None,
+                    );
+                    u.record_history_action(action);
+                    tracing::info!("Redo by dropdown: {:?}", redone);
+                    app_store.update(|store| {
+                        apply_redo_side_effects(&redone, store);
+                    });
+                }
+            });
         } else {
-            if let Some(undone) = undo_store.get().undo_action_by_id(action_id) {
-                record_undo_redo(ActionType::Undo, format!("Undid: {}", undone.description));
-                tracing::info!("Undo by dropdown: {:?}", undone);
-                app_store.update(|store| {
-                    apply_undo_side_effects(&undone, store);
-                });
-            }
+            undo_store.update(|u| {
+                if let Some(undone) = u.undo_action_by_id(action_id) {
+                    let (uid, name, role, org) = user_info(&app_store);
+                    let action = create_action(
+                        ActionType::Undo,
+                        "Action",
+                        &format!("Undid: {}", undone.description),
+                        uid,
+                        &name,
+                        &role,
+                        org,
+                        None,
+                    );
+                    u.record_history_action(action);
+                    tracing::info!("Undo by dropdown: {:?}", undone);
+                    app_store.update(|store| {
+                        apply_undo_side_effects(&undone, store);
+                    });
+                }
+            });
         }
     };
 
@@ -209,7 +255,6 @@ pub fn Navbar() -> impl IntoView {
 
     let is_tabs_drawer_open = move || ui_store.get().tabs_drawer_open;
     let is_notifications_drawer_open = move || notification_store.get().drawer_open;
-    let is_overview_active = move || app_store.get().active_tabs.contains(&TabType::Overview);
     let notification_count = move || {
         let store = notification_store.get();
         let filter = &store.drawer_filter;
@@ -370,34 +415,6 @@ pub fn Navbar() -> impl IntoView {
                 </div>
             </div>
 
-            // ROW 2: Overview sort tools (visible when Overview tab is active)
-            {move || if is_overview_active() {
-                view! {
-                    <div class="navbar-row navbar-row-overview-tools">
-                        <button
-                            class={move || format!("nav-sort-btn{}", if ui_store.get().overview_sort_mode == OverviewSortMode::Selected { " active" } else { "" })}
-                            on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Selected))
-                            title="Selected order; drag and drop boxes"
-                        >
-                            "Selected"
-                        </button>
-                        <button
-                            class={move || format!("nav-sort-btn{}", if ui_store.get().overview_sort_mode == OverviewSortMode::Recent { " active" } else { "" })}
-                            on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Recent))
-                            title="Recently updated"
-                        >
-                            "Recent"
-                        </button>
-                        <button
-                            class={move || format!("nav-sort-btn{}", if ui_store.get().overview_sort_mode == OverviewSortMode::Trending { " active" } else { "" })}
-                            on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Trending))
-                            title="Most interaction recently"
-                        >
-                            "Trending"
-                        </button>
-                    </div>
-                }.into_any()
-            } else { ().into_any() }}
         </nav>
 
         // Tabs drawer (left-side panel from ☰ button)

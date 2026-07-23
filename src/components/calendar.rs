@@ -151,7 +151,8 @@ pub fn CalendarManager(
     let (view_year, set_view_year) = signal(today.year());
     let (view_month, set_view_month) = signal(today.month());
     let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Month);
-    let (zoom, set_zoom) = signal(1_usize);
+    let (zoom, set_zoom) = signal(1.0_f64);
+    let (pinch_start, set_pinch_start) = signal(Option::<(f64, f64)>::None);
     let (selected_date, set_selected_date) = signal::<Option<NaiveDate>>(None);
     let (editing_event, set_editing_event) = signal::<Option<CalendarEvent>>(None);
     let (show_form, set_show_form) = signal(false);
@@ -317,21 +318,6 @@ pub fn CalendarManager(
                                 }
                             }).collect::<Vec<_>>()}
                     </div>
-                    <div class="calendar-zoom-controls">
-                        <button
-                            class="calendar-view-btn"
-                            on:click=move |_| set_zoom.update(|z| *z = z.saturating_sub(1).max(1))
-                            title="Zoom out"
-                            aria-label="Zoom out"
-                        >"−"</button>
-                        <span class="calendar-zoom-label">{move || format!("{}x", zoom.get())}</span>
-                        <button
-                            class="calendar-view-btn"
-                            on:click=move |_| set_zoom.update(|z| *z = (*z + 1).min(4))
-                            title="Zoom in"
-                            aria-label="Zoom in"
-                        >"+"</button>
-                    </div>
                     <button class="calendar-manager-btn" on:click=on_add_new title="Add event">"+"</button>
                 </div>
                 <button class="calendar-scroll-arrow calendar-scroll-arrow-right"
@@ -362,7 +348,45 @@ pub fn CalendarManager(
                 } else { ().into_any() }
             } else { ().into_any() }}
 
-            <div class="calendar-grid-wrapper">
+            <div class="calendar-grid-wrapper"
+                on:wheel=move |ev: leptos::ev::WheelEvent| {
+                    ev.prevent_default();
+                    let delta = ev.delta_y() as f64;
+                    set_zoom.update(|z| *z = (*z - delta * 0.002).clamp(0.5, 3.0));
+                }
+                on:touchstart=move |ev: leptos::ev::TouchEvent| {
+                    let touches = ev.touches();
+                    if touches.length() == 2 {
+                        if let (Some(t0), Some(t1)) = (touches.get(0), touches.get(1)) {
+                            let dx = (t1.client_x() - t0.client_x()) as f64;
+                            let dy = (t1.client_y() - t0.client_y()) as f64;
+                            let dist = (dx * dx + dy * dy).sqrt();
+                            set_pinch_start.set(Some((dist, zoom.get())));
+                        }
+                    }
+                }
+                on:touchmove=move |ev: leptos::ev::TouchEvent| {
+                    let touches = ev.touches();
+                    if touches.length() == 2 {
+                        if let (Some(t0), Some(t1)) = (touches.get(0), touches.get(1)) {
+                            let dx = (t1.client_x() - t0.client_x()) as f64;
+                            let dy = (t1.client_y() - t0.client_y()) as f64;
+                            let dist = (dx * dx + dy * dy).sqrt();
+                            if let Some((start_dist, start_zoom)) = pinch_start.get() {
+                                ev.prevent_default();
+                                let new_zoom = start_zoom * (dist / start_dist);
+                                set_zoom.set(new_zoom.clamp(0.5, 3.0));
+                            }
+                        }
+                    }
+                }
+                on:touchend=move |_ev: leptos::ev::TouchEvent| {
+                    set_pinch_start.set(None);
+                }
+                on:touchcancel=move |_ev: leptos::ev::TouchEvent| {
+                    set_pinch_start.set(None);
+                }
+            >
                 // Weekday headers
                 <div class="calendar-grid-weekdays">
                     {vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].into_iter().map(|d| {
@@ -372,7 +396,7 @@ pub fn CalendarManager(
                 // Day cells
                 <div
                     class="calendar-grid-days"
-                    style={move || { let z = zoom.get(); format!("grid-auto-rows: {}px; aspect-ratio: auto;", 70 * z) }}
+                    style={move || { let z = zoom.get(); format!("grid-auto-rows: {}px; aspect-ratio: auto;", 70.0 * z) }}
                 >
                     {move || {
                         let days = grid_days.get();
@@ -399,7 +423,7 @@ pub fn CalendarManager(
                                         .cloned()
                                         .collect();
                                     let event_count = day_events.len();
-                                    let max_chips = zoom.get() * 3;
+                                    let max_chips = (zoom.get() * 3.0).max(1.0) as usize;
 
                                     view! {
                                         <div class="calendar-grid-day"

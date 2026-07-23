@@ -62,7 +62,6 @@ pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>
     let (modal_open, set_modal_open) = signal(false);
     let (active_source, set_active_source) = signal::<Option<ScanSource>>(None);
     let (camera_active, set_camera_active) = signal(false);
-    let (camera_error, set_camera_error) = signal(String::new());
 
     let sources = [
         ScanSource::Files,
@@ -73,68 +72,7 @@ pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>
 
     let open_source = move |src: ScanSource| {
         set_active_source.set(Some(src));
-        if src == ScanSource::Camera {
-            set_camera_error.set(String::new());
-            set_camera_active.set(true);
-            leptos::task::spawn_local(async move {
-                cfg_if::cfg_if! {
-                    if #[cfg(feature = "hydrate")] {
-                        use wasm_bindgen::JsCast;
-                        use wasm_bindgen_futures::JsFuture;
-                        let window = match web_sys::window() {
-                            Some(w) => w,
-                            None => {
-                                set_camera_error.set("No window available".to_string());
-                                set_camera_active.set(false);
-                                return;
-                            }
-                        };
-                        let navigator = window.navigator();
-                        let media_devices = match navigator.media_devices() {
-                            Ok(md) => md,
-                            Err(_) => {
-                                set_camera_error.set("Camera not available on this device".to_string());
-                                set_camera_active.set(false);
-                                return;
-                            }
-                        };
-                        let constraints = web_sys::MediaStreamConstraints::new();
-                        constraints.set_video(&wasm_bindgen::JsValue::TRUE);
-                        constraints.set_audio(&wasm_bindgen::JsValue::FALSE);
-                        let stream_promise = match media_devices.get_user_media_with_constraints(&constraints) {
-                            Ok(p) => p,
-                            Err(e) => {
-                                set_camera_error.set(format!("Camera access denied: {:?}", e));
-                                set_camera_active.set(false);
-                                return;
-                            }
-                        };
-                        match JsFuture::from(stream_promise).await {
-                            Ok(stream_val) => {
-                                let stream: web_sys::MediaStream = stream_val.unchecked_into();
-                                if let Some(document) = window.document() {
-                                    if let Some(video_el) = document.get_element_by_id("camscan-camera-video") {
-                                        if let Ok(video) = video_el.dyn_into::<web_sys::HtmlVideoElement>() {
-                                            let media: &web_sys::HtmlMediaElement = video.as_ref();
-                                            let _ = media.set_src_object(Some(&stream));
-                                            let _ = video.play();
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                set_camera_error.set(format!("Camera access denied: {:?}", e));
-                                set_camera_active.set(false);
-                            }
-                        }
-                    } else {
-                        let _ = ();
-                    }
-                }
-            });
-        } else {
-            set_camera_active.set(false);
-        }
+        set_camera_active.set(src == ScanSource::Camera);
         set_modal_open.set(true);
     };
 
@@ -144,18 +82,8 @@ pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>
             <div class="camscan-preview-subtitle">"Scan documents with your camera or upload files"</div>
 
             <div class="camscan-camera-frame">
-                // Camera video element (hidden until camera is activated)
-                <video
-                    id="camscan-camera-video"
-                    class="camscan-camera-video"
-                    class:camscan-camera-video-active={move || camera_active.get()}
-                    autoplay
-                    playsinline
-                    muted
-                ></video>
-
-                // Camera outline placeholder (shown when camera not active)
-                <div class="camscan-camera-placeholder" class:camscan-camera-placeholder-hidden={move || camera_active.get()}>
+                // Camera outline placeholder
+                <div class="camscan-camera-placeholder">
                     <div class="camscan-camera-outline">
                         <div class="camscan-camera-outline-icon">"📷"</div>
                         <div class="camscan-camera-outline-text">"Camera Preview"</div>
@@ -179,12 +107,6 @@ pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>
                     }).collect::<Vec<_>>()}
                 </div>
             </div>
-
-            {move || {
-                let err = camera_error.get();
-                if err.is_empty() { ().into_any() }
-                else { view! { <div class="camscan-camera-error">{err}</div> }.into_any() }
-            }}
         </div>
 
         // Modal
@@ -196,25 +118,7 @@ pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>
                     source={src}
                     camera_active={camera_active.get()}
                     on_close=Callback::new(move |_| {
-                        // Stop camera if active
-                        if camera_active.get() {
-                            cfg_if::cfg_if! {
-                                if #[cfg(feature = "hydrate")] {
-                                    use wasm_bindgen::JsCast;
-                                    if let Some(window) = web_sys::window() {
-                                        if let Some(document) = window.document() {
-                                            if let Some(video_el) = document.get_element_by_id("camscan-camera-video") {
-                                                if let Ok(video) = video_el.dyn_into::<web_sys::HtmlVideoElement>() {
-                                                    let media: &web_sys::HtmlMediaElement = video.as_ref();
-                                                    media.set_src_object(None);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            set_camera_active.set(false);
-                        }
+                        set_camera_active.set(false);
                         set_modal_open.set(false);
                     })
                 />
@@ -238,6 +142,104 @@ fn CamScanModal(
     let (status_msg, set_status_msg) = signal(String::new());
     let (is_converting, set_is_converting) = signal(false);
     let (captured_images, set_captured_images) = signal::<Vec<Vec<u8>>>(Vec::new());
+    let video_ref = NodeRef::<leptos::html::Video>::new();
+    let (camera_ready, set_camera_ready) = signal(false);
+    let (camera_error, set_camera_error) = signal(String::new());
+    let _ = set_camera_error;
+
+    #[cfg(feature = "hydrate")]
+    {
+        use wasm_bindgen::JsCast;
+        let video_stream = std::sync::Arc::new(std::sync::Mutex::new(None::<web_sys::MediaStream>));
+        Effect::new({
+            let video_ref = video_ref.clone();
+            let video_stream = video_stream.clone();
+            let set_err = set_camera_error;
+            move |_| {
+                if !camera_active {
+                    return;
+                }
+                let stream_ref = video_stream.clone();
+                let set_err_for_future = set_err;
+                let video_ref_for_future = video_ref.clone();
+                leptos::task::spawn_local(async move {
+                    let Some(video_el) = video_ref_for_future.get() else {
+                        return;
+                    };
+                    let video = match video_el.dyn_into::<web_sys::HtmlVideoElement>() {
+                        Ok(v) => v,
+                        Err(_) => {
+                            set_err_for_future.set("Failed to access video element".to_string());
+                            return;
+                        }
+                    };
+                    let window = match web_sys::window() {
+                        Some(w) => w,
+                        None => {
+                            set_err_for_future.set("No window available".to_string());
+                            return;
+                        }
+                    };
+                    let navigator = window.navigator();
+                    let media_devices = match navigator.media_devices() {
+                        Ok(md) => md,
+                        Err(_) => {
+                            set_err_for_future
+                                .set("Camera not available on this device".to_string());
+                            return;
+                        }
+                    };
+                    let constraints = web_sys::MediaStreamConstraints::new();
+                    constraints.set_video(&wasm_bindgen::JsValue::TRUE);
+                    constraints.set_audio(&wasm_bindgen::JsValue::FALSE);
+                    let stream_promise =
+                        match media_devices.get_user_media_with_constraints(&constraints) {
+                            Ok(p) => p,
+                            Err(e) => {
+                                set_err_for_future.set(format!("Camera access denied: {:?}", e));
+                                return;
+                            }
+                        };
+                    match wasm_bindgen_futures::JsFuture::from(stream_promise).await {
+                        Ok(stream_val) => {
+                            let stream: web_sys::MediaStream = stream_val.unchecked_into();
+                            let media: &web_sys::HtmlMediaElement = video.as_ref();
+                            let _ = media.set_src_object(Some(&stream));
+                            let _ = video.play();
+                            if let Ok(mut guard) = stream_ref.lock() {
+                                *guard = Some(stream);
+                            }
+                        }
+                        Err(e) => {
+                            set_err_for_future.set(format!("Camera access denied: {:?}", e));
+                        }
+                    }
+                });
+                let cleanup_stream = video_stream.clone();
+                let cleanup_ref = video_ref.clone();
+                on_cleanup(move || {
+                    if let Ok(mut guard) = cleanup_stream.lock() {
+                        if let Some(stream) = guard.take() {
+                            let tracks = stream.get_tracks();
+                            for i in 0..tracks.length() {
+                                let track_val = tracks.get(i);
+                                if let Ok(track) = track_val.dyn_into::<web_sys::MediaStreamTrack>()
+                                {
+                                    track.stop();
+                                }
+                            }
+                        }
+                    }
+                    if let Some(video_el) = cleanup_ref.get() {
+                        if let Ok(video) = video_el.dyn_into::<web_sys::HtmlVideoElement>() {
+                            let media: &web_sys::HtmlMediaElement = video.as_ref();
+                            let _ = media.set_src_object(None);
+                        }
+                    }
+                });
+            }
+        });
+    }
 
     let portfolios: Vec<(Uuid, String)> = store
         .portfolios
@@ -303,25 +305,31 @@ fn CamScanModal(
             cfg_if::cfg_if! {
                 if #[cfg(feature = "hydrate")] {
                     use wasm_bindgen::JsCast;
-                    if let Some(window) = web_sys::window() {
-                        if let Some(document) = window.document() {
-                            if let Some(video_el) = document.get_element_by_id("camscan-camera-video") {
-                                if let Ok(video) = video_el.dyn_into::<web_sys::HtmlVideoElement>() {
-                                    let canvas = document.create_element("canvas").unwrap();
-                                    let canvas: web_sys::HtmlCanvasElement = canvas.unchecked_into();
-                                    let w = video.video_width();
-                                    let h = video.video_height();
-                                    canvas.set_width(w);
-                                    canvas.set_height(h);
-                                    let ctx = canvas.get_context("2d").unwrap().unwrap().unchecked_into::<web_sys::CanvasRenderingContext2d>();
-                                    let _ = ctx.draw_image_with_html_video_element(&video, 0.0, 0.0);
-                                    let data_url = canvas.to_data_url_with_type("image/png").unwrap_or_default();
-                                    if let Some(encoded) = data_url.strip_prefix("data:image/png;base64,") {
-                                        let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).unwrap_or_default();
-                                        set_captured_images.update(|imgs| imgs.push(bytes));
-                                        set_status_msg.set(format!("Captured {} image(s)", captured_images.get().len() + 1));
-                                    }
-                                }
+                    if !camera_ready.get() {
+                        set_status_msg.set("Camera is not ready yet.".to_string());
+                        return;
+                    }
+                    if let Some(video_el) = video_ref.get() {
+                        if let Ok(video) = video_el.dyn_into::<web_sys::HtmlVideoElement>() {
+                            let w = video.video_width();
+                            let h = video.video_height();
+                            if w == 0 || h == 0 {
+                                set_status_msg.set("Camera is not ready yet.".to_string());
+                                return;
+                            }
+                            let window = web_sys::window().unwrap();
+                            let document = window.document().unwrap();
+                            let canvas = document.create_element("canvas").unwrap();
+                            let canvas: web_sys::HtmlCanvasElement = canvas.unchecked_into();
+                            canvas.set_width(w);
+                            canvas.set_height(h);
+                            let ctx = canvas.get_context("2d").unwrap().unwrap().unchecked_into::<web_sys::CanvasRenderingContext2d>();
+                            let _ = ctx.draw_image_with_html_video_element(&video, 0.0, 0.0);
+                            let data_url = canvas.to_data_url_with_type("image/png").unwrap_or_default();
+                            if let Some(encoded) = data_url.strip_prefix("data:image/png;base64,") {
+                                let bytes = base64::engine::general_purpose::STANDARD.decode(encoded).unwrap_or_default();
+                                set_captured_images.update(|imgs| imgs.push(bytes));
+                                set_status_msg.set(format!("Captured {} image(s)", captured_images.get().len()));
                             }
                         }
                     }
@@ -559,16 +567,25 @@ fn CamScanModal(
                     {move || if camera_active {
                         view! {
                             <div class="camscan-capture-section">
+                                {move || {
+                                    let err = camera_error.get();
+                                    if err.is_empty() { ().into_any() }
+                                    else { view! { <div class="camscan-camera-error">{err}</div> }.into_any() }
+                                }}
                                 <video
-                                    id="camscan-camera-video-modal"
                                     class="camscan-camera-video-modal"
+                                    node_ref=video_ref
                                     autoplay
                                     playsinline
                                     muted
+                                    on:loadedmetadata=move |_| set_camera_ready.set(true)
                                 ></video>
                                 <div class="camscan-capture-actions">
-                                    <button class="camscan-capture-btn" on:click=on_capture_frame>"📷 Capture"
-                                    </button>
+                                    <button
+                                        class="camscan-capture-btn"
+                                        disabled={move || !camera_ready.get()}
+                                        on:click=on_capture_frame
+                                    >"📷 Capture"</button>
                                     <span class="camscan-capture-count">
                                         {move || format!("{} captured", captured_images.get().len())}
                                     </span>
