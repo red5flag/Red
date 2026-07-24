@@ -50,7 +50,19 @@ pub fn OrganizationPage() -> impl IntoView {
     let organization_store = use_organization_store();
     let ui_store = use_ui_store();
 
-    let organizations = Memo::new(move |_| organization_store.get().organizations.clone());
+    let organizations = Memo::new(move |_| {
+        let store = organization_store.get();
+        let user = app_store.get().current_user;
+        store
+            .organizations
+            .iter()
+            .filter(|o| {
+                store.can_view_org_content(o.id, user.id, user.can_view_all())
+                    || store.user_has_perm_in_org(o.id, user.id, &Perm::ViewOrganization)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    });
 
     let (expanded_orgs, set_expanded_orgs) = signal(HashSet::<Uuid>::new());
     let (org_active_tab, set_org_active_tab) =

@@ -81,6 +81,92 @@ pub(crate) fn single_sentence(text: &str) -> String {
     }
 }
 
+/// Clamp context-menu coordinates so the menu stays inside the viewport.
+pub(crate) fn clamp_context_menu(x: i32, y: i32) -> (i32, i32) {
+    const MENU_MAX_W: i32 = 240;
+    const MENU_MAX_H: i32 = 320;
+    let Some(window) = web_sys::window() else {
+        return (x, y);
+    };
+    let Some(vw) = window.inner_width().ok().and_then(|v| v.as_f64()) else {
+        return (x, y);
+    };
+    let Some(vh) = window.inner_height().ok().and_then(|v| v.as_f64()) else {
+        return (x, y);
+    };
+    let vw = vw as i32;
+    let vh = vh as i32;
+    let x = x.min((vw - MENU_MAX_W).max(0)).max(0);
+    let y = y.min((vh - MENU_MAX_H).max(0)).max(0);
+    (x, y)
+}
+
+/// Trigger a browser download for the given document.
+pub(crate) fn download_document(doc: &crate::models::Document) {
+    let filename = if doc
+        .name
+        .rsplit('.')
+        .next()
+        .map_or(false, |ext| !ext.is_empty())
+    {
+        doc.name.clone()
+    } else {
+        format!("{}.{}", doc.name, doc.file_type)
+    };
+
+    if !doc.url.is_empty() && doc.url != "#" {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let Some(document) = window.document() else {
+            return;
+        };
+        let Ok(anchor) = document
+            .create_element("a")
+            .map(|e| e.dyn_into::<web_sys::HtmlAnchorElement>())
+        else {
+            return;
+        };
+        let Ok(anchor) = anchor else {
+            return;
+        };
+        anchor.set_href(&doc.url);
+        anchor.set_download(&filename);
+        let _ = anchor.click();
+        return;
+    }
+
+    let body = doc.content.clone().unwrap_or_default().into_bytes();
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(document) = window.document() else {
+        return;
+    };
+    let arr = js_sys::Array::new();
+    let uint8 = js_sys::Uint8Array::from(body.as_slice());
+    arr.push(&uint8);
+    let Ok(blob) = web_sys::Blob::new_with_u8_array_sequence(&arr) else {
+        return;
+    };
+    let Ok(anchor) = document
+        .create_element("a")
+        .map(|e| e.dyn_into::<web_sys::HtmlAnchorElement>())
+    else {
+        return;
+    };
+    let Ok(anchor) = anchor else {
+        return;
+    };
+    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
+        return;
+    };
+    anchor.set_href(&url);
+    anchor.set_download(&filename);
+    let _ = anchor.click();
+    let _ = web_sys::Url::revoke_object_url(&url);
+}
+
 /// Read the first image file from a file input change event and return its data URL.
 pub(crate) fn read_image_as_data_url(
     ev: &leptos::ev::Event,
@@ -252,7 +338,7 @@ mod portfolio_list;
 pub(crate) use add_portfolio_modal::AddPortfolioModal;
 pub(crate) use asset_channels::{
     AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
-    ChannelManagementWindow,
+    ChannelManagementWindow, LinkingBookingModal,
 };
 pub(crate) use asset_editor::AssetDetailView;
 pub(crate) use asset_group::AssetGroupItem;

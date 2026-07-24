@@ -175,6 +175,28 @@ impl OrganizationStore {
         self.user_perms_in_org(org_id, user_id).contains(perm)
     }
 
+    /// Determine whether the user may view content tied to an organization.
+    /// Owners and non-Guest/Contractor roles always pass; Guest and Contractor
+    /// roles are blocked from viewing the org and its portfolios/assets/docs.
+    /// If the user has no explicit role in the org, global `can_view_all`
+    /// users are allowed.
+    pub fn can_view_org_content(&self, org_id: Uuid, user_id: Uuid, can_view_all: bool) -> bool {
+        if let Some(org) = self.get_organization(org_id) {
+            if org.owner_id == user_id {
+                return true;
+            }
+        }
+        match self
+            .organization_users
+            .iter()
+            .find(|u| u.id == user_id && u.organization_id == Some(org_id))
+        {
+            Some(u) if matches!(u.role, UserRole::Guest | UserRole::Contractor) => false,
+            Some(_) => true,
+            None => can_view_all,
+        }
+    }
+
     // Discord-style role management
 
     fn recompute_role_ranks(roles: &mut Vec<OrgRole>) {

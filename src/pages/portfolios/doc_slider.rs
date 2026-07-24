@@ -2,11 +2,14 @@ use crate::stores::use_ui_store;
 use leptos::prelude::*;
 use uuid::Uuid;
 
-use super::{document_icon, shorthand_name, DocEntry, DocModal};
+use super::{
+    clamp_context_menu, document_icon, download_document, shorthand_name, DocEntry, DocModal,
+};
 
 #[derive(Clone)]
 enum ModalTarget {
     Add,
+    BatchAdd,
     View(DocEntry),
 }
 
@@ -27,6 +30,7 @@ pub fn DocSlider(
     #[prop(default = None)] organization_id: Option<Uuid>,
 ) -> impl IntoView {
     let (modal_target, set_modal_target) = signal(Option::<ModalTarget>::None);
+    let (doc_ctx, set_doc_ctx) = signal(Option::<(i32, i32, DocEntry)>::None);
     let ui_store = use_ui_store();
 
     // External triggers (e.g. context menu "Add Document") open the add modal.
@@ -38,6 +42,7 @@ pub fn DocSlider(
     });
 
     let open_add = move || set_modal_target.set(Some(ModalTarget::Add));
+    let open_batch_add = move || set_modal_target.set(Some(ModalTarget::BatchAdd));
 
     let open_view = move |entry: DocEntry| {
         set_modal_target.set(Some(ModalTarget::View(entry)));
@@ -71,11 +76,18 @@ pub fn DocSlider(
                         let ft = entry.doc.file_type.to_uppercase();
                         let short_name = shorthand_name(&entry.doc.name);
                         let doc_for_click = entry.clone();
+                        let doc_for_ctx = entry.clone();
                         view! {
                             <div
                                 class="ai-doc-slider-item"
                                 aria-label={format!("View document {}. Type {}", entry.doc.name, ft)}
                                 on:click=move |_| open_view(doc_for_click.clone())
+                                on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                                    ev.prevent_default();
+                                    ev.stop_propagation();
+                                    let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                                    set_doc_ctx.set(Some((x, y, doc_for_ctx.clone())));
+                                }
                             >
                                 <div class="ai-doc-slider-thumb">{icon}</div>
                                 <div class="ai-doc-slider-name">{short_name}</div>
@@ -84,6 +96,37 @@ pub fn DocSlider(
                         }
                     }
                 />
+
+                {move || doc_ctx.get().map(|(x, y, entry)| {
+                    let entry_for_download = entry.doc.clone();
+                    view! {
+                        <div
+                            class="context-menu-overlay"
+                            on:click=move |_| set_doc_ctx.set(None)
+                        >
+                            <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                                <button
+                                    class="context-menu-item"
+                                    on:click=move |_| {
+                                        set_doc_ctx.set(None);
+                                        download_document(&entry_for_download);
+                                    }
+                                >"📥 Export / Download"</button>
+                                {move || if can_edit_documents.get() {
+                                    view! {
+                                        <button
+                                            class="context-menu-item"
+                                            on:click=move |_| {
+                                                set_doc_ctx.set(None);
+                                                open_batch_add();
+                                            }
+                                        >"➕ Batch Add"</button>
+                                    }.into_any()
+                                } else { ().into_any() }}
+                            </div>
+                        </div>
+                    }.into_any()
+                })}
             </div>
         </div>
 
@@ -100,6 +143,20 @@ pub fn DocSlider(
                         group_id={group_id}
                         asset_id={asset_id}
                         organization_id={organization_id}
+                    />
+                }.into_any(),
+                ModalTarget::BatchAdd => view! {
+                    <DocModal
+                        entity_id={entity_id}
+                        title={format!("Batch Add - {}", title.clone())}
+                        on_close=close_modal
+                        can_edit={can_edit_documents.get()}
+                        on_add={on_add}
+                        portfolio_id={portfolio_id}
+                        group_id={group_id}
+                        asset_id={asset_id}
+                        organization_id={organization_id}
+                        batch={true}
                     />
                 }.into_any(),
                 ModalTarget::View(entry) => view! {

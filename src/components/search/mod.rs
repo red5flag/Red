@@ -1,5 +1,5 @@
 use crate::stores::{
-    perform_meilisearch, use_app_store, use_organization_store, use_search_store, use_ui_store,
+    use_app_store, use_organization_store, use_search_store, use_ui_store, PendingNavTarget,
     SearchResultItem,
 };
 use crate::types::{SearchFilters, TabType};
@@ -30,14 +30,13 @@ pub fn SearchFilters() -> impl IntoView {
     let organization_store = use_organization_store();
     let ui_store = use_ui_store();
 
-    let run_search = move || {
+    let execute_search = move || {
         let app_snapshot = app_store.get();
         let org_snapshot = organization_store.get();
-        let search_store_signal = search_store;
-        leptos::task::spawn_local(async move {
-            let mut store = search_store_signal.get_untracked();
-            perform_meilisearch(&app_snapshot, &org_snapshot, &mut store).await;
-            search_store_signal.set(store);
+        search_store.update(|store| {
+            store.is_loading = true;
+            store.perform_search(&app_snapshot, &org_snapshot);
+            store.is_loading = false;
         });
     };
 
@@ -116,9 +115,7 @@ pub fn SearchFilters() -> impl IntoView {
             filters.date_range = Some((from, to));
         }
 
-        // Set filters/context then run Meilisearch-backed search.
-        let mut store = search_store.get_untracked();
-        store.filters = filters;
+        // Set filters/context then run the local in-memory search.
         let context_tab = app_snapshot
             .active_tabs
             .iter()
@@ -126,13 +123,13 @@ pub fn SearchFilters() -> impl IntoView {
             .cloned()
             .or_else(|| app_snapshot.active_tabs.first().cloned())
             .unwrap_or(TabType::Overview);
-        store.set_context_tab(context_tab);
-
-        let app_snapshot = app_snapshot.clone();
-        let org_snapshot = organization_store.get_untracked();
-        leptos::task::spawn_local(async move {
-            perform_meilisearch(&app_snapshot, &org_snapshot, &mut store).await;
-            search_store.set(store);
+        let org_snapshot = organization_store.get();
+        search_store.update(|store| {
+            store.filters = filters;
+            store.set_context_tab(context_tab);
+            store.is_loading = true;
+            store.perform_search(&app_snapshot, &org_snapshot);
+            store.is_loading = false;
         });
     });
 
@@ -147,12 +144,18 @@ pub fn SearchFilters() -> impl IntoView {
                     prop:value={move || search_store.get().query}
                     on:input=move |ev| {
                         let v = event_target_value(&ev);
-                        search_store.update(|s| s.set_query(v));
-                        run_search();
+                        let app_snapshot = app_store.get();
+                        let org_snapshot = organization_store.get();
+                        search_store.update(|store| {
+                            store.set_query(v);
+                            store.is_loading = true;
+                            store.perform_search(&app_snapshot, &org_snapshot);
+                            store.is_loading = false;
+                        });
                     }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                         if ev.key() == "Enter" {
-                            run_search();
+                            execute_search();
                         }
                     }
                 />
@@ -160,7 +163,7 @@ pub fn SearchFilters() -> impl IntoView {
                     ui_store.update(|s| s.close_search());
                 }>"✕"</button>
                 <button class="sd-search-close-btn sd-search-submit-btn" on:click=move |_| {
-                    run_search();
+                    execute_search();
                 }>"⏎"</button>
             </div>
 
@@ -313,6 +316,44 @@ pub fn SearchResults() -> impl IntoView {
     let results_count = move || search_store.get().results.total_count;
     let has_searched = move || search_store.get().has_searched;
 
+    let result_items = Memo::new(move |_| {
+        let store = search_store.get();
+        let mut items: Vec<SearchResultItem> = Vec::new();
+        for p in &store.results.portfolios {
+            items.push(SearchResultItem::Portfolio(p.clone()));
+        }
+        for a in &store.results.assets {
+            items.push(SearchResultItem::Asset {
+                asset: a.clone(),
+                portfolio_id: Uuid::nil(),
+                portfolio_name: String::new(),
+            });
+        }
+        for o in &store.results.organizations {
+            items.push(SearchResultItem::Organization(o.clone()));
+        }
+        for d in &store.results.documents {
+            items.push(SearchResultItem::Document {
+                document: d.document.clone(),
+                portfolio_id: d.portfolio_id,
+                portfolio_name: d.portfolio_name.clone(),
+                group_id: d.group_id,
+                asset_id: d.asset_id,
+            });
+        }
+        for u in &store.results.users {
+            items.push(SearchResultItem::User(u.clone()));
+        }
+        if let Some(ref tab) = store.current_tab {
+            items.sort_by(|a, b| {
+                let matches_a = a.matches_tab(tab);
+                let matches_b = b.matches_tab(tab);
+                matches_b.cmp(&matches_a)
+            });
+        }
+        items
+    });
+
     let on_portfolio_click = move |id: Uuid| {
         app_store.update(|s| {
             s.touch_portfolio(id);
@@ -346,42 +387,34 @@ pub fn SearchResults() -> impl IntoView {
         ui_store.update(|s| s.close_search());
     };
 
+    let on_document_click =
+        move |portfolio_id: Uuid, group_id: Option<Uuid>, asset_id: Option<Uuid>, doc_id: Uuid| {
+            app_store.update(|s| {
+                s.touch_portfolio(portfolio_id);
+                s.selected_portfolio_ids.insert(portfolio_id);
+                s.pending_nav_target = Some(PendingNavTarget {
+                    portfolio_id,
+                    group_id,
+                    asset_id,
+                    doc_id: Some(doc_id),
+                });
+                s.pending_group_expand = group_id;
+                s.expand_tab(crate::types::TabType::Portfolios);
+            });
+            ui_store.update(|s| s.close_search());
+        };
+
     view! {
         <div class="sd-results">
             {move || if is_loading() {
                 view! { <div class="loading"><span class="loading-text">"Searching..."</span></div> }.into_any()
             } else if has_results() {
-                let store = search_store.get();
-                let mut items: Vec<SearchResultItem> = Vec::new();
-                for p in &store.results.portfolios {
-                    items.push(SearchResultItem::Portfolio(p.clone()));
-                }
-                for a in &store.results.assets {
-                    items.push(SearchResultItem::Asset {
-                        asset: a.clone(),
-                        portfolio_id: Uuid::nil(),
-                        portfolio_name: String::new(),
-                    });
-                }
-                for o in &store.results.organizations {
-                    items.push(SearchResultItem::Organization(o.clone()));
-                }
-                for u in &store.results.users {
-                    items.push(SearchResultItem::User(u.clone()));
-                }
-                if let Some(ref tab) = store.current_tab {
-                    items.sort_by(|a, b| {
-                        let matches_a = a.matches_tab(tab);
-                        let matches_b = b.matches_tab(tab);
-                        matches_b.cmp(&matches_a)
-                    });
-                }
                 view! {
                     <div>
                         <span class="sd-result-count">{format!("{} results", results_count())}</span>
                         <div class="sd-results-list">
                             <For
-                                each=move || items.clone()
+                                each=move || result_items.get()
                                 key=|item| item.id()
                                 children=move |item| {
                                     match item {
@@ -417,6 +450,24 @@ pub fn SearchResults() -> impl IntoView {
                                                     <div class="sd-result-info">
                                                         <div class="sd-result-name">{o.name.clone()}</div>
                                                         <div class="sd-result-meta">{format!("Organization — {} members · {} roles", o.members.len(), o.roles.len())}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::Document {
+                                            document,
+                                            portfolio_id,
+                                            portfolio_name,
+                                            group_id,
+                                            asset_id,
+                                        } => {
+                                            let did = document.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_document_click(portfolio_id, group_id, asset_id, did)>
+                                                    <div class="sd-result-icon">"📄"</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{document.name.clone()}</div>
+                                                        <div class="sd-result-meta">{format!("Document — {} — {}", portfolio_name, document.file_type)}</div>
                                                     </div>
                                                 </div>
                                             }.into_any()

@@ -4,8 +4,9 @@ use crate::components::tabs::TabList;
 use crate::models::Action;
 use crate::stores::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, use_app_store,
-    use_messenger_store, use_notification_store, use_ui_store, use_undo_redo_store, Notification,
-    NotificationDrawerFilter, NotificationDrawerSort, NotificationType,
+    use_messenger_store, use_notification_store, use_organization_store, use_ui_store,
+    use_undo_redo_store, Notification, NotificationDrawerFilter, NotificationDrawerSort,
+    NotificationType,
 };
 use crate::types::{ActionType, TabType};
 use leptos::prelude::*;
@@ -16,6 +17,7 @@ pub fn Navbar() -> impl IntoView {
     let app_store = use_app_store();
     let messenger_store = use_messenger_store();
     let notification_store = use_notification_store();
+    let organization_store = use_organization_store();
     let ui_store = use_ui_store();
     let undo_store = use_undo_redo_store();
 
@@ -256,18 +258,21 @@ pub fn Navbar() -> impl IntoView {
     let is_tabs_drawer_open = move || ui_store.get().tabs_drawer_open;
     let is_notifications_drawer_open = move || notification_store.get().drawer_open;
     let notification_count = move || {
+        let app = app_store.get();
+        let org = organization_store.get();
         let store = notification_store.get();
         let filter = &store.drawer_filter;
         store
             .notifications
             .iter()
             .filter(|n| {
-                matches_filter(
-                    n,
-                    filter,
-                    &store.drawer_scoped_portfolio,
-                    &store.drawer_scoped_group,
-                )
+                app.notification_is_visible(n, &org)
+                    && matches_filter(
+                        n,
+                        filter,
+                        &store.drawer_scoped_portfolio,
+                        &store.drawer_scoped_group,
+                    )
             })
             .count()
     };
@@ -521,9 +526,11 @@ pub fn Navbar() -> impl IntoView {
                             {move || if show_doc_reader.get() {
                                 document_reader_view(app_store, notification_store, move || set_show_doc_reader.set(false)).into_any()
                             } else {
+                                let app = app_store.get();
+                                let org = organization_store.get();
                                 let store = notification_store.get();
                                 let mut notifs: Vec<Notification> = store.notifications.iter()
-                                    .filter(|n| matches_filter(n, &store.drawer_filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
+                                    .filter(|n| app.notification_is_visible(n, &org) && matches_filter(n, &store.drawer_filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
                                     .cloned()
                                     .collect();
                                 apply_sort(&mut notifs, &store.drawer_sort);

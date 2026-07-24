@@ -7,6 +7,7 @@ use crate::stores::portfolio_store::PortfolioStore;
 use crate::stores::seed_data::{
     seed_default_portfolio, seed_direct_portfolio, seed_groups_only_portfolio, seed_portfolio_2,
 };
+use crate::stores::OrganizationStore;
 use crate::types::{TabType, UserProfile, UserRole};
 use crate::utils::crypto;
 use chrono::{DateTime, Utc};
@@ -590,6 +591,55 @@ impl AppStore {
             // No linked portfolio — just switch to the tab
             self.expand_tab(tab);
         }
+    }
+
+    /// Determine whether a notification should be visible to the current user.
+    /// Hides notifications linked to portfolios/assets/groups that belong to an
+    /// organization the user cannot view (e.g. Guest/Contractor role in NotRed).
+    pub fn notification_is_visible(
+        &self,
+        n: &Notification,
+        organization_store: &OrganizationStore,
+    ) -> bool {
+        let user_id = self.current_user.id;
+        let can_view_all = self.current_user.can_view_all();
+
+        let portfolio_org_id = n.linked_portfolio_id.and_then(|pid| {
+            self.portfolios
+                .iter()
+                .find(|p| p.id == pid)
+                .and_then(|p| p.organization_id)
+        });
+
+        let asset_org_id = n.linked_asset_id.and_then(|aid| {
+            self.portfolios.iter().find_map(|p| {
+                p.assets
+                    .iter()
+                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .find(|a| a.id == aid)
+                    .and_then(|a| a.organization_id.or(p.organization_id))
+            })
+        });
+
+        let group_org_id = n.linked_group_id.and_then(|gid| {
+            self.portfolios.iter().find_map(|p| {
+                p.asset_groups
+                    .iter()
+                    .find(|g| g.id == gid)
+                    .and_then(|_| p.organization_id)
+            })
+        });
+
+        for oid in [portfolio_org_id, asset_org_id, group_org_id]
+            .into_iter()
+            .flatten()
+        {
+            if !organization_store.can_view_org_content(oid, user_id, can_view_all) {
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Count notifications linked to any document within a portfolio

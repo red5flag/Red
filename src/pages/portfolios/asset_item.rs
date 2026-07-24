@@ -9,9 +9,9 @@ use std::sync::{
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, document_icon, name_click_handlers, read_images_as_data_urls, shorthand_name,
-    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
-    DocumentViewer, UserAssignmentPanel,
+    clamp_context_menu, detect_file_type, document_icon, download_document, name_click_handlers,
+    read_images_as_data_urls, shorthand_name, AddChannelModal, AssetChannelsSection, DocModal,
+    DocumentViewer, LinkingBookingModal, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -115,7 +115,7 @@ pub(crate) fn AssetItem(
     let (show_add_transaction, set_show_add_transaction) = signal(false);
     let (confirm_asset_remove, set_confirm_asset_remove) = signal(false);
     let (show_add_channel, set_show_add_channel) = signal(false);
-    let (show_add_booking, set_show_add_booking) = signal(false);
+    let (show_linking_booking, set_show_linking_booking) = signal(false);
     let (asset_target_portfolio_id, set_asset_target_portfolio_id) = signal(String::new());
     let (asset_target_group_id, set_asset_target_group_id) = signal(String::new());
     let (asset_org_id, set_asset_org_id) = signal(String::new());
@@ -440,7 +440,6 @@ pub(crate) fn AssetItem(
             .cloned()
             .collect::<Vec<_>>()
     });
-    let asset_name_for_modal = asset.name.clone();
     let asset_name_for_confirm = asset.name.clone();
     let (_asset_name_signal, _set_asset_name) = signal(a_name.clone());
     // snapshot values for the detail panel
@@ -652,6 +651,7 @@ pub(crate) fn AssetItem(
     } else {
         None
     };
+    let (show_batch_doc_modal, set_show_batch_doc_modal) = signal(false);
 
     let asset_id_for_assign = asset_id;
     let portfolio_id_for_assign = portfolio_id;
@@ -932,8 +932,9 @@ pub(crate) fn AssetItem(
                                         on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                                             ev.prevent_default();
                                             ev.stop_propagation();
-                                            set_doc_ctx_menu_x.set(ev.client_x());
-                                            set_doc_ctx_menu_y.set(ev.client_y());
+                                            let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                                            set_doc_ctx_menu_x.set(x);
+                                            set_doc_ctx_menu_y.set(y);
                                             set_show_doc_ctx_menu.set(true);
                                         }
                                         on:mouseenter={
@@ -977,21 +978,26 @@ pub(crate) fn AssetItem(
                                     {move || if show_doc_ctx_menu.get() {
                                         let dx = doc_ctx_menu_x.get();
                                         let dy = doc_ctx_menu_y.get();
+                                        let doc_for_download = doc.clone();
                                         view! {
                                             <div class="context-menu-overlay" on:click=move |_| set_show_doc_ctx_menu.set(false)>
                                                 <div class="context-menu" style={format!("left: {}px; top: {}px;", dx, dy)}>
                                                     <button class="context-menu-item"
                                                         on:click=move |_| {
                                                             set_show_doc_ctx_menu.set(false);
-                                                            set_show_add_role.set(true);
+                                                            download_document(&doc_for_download);
                                                         }
-                                                    >"🎭 Add Role"</button>
-                                                    <button class="context-menu-item"
-                                                        on:click=move |_| {
-                                                            set_show_doc_ctx_menu.set(false);
-                                                            set_show_add_org.set(true);
-                                                        }
-                                                    >"🏢 Add Organization"</button>
+                                                    >"📥 Export / Download"</button>
+                                                    {move || if can_upload_documents() {
+                                                        view! {
+                                                            <button class="context-menu-item"
+                                                                on:click=move |_| {
+                                                                    set_show_doc_ctx_menu.set(false);
+                                                                    set_show_batch_doc_modal.set(true);
+                                                                }
+                                                            >"➕ Batch Add"</button>
+                                                        }.into_any()
+                                                    } else { ().into_any() }}
                                                     <button class="context-menu-item"
                                                         on:click=move |_| {
                                                             set_show_doc_ctx_menu.set(false);
@@ -1141,24 +1147,15 @@ pub(crate) fn AssetItem(
                         </div>
                     </div>
                     <div class="ai-controls-row" class:ai-perm-hidden={move || !(can_view_linking() || can_view_booking())}>
-                        <AssetLinkingControls
-                            asset_id={asset_id}
-                            asset_name={asset_name_signal.get()}
-                            portfolio_id={portfolio_id}
-                            can_link={can_link()}
-                        />
-                        <AssetBookingControls
-                            asset_id={asset_id}
-                            asset_name={asset_name_signal.get()}
-                            portfolio_id={portfolio_id}
-                            can_book={can_book()}
-                        />
+                        <button class="pf-small-btn" on:click=move |_| set_show_linking_booking.set(true)>
+                            "Channels & Bookings"
+                        </button>
                     </div>
                 </div>
             </div>
 
             {move || if ui_store.get().is_doc_modal_open(asset_id) {
-                let mt = asset_name_for_modal.clone();
+                let mt = asset_name_signal.get();
                 let ac = add_cb.clone();
                 view! {
                     <DocModal
@@ -1170,6 +1167,24 @@ pub(crate) fn AssetItem(
                         portfolio_id={portfolio_id}
                         group_id={group_id}
                         asset_id={Some(asset_id)}
+                    />
+                }.into_any()
+            } else { ().into_any() }}
+
+            {move || if show_batch_doc_modal.get() {
+                let mt = asset_name_signal.get();
+                let ac = add_cb.clone();
+                view! {
+                    <DocModal
+                        entity_id={asset_id}
+                        title={format!("Batch Add - {}", mt)}
+                        on_close=move || set_show_batch_doc_modal.set(false)
+                        can_edit={can_edit_documents_here.get()}
+                        on_add={ac}
+                        portfolio_id={portfolio_id}
+                        group_id={group_id}
+                        asset_id={Some(asset_id)}
+                        batch={true}
                     />
                 }.into_any()
             } else { ().into_any() }}
@@ -1667,23 +1682,15 @@ pub(crate) fn AssetItem(
                 />
             }.into_any() } else { ().into_any() }}
 
-            {move || if show_add_booking.get() { view! {
-                <div class="doc-modal-overlay" on:click=move |_| set_show_add_booking.set(false)>
-                    <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
-                        <div class="doc-modal-header">
-                            <span>"Booking Controls"</span>
-                            <button class="doc-modal-close" aria-label="Close booking controls" on:click=move |_| set_show_add_booking.set(false)>"✕"</button>
-                        </div>
-                        <div class="doc-modal-body">
-                            <AssetBookingControls
-                                asset_id={asset_id}
-                                asset_name={asset_name_signal.get()}
-                                portfolio_id={portfolio_id}
-                                can_book={can_book()}
-                            />
-                        </div>
-                    </div>
-                </div>
+            {move || if show_linking_booking.get() { view! {
+                <LinkingBookingModal
+                    asset_id={asset_id}
+                    asset_name={asset_name_signal.get()}
+                    portfolio_id={portfolio_id}
+                    can_link={can_link()}
+                    can_book={can_book()}
+                    on_close={Callback::new(move |_| set_show_linking_booking.set(false))}
+                />
             }.into_any() } else { ().into_any() }}
         </div>
     }.into_any()

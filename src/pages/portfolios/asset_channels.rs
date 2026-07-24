@@ -1291,3 +1291,63 @@ pub(crate) fn ChannelManagementWindow(channel_id: Uuid, on_close: Callback<()>) 
         </div>
     }
 }
+
+/// Combined modal that hosts Linking (channel) and Booking controls in a tabbed overlay.
+#[component]
+pub(crate) fn LinkingBookingModal(
+    asset_id: Uuid,
+    asset_name: String,
+    portfolio_id: Option<Uuid>,
+    can_link: bool,
+    can_book: bool,
+    on_close: Callback<()>,
+) -> impl IntoView {
+    let (active_tab, set_active_tab) = signal("linking".to_string());
+
+    view! {
+        <div class="doc-modal-overlay" on:click=move |_| on_close.run(())>
+            <div class="doc-modal doc-modal-tabbed linking-booking-modal" on:click=|ev| ev.stop_propagation()>
+                <div class="doc-modal-header">
+                    <span class="doc-modal-title">"Linking & Booking"</span>
+                    <button class="doc-modal-close" aria-label="Close linking and booking" on:click=move |_| on_close.run(())>"✕"</button>
+                </div>
+                <div class="lbm-tabs">
+                    <button
+                        class="lbm-tab"
+                        class:lbm-tab-active={move || active_tab.get() == "linking"}
+                        on:click=move |_| set_active_tab.set("linking".to_string())
+                    >
+                        "Linking"
+                    </button>
+                    <button
+                        class="lbm-tab"
+                        class:lbm-tab-active={move || active_tab.get() == "booking"}
+                        on:click=move |_| set_active_tab.set("booking".to_string())
+                    >
+                        "Booking"
+                    </button>
+                </div>
+                <div class="doc-modal-body lbm-body">
+                    {move || match active_tab.get().as_str() {
+                        "booking" => view! {
+                            <AssetBookingControls
+                                asset_id={asset_id}
+                                asset_name={asset_name.clone()}
+                                portfolio_id={portfolio_id}
+                                can_book={can_book}
+                            />
+                        }.into_any(),
+                        _ => view! {
+                            <AssetLinkingControls
+                                asset_id={asset_id}
+                                asset_name={asset_name.clone()}
+                                portfolio_id={portfolio_id}
+                                can_link={can_link}
+                            />
+                        }.into_any(),
+                    }}
+                </div>
+            </div>
+        </div>
+    }
+}

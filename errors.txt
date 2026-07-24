@@ -1,21 +1,3 @@
-warning: unused import: `Perm`
-warning: unused import: `Perm`
-warning: unused variable: `group_visible_to_user`
-warning: unused variable: `group_visible_to_user`
-warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: unused import: `crate::models::Perm`
-warning: unused import: `crate::models::Perm`
-error[E0308]: mismatched types
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0308]: mismatched types
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0308]: mismatched types
-error: could not compile `farley` (lib) due to 2 previous errors
 error[E0308]: mismatched types
 error[E0308]: mismatched types
 error: could not compile `farley` (lib) due to 2 previous errors
@@ -23,392 +5,66 @@ error[E0308]: mismatched types
 error[E0308]: mismatched types
 error: could not compile `farley` (lib) due to 2 previous errors
 error[E0308]: mismatched types
+error: could not compile `farley` (lib) due to 1 previous error
 error[E0308]: mismatched types
 error: could not compile `farley` (lib) due to 1 previous error
-error: could not compile `farley` (lib) due to 1 previous error
-warning: unused import: `doc_slider::DocSlider`
-warning: unused import: `doc_slider::DocSlider`
-error[E0624]: method `entity_id` is private
-error[E0624]: method `entity_id` is private
+warning: function `clamp_context_menu` is never used
+warning: function `download_document` is never used
+warning: function `clamp_context_menu` is never used
+warning: function `download_document` is never used
+warning: `farley` (lib) generated 2 warnings
+warning: `farley` (lib) generated 2 warnings
+warning: unused variable: `batch`
+warning: function `clamp_context_menu` is never used
+warning: function `download_document` is never used
+warning: unused variable: `batch`
+warning: function `clamp_context_menu` is never used
+warning: function `download_document` is never used
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 1 suggestion)
+warning: function `clamp_context_menu` is never used
+warning: function `download_document` is never used
+warning: function `clamp_context_menu` is never used
+warning: function `download_document` is never used
+warning: `farley` (lib) generated 2 warnings
+warning: unused imports: `clamp_context_menu` and `download_document`
+warning: unused imports: `clamp_context_menu` and `download_document`
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
 warning: `farley` (lib) generated 1 warning
 error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
 warning: `farley` (lib) generated 1 warning
 error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0624]: method `entity_id` is private
-error[E0624]: method `entity_id` is private
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0624]: method `entity_id` is private
-error[E0624]: method `entity_id` is private
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
-error[E0624]: method `entity_id` is private
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error: could not compile `farley` (lib) due to 3 previous errors
-error: could not compile `farley` (lib) due to 3 previous errors
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0425]: cannot find value `DocDropdown` in this scope
-warning: unused import: `DocSlider`
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 4 previous errors; 1 warning emitted
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 4 previous errors; 1 warning emitted
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0624]: method `entity_id` is private
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error: could not compile `farley` (lib) due to 5 previous errors
-error: could not compile `farley` (lib) due to 5 previous errors
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error[E0382]: use of moved value: `name`
-error: could not compile `farley` (lib) due to 4 previous errors
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error[E0382]: use of moved value: `g_name`
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
-warning: unused variable: `g_name_for_aria`
-warning: unused variable: `g_name_for_aria`
-warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: unused imports: `DocEntry` and `DocSlider`
-warning: unused imports: `DocEntry` and `DocSlider`
-warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-warning: unused import: `DocSlider`
-warning: unused import: `DocSlider`
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: unused variable: `doc_entries`
-warning: unused variable: `on_add_doc`
+warning: unused imports: `clamp_context_menu` and `download_document`
+warning: unused imports: `clamp_context_menu` and `download_document`
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
+warning: unused variable: `doc_ctx`
+warning: unused variable: `set_doc_ctx`
+warning: unused variable: `open_batch_add`
 warning: `farley` (lib) generated 4 warnings
 error: could not compile `farley` (lib) due to 1 previous error; 4 warnings emitted
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: unused variable: `doc_entries`
-warning: unused variable: `on_add_doc`
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
+warning: unused variable: `doc_ctx`
+warning: unused variable: `set_doc_ctx`
+warning: unused variable: `open_batch_add`
 warning: `farley` (lib) generated 4 warnings
 error: could not compile `farley` (lib) due to 1 previous error; 4 warnings emitted
-warning: unused import: `DocSlider`
-warning: unused import: `DocSlider`
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: unused variable: `doc_entries`
-warning: unused variable: `on_add_doc`
-warning: unused variable: `show_documents`
-warning: unused variable: `set_show_documents`
-warning: `farley` (lib) generated 6 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 6 warnings emitted
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: unused variable: `doc_entries`
-warning: unused variable: `on_add_doc`
-warning: unused variable: `show_documents`
-warning: unused variable: `set_show_documents`
-warning: `farley` (lib) generated 6 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 6 warnings emitted
-warning: unused import: `DocSlider`
-warning: unused import: `DocSlider`
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: unused variable: `on_add_doc`
-warning: unused variable: `show_documents`
-warning: unused variable: `set_show_documents`
-warning: unused variable: `portfolio_name_for_slider`
-warning: unused variable: `show_documents_tab`
-warning: `farley` (lib) generated 7 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 7 warnings emitted
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: unused variable: `on_add_doc`
-warning: unused variable: `show_documents`
-warning: unused variable: `set_show_documents`
-warning: unused variable: `portfolio_name_for_slider`
-warning: unused variable: `show_documents_tab`
-warning: `farley` (lib) generated 7 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 7 warnings emitted
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
+warning: unused variable: `entry_for_batch`
 warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: unused variable: `entry_for_batch`
 warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
-error[E0425]: cannot find value `DocSlider` in this scope
-error[E0425]: cannot find value `DocSlider` in this scope
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: use of deprecated method `pages::portfolios::asset_viewer::AssetViewerPropsBuilder::<((models::portfolio::Portfolio,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Signal<bool>,), (), __on_add_doc, __view_mode, __show_add_group, __set_show_add_group, ___new_group_name, __set_new_group_name, __on_add_group, __show_add_asset, __set_show_add_asset, __new_asset_name, __set_new_asset_name, __new_asset_type, __set_new_asset_type, __new_asset_value, __set_new_asset_value, __on_add_asset)>::build`: Missing required field doc_entries
-error[E0061]: this method takes 1 argument but 0 arguments were supplied
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 3 previous errors; 1 warning emitted
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 3 previous errors; 1 warning emitted
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0507]: cannot move out of `g_name_for_slider`, a captured variable in an `FnMut` closure
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0507]: cannot move out of `g_name_for_slider`, a captured variable in an `FnMut` closure
-error[E0507]: cannot move out of `portfolio_name_for_slider`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0507]: cannot move out of `g_name_for_slider`, a captured variable in an `FnMut` closure
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error[E0507]: cannot move out of `g_name_for_slider`, a captured variable in an `FnMut` closure
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error: could not compile `farley` (lib) due to 3 previous errors
-error: could not compile `farley` (lib) due to 3 previous errors
-error[E0507]: cannot move out of `g_name_for_slider`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0507]: cannot move out of `g_name_for_slider`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error[E0308]: mismatched types
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0382]: borrow of moved value: `g_name`
-error[E0382]: borrow of moved value: `g_name`
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
+error[E0004]: non-exhaustive patterns: `ModalTarget::BatchAdd` not covered
 error: could not compile `farley` (lib) due to 1 previous error
 error: could not compile `farley` (lib) due to 1 previous error
-error[E0599]: no method named `doc_entries` found for struct `AssetViewerPropsBuilder<TypedBuilderFields>` in the current scope
-error: could not compile `farley` (lib) due to 1 previous error
-error[E0599]: no method named `doc_entries` found for struct `AssetViewerPropsBuilder<TypedBuilderFields>` in the current scope
-error: could not compile `farley` (lib) due to 1 previous error
-warning: unused variable: `g_name_for_doc_btn`
-warning: unused variable: `g_name_for_doc_btn`
-warning: unused import: `DocDropdown`
-warning: unused import: `DocDropdown`
-warning: method `entity_id` is never used
-warning: enum `ModalTarget` is never used
-warning: multiple fields are never read
-warning: method `entity_id` is never used
-warning: enum `ModalTarget` is never used
-warning: multiple fields are never read
-warning: method `entity_id` is never used
-warning: enum `ModalTarget` is never used
-warning: multiple fields are never read
-warning: method `entity_id` is never used
-warning: enum `ModalTarget` is never used
-warning: multiple fields are never read
-warning: `farley` (lib) generated 3 warnings
-warning: `farley` (lib) generated 3 warnings
-error: unexpected closing delimiter: `}`
-error: unexpected closing delimiter: `}`
-error: could not compile `farley` (lib) due to 1 previous error
-error: could not compile `farley` (lib) due to 1 previous error
-warning: unused variable: `org_can_view_docs`
-warning: unused variable: `org_can_view_docs`
+warning: unused imports: `clamp_context_menu` and `download_document`
+warning: unused imports: `clamp_context_menu` and `download_document`
 warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
 warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 suggestion)
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 1 previous error
-error: could not compile `farley` (lib) due to 1 previous error
-warning: unused import: `Perm`
-warning: unused import: `Perm`
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
-warning: unused import: `Perm`
-warning: unused import: `Perm`
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-warning: unused variable: `current_user_id`
-warning: unused variable: `can_view_all`
-warning: unused variable: `current_user_id`
-warning: unused variable: `can_view_all`
-warning: `farley` (lib) generated 3 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 3 warnings emitted
-warning: `farley` (lib) generated 3 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 3 warnings emitted
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-warning: unused variable: `portfolio_visible`
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-warning: unused variable: `portfolio_visible`
-warning: `farley` (lib) generated 1 warning
-error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 7 previous errors
-error[E0507]: cannot move out of `org_name_for_doc_btn`, a captured variable in an `FnMut` closure
-error: could not compile `farley` (lib) due to 7 previous errors
-error[E0425]: cannot find value `org_name_for_doc_btn` in this scope
-error[E0425]: cannot find value `org_name_for_doc_btn` in this scope
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error: could not compile `farley` (lib) due to 6 previous errors
-error: could not compile `farley` (lib) due to 6 previous errors
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `cloned` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `collect` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error[E0631]: type mismatch in closure arguments
-error[E0599]: the method `map` exists for struct `std::iter::Filter<std::slice::Iter<'_, portfolio::Portfolio>, &{closure@src/pages/overview.rs:349:29: 349:72}>`, but its trait bounds were not satisfied
-error: could not compile `farley` (lib) due to 6 previous errors
-error: could not compile `farley` (lib) due to 6 previous errors
-error[E0425]: cannot find type `Uuid` in this scope
-error[E0425]: cannot find type `Uuid` in this scope
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-warning: unused variable: `user_id`
-warning: unused variable: `can_view_all`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-warning: unused variable: `user_id`
-warning: unused variable: `can_view_all`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-warning: unused variable: `user_id`
-warning: unused variable: `can_view_all`
-warning: unused variable: `user_id`
-warning: unused variable: `can_view_all`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 2 warnings emitted
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error: could not compile `farley` (lib) due to 2 previous errors
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-warning: unused variable: `user_id`
-warning: unused variable: `can_view_all`
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 4 previous errors; 2 warnings emitted
-warning: unused variable: `user_id`
-warning: unused variable: `can_view_all`
-warning: `farley` (lib) generated 2 warnings
-error: could not compile `farley` (lib) due to 4 previous errors; 2 warnings emitted
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 10 arguments but 8 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error: could not compile `farley` (lib) due to 4 previous errors
-error: could not compile `farley` (lib) due to 4 previous errors
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error[E0061]: this function takes 11 arguments but 9 arguments were supplied
-error: could not compile `farley` (lib) due to 2 previous errors
-error: could not compile `farley` (lib) due to 2 previous errors
+warning: unused import: `download_document`
+warning: unused import: `download_document`
+warning: `farley` (lib) generated 1 warning (run `cargo fix --lib -p farley` to apply 1 s

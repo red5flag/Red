@@ -36,6 +36,11 @@ fn portfolio_is_visible(
     can_view_all: bool,
     orgs: &OrganizationStore,
 ) -> bool {
+    if let Some(oid) = p.organization_id {
+        if !orgs.can_view_org_content(oid, user_id, can_view_all) {
+            return false;
+        }
+    }
     p.is_visible_to(user_id, can_view_all)
         || p.organization_id.map_or(can_view_all, |oid| {
             orgs.user_has_perm_in_org(oid, user_id, &Perm::ViewPortfolios)
@@ -48,6 +53,11 @@ fn asset_is_visible(
     can_view_all: bool,
     orgs: &OrganizationStore,
 ) -> bool {
+    if let Some(oid) = a.organization_id {
+        if !orgs.can_view_org_content(oid, user_id, can_view_all) {
+            return false;
+        }
+    }
     a.is_visible_to(user_id, can_view_all)
         || a.organization_id.map_or(can_view_all, |oid| {
             orgs.user_has_perm_in_org(oid, user_id, &Perm::ViewAssets)
@@ -60,10 +70,8 @@ fn org_is_visible(
     can_view_all: bool,
     orgs: &OrganizationStore,
 ) -> bool {
-    o.owner_id == user_id
-        || o.members.contains(&user_id)
+    orgs.can_view_org_content(o.id, user_id, can_view_all)
         || orgs.user_has_perm_in_org(o.id, user_id, &Perm::ViewOrganization)
-        || can_view_all
 }
 
 fn section_last_changed(
@@ -89,7 +97,12 @@ fn section_last_changed(
             .max(),
         "recent-transactions" => txn.transactions.iter().map(|t| t.created_at).max(),
         "recent-contacts" => org.organization_users.iter().map(|u| u.updated_at).max(),
-        "notifications" => notif.notifications.iter().map(|n| n.timestamp).max(),
+        "notifications" => notif
+            .notifications
+            .iter()
+            .filter(|n| app.notification_is_visible(n, org))
+            .map(|n| n.timestamp)
+            .max(),
         "property-overview" => app
             .portfolios
             .iter()
@@ -105,7 +118,13 @@ fn section_last_changed(
             .max(),
         "recent-activity" => {
             let mut times: Vec<DateTime<Utc>> = Vec::new();
-            times.extend(notif.notifications.iter().map(|n| n.timestamp));
+            times.extend(
+                notif
+                    .notifications
+                    .iter()
+                    .filter(|n| app.notification_is_visible(n, org))
+                    .map(|n| n.timestamp),
+            );
             times.extend(txn.transactions.iter().map(|t| t.created_at));
             times.extend(messenger.messages.iter().map(|m| m.timestamp));
             times.extend(cal.calendar_events.iter().map(|e| e.start));
@@ -215,7 +234,7 @@ fn section_change_count(
         "notifications" => notif
             .notifications
             .iter()
-            .filter(|n| n.timestamp >= cutoff)
+            .filter(|n| n.timestamp >= cutoff && app.notification_is_visible(n, org))
             .count(),
         "property-overview" => {
             let portfolio_count = app
@@ -244,7 +263,7 @@ fn section_change_count(
             notif
                 .notifications
                 .iter()
-                .filter(|n| n.timestamp >= cutoff)
+                .filter(|n| n.timestamp >= cutoff && app.notification_is_visible(n, org))
                 .count()
                 + txn
                     .transactions
@@ -541,7 +560,15 @@ pub fn OverviewPage() -> impl IntoView {
 
     // Recent notifications
     let recent_notifications = move || {
-        let mut notifs: Vec<_> = notification_store.get().notifications.clone();
+        let app = app_store.get();
+        let org = organization_store.get();
+        let mut notifs: Vec<_> = notification_store
+            .get()
+            .notifications
+            .iter()
+            .filter(|n| app.notification_is_visible(n, &org))
+            .cloned()
+            .collect();
         notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         notifs.into_iter().take(4).collect::<Vec<_>>()
     };
@@ -1270,7 +1297,11 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🔔"</span>
                         <span class="overview-square-label">"Notifications"</span>
-                        <span class="overview-square-count">{move || notification_store.get().notifications.len()}</span>
+                        <span class="overview-square-count">{move || {
+                            let app = app_store.get();
+                            let org = organization_store.get();
+                            notification_store.get().notifications.iter().filter(|n| app.notification_is_visible(n, &org)).count()
+                        }}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {

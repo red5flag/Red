@@ -10,8 +10,8 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, detect_file_type, name_click_handlers, read_image_as_data_url,
-    AddPortfolioModal, AssetTarget, DocEntry, DocSlider, PortfolioListItem,
+    asset_placeholder_url, clamp_context_menu, detect_file_type, name_click_handlers,
+    read_image_as_data_url, AddPortfolioModal, AssetTarget, DocEntry, DocSlider, PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -58,14 +58,18 @@ pub fn PortfoliosPage() -> impl IntoView {
                 .portfolios
                 .iter()
                 .filter(|p| {
-                    p.is_visible_to(user_id, can_view_all)
+                    p.organization_id.map_or(true, |oid| {
+                        organization_store
+                            .get()
+                            .can_view_org_content(oid, user_id, can_view_all)
+                    }) && (p.is_visible_to(user_id, can_view_all)
                         || p.organization_id.map_or(can_view_all, |oid| {
                             organization_store.get().user_has_perm_in_org(
                                 oid,
                                 user_id,
                                 &Perm::ViewPortfolios,
                             )
-                        })
+                        }))
                 })
                 .cloned()
                 .collect::<Vec<_>>()
@@ -399,7 +403,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                 on_context=move |ev: leptos::ev::MouseEvent| {
                     ev.prevent_default();
                     ev.stop_propagation();
-                    set_context_menu.set(Some((portfolio_id, ev.client_x(), ev.client_y())));
+                    let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                    set_context_menu.set(Some((portfolio_id, x, y)));
                 }
                 show_add_group={show_add_group}
                 set_show_add_group={set_show_add_group}
@@ -761,7 +766,8 @@ pub fn PortfoliosPage() -> impl IntoView {
             }}
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 ev.prevent_default();
-                set_context_menu.set(Some((Uuid::new_v4(), ev.client_x(), ev.client_y())));
+                let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                set_context_menu.set(Some((Uuid::new_v4(), x, y)));
             }>
                 {move || if grouped_portfolios.get().is_empty() {
                     view! {

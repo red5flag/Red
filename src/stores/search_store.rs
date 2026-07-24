@@ -1,4 +1,4 @@
-use crate::models::{Asset, Organization, Portfolio, User};
+use crate::models::{Asset, Document, Organization, Perm, Portfolio, User};
 use crate::stores::{AppStore, OrganizationStore};
 use crate::types::{SearchFilters, SortMode, TabType};
 use chrono::Utc;
@@ -44,10 +44,20 @@ pub struct SearchQuery {
     pub result_count: usize,
 }
 
+#[derive(Clone, Debug)]
+pub struct SearchDocumentResult {
+    pub document: Document,
+    pub portfolio_id: Uuid,
+    pub portfolio_name: String,
+    pub group_id: Option<Uuid>,
+    pub asset_id: Option<Uuid>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SearchResults {
     pub portfolios: Vec<Portfolio>,
     pub assets: Vec<Asset>,
+    pub documents: Vec<SearchDocumentResult>,
     pub organizations: Vec<Organization>,
     pub users: Vec<User>,
     pub total_count: usize,
@@ -55,13 +65,20 @@ pub struct SearchResults {
 }
 
 /// A single, mixed search result row.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SearchResultItem {
     Portfolio(Portfolio),
     Asset {
         asset: Asset,
         portfolio_id: Uuid,
         portfolio_name: String,
+    },
+    Document {
+        document: Document,
+        portfolio_id: Uuid,
+        portfolio_name: String,
+        group_id: Option<Uuid>,
+        asset_id: Option<Uuid>,
     },
     Organization(Organization),
     User(User),
@@ -72,6 +89,7 @@ impl SearchResultItem {
         match self {
             SearchResultItem::Portfolio(p) => p.id,
             SearchResultItem::Asset { asset, .. } => asset.id,
+            SearchResultItem::Document { document, .. } => document.id,
             SearchResultItem::Organization(o) => o.id,
             SearchResultItem::User(u) => u.id,
         }
@@ -81,6 +99,7 @@ impl SearchResultItem {
         match self {
             SearchResultItem::Portfolio(p) => p.name.clone(),
             SearchResultItem::Asset { asset, .. } => asset.name.clone(),
+            SearchResultItem::Document { document, .. } => document.name.clone(),
             SearchResultItem::Organization(o) => o.name.clone(),
             SearchResultItem::User(u) => u.name.clone(),
         }
@@ -90,6 +109,7 @@ impl SearchResultItem {
         match self {
             SearchResultItem::Portfolio(_) => "Portfolio",
             SearchResultItem::Asset { .. } => "Asset",
+            SearchResultItem::Document { .. } => "Document",
             SearchResultItem::Organization(_) => "Organization",
             SearchResultItem::User(_) => "Member",
         }
@@ -99,6 +119,7 @@ impl SearchResultItem {
         match self {
             SearchResultItem::Portfolio(p) => p.last_accessed_at,
             SearchResultItem::Asset { asset, .. } => asset.last_accessed_at,
+            SearchResultItem::Document { document, .. } => document.uploaded_at,
             SearchResultItem::Organization(o) => o.updated_at,
             SearchResultItem::User(u) => u.updated_at,
         }
@@ -108,6 +129,7 @@ impl SearchResultItem {
         match self {
             SearchResultItem::Portfolio(p) => p.updated_at,
             SearchResultItem::Asset { asset, .. } => asset.last_accessed_at,
+            SearchResultItem::Document { document, .. } => document.uploaded_at,
             SearchResultItem::Organization(o) => o.updated_at,
             SearchResultItem::User(u) => u.updated_at,
         }
@@ -122,6 +144,7 @@ impl SearchResultItem {
             SearchResultItem::Asset { asset, .. } => {
                 asset.current_value + asset.revenue + asset.profit_loss.max(0.0)
             }
+            SearchResultItem::Document { .. } => 50.0,
             SearchResultItem::Organization(o) => {
                 o.members.len() as f64 * 500.0 + o.roles.len() as f64 * 200.0
             }
@@ -134,6 +157,8 @@ impl SearchResultItem {
         match (self, tab) {
             (SearchResultItem::Portfolio(_), TabType::Portfolios) => true,
             (SearchResultItem::Asset { .. }, TabType::Portfolios) => true,
+            (SearchResultItem::Document { .. }, TabType::Portfolios) => true,
+            (SearchResultItem::Document { .. }, TabType::Reporting) => true,
             (SearchResultItem::Organization(_), TabType::Organization) => true,
             (SearchResultItem::User(_), TabType::Networking) => true,
             (SearchResultItem::User(_), TabType::NetworkingAddMember) => true,
@@ -267,8 +292,13 @@ impl SearchStore {
         // Collect all visible items across data types.
         let mut items: Vec<SearchResultItem> = Vec::new();
 
-        // Portfolios and assets
+        // Portfolios, assets, and documents
         for p in &app_store.portfolios {
+            if let Some(oid) = p.organization_id {
+                if !organization_store.can_view_org_content(oid, user_id, can_view_all) {
+                    continue;
+                }
+            }
             let visible = can_view_all
                 || p.owner_id == user_id
                 || p.organization_id
@@ -282,7 +312,74 @@ impl SearchStore {
                 items.push(SearchResultItem::Portfolio(p.clone()));
             }
 
-            for asset in p.get_all_assets() {
+            // Portfolio-level documents
+            for doc in &p.documents {
+                if empty_query || Self::document_matches(doc, &query_lower) {
+                    items.push(SearchResultItem::Document {
+                        document: doc.clone(),
+                        portfolio_id: p.id,
+                        portfolio_name: p.name.clone(),
+                        group_id: None,
+                        asset_id: None,
+                    });
+                }
+            }
+
+            for group in &p.asset_groups {
+                // Group-level documents
+                for doc in &group.documents {
+                    if empty_query || Self::document_matches(doc, &query_lower) {
+                        items.push(SearchResultItem::Document {
+                            document: doc.clone(),
+                            portfolio_id: p.id,
+                            portfolio_name: p.name.clone(),
+                            group_id: Some(group.id),
+                            asset_id: None,
+                        });
+                    }
+                }
+
+                for asset in &group.assets {
+                    if let Some(oid) = asset.organization_id {
+                        if !organization_store.can_view_org_content(oid, user_id, can_view_all) {
+                            continue;
+                        }
+                    }
+                    let asset_visible = can_view_all
+                        || asset
+                            .organization_id
+                            .map_or(false, |oid| org_ids.contains(&oid))
+                        || asset.assigned_workers.contains(&user_id);
+                    if !asset_visible {
+                        continue;
+                    }
+                    if empty_query || Self::asset_matches(asset, &query_lower, &self.filters) {
+                        items.push(SearchResultItem::Asset {
+                            asset: asset.clone(),
+                            portfolio_id: p.id,
+                            portfolio_name: p.name.clone(),
+                        });
+                    }
+                    for doc in &asset.documents {
+                        if empty_query || Self::document_matches(doc, &query_lower) {
+                            items.push(SearchResultItem::Document {
+                                document: doc.clone(),
+                                portfolio_id: p.id,
+                                portfolio_name: p.name.clone(),
+                                group_id: Some(group.id),
+                                asset_id: Some(asset.id),
+                            });
+                        }
+                    }
+                }
+            }
+
+            for asset in &p.assets {
+                if let Some(oid) = asset.organization_id {
+                    if !organization_store.can_view_org_content(oid, user_id, can_view_all) {
+                        continue;
+                    }
+                }
                 let asset_visible = can_view_all
                     || asset
                         .organization_id
@@ -298,11 +395,27 @@ impl SearchStore {
                         portfolio_name: p.name.clone(),
                     });
                 }
+                for doc in &asset.documents {
+                    if empty_query || Self::document_matches(doc, &query_lower) {
+                        items.push(SearchResultItem::Document {
+                            document: doc.clone(),
+                            portfolio_id: p.id,
+                            portfolio_name: p.name.clone(),
+                            group_id: None,
+                            asset_id: Some(asset.id),
+                        });
+                    }
+                }
             }
         }
 
         // Organizations
         for o in &organization_store.organizations {
+            if !organization_store.can_view_org_content(o.id, user_id, can_view_all)
+                && !organization_store.user_has_perm_in_org(o.id, user_id, &Perm::ViewOrganization)
+            {
+                continue;
+            }
             if empty_query || Self::org_matches(o, &query_lower) {
                 items.push(SearchResultItem::Organization(o.clone()));
             }
@@ -354,23 +467,41 @@ impl SearchStore {
 
         let mut portfolios = Vec::new();
         let mut assets = Vec::new();
+        let mut documents = Vec::new();
         let mut organizations = Vec::new();
         let mut users = Vec::new();
         for item in combined {
             match item {
                 SearchResultItem::Portfolio(p) => portfolios.push(p),
                 SearchResultItem::Asset { asset, .. } => assets.push(asset),
+                SearchResultItem::Document {
+                    document,
+                    portfolio_id,
+                    portfolio_name,
+                    group_id,
+                    asset_id,
+                } => {
+                    documents.push(SearchDocumentResult {
+                        document,
+                        portfolio_id,
+                        portfolio_name,
+                        group_id,
+                        asset_id,
+                    });
+                }
                 SearchResultItem::Organization(o) => organizations.push(o),
                 SearchResultItem::User(u) => users.push(u),
             }
         }
 
-        let total = portfolios.len() + assets.len() + organizations.len() + users.len();
+        let total =
+            portfolios.len() + assets.len() + documents.len() + organizations.len() + users.len();
         let elapsed = start.elapsed().map(|d| d.as_millis() as u64).unwrap_or(0);
 
         self.results = SearchResults {
             portfolios,
             assets,
+            documents,
             organizations,
             users,
             total_count: total,
@@ -393,16 +524,19 @@ impl SearchStore {
                 TabType::Networking | TabType::NetworkingAddMember => {
                     self.results.portfolios.clear();
                     self.results.assets.clear();
+                    self.results.documents.clear();
                     self.results.organizations.clear();
                 }
                 TabType::Organization => {
                     self.results.portfolios.clear();
                     self.results.assets.clear();
+                    self.results.documents.clear();
                 }
                 _ => {}
             }
             self.results.total_count = self.results.portfolios.len()
                 + self.results.assets.len()
+                + self.results.documents.len()
                 + self.results.organizations.len()
                 + self.results.users.len();
         }
@@ -479,6 +613,15 @@ impl SearchStore {
             .map_or(true, |s| status_str == s.to_lowercase());
 
         matches_query && matches_type && matches_value && matches_date && matches_status
+    }
+
+    fn document_matches(d: &Document, query: &str) -> bool {
+        query.is_empty()
+            || d.name.to_lowercase().contains(query)
+            || d.file_type.to_lowercase().contains(query)
+            || d.content
+                .as_ref()
+                .map_or(false, |c| c.to_lowercase().contains(query))
     }
 
     /// Relevance score for empty-query recommendations.
@@ -621,18 +764,28 @@ pub async fn perform_meilisearch(
 
     search_store.is_loading = true;
 
-    let meili_result = search_meilisearch(&config, &query, &filters).await;
+    // If Meilisearch is not configured (no API key), run local search directly so
+    // results appear immediately in dev / test environments.
+    if config.api_key.is_empty() {
+        search_store.perform_search(app_store, organization_store);
+    } else {
+        let meili_result = search_meilisearch(&config, &query, &filters).await;
 
-    match meili_result {
-        Ok(results) => {
-            search_store.results = results;
-        }
-        Err(err) => {
-            leptos::logging::log!(
-                "Meilisearch search failed, falling back to local search: {}",
-                err
-            );
-            search_store.perform_search(app_store, organization_store);
+        match meili_result {
+            Ok(results) if results.total_count > 0 => {
+                search_store.results = results;
+            }
+            Ok(_) => {
+                leptos::logging::log!("Meilisearch returned no results; using local search.");
+                search_store.perform_search(app_store, organization_store);
+            }
+            Err(err) => {
+                leptos::logging::log!(
+                    "Meilisearch search failed, falling back to local search: {}",
+                    err
+                );
+                search_store.perform_search(app_store, organization_store);
+            }
         }
     }
 
@@ -809,6 +962,7 @@ fn parse_meilisearch_response(json: serde_json::Value) -> Result<SearchResults, 
     Ok(SearchResults {
         portfolios,
         assets,
+        documents: Vec::new(),
         organizations,
         users,
         total_count,
@@ -953,5 +1107,163 @@ impl MeilisearchClient {
             .await?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::stores::notifications::NotificationStore;
+    use crate::stores::seed_data::seed_red_family_data;
+    use crate::stores::AppStore;
+    use crate::stores::OrganizationStore;
+    use crate::types::{TabType, UserRole};
+
+    fn seeded_stores() -> (AppStore, OrganizationStore) {
+        let mut app_store = AppStore::default();
+        app_store.current_user.name = "Red".to_string();
+        app_store.current_user.email = "red@example.com".to_string();
+        app_store.current_user.role = UserRole::Owner;
+        let mut organization_store = OrganizationStore::new();
+        let mut notification_store = NotificationStore::default();
+        seed_red_family_data(
+            &mut app_store,
+            &mut organization_store,
+            &mut notification_store,
+        );
+        app_store
+            .portfolios
+            .push(crate::stores::seed_data::seed_default_portfolio(
+                app_store.current_user.id,
+            ));
+        (app_store, organization_store)
+    }
+
+    #[test]
+    fn search_finds_portfolio_group_and_asset_documents() {
+        let (app_store, organization_store) = seeded_stores();
+        let mut search_store = SearchStore::new();
+        search_store.set_context_tab(TabType::Portfolios);
+        search_store.set_query("Title Deed".to_string());
+        search_store.perform_search(&app_store, &organization_store);
+
+        assert!(
+            !search_store.results.documents.is_empty(),
+            "expected documents for 'Title Deed'"
+        );
+        assert!(
+            search_store.results.total_count > 0,
+            "expected total_count > 0"
+        );
+        assert!(
+            search_store
+                .results
+                .documents
+                .iter()
+                .any(|d| d.document.name == "Title Deed"),
+            "expected a 'Title Deed' document in results"
+        );
+    }
+
+    #[test]
+    fn search_finds_portfolio_level_documents() {
+        let (app_store, organization_store) = seeded_stores();
+        let mut search_store = SearchStore::new();
+        search_store.set_context_tab(TabType::Portfolios);
+        search_store.set_query("Portfolio Overview".to_string());
+        search_store.perform_search(&app_store, &organization_store);
+
+        assert!(
+            search_store
+                .results
+                .documents
+                .iter()
+                .any(|d| d.document.name == "Portfolio Overview"),
+            "expected 'Portfolio Overview' document"
+        );
+    }
+
+    #[test]
+    fn search_finds_group_level_documents() {
+        let (app_store, organization_store) = seeded_stores();
+        let mut search_store = SearchStore::new();
+        search_store.set_context_tab(TabType::Portfolios);
+        search_store.set_query("Group Overview".to_string());
+        search_store.perform_search(&app_store, &organization_store);
+
+        assert!(
+            search_store
+                .results
+                .documents
+                .iter()
+                .any(|d| d.document.name == "Group Overview"),
+            "expected 'Group Overview' group-level document"
+        );
+    }
+
+    #[test]
+    fn search_finds_organizations() {
+        let (app_store, organization_store) = seeded_stores();
+        let mut search_store = SearchStore::new();
+        search_store.set_context_tab(TabType::Organization);
+        search_store.set_query("RedOrg".to_string());
+        search_store.perform_search(&app_store, &organization_store);
+
+        assert!(
+            search_store
+                .results
+                .organizations
+                .iter()
+                .any(|o| o.name.contains("RedOrg")),
+            "expected 'RedOrg' organization in Organization tab results"
+        );
+        assert!(
+            search_store.results.total_count > 0,
+            "expected total_count > 0"
+        );
+    }
+
+    #[test]
+    fn search_finds_users_in_networking_tab() {
+        let (app_store, organization_store) = seeded_stores();
+        let mut search_store = SearchStore::new();
+        search_store.set_context_tab(TabType::Networking);
+        search_store.set_query("Red".to_string());
+        search_store.perform_search(&app_store, &organization_store);
+
+        assert!(
+            search_store
+                .results
+                .users
+                .iter()
+                .any(|u| u.name.contains("Red")),
+            "expected a Red user in Networking tab results"
+        );
+        assert!(
+            search_store.results.total_count > 0,
+            "expected total_count > 0"
+        );
+    }
+
+    #[test]
+    fn search_finds_portfolios_in_reporting_tab() {
+        let (app_store, organization_store) = seeded_stores();
+        let mut search_store = SearchStore::new();
+        search_store.set_context_tab(TabType::Reporting);
+        search_store.set_query("Commercial Real Estate".to_string());
+        search_store.perform_search(&app_store, &organization_store);
+
+        assert!(
+            search_store
+                .results
+                .portfolios
+                .iter()
+                .any(|p| p.name == "Commercial Real Estate"),
+            "expected 'Commercial Real Estate' portfolio in Reporting tab results"
+        );
+        assert!(
+            search_store.results.total_count > 0,
+            "expected total_count > 0"
+        );
     }
 }

@@ -6096,6 +6096,10 @@ html, body {
     border: 2px solid var(--border-color);
     z-index: 2501;
     min-width: 120px;
+    max-width: 240px;
+    max-width: min(240px, 90vw);
+    max-height: min(320px, 80vh);
+    overflow-y: auto;
 }
 
 .context-menu-item {
@@ -6536,8 +6540,8 @@ html, body {
 .grid-view-6,
 .grid-view-12 {
     display: grid;
-    gap: 8px;
-    padding: 8px;
+    gap: 0;
+    padding: 0;
 }
 
 .grid-view-3 {
@@ -6558,6 +6562,12 @@ html, body {
     flex-direction: column;
     gap: 8px;
     padding: 0;
+}
+
+/* Portfolio asset lists should have items touching */
+#av-direct-content .asset-list,
+.asset-group-assets.asset-list {
+    gap: 0;
 }
 
 .asset-list-tabs {
@@ -8751,6 +8761,7 @@ html, body {
     grid-auto-flow: dense;
     grid-auto-rows: minmax(0, auto);
     gap: 12px;
+    margin-top: 8px;
     padding-bottom: 2vh;
     flex-shrink: 0;
 }
@@ -16249,4 +16260,38 @@ html, body {
     max-width: min(80vw, 480px);
     min-width: 120px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Linking & Booking modal tabs */
+.lbm-tabs {
+    display: flex;
+    border-bottom: 2px solid var(--border-color);
+    flex-shrink: 0;
+    background: var(--accent-bg);
+}
+.lbm-tab {
+    flex: 1;
+    padding: 10px 12px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.lbm-tab:hover {
+    color: var(--text-primary);
+    background: var(--primary-bg);
+}
+.lbm-tab-active,
+.lbm-tab-active:hover {
+    color: var(--highlight);
+    border-bottom-color: var(--highlight);
+    background: var(--primary-bg);
+}
+.lbm-body {
+    padding: 8px;
 }

@@ -131,6 +131,7 @@ pub fn DocModal(
     #[prop(default = None)] asset_id: Option<Uuid>,
     #[prop(default = None)] organization_id: Option<Uuid>,
     #[prop(default = None)] initial_doc: Option<Document>,
+    #[prop(default = false)] batch: bool,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let organization_store = use_organization_store();
@@ -377,22 +378,45 @@ pub fn DocModal(
                                 />
                             </div>
                             {if can_edit {
+                                let batch_label = if batch { "Add each line as a document…" } else { "New document name…" };
+                                let batch_btn = if batch { "+ Batch Add" } else { "+ Add" };
                                 view! {
                                     <div class="doc-modal-add-row">
-                                        <input class="doc-modal-add-input" type="text"
-                                            placeholder="New document name…"
-                                            aria-label="New document name"
-                                            prop:value=move || new_doc_name.get()
-                                            on:input=move |ev| set_new_doc_name.set(event_target_value(&ev)) />
+                                        {if batch {
+                                            view! {
+                                                <textarea class="doc-modal-add-input"
+                                                    rows="3"
+                                                    placeholder={batch_label}
+                                                    aria-label="New document names"
+                                                    prop:value=move || new_doc_name.get()
+                                                    on:input=move |ev| set_new_doc_name.set(event_target_value(&ev))></textarea>
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <input class="doc-modal-add-input" type="text"
+                                                    placeholder={batch_label}
+                                                    aria-label="New document name"
+                                                    prop:value=move || new_doc_name.get()
+                                                    on:input=move |ev| set_new_doc_name.set(event_target_value(&ev)) />
+                                            }.into_any()
+                                        }}
                                         <button class="doc-modal-add-btn"
                                             on:click=move |_| {
                                                 let n = new_doc_name.get();
-                                                if !n.trim().is_empty() {
+                                                if batch {
+                                                    for line in n.lines() {
+                                                        let line = line.trim();
+                                                        if !line.is_empty() {
+                                                            if let Some(cb) = &on_add_cb { cb.run(line.to_string()); }
+                                                        }
+                                                    }
+                                                    set_new_doc_name.set(String::new());
+                                                } else if !n.trim().is_empty() {
                                                     if let Some(cb) = &on_add_cb { cb.run(n); }
                                                     set_new_doc_name.set(String::new());
                                                 }
                                             }>
-                                            "+ Add"
+                                            {batch_btn}
                                         </button>
                                     </div>
                                 }.into_any()
