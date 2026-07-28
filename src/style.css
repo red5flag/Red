@@ -16618,3 +16618,27 @@ html, body {
         box-shadow: inset 0 0 0 100vmax transparent;
     }
 }
+
+/* Asset document dropdown — DocModal rendered inline under the document slider */
+.ai-doc-dropdown {
+    width: 100%;
+}
+.ai-doc-dropdown .doc-modal-overlay {
+    position: relative;
+    inset: auto;
+    background: transparent;
+    display: block;
+    z-index: 1;
+}
+.ai-doc-dropdown .doc-modal {
+    width: 100% !important;
+    max-width: none;
+    max-height: 60vh;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+.ai-doc-dropdown .doc-modal.doc-modal-tabbed {
+    width: 100% !important;
+    max-width: none;
+    max-height: 60vh !important;
+}

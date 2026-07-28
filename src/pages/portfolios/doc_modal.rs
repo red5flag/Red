@@ -377,7 +377,7 @@ pub fn DocModal(
                                     }
                                 />
                             </div>
-                            {if can_edit {
+                            {if can_edit && on_add.is_some() {
                                 let batch_label = if batch { "Add each line as a document…" } else { "New document name…" };
                                 let batch_btn = if batch { "+ Batch Add" } else { "+ Add" };
                                 view! {

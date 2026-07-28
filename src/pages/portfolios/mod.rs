@@ -345,7 +345,7 @@ pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetItem};
 pub(crate) use asset_viewer::AssetViewer;
 pub(crate) use doc_dropdown::DocEntry;
-pub(crate) use doc_modal::{DocModal, DocumentViewer};
+pub(crate) use doc_modal::DocModal;
 pub(crate) use doc_slider::DocSlider;
 pub(crate) use portfolio_list::PortfolioListItem;
 

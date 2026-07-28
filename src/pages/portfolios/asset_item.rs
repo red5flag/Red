@@ -1,4 +1,4 @@
-use crate::models::Asset;
+use crate::models::{Asset, Document};
 use crate::stores::{use_app_store, use_organization_store, use_transaction_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::{
     clamp_context_menu, detect_file_type, document_icon, download_document, name_click_handlers,
     read_images_as_data_urls, shorthand_name, AddChannelModal, AssetBookingControls,
-    AssetChannelsSection, AssetLinkingControls, DocModal, DocumentViewer, UserAssignmentPanel,
+    AssetChannelsSection, AssetLinkingControls, DocModal, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -188,6 +188,35 @@ pub(crate) fn AssetItem(
     let (editing_org, set_editing_org) = signal(false);
     let (address_suggestions, set_address_suggestions) = signal(Vec::<String>::new());
 
+    // Local state for the inline document dropdown below the asset slider.
+    #[derive(Clone)]
+    enum DocModalTarget {
+        Add,
+        Batch,
+        View(Document),
+    }
+    let doc_modal_version = Arc::new(AtomicU64::new(0));
+    let (doc_modal_state, set_doc_modal_state) = signal(Option::<(u64, DocModalTarget)>::None);
+    let open_doc_modal = Callback::new({
+        let version = doc_modal_version.clone();
+        let set_state = set_doc_modal_state;
+        move |target: DocModalTarget| {
+            let v = version.fetch_add(1, Ordering::SeqCst);
+            set_state.set(Some((v, target)));
+        }
+    });
+
+    // External triggers (e.g. context menu "Add Document") open the dropdown in Add mode.
+    Effect::new({
+        let open = open_doc_modal.clone();
+        move |_| {
+            if ui_store.get().is_doc_modal_open(asset_id) {
+                open.run(DocModalTarget::Add);
+                ui_store.update(|s| s.close_doc_modal(asset_id));
+            }
+        }
+    });
+
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
 
@@ -231,6 +260,20 @@ pub(crate) fn AssetItem(
             .find(|a| a.id == asset_id)
             .map(|a| a.documents.clone())
             .unwrap_or_default()
+    });
+
+    // Deep-link from search: open the requested document in the dropdown.
+    Effect::new({
+        let open = open_doc_modal.clone();
+        move |_| {
+            if let Some(did) = app_store.get().pending_doc_view {
+                if let Some(doc) = asset_docs_reactive.get().iter().find(|d| d.id == did).cloned() {
+                    open.run(DocModalTarget::View(doc));
+                    app_store.update(|s| s.pending_doc_view = None);
+                    crate::utils::dom::scroll_to_id(&format!("doc-card-{}", did));
+                }
+            }
+        }
     });
 
     // Reactive image list for this asset
@@ -691,7 +734,6 @@ pub(crate) fn AssetItem(
     } else {
         None
     };
-    let (show_batch_doc_modal, set_show_batch_doc_modal) = signal(false);
 
     let asset_id_for_assign = asset_id;
     let portfolio_id_for_assign = portfolio_id;
@@ -919,7 +961,7 @@ pub(crate) fn AssetItem(
                         // + Document card (always first)
                         <div class="ai-doc-slider-item ai-doc-add-card" class:ai-perm-hidden={move || !can_upload_documents()}
                             aria-label={format!("Add document to {}", a_name)}
-                            on:click=move |_| ui_store.update(|s| s.toggle_doc_modal(asset_id))>
+                            on:click=move |_| open_doc_modal.run(DocModalTarget::Add)>
                             <div class="ai-doc-slider-thumb">"➕"</div>
                             <div class="ai-doc-slider-name">"+ Document"</div>
                             <div class="ai-doc-slider-type">"ADD"</div>
@@ -941,18 +983,21 @@ pub(crate) fn AssetItem(
                                 let (doc_ctx_menu_x, set_doc_ctx_menu_x) = signal(0i32);
                                 let (doc_ctx_menu_y, set_doc_ctx_menu_y) = signal(0i32);
                                 let (show_doc_ctx_menu, set_show_doc_ctx_menu) = signal(false);
-                                let (viewing, set_viewing) = signal(false);
                                 let (show_tooltip, set_show_tooltip) = signal(false);
                                 let (tooltip_x, set_tooltip_x) = signal(0i32);
                                 let (tooltip_y, set_tooltip_y) = signal(0i32);
                                 let tooltip_text = dname.clone();
 
                                 // Deep-link from search: open this specific document and scroll its card into view.
-                                Effect::new(move |_| {
-                                    if app_store.get().pending_doc_view == Some(doc_id) {
-                                        set_viewing.set(true);
-                                        app_store.update(|s| s.pending_doc_view = None);
-                                        crate::utils::dom::scroll_to_id(&format!("doc-card-{}", doc_id));
+                                Effect::new({
+                                    let open = open_doc_modal.clone();
+                                    let doc = doc_for_view.clone();
+                                    move |_| {
+                                        if app_store.get().pending_doc_view == Some(doc_id) {
+                                            open.run(DocModalTarget::View(doc.clone()));
+                                            app_store.update(|s| s.pending_doc_view = None);
+                                            crate::utils::dom::scroll_to_id(&format!("doc-card-{}", doc_id));
+                                        }
                                     }
                                 });
 
@@ -980,7 +1025,7 @@ pub(crate) fn AssetItem(
                                     <div class="ai-doc-slider-item"
                                         id={format!("doc-card-{}", doc_id)}
                                         aria-label={format!("View document {}. Type {}", dname, ft)}
-                                        on:click=move |_| set_viewing.set(true)
+                                        on:click=move |_| open_doc_modal.run(DocModalTarget::View(doc_for_view.clone()))
                                         on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                                             ev.prevent_default();
                                             ev.stop_propagation();
@@ -1012,20 +1057,6 @@ pub(crate) fn AssetItem(
                                             }.into_any()
                                         } else { ().into_any() }}
                                     </div>
-                                    {move || if viewing.get() {
-                                        let d = doc_for_view.clone();
-                                        view! {
-                                            <div class="doc-modal-overlay" on:click=move |_| set_viewing.set(false)>
-                                                <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
-                                                    <DocumentViewer
-                                                        doc={d.clone()}
-                                                        on_close=move || set_viewing.set(false)
-                                                        can_edit={can_edit_documents_here.get()}
-                                                    />
-                                                </div>
-                                            </div>
-                                        }.into_any()
-                                    } else { ().into_any() }}
                                     // Document context menu
                                     {move || if show_doc_ctx_menu.get() {
                                         let dx = doc_ctx_menu_x.get();
@@ -1045,7 +1076,7 @@ pub(crate) fn AssetItem(
                                                             <button class="context-menu-item"
                                                                 on:click=move |_| {
                                                                     set_show_doc_ctx_menu.set(false);
-                                                                    set_show_batch_doc_modal.set(true);
+                                                                    open_doc_modal.run(DocModalTarget::Batch);
                                                                 }
                                                             >"➕ Batch Add"</button>
                                                         }.into_any()
@@ -1062,6 +1093,60 @@ pub(crate) fn AssetItem(
                                             </div>
                                         }.into_any()
                                     } else { ().into_any() }}
+                                }
+                            }
+                        />
+                    </div>
+                    // Inline document dropdown — appears under the document slider
+                    <div class="ai-doc-dropdown">
+                        <For
+                            each=move || { doc_modal_state.get().into_iter().collect::<Vec<_>>() }
+                            key=|item| item.0
+                            children=move |item| {
+                                let (_, target) = item;
+                                let close = {
+                                    let set_state = set_doc_modal_state;
+                                    move || set_state.set(None)
+                                };
+                                match target {
+                                    DocModalTarget::Add => view! {
+                                        <DocModal
+                                            entity_id={asset_id}
+                                            title={asset_name_signal.get()}
+                                            on_close=close
+                                            can_edit={can_edit_documents_here.get()}
+                                            on_add={add_cb.clone()}
+                                            portfolio_id={portfolio_id}
+                                            group_id={group_id}
+                                            asset_id={Some(asset_id)}
+                                        />
+                                    }.into_any(),
+                                    DocModalTarget::Batch => view! {
+                                        <DocModal
+                                            entity_id={asset_id}
+                                            title={format!("Batch Add - {}", asset_name_signal.get())}
+                                            on_close=close
+                                            can_edit={can_edit_documents_here.get()}
+                                            on_add={add_cb.clone()}
+                                            portfolio_id={portfolio_id}
+                                            group_id={group_id}
+                                            asset_id={Some(asset_id)}
+                                            batch={true}
+                                        />
+                                    }.into_any(),
+                                    DocModalTarget::View(doc) => view! {
+                                        <DocModal
+                                            entity_id={asset_id}
+                                            title={doc.name.clone()}
+                                            on_close=close
+                                            can_edit={can_edit_documents_here.get()}
+                                            on_add={None}
+                                            portfolio_id={portfolio_id}
+                                            group_id={group_id}
+                                            asset_id={Some(asset_id)}
+                                            initial_doc={Some(doc)}
+                                        />
+                                    }.into_any(),
                                 }
                             }
                         />
@@ -1222,41 +1307,6 @@ pub(crate) fn AssetItem(
                     </div>
                 </div>
             </div>
-
-            {move || if ui_store.get().is_doc_modal_open(asset_id) {
-                let mt = asset_name_signal.get();
-                let ac = add_cb.clone();
-                view! {
-                    <DocModal
-                        entity_id={asset_id}
-                        title={mt}
-                        on_close=move || ui_store.update(|s| s.close_doc_modal(asset_id))
-                        can_edit={can_edit_documents_here.get()}
-                        on_add={ac}
-                        portfolio_id={portfolio_id}
-                        group_id={group_id}
-                        asset_id={Some(asset_id)}
-                    />
-                }.into_any()
-            } else { ().into_any() }}
-
-            {move || if show_batch_doc_modal.get() {
-                let mt = asset_name_signal.get();
-                let ac = add_cb.clone();
-                view! {
-                    <DocModal
-                        entity_id={asset_id}
-                        title={format!("Batch Add - {}", mt)}
-                        on_close=move || set_show_batch_doc_modal.set(false)
-                        can_edit={can_edit_documents_here.get()}
-                        on_add={ac}
-                        portfolio_id={portfolio_id}
-                        group_id={group_id}
-                        asset_id={Some(asset_id)}
-                        batch={true}
-                    />
-                }.into_any()
-            } else { ().into_any() }}
 
             // Asset context menu (right-click / tap-and-hold)
             {move || asset_context_menu.get().map(|(x, y)| {
