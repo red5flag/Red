@@ -3,7 +3,7 @@ use crate::models::{
     Asset, AssetGroup, AvailabilityStatus, Channel, CommercialStatus, ConditionStatus, Document,
     LifecycleStatus, Organization, Perm, Portfolio,
 };
-use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
+use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store, ScrollTarget};
 use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -158,6 +158,107 @@ pub fn PortfoliosPage() -> impl IntoView {
         }
     };
 
+    let navigate_from_tab = move |kind: NavTabKind, id: Uuid| {
+        set_active_tab_id.set(Some(id));
+        match kind {
+            NavTabKind::Organization => {
+                set_expanded_orgs.update(|s| { s.insert(id); });
+                crate::utils::dom::scroll_to_id(&format!("org-group-{}", id));
+            }
+            NavTabKind::Portfolio => {
+                app_store.update(|s| {
+                    s.touch_portfolio(id);
+                    s.selected_portfolio_ids.insert(id);
+                    s.pending_scroll_target = Some(ScrollTarget::Portfolio(id));
+                });
+            }
+            NavTabKind::AssetGroup => {
+                if let Some((portfolio_id, group_id)) = app_store.with(|s| {
+                    s.portfolios.iter().find_map(|p| {
+                        p.asset_groups
+                            .iter()
+                            .find(|g| g.id == id)
+                            .map(|g| (p.id, g.id))
+                    })
+                }) {
+                    app_store.update(|s| {
+                        s.touch_portfolio(portfolio_id);
+                        s.selected_portfolio_ids.insert(portfolio_id);
+                        s.selected_asset_group_id = Some(group_id);
+                        s.pending_group_expand = Some(group_id);
+                        s.pending_scroll_target = Some(ScrollTarget::AssetGroup(group_id));
+                    });
+                }
+            }
+            NavTabKind::Asset => {
+                if let Some((portfolio_id, group_id, asset_id)) = app_store.with(|s| {
+                    s.portfolios.iter().find_map(|p| {
+                        if let Some(a) = p.assets.iter().find(|a| a.id == id) {
+                            Some((p.id, None, a.id))
+                        } else {
+                            p.asset_groups.iter().find_map(|g| {
+                                g.assets
+                                    .iter()
+                                    .find(|a| a.id == id)
+                                    .map(|a| (p.id, Some(g.id), a.id))
+                            })
+                        }
+                    })
+                }) {
+                    app_store.update(|s| {
+                        s.touch_portfolio(portfolio_id);
+                        s.selected_portfolio_ids.insert(portfolio_id);
+                        s.selected_asset_id = Some(asset_id);
+                        s.pending_group_expand = group_id;
+                        s.pending_asset_detail = Some(asset_id);
+                        s.pending_scroll_target = Some(ScrollTarget::Asset(asset_id));
+                    });
+                }
+            }
+            NavTabKind::Document => {
+                if let Some((portfolio_id, group_id, asset_id)) = app_store.with(|s| {
+                    s.portfolios.iter().find_map(|p| {
+                        if p.documents.iter().any(|d| d.id == id) {
+                            return Some((p.id, None, None));
+                        }
+                        if let Some(g) = p
+                            .asset_groups
+                            .iter()
+                            .find(|g| g.documents.iter().any(|d| d.id == id))
+                        {
+                            return Some((p.id, Some(g.id), None));
+                        }
+                        for g in &p.asset_groups {
+                            if let Some(a) = g.assets.iter().find(|a| a.documents.iter().any(|d| d.id == id)) {
+                                return Some((p.id, Some(g.id), Some(a.id)));
+                            }
+                        }
+                        if let Some(a) = p.assets.iter().find(|a| a.documents.iter().any(|d| d.id == id)) {
+                            return Some((p.id, None, Some(a.id)));
+                        }
+                        None
+                    })
+                }) {
+                    app_store.update(|s| {
+                        s.touch_portfolio(portfolio_id);
+                        s.selected_portfolio_ids.insert(portfolio_id);
+                        s.pending_group_expand = group_id;
+                        s.selected_asset_group_id = group_id;
+                        if asset_id.is_none() {
+                            if let Some(gid) = group_id {
+                                s.pending_doc_slider = Some(gid);
+                            } else {
+                                s.pending_doc_slider = Some(portfolio_id);
+                            }
+                        }
+                        s.pending_doc_view = Some(id);
+                        s.pending_scroll_target = Some(ScrollTarget::Document(id));
+                    });
+                }
+            }
+        }
+    };
+
     let render_nav_tabs = move || {
         view! {
             {move || if nav_tabs.get().is_empty() { ().into_any() } else {
@@ -169,28 +270,12 @@ pub fn PortfoliosPage() -> impl IntoView {
                             let tab_id = tab.id;
                             let kind = tab.kind;
                             let name = tab.name.clone();
-                            let app_store_inner = app_store;
-                            let set_orgs = set_expanded_orgs;
                             view! {
                                 <div class="pf-nav-tab"
                                     class:active={move || active_tab_id.get() == Some(tab_id)}
                                     title={format!("{} {}", kind.icon(), name)}
                                     on:click=move |_| {
-                                        set_active_tab_id.set(Some(tab_id));
-                                        match kind {
-                                            NavTabKind::Organization => {
-                                                set_orgs.update(|s| { s.insert(tab_id); });
-                                                crate::utils::dom::scroll_to_id(&format!("org-group-{}", tab_id));
-                                            }
-                                            NavTabKind::Portfolio => {
-                                                app_store_inner.update(|s| {
-                                                    s.selected_portfolio_ids.insert(tab_id);
-                                                    s.touch_portfolio(tab_id);
-                                                });
-                                                crate::utils::dom::scroll_to_id(&format!("portfolio-{}", tab_id));
-                                            }
-                                            _ => {}
-                                        }
+                                        navigate_from_tab(kind, tab_id);
                                     }
                                 >
                                     <span class="pf-nav-tab-icon">{kind.icon()}</span>

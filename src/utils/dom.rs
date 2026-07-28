@@ -16,6 +16,7 @@ pub fn scroll_to_id(_id: &str) {
             let document = window.as_ref().and_then(|w| w.document());
             let element = document.as_ref().and_then(|d| d.get_element_by_id(&id));
             if let Some(element) = element {
+                let _ = element.class_list().remove_1("search-highlight");
                 let _ = element.class_list().add_1("search-highlight");
                 let el: js_sys::Object = element.unchecked_into();
                 let opts = js_sys::Object::new();

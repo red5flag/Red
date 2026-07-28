@@ -37,6 +37,8 @@ pub fn Navbar() -> impl IntoView {
 
     // Document reader view toggle inside the notifications drawer
     let (show_doc_reader, set_show_doc_reader) = signal(false);
+    // Filter dropdown inside the notifications drawer
+    let (show_filter_menu, set_show_filter_menu) = signal(false);
     // Sort dropdown inside the notifications drawer
     let (show_sort_menu, set_show_sort_menu) = signal(false);
 
@@ -367,28 +369,6 @@ pub fn Navbar() -> impl IntoView {
         }
     }
 
-    /// Advance the filter to the next quick-swap option.
-    fn next_filter(filter: &NotificationDrawerFilter) -> NotificationDrawerFilter {
-        match filter {
-            NotificationDrawerFilter::All => NotificationDrawerFilter::Portfolios,
-            NotificationDrawerFilter::Portfolios => NotificationDrawerFilter::Networking,
-            NotificationDrawerFilter::Networking => NotificationDrawerFilter::Files,
-            NotificationDrawerFilter::Files => {
-                NotificationDrawerFilter::Type(NotificationType::Success)
-            }
-            NotificationDrawerFilter::Type(NotificationType::Success) => {
-                NotificationDrawerFilter::Type(NotificationType::Warning)
-            }
-            NotificationDrawerFilter::Type(NotificationType::Warning) => {
-                NotificationDrawerFilter::Type(NotificationType::Error)
-            }
-            NotificationDrawerFilter::Type(NotificationType::Error) => {
-                NotificationDrawerFilter::Type(NotificationType::Info)
-            }
-            NotificationDrawerFilter::Type(NotificationType::Info) => NotificationDrawerFilter::All,
-        }
-    }
-
     view! {
         // Main Navbar - Fixed at top, single row
         <nav class="navbar">
@@ -450,9 +430,11 @@ pub fn Navbar() -> impl IntoView {
         {move || if is_notifications_drawer_open() {
             let on_close_notif = {
                 let set_show_sort_menu = set_show_sort_menu.clone();
+                let set_show_filter_menu = set_show_filter_menu.clone();
                 move |_| {
                     notification_store.update(|s| s.close_drawer());
                     set_show_sort_menu.set(false);
+                    set_show_filter_menu.set(false);
                 }
             };
             view! {
@@ -460,22 +442,54 @@ pub fn Navbar() -> impl IntoView {
                     <div class="notif-drawer" on:click=|ev| ev.stop_propagation()>
                         <div class="notif-drawer-header notif-drawer-header-compact">
                             <div class="notif-drawer-actions">
-                                // Quick-swap filter button (e.g. All -> Portfolios -> Networking -> ...)
-                                <button
-                                    class="notif-drawer-mode-btn notif-filter-btn"
-                                    on:click=move |_| {
-                                        let mut store = notification_store.get();
-                                        let next = next_filter(&store.drawer_filter);
-                                        if matches!(next, NotificationDrawerFilter::All) {
-                                            store.clear_drawer_scope();
-                                        }
-                                        store.set_drawer_filter(next);
-                                        notification_store.set(store);
-                                    }
-                                    title="Cycle notification filter"
-                                >
-                                    {move || filter_label(&notification_store.get().drawer_filter)}
-                                </button>
+                                // Filter dropdown
+                                <div class="notif-sort-dropdown notif-filter-dropdown">
+                                    <button
+                                        class="notif-drawer-mode-btn notif-filter-btn"
+                                        class:active={move || show_filter_menu.get()}
+                                        on:click=move |_| set_show_filter_menu.update(|v| *v = !*v)
+                                        title="Change notification filter"
+                                    >
+                                        {move || format!("{} ▼", filter_label(&notification_store.get().drawer_filter))}
+                                    </button>
+                                    {move || if show_filter_menu.get() {
+                                        let filter_menu_items = [
+                                            NotificationDrawerFilter::All,
+                                            NotificationDrawerFilter::Portfolios,
+                                            NotificationDrawerFilter::Networking,
+                                            NotificationDrawerFilter::Files,
+                                            NotificationDrawerFilter::Type(NotificationType::Success),
+                                            NotificationDrawerFilter::Type(NotificationType::Warning),
+                                            NotificationDrawerFilter::Type(NotificationType::Error),
+                                            NotificationDrawerFilter::Type(NotificationType::Info),
+                                        ];
+                                        view! {
+                                            <div class="notif-sort-menu notif-filter-menu">
+                                                {filter_menu_items.into_iter().map(|filter| {
+                                                    let label = filter_label(&filter);
+                                                    let filter_for_click = filter.clone();
+                                                    view! {
+                                                        <button
+                                                            class="notif-sort-menu-item"
+                                                            class:active={move || notification_store.get().drawer_filter == filter}
+                                                            on:click=move |_| {
+                                                                notification_store.update(|s| {
+                                                                    if matches!(filter_for_click, NotificationDrawerFilter::All) {
+                                                                        s.clear_drawer_scope();
+                                                                    }
+                                                                    s.set_drawer_filter(filter_for_click.clone());
+                                                                });
+                                                                set_show_filter_menu.set(false);
+                                                            }
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    }
+                                                }).collect::<Vec<_>>()}
+                                            </div>
+                                        }.into_any()
+                                    } else { ().into_any() }}
+                                </div>
 
                                 // Sort dropdown button with options menu
                                 <div class="notif-sort-dropdown">
