@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetItem,
-    AssetTarget, DocEntry, DocSlider, UserAssignmentPanel,
+    detect_file_type, name_click_handlers, read_image_as_data_url, set_drag_tab_data,
+    single_sentence, AssetItem, AssetTarget, DocEntry, DocSlider, NavTabKind,
+    UserAssignmentPanel,
 };
 
 #[component]
@@ -268,6 +269,10 @@ pub(crate) fn AssetGroupItem(
 
     view! {
         <div class="asset-group" id={format!("asset-group-{}", gid)} class:expanded={move || expanded.get()} style={group_tint_style.clone()}
+            draggable="true"
+            on:dragstart=move |ev: leptos::ev::DragEvent| {
+                set_drag_tab_data(&ev, &NavTabKind::AssetGroup, gid, &g_name);
+            }
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 if can_edit_here.get() {
                     ev.prevent_default();

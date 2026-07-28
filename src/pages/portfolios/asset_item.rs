@@ -10,8 +10,9 @@ use uuid::Uuid;
 
 use super::{
     clamp_context_menu, detect_file_type, document_icon, download_document, name_click_handlers,
-    read_images_as_data_urls, shorthand_name, AddChannelModal, AssetBookingControls,
-    AssetChannelsSection, AssetLinkingControls, DocModal, UserAssignmentPanel,
+    read_images_as_data_urls, set_drag_tab_data, shorthand_name, AddChannelModal,
+    AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal, NavTabKind,
+    UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -192,7 +193,6 @@ pub(crate) fn AssetItem(
     #[derive(Clone)]
     enum DocModalTarget {
         Add,
-        Batch,
         View(Document),
     }
     let doc_modal_version = Arc::new(AtomicU64::new(0));
@@ -735,6 +735,29 @@ pub(crate) fn AssetItem(
         None
     };
 
+    let upload_doc = move |doc: crate::models::Document| {
+        app_store.update(|s| {
+            for p in s.portfolios.iter_mut() {
+                let all: Vec<_> = p
+                    .assets
+                    .iter_mut()
+                    .chain(p.asset_groups.iter_mut().flat_map(|g| g.assets.iter_mut()))
+                    .collect();
+                for a in all {
+                    if a.id == asset_id {
+                        a.documents.push(doc);
+                        return;
+                    }
+                }
+            }
+        });
+    };
+    let upload_cb = if can_upload_documents() {
+        Some(Callback::new(upload_doc))
+    } else {
+        None
+    };
+
     let asset_id_for_assign = asset_id;
     let portfolio_id_for_assign = portfolio_id;
     let toggle_asset_assignment = Callback::new(move |uid: Uuid| {
@@ -792,8 +815,14 @@ pub(crate) fn AssetItem(
     if view_mode == ViewMode::Grid {
         let asset_for_click = asset.clone();
         let short_name = shorthand_name(&a_name);
+        let a_name_grid_drag = a_name.clone();
         view! {
-            <div class="asset-grid-card" node_ref=item_ref style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())>
+            <div class="asset-grid-card" node_ref=item_ref style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())
+                draggable="true"
+                on:dragstart=move |ev: leptos::ev::DragEvent| {
+                    set_drag_tab_data(&ev, &NavTabKind::Asset, asset_id, &a_name_grid_drag);
+                }
+            >
                 <img class="asset-grid-image" src={image_url} alt={a_name.clone()} />
                 <div class="asset-grid-name">{short_name}</div>
             </div>
@@ -806,6 +835,8 @@ pub(crate) fn AssetItem(
         let a_type_header = a_type_grid.clone();
         let a_val_header = a_current_val;
         let (asset_name_signal, _set_asset_name) = signal(a_name.clone());
+        let a_name_list_drag = a_name.clone();
+        let a_name_list_aria = a_name.clone();
         view! {
         <div class="ai-item"
             id={format!("asset-{}", asset_id)}
@@ -814,7 +845,11 @@ pub(crate) fn AssetItem(
             class:ai-item-collapsible={collapsible}
             class:ai-item-collapsed={move || collapsed.get()}
             style={tint_style.clone()}
-            aria-label=move || { let addr = a_addr.get(); format!("Asset {}. Type {}. In {}. {}", a_name, a_type_grid, pname, if addr.is_empty() { "No address set" } else { addr.as_str() }) }
+            aria-label=move || { let addr = a_addr.get(); format!("Asset {}. Type {}. In {}. {}", a_name_list_aria, a_type_grid, pname, if addr.is_empty() { "No address set" } else { addr.as_str() }) }
+            draggable="true"
+            on:dragstart=move |ev: leptos::ev::DragEvent| {
+                set_drag_tab_data(&ev, &NavTabKind::Asset, asset_id, &a_name_list_drag);
+            }
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 if can_edit_here.get() {
                     ev.prevent_default();
@@ -1071,16 +1106,6 @@ pub(crate) fn AssetItem(
                                                             download_document(&doc_for_download);
                                                         }
                                                     >"📥 Export / Download"</button>
-                                                    {move || if can_upload_documents() {
-                                                        view! {
-                                                            <button class="context-menu-item"
-                                                                on:click=move |_| {
-                                                                    set_show_doc_ctx_menu.set(false);
-                                                                    open_doc_modal.run(DocModalTarget::Batch);
-                                                                }
-                                                            >"➕ Batch Add"</button>
-                                                        }.into_any()
-                                                    } else { ().into_any() }}
                                                     <button class="context-menu-item"
                                                         on:click=move |_| {
                                                             set_show_doc_ctx_menu.set(false);
@@ -1116,22 +1141,11 @@ pub(crate) fn AssetItem(
                                             on_close=close
                                             can_edit={can_edit_documents_here.get()}
                                             on_add={add_cb.clone()}
+                                            on_upload={upload_cb.clone()}
                                             portfolio_id={portfolio_id}
                                             group_id={group_id}
                                             asset_id={Some(asset_id)}
-                                        />
-                                    }.into_any(),
-                                    DocModalTarget::Batch => view! {
-                                        <DocModal
-                                            entity_id={asset_id}
-                                            title={format!("Batch Add - {}", asset_name_signal.get())}
-                                            on_close=close
-                                            can_edit={can_edit_documents_here.get()}
-                                            on_add={add_cb.clone()}
-                                            portfolio_id={portfolio_id}
-                                            group_id={group_id}
-                                            asset_id={Some(asset_id)}
-                                            batch={true}
+                                            add_only={true}
                                         />
                                     }.into_any(),
                                     DocModalTarget::View(doc) => view! {

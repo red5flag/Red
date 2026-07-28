@@ -7,7 +7,7 @@ use crate::types::ActionType;
 use leptos::prelude::*;
 use uuid::Uuid;
 
-use super::{document_icon, shorthand_name};
+use super::{detect_file_type, document_icon, read_uploaded_file, shorthand_name};
 
 /// Generate mock document content for the in-app viewer based on name and type.
 fn mock_doc_content(name: &str, file_type: &str) -> String {
@@ -126,12 +126,13 @@ pub fn DocModal(
     on_close: impl Fn() + Send + Sync + 'static,
     can_edit: bool,
     on_add: Option<Callback<String>>,
+    #[prop(default = None)] on_upload: Option<Callback<Document>>,
     #[prop(default = None)] portfolio_id: Option<Uuid>,
     #[prop(default = None)] group_id: Option<Uuid>,
     #[prop(default = None)] asset_id: Option<Uuid>,
     #[prop(default = None)] organization_id: Option<Uuid>,
     #[prop(default = None)] initial_doc: Option<Document>,
-    #[prop(default = false)] batch: bool,
+    #[prop(default = false)] add_only: bool,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let organization_store = use_organization_store();
@@ -214,9 +215,94 @@ pub fn DocModal(
         });
     }
 
-    view! {
-        <div class="doc-modal-overlay" on:click=move |_| on_close()>
-            <div class="doc-modal doc-modal-tabbed" on:click=|ev| ev.stop_propagation()>
+    let on_add_for_add_row = on_add.clone();
+    let on_upload_for_add_row = on_upload.clone();
+    let upload_input_ref = NodeRef::<leptos::html::Input>::new();
+    let render_add_row = move || {
+        if can_edit && (on_add_for_add_row.is_some() || on_upload_for_add_row.is_some()) {
+            view! {
+                <div class="doc-modal-add-row">
+                    <input class="doc-modal-add-input" type="text"
+                        placeholder="New document name…"
+                        aria-label="New document name"
+                        prop:value=move || new_doc_name.get()
+                        on:input=move |ev| set_new_doc_name.set(event_target_value(&ev)) />
+                    {move || if on_upload_for_add_row.is_some() {
+                        view! {
+                            <>
+                                <input
+                                    type="file"
+                                    style="display:none"
+                                    node_ref=upload_input_ref
+                                    on:change=move |ev| {
+                                        read_uploaded_file(&ev, {
+                                            let on_upload = on_upload_for_add_row;
+                                            move |file_name, data_url| {
+                                                if let Some(cb) = on_upload {
+                                                    let uploaded_by = app_store.get().current_user.id;
+                                                    let doc = Document {
+                                                        id: Uuid::new_v4(),
+                                                        name: file_name.clone(),
+                                                        file_type: detect_file_type(&file_name),
+                                                        url: data_url,
+                                                        uploaded_at: chrono::Utc::now(),
+                                                        uploaded_by,
+                                                        content: None,
+                                                    };
+                                                    cb.run(doc);
+                                                }
+                                            }
+                                        });
+                                        if let Some(el) = upload_input_ref.get() {
+                                            let _ = el.set_value("");
+                                        }
+                                    }
+                                />
+                                <button class="doc-modal-upload-btn"
+                                    aria-label="Upload document"
+                                    on:click=move |_| {
+                                        if let Some(el) = upload_input_ref.get() {
+                                            let _ = el.click();
+                                        }
+                                    }>
+                                    "+ Add"
+                                </button>
+                            </>
+                        }.into_any()
+                    } else { ().into_any() }}
+                    {move || if on_add_for_add_row.is_some() {
+                        view! {
+                            <button class="doc-modal-enter-btn"
+                                on:click=move |_| {
+                                    let n = new_doc_name.get();
+                                    if !n.trim().is_empty() {
+                                        if let Some(cb) = &on_add_for_add_row { cb.run(n); }
+                                        set_new_doc_name.set(String::new());
+                                    }
+                                }>
+                                "ENTER"
+                            </button>
+                        }.into_any()
+                    } else { ().into_any() }}
+                </div>
+            }.into_any()
+        } else { ().into_any() }
+    };
+
+    if add_only {
+        view! {
+            <div class="doc-modal-overlay" on:click=move |_| on_close()>
+                <div class="doc-modal doc-modal-add-only" on:click=|ev| ev.stop_propagation()>
+                    {render_add_row()}
+                </div>
+            </div>
+        }.into_any()
+    } else {
+        view! {
+            <div class="doc-modal-overlay" on:click=move |_| on_close()>
+                <div class="doc-modal"
+                    class:doc-modal-tabbed=move || !open_tabs.get().is_empty()
+                    on:click=|ev| ev.stop_propagation()>
 
                 // ── Modal header ───────────────────────────────────────
                 <div class="doc-modal-header">
@@ -315,7 +401,15 @@ pub fn DocModal(
                                                         }.into_any()
                                                     } else {
                                                         view! {
-                                                            <span class="doc-modal-name">{doc.name.clone()}</span>
+                                                            <span class="doc-modal-name"
+                                                                on:click=move |ev: leptos::ev::MouseEvent| {
+                                                                    if can_edit_doc {
+                                                                        ev.stop_propagation();
+                                                                        set_editing_name.set(true);
+                                                                    }
+                                                                }>
+                                                                {doc.name.clone()}
+                                                            </span>
                                                             <span class="doc-modal-ft">{ft.clone()}</span>
                                                         }.into_any()
                                                     }}
@@ -378,45 +472,22 @@ pub fn DocModal(
                                 />
                             </div>
                             {if can_edit && on_add.is_some() {
-                                let batch_label = if batch { "Add each line as a document…" } else { "New document name…" };
-                                let batch_btn = if batch { "+ Batch Add" } else { "+ Add" };
                                 view! {
                                     <div class="doc-modal-add-row">
-                                        {if batch {
-                                            view! {
-                                                <textarea class="doc-modal-add-input"
-                                                    rows="3"
-                                                    placeholder={batch_label}
-                                                    aria-label="New document names"
-                                                    prop:value=move || new_doc_name.get()
-                                                    on:input=move |ev| set_new_doc_name.set(event_target_value(&ev))></textarea>
-                                            }.into_any()
-                                        } else {
-                                            view! {
-                                                <input class="doc-modal-add-input" type="text"
-                                                    placeholder={batch_label}
-                                                    aria-label="New document name"
-                                                    prop:value=move || new_doc_name.get()
-                                                    on:input=move |ev| set_new_doc_name.set(event_target_value(&ev)) />
-                                            }.into_any()
-                                        }}
+                                        <input class="doc-modal-add-input" type="text"
+                                            placeholder="New document name…"
+                                            aria-label="New document name"
+                                            prop:value=move || new_doc_name.get()
+                                            on:input=move |ev| set_new_doc_name.set(event_target_value(&ev)) />
                                         <button class="doc-modal-add-btn"
                                             on:click=move |_| {
                                                 let n = new_doc_name.get();
-                                                if batch {
-                                                    for line in n.lines() {
-                                                        let line = line.trim();
-                                                        if !line.is_empty() {
-                                                            if let Some(cb) = &on_add_cb { cb.run(line.to_string()); }
-                                                        }
-                                                    }
-                                                    set_new_doc_name.set(String::new());
-                                                } else if !n.trim().is_empty() {
+                                                if !n.trim().is_empty() {
                                                     if let Some(cb) = &on_add_cb { cb.run(n); }
                                                     set_new_doc_name.set(String::new());
                                                 }
                                             }>
-                                            {batch_btn}
+                                            "+ Add"
                                         </button>
                                     </div>
                                 }.into_any()
@@ -438,13 +509,15 @@ pub fn DocModal(
                                 portfolio_id={portfolio_id}
                                 group_id={group_id}
                                 asset_id={asset_id}
+                                organization_id={organization_id}
                             />
                         })
                     }).collect::<Vec<_>>()
                 }}
             </div>
         </div>
-    }
+    }.into_any()
+}
 }
 /// In-app document viewer — sticky toolbar, zoom, edit mode, inline editing, image popup, why/save.
 #[component]
@@ -455,6 +528,7 @@ pub fn DocumentViewer(
     #[prop(default = None)] portfolio_id: Option<Uuid>,
     #[prop(default = None)] group_id: Option<Uuid>,
     #[prop(default = None)] asset_id: Option<Uuid>,
+    #[prop(default = None)] organization_id: Option<Uuid>,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let organization_store = use_organization_store();
@@ -474,6 +548,8 @@ pub fn DocumentViewer(
     // viewer state
     let (zoom, set_zoom) = signal(100u32); // percent
     let (edit_mode, set_edit_mode) = signal(effective_can_edit);
+    let (editing_title, set_editing_title) = signal(false);
+    let (edit_title, set_edit_title) = signal(doc.name.clone());
     let (content, set_content) = signal(initial_content);
     let (why, set_why) = signal(String::new());
     let (notes, set_notes) = signal(String::new());
@@ -628,7 +704,44 @@ pub fn DocumentViewer(
             // ── Sticky toolbar ────────────────────────────────────────
             <div class="docviewer-toolbar">
                 <span class="docviewer-icon">{move || document_icon(&file_type.get())}</span>
-                <span class="docviewer-name">{doc_name.get_value()}</span>
+                {move || if editing_title.get() {
+                    view! {
+                        <input
+                            class="docviewer-name docviewer-title-input"
+                            aria-label="Document title"
+                            prop:value=move || edit_title.get()
+                            on:input=move |ev| set_edit_title.set(event_target_value(&ev))
+                            on:blur=move |_| {
+                                let n = edit_title.get();
+                                if !n.trim().is_empty() {
+                                    if let Some(_oid) = organization_id {
+                                        organization_store.update(|s| s.update_document_name(doc_id, n.clone()));
+                                    } else {
+                                        app_store.update(|s| s.update_document_name(doc_id, n.clone(), &mut notification_store.get_untracked()));
+                                    }
+                                    doc_name.set_value(n);
+                                } else {
+                                    set_edit_title.set(doc_name.get_value());
+                                }
+                                set_editing_title.set(false);
+                            }
+                        />
+                    }.into_any()
+                } else {
+                    view! {
+                        <span class="docviewer-name"
+                            class:dv-editable=effective_can_edit
+                            on:click=move |ev: leptos::ev::MouseEvent| {
+                                if effective_can_edit {
+                                    ev.stop_propagation();
+                                    set_edit_title.set(doc_name.get_value());
+                                    set_editing_title.set(true);
+                                }
+                            }>
+                            {doc_name.get_value()}
+                        </span>
+                    }.into_any()
+                }}
                 // Document type selector
                 <div class="dv-type-selector">
                     <button class="docviewer-ft dv-type-btn"

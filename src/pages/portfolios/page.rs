@@ -11,7 +11,8 @@ use uuid::Uuid;
 
 use super::{
     asset_placeholder_url, clamp_context_menu, detect_file_type, name_click_handlers,
-    read_image_as_data_url, AddPortfolioModal, AssetTarget, DocEntry, DocSlider, PortfolioListItem,
+    nav_tab_from_drag_event, read_image_as_data_url, set_drag_tab_data, AddPortfolioModal,
+    AssetTarget, DocEntry, DocSlider, NavTab, NavTabKind, PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -123,6 +124,91 @@ pub fn PortfoliosPage() -> impl IntoView {
     let view_mode = Memo::new(move |_| ui_store.get().portfolio_view_mode.clone());
     let selected_ids = move || app_store.get().selected_portfolio_ids;
     let (expanded_orgs, set_expanded_orgs) = signal(HashSet::<Uuid>::new());
+
+    // Drag-and-drop navigation tabs on the portfolio controls bar.
+    let (nav_tabs, set_nav_tabs) = signal(Vec::<NavTab>::new());
+    let (active_tab_id, set_active_tab_id) = signal(None::<Uuid>);
+    let add_nav_tab = {
+        let set_nav_tabs = set_nav_tabs.clone();
+        let set_active = set_active_tab_id.clone();
+        move |tab: NavTab| {
+            let id = tab.id;
+            let kind = tab.kind;
+            let already = nav_tabs.with(|tabs| tabs.iter().any(|t| t.id == id && t.kind == kind));
+            if !already {
+                set_nav_tabs.update(|tabs| tabs.push(tab));
+            } else {
+                drop(tab);
+            }
+            set_active.set(Some(id));
+        }
+    };
+    let remove_nav_tab = {
+        let set_nav_tabs = set_nav_tabs.clone();
+        let set_active = set_active_tab_id.clone();
+        move |id: Uuid| {
+            set_nav_tabs.update(|tabs| {
+                if let Some(idx) = tabs.iter().position(|t| t.id == id) {
+                    tabs.remove(idx);
+                }
+            });
+            if active_tab_id.get() == Some(id) {
+                set_active.set(None);
+            }
+        }
+    };
+
+    let render_nav_tabs = move || {
+        view! {
+            {move || if nav_tabs.get().is_empty() { ().into_any() } else {
+                view! {
+                    <For
+                        each=move || nav_tabs.get().clone()
+                        key=|tab| tab.id
+                        children=move |tab: NavTab| {
+                            let tab_id = tab.id;
+                            let kind = tab.kind;
+                            let name = tab.name.clone();
+                            let app_store_inner = app_store;
+                            let set_orgs = set_expanded_orgs;
+                            view! {
+                                <div class="pf-nav-tab"
+                                    class:active={move || active_tab_id.get() == Some(tab_id)}
+                                    title={format!("{} {}", kind.icon(), name)}
+                                    on:click=move |_| {
+                                        set_active_tab_id.set(Some(tab_id));
+                                        match kind {
+                                            NavTabKind::Organization => {
+                                                set_orgs.update(|s| { s.insert(tab_id); });
+                                                crate::utils::dom::scroll_to_id(&format!("org-group-{}", tab_id));
+                                            }
+                                            NavTabKind::Portfolio => {
+                                                app_store_inner.update(|s| {
+                                                    s.selected_portfolio_ids.insert(tab_id);
+                                                    s.touch_portfolio(tab_id);
+                                                });
+                                                crate::utils::dom::scroll_to_id(&format!("portfolio-{}", tab_id));
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                >
+                                    <span class="pf-nav-tab-icon">{kind.icon()}</span>
+                                    <span class="pf-nav-tab-name">{name.clone()}</span>
+                                    <button class="pf-nav-tab-close" type="button" aria-label="Close tab"
+                                        on:click=move |ev: leptos::ev::MouseEvent| {
+                                            ev.stop_propagation();
+                                            remove_nav_tab(tab_id);
+                                        }
+                                    >"×"</button>
+                                </div>
+                            }
+                        }
+                    />
+                }.into_any()
+            }}
+        }.into_any()
+    };
 
     let grouped_portfolios = Memo::new(move |_| {
         let orgs = organization_store.get().organizations.clone();
@@ -429,7 +515,28 @@ pub fn PortfoliosPage() -> impl IntoView {
     view! {
         <div class="home-screen home-screen-pf">
             // Portfolio controls bar (attached below navbar)
-            <div class="portfolio-controls-bar">
+            <div class="portfolio-controls-bar"
+                on:dragover=move |ev: leptos::ev::DragEvent| {
+                    ev.prevent_default();
+                    if let Some(dt) = ev.data_transfer() { let _ = dt.set_drop_effect("copy"); }
+                }
+                on:drop=move |ev: leptos::ev::DragEvent| {
+                    ev.prevent_default();
+                    match nav_tab_from_drag_event(&ev) {
+                        Some(tab) => {
+                            leptos::logging::log!("portfolio bar drop: {:?} {}", tab.kind, tab.id);
+                            add_nav_tab(tab);
+                        }
+                        None => leptos::logging::log!("portfolio bar drop: no tab data"),
+                    }
+                }
+            >
+                <div class="pf-nav-controls"
+                    on:dragover=move |ev: leptos::ev::DragEvent| {
+                        ev.prevent_default();
+                        if let Some(dt) = ev.data_transfer() { let _ = dt.set_drop_effect("copy"); }
+                    }
+                >
                 <button
                     class="nav-portfolio-btn"
                     class:active={move || view_mode.get() == ViewMode::List}
@@ -552,6 +659,17 @@ pub fn PortfoliosPage() -> impl IntoView {
                         />
                     }.into_any()
                 } else { ().into_any() }}
+            </div>
+            {move || if nav_tabs.get().is_empty() { ().into_any() } else { view! {
+                <div class="pf-nav-tabs-scroll"
+                    on:dragover=move |ev: leptos::ev::DragEvent| {
+                        ev.prevent_default();
+                        if let Some(dt) = ev.data_transfer() { let _ = dt.set_drop_effect("copy"); }
+                    }
+                >
+                    {render_nav_tabs}
+                </div>
+            }.into_any() }}
             </div>
 
             // Hidden portfolio image uploader
@@ -916,7 +1034,12 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     let (show_doc_slider, set_show_doc_slider) = signal(false);
                                     let org_name_for_slider = StoredValue::new(org.name.clone());
                                     view! {
-                                        <div class="pf-org-group" class:expanded={move || is_expanded()}>
+                                        <div class="pf-org-group" id={format!("org-group-{}", org_id)} class:expanded={move || is_expanded()}
+                                            draggable="true"
+                                            on:dragstart=move |ev: leptos::ev::DragEvent| {
+                                                set_drag_tab_data(&ev, &NavTabKind::Organization, org_id, &org_name);
+                                            }
+                                        >
                                             <div class="asset-group-header pf-org-group-header pf-accordion-header" role="button" tabindex="0"
                                                 aria-expanded={move || is_expanded()}
                                                 on:click=move |ev: leptos::ev::MouseEvent| {

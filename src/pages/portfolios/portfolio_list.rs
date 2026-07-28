@@ -5,8 +5,9 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, name_click_handlers, read_image_as_data_url, single_sentence, AssetTarget,
-    AssetViewer, DocEntry, DocSlider, UserAssignmentPanel,
+    detect_file_type, name_click_handlers, read_image_as_data_url, set_drag_tab_data,
+    single_sentence, AssetTarget, AssetViewer, DocEntry, DocSlider, NavTabKind,
+    UserAssignmentPanel,
 };
 
 /// Portfolio list row — accordion style matching AssetGroupItem.
@@ -282,7 +283,12 @@ pub(crate) fn PortfolioListItem(
     });
 
     view! {
-        <div class="asset-group pf-portfolio" id={format!("portfolio-{}", pid)} class:expanded={expanded} on:contextmenu=on_context>
+        <div class="asset-group pf-portfolio" id={format!("portfolio-{}", pid)} class:expanded={expanded} on:contextmenu=on_context
+            draggable="true"
+            on:dragstart=move |ev: leptos::ev::DragEvent| {
+                set_drag_tab_data(&ev, &NavTabKind::Portfolio, pid, &name);
+            }
+        >
             // Header row — same structure as asset-group-header
             <div class="asset-group-header pf-accordion-header"
                 class:editing={move || is_editing_name.get() || is_editing_desc.get() || is_editing_org.get()}

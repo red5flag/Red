@@ -172,12 +172,21 @@ pub(crate) fn read_image_as_data_url(
     ev: &leptos::ev::Event,
     on_data_url: impl FnOnce(String) + 'static,
 ) {
+    read_uploaded_file(ev, move |_, data_url| on_data_url(data_url));
+}
+
+/// Read the first file from a file input change event and return its name and data URL.
+pub(crate) fn read_uploaded_file(
+    ev: &leptos::ev::Event,
+    on_file: impl FnOnce(String, String) + 'static,
+) {
     let input = ev
         .target()
         .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
         .expect("file input target");
     if let Some(files) = input.files() {
         if let Some(file) = files.get(0) {
+            let file_name = file.name();
             let reader = match web_sys::FileReader::new() {
                 Ok(r) => r,
                 Err(_) => return,
@@ -187,7 +196,7 @@ pub(crate) fn read_image_as_data_url(
                     if let Ok(reader) = target.dyn_into::<web_sys::FileReader>() {
                         if let Ok(result) = reader.result() {
                             if let Some(data_url) = result.as_string() {
-                                on_data_url(data_url);
+                                on_file(file_name, data_url);
                             }
                         }
                     }
@@ -250,6 +259,92 @@ pub(crate) fn name_click_handlers(
     };
 
     (on_click, on_dblclick)
+}
+
+/// Kinds of entities that can be dropped onto the portfolio nav tab bar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NavTabKind {
+    Organization,
+    Portfolio,
+    AssetGroup,
+    Asset,
+    Document,
+}
+
+impl NavTabKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            NavTabKind::Organization => "organization",
+            NavTabKind::Portfolio => "portfolio",
+            NavTabKind::AssetGroup => "asset-group",
+            NavTabKind::Asset => "asset",
+            NavTabKind::Document => "document",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "organization" => Some(NavTabKind::Organization),
+            "portfolio" => Some(NavTabKind::Portfolio),
+            "asset-group" => Some(NavTabKind::AssetGroup),
+            "asset" => Some(NavTabKind::Asset),
+            "document" => Some(NavTabKind::Document),
+            _ => None,
+        }
+    }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            NavTabKind::Organization => "🏢",
+            NavTabKind::Portfolio => "📁",
+            NavTabKind::AssetGroup => "📂",
+            NavTabKind::Asset => "📦",
+            NavTabKind::Document => "📄",
+        }
+    }
+}
+
+/// A tab pinned to the portfolio navigation bar.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NavTab {
+    pub kind: NavTabKind,
+    pub id: Uuid,
+    pub name: String,
+}
+
+/// Build the JSON payload used for drag-and-drop onto the portfolio nav bar.
+pub(crate) fn nav_tab_drag_payload(kind: &NavTabKind, id: Uuid, name: &str) -> String {
+    serde_json::json!({
+        "kind": kind.as_str(),
+        "id": id.to_string(),
+        "name": name,
+    })
+    .to_string()
+}
+
+/// Attach nav tab drag data to a DragEvent.
+pub(crate) fn set_drag_tab_data(ev: &leptos::ev::DragEvent, kind: &NavTabKind, id: Uuid, name: &str) {
+    if let Some(dt) = ev.data_transfer() {
+        let payload = nav_tab_drag_payload(kind, id, name);
+        let _ = dt.set_data("text/plain", &payload);
+        let _ = dt.set_effect_allowed("copy");
+        leptos::logging::log!("set_drag_tab_data: {} {}", kind.as_str(), payload);
+    }
+}
+
+/// Parse a NavTab from a DragEvent, if one was provided.
+pub(crate) fn nav_tab_from_drag_event(ev: &leptos::ev::DragEvent) -> Option<NavTab> {
+    let dt = ev.data_transfer()?;
+    let data = dt.get_data("text/plain").ok()?;
+    let v: serde_json::Value = serde_json::from_str(&data).ok()?;
+    let kind = v.get("kind")?.as_str()?;
+    let id = v.get("id")?.as_str()?.parse::<Uuid>().ok()?;
+    let name = v.get("name")?.as_str()?.to_string();
+    Some(NavTab {
+        kind: NavTabKind::from_str(kind)?,
+        id,
+        name,
+    })
 }
 
 /// Read every selected image file from a file input change event and call the callback for each.
