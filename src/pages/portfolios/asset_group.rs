@@ -148,8 +148,47 @@ pub(crate) fn AssetGroupItem(
             })
             .unwrap_or_default()
     });
-    let doc_count = Memo::new(move |_| dropdown_entries.get().len());
+
+    // Deep-link scrolling from search: jump to this group or to an asset within it.
     let asset_count = group.assets.len();
+    let group_assets = group.assets.clone();
+    let group_documents = group.documents.clone();
+    Effect::new(move |_| {
+        let target = app_store.get().pending_scroll_target.clone();
+        let slider_target = app_store.get().pending_doc_slider.clone();
+        if let Some(crate::stores::ScrollTarget::AssetGroup(id)) = target {
+            if id == gid {
+                crate::utils::dom::scroll_to_id(&format!("asset-group-{}", gid));
+                app_store.update(|s| s.pending_scroll_target = None);
+            }
+        }
+        if let Some(crate::stores::ScrollTarget::Asset(aid))
+            | Some(crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. }) = target
+        {
+            if group_assets.iter().any(|a| a.id == aid) {
+                set_new_asset_id.set(Some(aid));
+            }
+        }
+        if let Some(crate::stores::ScrollTarget::Document(did)) = target {
+            if let Some(asset) = group_assets.iter().find(|a| a.documents.iter().any(|d| d.id == did)) {
+                set_new_asset_id.set(Some(asset.id));
+                app_store.update(|s| s.pending_scroll_target = None);
+            } else if group_documents.iter().any(|d| d.id == did) {
+                set_show_doc_slider.set(true);
+                app_store.update(|s| {
+                    s.pending_scroll_target = None;
+                    s.pending_doc_slider = None;
+                });
+            }
+        }
+        if let Some(sid) = slider_target {
+            if sid == gid {
+                set_show_doc_slider.set(true);
+                app_store.update(|s| s.pending_doc_slider = None);
+            }
+        }
+    });
+    let doc_count = Memo::new(move |_| dropdown_entries.get().len());
     let assigned_users = group.assigned_users.clone();
     let organization_store = use_organization_store();
     let org_users = move || organization_store.get().organization_users.clone();
@@ -228,7 +267,7 @@ pub(crate) fn AssetGroupItem(
     );
 
     view! {
-        <div class="asset-group" class:expanded={move || expanded.get()} style={group_tint_style.clone()}
+        <div class="asset-group" id={format!("asset-group-{}", gid)} class:expanded={move || expanded.get()} style={group_tint_style.clone()}
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 if can_edit_here.get() {
                     ev.prevent_default();

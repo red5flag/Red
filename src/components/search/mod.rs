@@ -1,6 +1,5 @@
 use crate::stores::{
-    use_app_store, use_organization_store, use_search_store, use_ui_store, PendingNavTarget,
-    SearchResultItem,
+    use_app_store, use_organization_store, use_search_store, use_ui_store, SearchResultItem,
 };
 use crate::types::{SearchFilters, TabType};
 use chrono::TimeZone;
@@ -57,24 +56,21 @@ pub fn SearchFilters() -> impl IntoView {
     let (chg_undo, set_chg_undo) = signal(false);
     let (chg_redo, set_chg_redo) = signal(false);
 
-    // Run an initial search when the panel opens, keep advanced options collapsed by default,
-    // and sync the advanced filter chips/inputs into SearchStore.filters.
-    Effect::new(move |_| {
-        let app_snapshot = app_store.get();
-        let is_open = ui_store.get().is_search_open;
+    // Only re-run this effect when the search panel actually opens/closes,
+    // not when unrelated ui_store fields (tabs drawer, messages, etc.) change.
+    let is_search_open = Memo::new(move |_| ui_store.get().is_search_open);
 
+    // Run an initial search when the panel opens and sync the advanced filter
+    // chips/inputs into SearchStore.filters whenever they change.
+    Effect::new(move |_| {
+        let is_open = is_search_open.get();
         if is_open {
             if let Some(input) = search_input_ref.get() {
                 let _ = input.focus();
             }
-        }
-
-        if !is_open {
+        } else {
             return;
         }
-
-        // Advanced search panel is collapsed by default.
-        set_adv_open.set(false);
 
         // Build filters from the advanced UI signals.
         let mut filters = SearchFilters::default();
@@ -115,7 +111,9 @@ pub fn SearchFilters() -> impl IntoView {
             filters.date_range = Some((from, to));
         }
 
-        // Set filters/context then run the local in-memory search.
+        // Use untracked snapshots so this effect only re-runs when search opens
+        // or the filter/time signals change, not on every app store update.
+        let app_snapshot = app_store.get_untracked();
         let context_tab = app_snapshot
             .active_tabs
             .iter()
@@ -123,14 +121,19 @@ pub fn SearchFilters() -> impl IntoView {
             .cloned()
             .or_else(|| app_snapshot.active_tabs.first().cloned())
             .unwrap_or(TabType::Overview);
-        let org_snapshot = organization_store.get();
-        search_store.update(|store| {
-            store.filters = filters;
-            store.set_context_tab(context_tab);
+        let org_snapshot = organization_store.get_untracked();
+
+        // Write back via set/get_untracked to avoid making the effect depend on
+        // search_store, which would create a reactive write-read loop.
+        let mut store = search_store.get_untracked();
+        store.filters = filters;
+        store.set_context_tab(context_tab);
+        if !store.query.trim().is_empty() {
             store.is_loading = true;
             store.perform_search(&app_snapshot, &org_snapshot);
             store.is_loading = false;
-        });
+        }
+        search_store.set(store);
     });
 
     view! {
@@ -172,7 +175,7 @@ pub fn SearchFilters() -> impl IntoView {
                 let suggestions: Vec<String> = if store.query.len() >= 2 {
                     store.suggestions.clone()
                 } else {
-                    store.recent_searches.clone().into_iter().rev().take(5).collect()
+                    store.recent_searches.clone().into_iter().rev().collect()
                 };
                 if suggestions.is_empty() {
                     ().into_any()
@@ -316,57 +319,87 @@ pub fn SearchResults() -> impl IntoView {
     let results_count = move || search_store.get().results.total_count;
     let has_searched = move || search_store.get().has_searched;
 
-    let result_items = Memo::new(move |_| {
-        let store = search_store.get();
-        let mut items: Vec<SearchResultItem> = Vec::new();
-        for p in &store.results.portfolios {
-            items.push(SearchResultItem::Portfolio(p.clone()));
+    fn result_icon(item: &SearchResultItem) -> &'static str {
+        match item {
+            SearchResultItem::Portfolio(_) => "🏢",
+            SearchResultItem::AssetGroup { .. } => "📁",
+            SearchResultItem::Asset { .. } => "📦",
+            SearchResultItem::AssetDetail(d) => match d.detail_type {
+                "Channel" => "📡",
+                "Booking" => "🗓",
+                _ => "📋",
+            },
+            SearchResultItem::Document { .. } => "📄",
+            SearchResultItem::Organization(_) => "🏛",
+            SearchResultItem::User(_) => "👤",
         }
-        for a in &store.results.assets {
-            items.push(SearchResultItem::Asset {
-                asset: a.clone(),
-                portfolio_id: Uuid::nil(),
-                portfolio_name: String::new(),
-            });
+    }
+
+    fn result_snippet(item: &SearchResultItem) -> String {
+        match item {
+            SearchResultItem::Portfolio(p) => {
+                format!(
+                    "Portfolio · ${:.2} value · {} assets",
+                    p.total_value,
+                    p.get_all_assets().len()
+                )
+            }
+            SearchResultItem::AssetGroup { group, .. } => {
+                format!(
+                    "Asset Group · ${:.2} value · {} assets",
+                    group.total_value,
+                    group.assets.len()
+                )
+            }
+            SearchResultItem::Asset { asset, .. } => {
+                format!("{:?} · ${:.2}", asset.asset_type, asset.current_value)
+            }
+            SearchResultItem::AssetDetail(d) => d.snippet.clone(),
+            SearchResultItem::Document { document, .. } => {
+                format!("{} · {}", document.file_type, item.entity_type())
+            }
+            SearchResultItem::Organization(o) => {
+                format!("{} members · {} roles", o.members.len(), o.roles.len())
+            }
+            SearchResultItem::User(u) => u.email.clone(),
         }
-        for o in &store.results.organizations {
-            items.push(SearchResultItem::Organization(o.clone()));
-        }
-        for d in &store.results.documents {
-            items.push(SearchResultItem::Document {
-                document: d.document.clone(),
-                portfolio_id: d.portfolio_id,
-                portfolio_name: d.portfolio_name.clone(),
-                group_id: d.group_id,
-                asset_id: d.asset_id,
-            });
-        }
-        for u in &store.results.users {
-            items.push(SearchResultItem::User(u.clone()));
-        }
-        if let Some(ref tab) = store.current_tab {
-            items.sort_by(|a, b| {
-                let matches_a = a.matches_tab(tab);
-                let matches_b = b.matches_tab(tab);
-                matches_b.cmp(&matches_a)
-            });
-        }
-        items
-    });
+    }
 
     let on_portfolio_click = move |id: Uuid| {
         app_store.update(|s| {
             s.touch_portfolio(id);
             s.selected_portfolio_ids.insert(id);
+            s.pending_scroll_target = Some(crate::stores::ScrollTarget::Portfolio(id));
             s.expand_tab(crate::types::TabType::Portfolios);
         });
         ui_store.update(|s| s.close_search());
     };
 
-    let on_asset_click = move |id: Uuid| {
+    let on_group_click = move |portfolio_id: Uuid, group_id: Uuid| {
         app_store.update(|s| {
-            s.touch_asset(id);
-            s.selected_asset_id = Some(id);
+            s.touch_portfolio(portfolio_id);
+            s.selected_portfolio_ids.insert(portfolio_id);
+            s.selected_asset_group_id = Some(group_id);
+            s.pending_group_expand = Some(group_id);
+            s.pending_scroll_target = Some(crate::stores::ScrollTarget::AssetGroup(group_id));
+            s.expand_tab(crate::types::TabType::Portfolios);
+        });
+        ui_store.update(|s| s.close_search());
+    };
+
+    let on_asset_click = move |portfolio_id: Uuid, group_id: Option<Uuid>, asset_id: Uuid, detail_type: Option<&str>| {
+        let detail_type = detail_type.map(|s| s.to_string());
+        app_store.update(|s| {
+            s.touch_portfolio(portfolio_id);
+            s.selected_portfolio_ids.insert(portfolio_id);
+            s.selected_asset_id = Some(asset_id);
+            s.pending_group_expand = group_id;
+            s.pending_asset_detail = Some(asset_id);
+            s.pending_scroll_target = if let Some(dt) = detail_type {
+                Some(crate::stores::ScrollTarget::AssetDetail { asset_id, detail_type: dt })
+            } else {
+                Some(crate::stores::ScrollTarget::Asset(asset_id))
+            };
             s.expand_tab(crate::types::TabType::Portfolios);
         });
         ui_store.update(|s| s.close_search());
@@ -392,13 +425,16 @@ pub fn SearchResults() -> impl IntoView {
             app_store.update(|s| {
                 s.touch_portfolio(portfolio_id);
                 s.selected_portfolio_ids.insert(portfolio_id);
-                s.pending_nav_target = Some(PendingNavTarget {
-                    portfolio_id,
-                    group_id,
-                    asset_id,
-                    doc_id: Some(doc_id),
-                });
                 s.pending_group_expand = group_id;
+                if asset_id.is_none() {
+                    if let Some(gid) = group_id {
+                        s.pending_doc_slider = Some(gid);
+                    } else {
+                        s.pending_doc_slider = Some(portfolio_id);
+                    }
+                }
+                s.pending_doc_view = Some(doc_id);
+                s.pending_scroll_target = Some(crate::stores::ScrollTarget::Document(doc_id));
                 s.expand_tab(crate::types::TabType::Portfolios);
             });
             ui_store.update(|s| s.close_search());
@@ -414,30 +450,87 @@ pub fn SearchResults() -> impl IntoView {
                         <span class="sd-result-count">{format!("{} results", results_count())}</span>
                         <div class="sd-results-list">
                             <For
-                                each=move || result_items.get()
+                                each=move || search_store.get().results.items.clone()
                                 key=|item| item.id()
                                 children=move |item| {
+                                    let icon = result_icon(&item);
+                                    let name = item.name();
+                                    let breadcrumb = item.breadcrumb();
+                                    let snippet = result_snippet(&item);
                                     match item {
                                         SearchResultItem::Portfolio(p) => {
                                             let pid = p.id;
                                             view! {
                                                 <div class="sd-result-row" on:click=move |_| on_portfolio_click(pid)>
-                                                    <div class="sd-result-icon">"🏢"</div>
+                                                    <div class="sd-result-icon">{icon}</div>
                                                     <div class="sd-result-info">
-                                                        <div class="sd-result-name">{p.name.clone()}</div>
-                                                        <div class="sd-result-meta">{format!("Portfolio — ${:.2} value", p.total_value)}</div>
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
                                                     </div>
                                                 </div>
                                             }.into_any()
                                         }
-                                        SearchResultItem::Asset { asset, .. } => {
+                                        SearchResultItem::AssetGroup { group, portfolio_id, .. } => {
+                                            let pid = portfolio_id;
+                                            let gid = group.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_group_click(pid, gid)>
+                                                    <div class="sd-result-icon">{icon}</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::Asset { asset, portfolio_id, group_id, .. } => {
+                                            let pid = portfolio_id;
+                                            let gid = group_id;
                                             let aid = asset.id;
                                             view! {
-                                                <div class="sd-result-row" on:click=move |_| on_asset_click(aid)>
-                                                    <div class="sd-result-icon">"📦"</div>
+                                                <div class="sd-result-row" on:click=move |_| on_asset_click(pid, gid, aid, None)>
+                                                    <div class="sd-result-icon">{icon}</div>
                                                     <div class="sd-result-info">
-                                                        <div class="sd-result-name">{asset.name.clone()}</div>
-                                                        <div class="sd-result-meta">{format!("Asset — {:?} — ${:.2}", asset.asset_type, asset.current_value)}</div>
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::AssetDetail(d) => {
+                                            let pid = d.portfolio_id;
+                                            let gid = d.group_id;
+                                            let aid = d.asset_id;
+                                            let dt = Some(d.detail_type);
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_asset_click(pid, gid, aid, dt)>
+                                                    <div class="sd-result-icon">{icon}</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
+                                                    </div>
+                                                </div>
+                                            }.into_any()
+                                        }
+                                        SearchResultItem::Document {
+                                            document,
+                                            portfolio_id,
+                                            group_id,
+                                            asset_id,
+                                            ..
+                                        } => {
+                                            let did = document.id;
+                                            view! {
+                                                <div class="sd-result-row" on:click=move |_| on_document_click(portfolio_id, group_id, asset_id, did)>
+                                                    <div class="sd-result-icon">{icon}</div>
+                                                    <div class="sd-result-info">
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
                                                     </div>
                                                 </div>
                                             }.into_any()
@@ -446,28 +539,11 @@ pub fn SearchResults() -> impl IntoView {
                                             let oid = o.id;
                                             view! {
                                                 <div class="sd-result-row" on:click=move |_| on_org_click(oid)>
-                                                    <div class="sd-result-icon">"🏛"</div>
+                                                    <div class="sd-result-icon">{icon}</div>
                                                     <div class="sd-result-info">
-                                                        <div class="sd-result-name">{o.name.clone()}</div>
-                                                        <div class="sd-result-meta">{format!("Organization — {} members · {} roles", o.members.len(), o.roles.len())}</div>
-                                                    </div>
-                                                </div>
-                                            }.into_any()
-                                        }
-                                        SearchResultItem::Document {
-                                            document,
-                                            portfolio_id,
-                                            portfolio_name,
-                                            group_id,
-                                            asset_id,
-                                        } => {
-                                            let did = document.id;
-                                            view! {
-                                                <div class="sd-result-row" on:click=move |_| on_document_click(portfolio_id, group_id, asset_id, did)>
-                                                    <div class="sd-result-icon">"📄"</div>
-                                                    <div class="sd-result-info">
-                                                        <div class="sd-result-name">{document.name.clone()}</div>
-                                                        <div class="sd-result-meta">{format!("Document — {} — {}", portfolio_name, document.file_type)}</div>
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
                                                     </div>
                                                 </div>
                                             }.into_any()
@@ -476,10 +552,11 @@ pub fn SearchResults() -> impl IntoView {
                                             let uid = u.id;
                                             view! {
                                                 <div class="sd-result-row" on:click=move |_| on_user_click(uid)>
-                                                    <div class="sd-result-icon">"👤"</div>
+                                                    <div class="sd-result-icon">{icon}</div>
                                                     <div class="sd-result-info">
-                                                        <div class="sd-result-name">{u.name.clone()}</div>
-                                                        <div class="sd-result-meta">{format!("Member — {}", u.email)}</div>
+                                                        <div class="sd-result-name">{name}</div>
+                                                        <div class="sd-result-breadcrumb">{breadcrumb}</div>
+                                                        <div class="sd-result-snippet">{snippet}</div>
                                                     </div>
                                                 </div>
                                             }.into_any()

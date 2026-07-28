@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use super::{
     clamp_context_menu, detect_file_type, document_icon, download_document, name_click_handlers,
-    read_images_as_data_urls, shorthand_name, AddChannelModal, AssetChannelsSection, DocModal,
-    DocumentViewer, LinkingBookingModal, UserAssignmentPanel,
+    read_images_as_data_urls, shorthand_name, AddChannelModal, AssetBookingControls,
+    AssetChannelsSection, AssetLinkingControls, DocModal, DocumentViewer, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -91,6 +91,8 @@ pub(crate) fn AssetItem(
 
     // When the parent marks this asset as highlighted, open it in the view:
     // expand the list item and scroll it into view, or select it in grid view.
+    // If the search sent us here, also expand the asset detail panel and scroll
+    // to the specific section (channels, bookings, etc.).
     Effect::new(move |_| {
         if let Some(h) = highlight {
             if let Some(id) = h.get() {
@@ -100,7 +102,46 @@ pub(crate) fn AssetItem(
                     } else {
                         on_select.run(asset_for_highlight.clone());
                     }
-                    if let Some(el) = item_ref.get() {
+
+                    let scroll_id = app_store.get_untracked().pending_scroll_target.clone().and_then(|t| {
+                        let is_for_me = match &t {
+                            crate::stores::ScrollTarget::Asset(aid) if *aid == asset_id => true,
+                            crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. } if *aid == asset_id => true,
+                            _ => false,
+                        };
+                        if !is_for_me {
+                            return None;
+                        }
+                        if matches!(t, crate::stores::ScrollTarget::AssetDetail { .. }) {
+                            set_expanded_detail.set(true);
+                        }
+                        match t {
+                            crate::stores::ScrollTarget::Asset(_) => Some(format!("asset-{}", asset_id)),
+                            crate::stores::ScrollTarget::AssetDetail { detail_type, .. } => {
+                                // Map detail type to a known section id; fall back to the asset top for
+                                // generic field results.
+                                match detail_type.as_str() {
+                                    "Channel" => Some(format!("asset-{}-channels", asset_id)),
+                                    "Booking" => Some(format!("asset-{}-bookings", asset_id)),
+                                    "Link" | "Linking" => Some(format!("asset-{}-links", asset_id)),
+                                    _ => Some(format!("asset-{}", asset_id)),
+                                }
+                            }
+                            _ => None,
+                        }
+                    });
+
+                    if let Some(scroll_id) = scroll_id {
+                        app_store.update(|s| {
+                            if matches!(s.pending_scroll_target, Some(crate::stores::ScrollTarget::Asset(_)) | Some(crate::stores::ScrollTarget::AssetDetail { .. })) {
+                                s.pending_scroll_target = None;
+                            }
+                            if s.pending_asset_detail == Some(asset_id) {
+                                s.pending_asset_detail = None;
+                            }
+                        });
+                        crate::utils::dom::scroll_to_id(&scroll_id);
+                    } else if let Some(el) = item_ref.get() {
                         el.scroll_into_view();
                     }
                 }
@@ -115,7 +156,6 @@ pub(crate) fn AssetItem(
     let (show_add_transaction, set_show_add_transaction) = signal(false);
     let (confirm_asset_remove, set_confirm_asset_remove) = signal(false);
     let (show_add_channel, set_show_add_channel) = signal(false);
-    let (show_linking_booking, set_show_linking_booking) = signal(false);
     let (asset_target_portfolio_id, set_asset_target_portfolio_id) = signal(String::new());
     let (asset_target_group_id, set_asset_target_group_id) = signal(String::new());
     let (asset_org_id, set_asset_org_id) = signal(String::new());
@@ -726,6 +766,7 @@ pub(crate) fn AssetItem(
         let (asset_name_signal, _set_asset_name) = signal(a_name.clone());
         view! {
         <div class="ai-item"
+            id={format!("asset-{}", asset_id)}
             node_ref=item_ref
             class:ai-item-expanded={move || expanded_detail.get()}
             class:ai-item-collapsible={collapsible}
@@ -905,6 +946,16 @@ pub(crate) fn AssetItem(
                                 let (tooltip_x, set_tooltip_x) = signal(0i32);
                                 let (tooltip_y, set_tooltip_y) = signal(0i32);
                                 let tooltip_text = dname.clone();
+
+                                // Deep-link from search: open this specific document and scroll its card into view.
+                                Effect::new(move |_| {
+                                    if app_store.get().pending_doc_view == Some(doc_id) {
+                                        set_viewing.set(true);
+                                        app_store.update(|s| s.pending_doc_view = None);
+                                        crate::utils::dom::scroll_to_id(&format!("doc-card-{}", doc_id));
+                                    }
+                                });
+
                                 let update_tooltip_pos = {
                                     let set_x = set_tooltip_x.clone();
                                     let set_y = set_tooltip_y.clone();
@@ -927,6 +978,7 @@ pub(crate) fn AssetItem(
                                 };
                                 view! {
                                     <div class="ai-doc-slider-item"
+                                        id={format!("doc-card-{}", doc_id)}
                                         aria-label={format!("View document {}. Type {}", dname, ft)}
                                         on:click=move |_| set_viewing.set(true)
                                         on:contextmenu=move |ev: leptos::ev::MouseEvent| {
@@ -1146,10 +1198,27 @@ pub(crate) fn AssetItem(
                             <span class="pf-detail-value">{a_uuid.to_string().chars().take(8).collect::<String>()}</span>
                         </div>
                     </div>
-                    <div class="ai-controls-row" class:ai-perm-hidden={move || !(can_view_linking() || can_view_booking())}>
-                        <button class="pf-small-btn" on:click=move |_| set_show_linking_booking.set(true)>
-                            "Channels & Bookings"
-                        </button>
+                    <div class="ai-asset-sections" class:ai-perm-hidden={move || !(can_view_linking() || can_view_booking())}>
+                        {move || if can_view_linking() { view! {
+                            <div class="ai-asset-section" id={format!("asset-{}-links", asset_id)}>
+                                <AssetLinkingControls
+                                    asset_id={asset_id}
+                                    asset_name={asset_name_signal.get()}
+                                    portfolio_id={portfolio_id}
+                                    can_link={can_link()}
+                                />
+                            </div>
+                        }.into_any() } else { ().into_any() }}
+                        {move || if can_view_booking() { view! {
+                            <div class="ai-asset-section" id={format!("asset-{}-bookings", asset_id)}>
+                                <AssetBookingControls
+                                    asset_id={asset_id}
+                                    asset_name={asset_name_signal.get()}
+                                    portfolio_id={portfolio_id}
+                                    can_book={can_book()}
+                                />
+                            </div>
+                        }.into_any() } else { ().into_any() }}
                     </div>
                 </div>
             </div>
@@ -1665,7 +1734,9 @@ pub(crate) fn AssetItem(
                                         <button class="pf-edit-cancel" on:click=move |_| { set_expanded_detail.set(false); }>"✕ Cancel"</button>
                                     </div>
                                     <UserAssignmentPanel assigned={get_asset_assigned_users()} users={get_org_users()} on_toggle={toggle_asset_assignment} />
-                                    <AssetChannelsSection asset_id={asset_id} asset_name={asset_name_signal.get()} portfolio_id={portfolio_id} can_edit={can_edit_here.get()} />
+                                    <div id={format!("asset-{}-channels", asset_id)}>
+                                        <AssetChannelsSection asset_id={asset_id} asset_name={asset_name_signal.get()} portfolio_id={portfolio_id} can_edit={can_edit_here.get()} />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1682,16 +1753,6 @@ pub(crate) fn AssetItem(
                 />
             }.into_any() } else { ().into_any() }}
 
-            {move || if show_linking_booking.get() { view! {
-                <LinkingBookingModal
-                    asset_id={asset_id}
-                    asset_name={asset_name_signal.get()}
-                    portfolio_id={portfolio_id}
-                    can_link={can_link()}
-                    can_book={can_book()}
-                    on_close={Callback::new(move |_| set_show_linking_booking.set(false))}
-                />
-            }.into_any() } else { ().into_any() }}
         </div>
     }.into_any()
     }

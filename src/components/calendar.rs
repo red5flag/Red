@@ -1,7 +1,7 @@
 use crate::models::{CalendarEvent, CalendarEventType};
 use crate::pages::portfolios::{AddChannelModal, ChannelManagementWindow};
 use crate::stores::{use_app_store, use_calendar_store};
-use chrono::{Datelike, Duration, NaiveDate, Utc};
+use chrono::{Datelike, Duration, Months, NaiveDate, Utc};
 use leptos::prelude::*;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -157,22 +157,28 @@ pub fn CalendarManager(
     let (editing_event, set_editing_event) = signal::<Option<CalendarEvent>>(None);
     let (show_form, set_show_form) = signal(false);
 
-    let prev_month = move |_| {
-        let (y, m) = (view_year.get(), view_month.get());
-        if m == 1 {
-            set_view_year.set(y - 1);
-            set_view_month.set(12);
-        } else {
-            set_view_month.set(m - 1);
+    let step_months = |mode: CalendarViewMode| -> u32 {
+        match mode {
+            CalendarViewMode::Month => 1,
+            CalendarViewMode::MultiMonth => 3,
+            CalendarViewMode::Year => 12,
         }
     };
-    let next_month = move |_| {
-        let (y, m) = (view_year.get(), view_month.get());
-        if m == 12 {
-            set_view_year.set(y + 1);
-            set_view_month.set(1);
-        } else {
-            set_view_month.set(m + 1);
+
+    let prev_period = move |_| {
+        let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+        let step = step_months(calendar_view_mode.get_untracked());
+        if let Some(d) = base.checked_sub_months(Months::new(step)) {
+            set_view_year.set(d.year());
+            set_view_month.set(d.month());
+        }
+    };
+    let next_period = move |_| {
+        let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+        let step = step_months(calendar_view_mode.get_untracked());
+        if let Some(d) = base.checked_add_months(Months::new(step)) {
+            set_view_year.set(d.year());
+            set_view_month.set(d.month());
         }
     };
     let go_today = move |_| {
@@ -238,43 +244,6 @@ pub fn CalendarManager(
         }
     };
 
-    // Build the grid days for the current view month
-    let grid_days = Memo::new(move |_| {
-        let y = view_year.get();
-        let m = view_month.get();
-        let first_day = NaiveDate::from_ymd_opt(y, m, 1).unwrap();
-        let days_in_month = (NaiveDate::from_ymd_opt(y, m + 1, 1)
-            .unwrap_or(NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap())
-            - first_day)
-            .num_days() as u32;
-        let start_weekday = first_day.weekday().num_days_from_sunday();
-
-        let mut days: Vec<Option<NaiveDate>> = Vec::new();
-        // Leading blanks from previous month
-        for i in 0..start_weekday {
-            if let Some(d) =
-                first_day.checked_sub_signed(Duration::days((start_weekday - i) as i64))
-            {
-                days.push(Some(d));
-            } else {
-                days.push(None);
-            }
-        }
-        for d in 1..=days_in_month {
-            days.push(Some(NaiveDate::from_ymd_opt(y, m, d).unwrap()));
-        }
-        // Trailing fill to complete the last week (42 cells = 6 rows)
-        while days.len() < 42 {
-            let last = days.last().and_then(|d| *d).unwrap_or(first_day);
-            if let Some(d) = last.checked_add_signed(Duration::days(1)) {
-                days.push(Some(d));
-            } else {
-                days.push(None);
-            }
-        }
-        days
-    });
-
     // Events for the selected day
     let selected_day_events = Memo::new(move |_| {
         let date = selected_date.get();
@@ -288,20 +257,191 @@ pub fn CalendarManager(
         }
     });
 
+    let period_label = Memo::new(move |_| match calendar_view_mode.get() {
+        CalendarViewMode::Month => month_label(view_year.get(), view_month.get()),
+        CalendarViewMode::Year => view_year.get().to_string(),
+        CalendarViewMode::MultiMonth => {
+            let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+            let start = base.checked_sub_months(Months::new(1)).unwrap_or(base);
+            let end = base.checked_add_months(Months::new(1)).unwrap_or(base);
+            if start.year() == end.year() {
+                format!(
+                    "{} – {}",
+                    month_label(start.year(), start.month()),
+                    month_label(end.year(), end.month())
+                )
+            } else {
+                format!(
+                    "{} {} – {} {}",
+                    start.month(),
+                    start.year(),
+                    end.month(),
+                    end.year()
+                )
+            }
+        }
+    });
+
+    // Build the grid days for an arbitrary month
+    fn month_days(year: i32, month: u32) -> Vec<Option<NaiveDate>> {
+        let first_day = NaiveDate::from_ymd_opt(year, month, 1).unwrap();
+        let days_in_month = (NaiveDate::from_ymd_opt(year, month + 1, 1)
+            .unwrap_or(NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap())
+            - first_day)
+            .num_days() as u32;
+        let start_weekday = first_day.weekday().num_days_from_sunday();
+
+        let mut days: Vec<Option<NaiveDate>> = Vec::new();
+        for i in 0..start_weekday {
+            if let Some(d) =
+                first_day.checked_sub_signed(Duration::days((start_weekday - i) as i64))
+            {
+                days.push(Some(d));
+            } else {
+                days.push(None);
+            }
+        }
+        for d in 1..=days_in_month {
+            days.push(Some(NaiveDate::from_ymd_opt(year, month, d).unwrap()));
+        }
+        while days.len() < 42 {
+            let last = days.last().and_then(|d| *d).unwrap_or(first_day);
+            if let Some(d) = last.checked_add_signed(Duration::days(1)) {
+                days.push(Some(d));
+            } else {
+                days.push(None);
+            }
+        }
+        days
+    }
+
+    // Render a single month grid (full or mini)
+    fn month_grid(
+        year: i32,
+        month: u32,
+        today: NaiveDate,
+        events: Memo<Vec<CalendarEvent>>,
+        selected_date: ReadSignal<Option<NaiveDate>>,
+        zoom: ReadSignal<f64>,
+        on_day_click: Callback<NaiveDate>,
+        on_day_add: Callback<NaiveDate>,
+        on_edit: Callback<CalendarEvent>,
+        show_label: bool,
+        mini: bool,
+    ) -> impl IntoView {
+        view! {
+            <div class="calendar-month-wrapper" class:mini={mini}>
+                {if show_label { view! { <div class="calendar-month-label">{month_label(year, month)}</div> }.into_any() } else { ().into_any() }}
+                <div class="calendar-grid-wrapper">
+                    <div class="calendar-grid-weekdays">
+                        {vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].into_iter().map(|d| {
+                            view! { <div class="calendar-grid-weekday">{d}</div> }
+                        }).collect::<Vec<_>>()}
+                    </div>
+                    <div
+                        class="calendar-grid-days"
+                        style={move || {
+                            let z = zoom.get();
+                            let base = if mini { 32.0 } else { 70.0 };
+                            format!("grid-auto-rows: {}px; aspect-ratio: auto;", base * z)
+                        }}
+                    >
+                        {move || {
+                            let days = month_days(year, month);
+                            let events = events.get();
+                            let sel = selected_date.get();
+                            let on_day_click = on_day_click.clone();
+                            let on_day_add = on_day_add.clone();
+                            let on_edit = on_edit.clone();
+                            let max_chips = if mini { 0 } else { (zoom.get() * 3.0).max(1.0) as usize };
+
+                            days.into_iter().map(|opt_date| {
+                                let on_dc = on_day_click.clone();
+                                let on_da = on_day_add.clone();
+                                let on_e = on_edit.clone();
+
+                                match opt_date {
+                                    Some(date) => {
+                                        let is_today = date == today;
+                                        let is_current_month = date.year() == year && date.month() == month;
+                                        let is_selected = sel == Some(date);
+                                        let day_events: Vec<CalendarEvent> = events
+                                            .iter()
+                                            .filter(|e| e.start.date_naive() == date)
+                                            .cloned()
+                                            .collect();
+                                        let event_count = day_events.len();
+                                        let has_event = event_count > 0;
+
+                                        view! {
+                                            <div class="calendar-grid-day"
+                                                class:today={is_today}
+                                                class:other-month={!is_current_month}
+                                                class:selected={is_selected}
+                                                class:mini={mini}
+                                                class:has-event={has_event}
+                                                on:click=move |_| on_dc.run(date)
+                                            >
+                                                <div class="calendar-grid-day-num">{date.day().to_string()}</div>
+                                                {if !mini { view! {
+                                                    <div class="calendar-grid-day-events">
+                                                        {day_events.iter().take(max_chips).map(|ev| {
+                                                            let ev_clone = ev.clone();
+                                                            let on_e2 = on_e.clone();
+                                                            let time_str = if ev.all_day {
+                                                                "All day".to_string()
+                                                            } else {
+                                                                ev.start.format("%H:%M").to_string()
+                                                            };
+                                                            view! {
+                                                                <div class="calendar-grid-event-chip"
+                                                                    on:click=move |e: leptos::ev::MouseEvent| {
+                                                                        e.stop_propagation();
+                                                                        on_e2.run(ev_clone.clone());
+                                                                    }
+                                                                >
+                                                                    <span class="calendar-grid-event-time">{time_str}</span>
+                                                                    <span class="calendar-grid-event-title">{ev.title.clone()}</span>
+                                                                </div>
+                                                            }
+                                                        }).collect::<Vec<_>>()}
+                                                        {if event_count > max_chips { view! { <div class="calendar-grid-event-more">{format!("+{} more", event_count - max_chips)}</div> }.into_any() } else { ().into_any() }}
+                                                    </div>
+                                                    <button class="calendar-grid-day-add"
+                                                        on:click=move |e: leptos::ev::MouseEvent| {
+                                                            e.stop_propagation();
+                                                            on_da.run(date);
+                                                        }
+                                                        title="Add event"
+                                                    >"+"</button>
+                                                }.into_any() } else { ().into_any() }}
+                                            </div>
+                                        }.into_any()
+                                    }
+                                    None => view! { <div class="calendar-grid-day empty"></div> }.into_any(),
+                                }
+                            }).collect::<Vec<_>>()
+                        }}
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
     view! {
         <div class={if embedded { "calendar-manager embedded" } else { "calendar-manager" }}>
             <div class="calendar-manager-header">
                 <div class="calendar-manager-title">
-                    {move || month_label(view_year.get(), view_month.get())}
+                    {move || period_label.get()}
                 </div>
                 <button class="calendar-scroll-arrow calendar-scroll-arrow-left"
                     title="Scroll controls left"
                     aria-label="Scroll calendar controls left"
                     on:click=scroll_actions_left>"‹"</button>
                 <div class="calendar-manager-actions" node_ref=actions_ref>
-                    <button class="calendar-nav-btn" on:click=prev_month title="Previous month">"‹"</button>
+                    <button class="calendar-nav-btn" on:click=prev_period title="Previous">"‹"</button>
                     <button class="calendar-today-btn" on:click=go_today>"Today"</button>
-                    <button class="calendar-nav-btn" on:click=next_month title="Next month">"›"</button>
+                    <button class="calendar-nav-btn" on:click=next_period title="Next">"›"</button>
                     <div class="calendar-view-controls">
                         {[CalendarViewMode::Month, CalendarViewMode::MultiMonth, CalendarViewMode::Year]
                             .into_iter()
@@ -348,7 +488,7 @@ pub fn CalendarManager(
                 } else { ().into_any() }
             } else { ().into_any() }}
 
-            <div class="calendar-grid-wrapper"
+            <div class="calendar-grids"
                 on:wheel=move |ev: leptos::ev::WheelEvent| {
                     ev.prevent_default();
                     let delta = ev.delta_y() as f64;
@@ -387,97 +527,56 @@ pub fn CalendarManager(
                     set_pinch_start.set(None);
                 }
             >
-                // Weekday headers
-                <div class="calendar-grid-weekdays">
-                    {vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].into_iter().map(|d| {
-                        view! { <div class="calendar-grid-weekday">{d}</div> }
-                    }).collect::<Vec<_>>()}
-                </div>
-                // Day cells
-                <div
-                    class="calendar-grid-days"
-                    style={move || { let z = zoom.get(); format!("grid-auto-rows: {}px; aspect-ratio: auto;", 70.0 * z) }}
-                >
-                    {move || {
-                        let days = grid_days.get();
-                        let events = events_for_scope.get();
-                        let vy = view_year.get();
-                        let vm = view_month.get();
-                        let sel = selected_date.get();
-                        let on_day_click = on_day_click.clone();
-                        let on_day_add = on_day_add.clone();
-                        let on_edit = on_edit.clone();
-
-                        days.into_iter().map(|opt_date| {
-                            let on_dc = on_day_click.clone();
-                            let on_da = on_day_add.clone();
-                            let on_e = on_edit.clone();
-
-                            match opt_date {
-                                Some(date) => {
-                                    let is_today = date == today;
-                                    let is_current_month = date.year() == vy && date.month() == vm;
-                                    let is_selected = sel == Some(date);
-                                    let day_events: Vec<CalendarEvent> = events.iter()
-                                        .filter(|e| e.start.date_naive() == date)
-                                        .cloned()
-                                        .collect();
-                                    let event_count = day_events.len();
-                                    let max_chips = (zoom.get() * 3.0).max(1.0) as usize;
-
-                                    view! {
-                                        <div class="calendar-grid-day"
-                                            class:today={is_today}
-                                            class:other-month={!is_current_month}
-                                            class:selected={is_selected}
-                                            on:click=move |_| on_dc.run(date)
-                                        >
-                                            <div class="calendar-grid-day-num">{date.day().to_string()}</div>
-                                            <div class="calendar-grid-day-events">
-                                                {day_events.iter().take(max_chips).map(|ev| {
-                                                    let ev_clone = ev.clone();
-                                                    let on_e2 = on_e.clone();
-                                                    let _cat = ev.category.clone().unwrap_or_else(|| "General".to_string());
-                                                    let time_str = if ev.all_day {
-                                                        "All day".to_string()
-                                                    } else {
-                                                        ev.start.format("%H:%M").to_string()
-                                                    };
-                                                    view! {
-                                                        <div class="calendar-grid-event-chip"
-                                                            on:click=move |e: leptos::ev::MouseEvent| {
-                                                                e.stop_propagation();
-                                                                on_e2.run(ev_clone.clone());
-                                                            }
-                                                        >
-                                                            <span class="calendar-grid-event-time">{time_str}</span>
-                                                            <span class="calendar-grid-event-title">{ev.title.clone()}</span>
-                                                        </div>
-                                                    }
-                                                }).collect::<Vec<_>>()}
-                                                {if event_count > max_chips {
-                                                    view! {
-                                                        <div class="calendar-grid-event-more">
-                                                            {format!("+{} more", event_count - max_chips)}
-                                                        </div>
-                                                    }.into_any()
-                                                } else { ().into_any() }}
-                                            </div>
-                                            <button class="calendar-grid-day-add"
-                                                on:click=move |e: leptos::ev::MouseEvent| {
-                                                    e.stop_propagation();
-                                                    on_da.run(date);
-                                                }
-                                                title="Add event"
-                                            >"+"</button>
-                                        </div>
-                                    }.into_any()
-                                }
-                                None => view! { <div class="calendar-grid-day empty"></div> }.into_any(),
-                            }
-                        }).collect::<Vec<_>>()
-                    }}
-                </div>
+                {move || match calendar_view_mode.get() {
+                    CalendarViewMode::Month => view! {
+                        {month_grid(
+                            view_year.get(), view_month.get(), today,
+                            events_for_scope, selected_date, zoom,
+                            on_day_click.clone(), on_day_add.clone(), on_edit.clone(),
+                            false, false
+                        )}
+                    }.into_any(),
+                    CalendarViewMode::MultiMonth => {
+                        let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+                        let mut months: Vec<(i32, u32)> = Vec::new();
+                        for offset in -1..=1i32 {
+                            let d = if offset < 0 {
+                                base.checked_sub_months(Months::new((-offset) as u32))
+                            } else {
+                                base.checked_add_months(Months::new(offset as u32))
+                            };
+                            if let Some(d) = d { months.push((d.year(), d.month())); }
+                        }
+                        view! {
+                            <div class="calendar-manager-grids calendar-manager-grids-multi">
+                                {months.into_iter().map(|(y, m)| view! {
+                                    {month_grid(
+                                        y, m, today,
+                                        events_for_scope, selected_date, zoom,
+                                        on_day_click.clone(), on_day_add.clone(), on_edit.clone(),
+                                        true, true
+                                    )}
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    },
+                    CalendarViewMode::Year => {
+                        let year = view_year.get();
+                        let months: Vec<_> = (1..=12).map(|m| (year, m)).collect();
+                        view! {
+                            <div class="calendar-manager-grids calendar-manager-grids-year">
+                                {months.into_iter().map(|(y, m)| view! {
+                                    {month_grid(
+                                        y, m, today,
+                                        events_for_scope, selected_date, zoom,
+                                        on_day_click.clone(), on_day_add.clone(), on_edit.clone(),
+                                        true, true
+                                    )}
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    },
+                }}
             </div>
 
             // Selected day detail panel

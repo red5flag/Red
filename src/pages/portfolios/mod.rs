@@ -338,7 +338,7 @@ mod portfolio_list;
 pub(crate) use add_portfolio_modal::AddPortfolioModal;
 pub(crate) use asset_channels::{
     AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
-    ChannelManagementWindow, LinkingBookingModal,
+    ChannelManagementWindow,
 };
 pub(crate) use asset_editor::AssetDetailView;
 pub(crate) use asset_group::AssetGroupItem;

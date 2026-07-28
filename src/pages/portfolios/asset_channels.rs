@@ -4,6 +4,7 @@ use crate::models::{
 use crate::stores::{use_app_store, use_calendar_store};
 use chrono::{Duration, NaiveDate, Utc};
 use leptos::prelude::*;
+use std::collections::HashSet;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 
@@ -378,7 +379,8 @@ pub(crate) fn AssetChannelsSection(
     }
 }
 
-/// Asset Linking Controls — channel linking panel (connect/disconnect/sync/edit channels).
+/// Asset Linking Controls — bulk channel management with search, filters,
+/// pagination, and selection. Designed mobile-first for dozens of channels.
 /// Role-ready: respects `can_link` permission flag independently from booking controls.
 #[component]
 pub(crate) fn AssetLinkingControls(
@@ -408,6 +410,99 @@ pub(crate) fn AssetLinkingControls(
     let (new_channel_type, set_new_channel_type) = signal("Test".to_string());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
     let (add_error, set_add_error) = signal(Option::<String>::None);
+
+    // Bulk / search / pagination state
+    let (search, set_search) = signal(String::new());
+    let (status_filter, set_status_filter) = signal("All".to_string());
+    let (type_filter, set_type_filter) = signal("All".to_string());
+    let (sort_by, set_sort_by) = signal("name".to_string());
+    let (page, set_page) = signal(0usize);
+    let per_page = 25usize;
+    let (selected, set_selected) = signal(HashSet::<Uuid>::new());
+
+    let channel_type_label = |t: &ChannelType| -> &'static str {
+        match t {
+            ChannelType::Test => "Test",
+            ChannelType::Airbnb => "Airbnb",
+            ChannelType::BookingCom => "Booking.com",
+            ChannelType::Expedia => "Expedia",
+            ChannelType::Vrbo => "Vrbo",
+            ChannelType::LinkedIn => "LinkedIn",
+            ChannelType::Other(_) => "Other",
+        }
+    };
+
+    let status_icon = |s: &ConnectionStatus| -> &'static str {
+        match s {
+            ConnectionStatus::Connected => "🟢",
+            ConnectionStatus::Disconnected => "⚪",
+            ConnectionStatus::Error => "🔴",
+        }
+    };
+
+    let filtered_channels = Memo::new(move |_| {
+        let mut channels = channels_for_asset.get();
+        let q = search.get().trim().to_lowercase();
+        if !q.is_empty() {
+            channels.retain(|c| c.name.to_lowercase().contains(&q));
+        }
+        match status_filter.get().as_str() {
+            "Connected" => {
+                channels.retain(|c| matches!(c.connection_status, ConnectionStatus::Connected))
+            }
+            "Disconnected" => {
+                channels.retain(|c| matches!(c.connection_status, ConnectionStatus::Disconnected))
+            }
+            "Error" => channels.retain(|c| matches!(c.connection_status, ConnectionStatus::Error)),
+            _ => {}
+        }
+        match type_filter.get().as_str() {
+            "Test" => channels.retain(|c| matches!(c.channel_type, ChannelType::Test)),
+            "Airbnb" => channels.retain(|c| matches!(c.channel_type, ChannelType::Airbnb)),
+            "Booking.com" => channels.retain(|c| matches!(c.channel_type, ChannelType::BookingCom)),
+            "Expedia" => channels.retain(|c| matches!(c.channel_type, ChannelType::Expedia)),
+            "Vrbo" => channels.retain(|c| matches!(c.channel_type, ChannelType::Vrbo)),
+            "LinkedIn" => channels.retain(|c| matches!(c.channel_type, ChannelType::LinkedIn)),
+            "Other" => channels.retain(|c| matches!(c.channel_type, ChannelType::Other(_))),
+            _ => {}
+        }
+        match sort_by.get().as_str() {
+            "status" => channels.sort_by(|a, b| {
+                format!("{:?}", a.connection_status).cmp(&format!("{:?}", b.connection_status))
+            }),
+            "type" => channels.sort_by(|a, b| {
+                channel_type_label(&a.channel_type).cmp(channel_type_label(&b.channel_type))
+            }),
+            "last_sync" => channels.sort_by(|a, b| a.last_sync_at.cmp(&b.last_sync_at).reverse()),
+            _ => channels.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase())),
+        }
+        channels
+    });
+
+    let total_pages = Memo::new(move |_| {
+        let count = filtered_channels.get().len();
+        ((count + per_page - 1) / per_page).max(1)
+    });
+
+    let paginated_channels = Memo::new(move |_| {
+        let all = filtered_channels.get();
+        let total = total_pages.get();
+        let page = page.get().min(total.saturating_sub(1));
+        let start = page * per_page;
+        all.into_iter()
+            .skip(start)
+            .take(per_page)
+            .collect::<Vec<_>>()
+    });
+
+    // Keep the current page inside the available range.
+    Effect::new(move |_| {
+        let total = total_pages.get();
+        let current = page.get();
+        if current + 1 > total && total > 0 {
+            set_page.set(total - 1);
+        }
+    });
 
     let add_channel = Callback::new(move |_| {
         set_add_error.set(None);
@@ -473,36 +568,82 @@ pub(crate) fn AssetLinkingControls(
         set_show_add_form.set(false);
     });
 
-    let connect_channel = Callback::new(move |channel_id: Uuid| {
-        app_store.update(|s| {
-            if let Some(c) = s.get_channel_mut(channel_id) {
-                c.connect();
+    let toggle_selected = Callback::new(move |id: Uuid| {
+        set_selected.update(|s| {
+            if s.contains(&id) {
+                s.remove(&id);
+            } else {
+                s.insert(id);
             }
         });
     });
 
-    let disconnect_channel = Callback::new(move |channel_id: Uuid| {
+    let select_all = Callback::new(move |_| {
+        let ids: HashSet<Uuid> = filtered_channels.get().iter().map(|c| c.id).collect();
+        set_selected.set(ids);
+    });
+
+    let clear_selection = Callback::new(move |_| {
+        set_selected.set(HashSet::new());
+    });
+
+    let bulk_connect = Callback::new(move |_| {
+        let ids: Vec<_> = selected.get().iter().copied().collect();
+        if ids.is_empty() {
+            return;
+        }
         app_store.update(|s| {
-            if let Some(c) = s.get_channel_mut(channel_id) {
-                c.disconnect();
+            for id in ids {
+                if let Some(c) = s.get_channel_mut(id) {
+                    c.connect();
+                }
             }
         });
     });
 
-    let check_channel = Callback::new(move |channel_id: Uuid| {
+    let bulk_disconnect = Callback::new(move |_| {
+        let ids: Vec<_> = selected.get().iter().copied().collect();
+        if ids.is_empty() {
+            return;
+        }
         app_store.update(|s| {
-            if let Some(c) = s.get_channel_mut(channel_id) {
-                c.check_connection();
+            for id in ids {
+                if let Some(c) = s.get_channel_mut(id) {
+                    c.disconnect();
+                }
             }
         });
     });
 
-    let sync_channel = Callback::new(move |channel_id: Uuid| {
+    let bulk_sync = Callback::new(move |_| {
+        let ids: Vec<_> = selected.get().iter().copied().collect();
+        if ids.is_empty() {
+            return;
+        }
         app_store.update(|s| {
-            if let Some(c) = s.get_channel_mut(channel_id) {
-                c.last_sync_at = Some(Utc::now());
-                c.last_sync_status = Some("Test channel sync completed (local)".to_string());
-                c.sync_errors.clear();
+            for id in ids {
+                if let Some(c) = s.get_channel_mut(id) {
+                    c.last_sync_at = Some(Utc::now());
+                    c.last_sync_status = Some("Test channel sync completed (local)".to_string());
+                    c.sync_errors.clear();
+                }
+            }
+        });
+    });
+
+    let bulk_delete = Callback::new(move |_| {
+        let ids: Vec<_> = selected.get().iter().copied().collect();
+        if ids.is_empty() {
+            return;
+        }
+        app_store.update(|s| {
+            for &id in &ids {
+                s.remove_channel(id);
+            }
+        });
+        set_selected.update(|s| {
+            for id in &ids {
+                s.remove(id);
             }
         });
     });
@@ -645,22 +786,100 @@ pub(crate) fn AssetLinkingControls(
                     view! { <div class="ai-channel-management-empty">"No channels linked."</div> }.into_any()
                 } else {
                     view! {
-                        <div class="ai-channel-management-chips">
+                        <div class="ai-channel-toolbar">
+                            <input class="ai-channel-search" type="text" placeholder="Search channels..."
+                                prop:value={move || search.get()}
+                                on:input=move |ev| {
+                                    set_search.set(event_target_value(&ev));
+                                    set_page.set(0);
+                                }
+                            />
+                            <select class="ai-channel-filter" prop:value={move || status_filter.get()}
+                                on:change=move |ev| {
+                                    set_status_filter.set(event_target_value(&ev));
+                                    set_page.set(0);
+                                }>
+                                <option value="All">"All statuses"</option>
+                                <option value="Connected">"Connected"</option>
+                                <option value="Disconnected">"Disconnected"</option>
+                                <option value="Error">"Error"</option>
+                            </select>
+                            <select class="ai-channel-filter" prop:value={move || type_filter.get()}
+                                on:change=move |ev| {
+                                    set_type_filter.set(event_target_value(&ev));
+                                    set_page.set(0);
+                                }>
+                                <option value="All">"All types"</option>
+                                <option value="Test">"Test"</option>
+                                <option value="Airbnb">"Airbnb"</option>
+                                <option value="Booking.com">"Booking.com"</option>
+                                <option value="Expedia">"Expedia"</option>
+                                <option value="Vrbo">"Vrbo"</option>
+                                <option value="LinkedIn">"LinkedIn"</option>
+                                <option value="Other">"Other"</option>
+                            </select>
+                            <select class="ai-channel-filter" prop:value={move || sort_by.get()}
+                                on:change=move |ev| set_sort_by.set(event_target_value(&ev))>
+                                <option value="name">"Name"</option>
+                                <option value="status">"Status"</option>
+                                <option value="type">"Type"</option>
+                                <option value="last_sync">"Last sync"</option>
+                            </select>
+                        </div>
+                    }.into_any()
+                }
+            }}
+
+            {move || {
+                let total = filtered_channels.get().len();
+                view! {
+                    <div class="ai-channel-list-meta">
+                        <span>{total.to_string()}" channels found"</span>
+                        {move || if can_link && total > 0 { view! {
+                            <div class="ai-channel-selection-actions">
+                                <button class="pf-small-btn" on:click=move |_| select_all.run(())>"Select all"</button>
+                                <button class="pf-small-btn" on:click=move |_| clear_selection.run(())>"Clear"</button>
+                            </div>
+                        }.into_any() } else { ().into_any() }}
+                    </div>
+                }.into_any()
+            }}
+
+            {move || {
+                let channels = paginated_channels.get();
+                if channels.is_empty() {
+                    view! { <div class="ai-channel-management-empty">"No channels match the current filters."</div> }.into_any()
+                } else {
+                    view! {
+                        <div class="ai-channel-list">
                             {channels.into_iter().map(|c| {
-                                let status = format!("{:?}", c.connection_status);
-                                let status_icon = match c.connection_status {
-                                    ConnectionStatus::Connected => "🟢",
-                                    ConnectionStatus::Disconnected => "⚪",
-                                    ConnectionStatus::Error => "🔴",
-                                };
                                 let cid = c.id;
+                                let label = channel_type_label(&c.channel_type).to_string();
+                                let status = format!("{:?}", c.connection_status);
+                                let icon = status_icon(&c.connection_status);
+                                let rate = c.nightly_rate_override.map(|r| format!("${:.2}", r)).unwrap_or_else(|| "—".to_string());
+                                let last = c.last_sync_status.clone().unwrap_or_else(|| "Never synced".to_string());
+                                let is_selected = move || selected.get().contains(&cid);
                                 view! {
-                                    <div class="ai-channel-management-chip"
-                                        class:ai-channel-management-chip-editable={can_link}
-                                        title={format!("{} — {}", c.name, status)}
-                                        on:click=move |_| if can_link { set_editing_channel.set(Some(cid)) }
+                                    <div class="ai-channel-row"
+                                        class:ai-channel-row-selected={is_selected}
+                                        on:click=move |_| set_editing_channel.set(Some(cid))
                                     >
-                                        {status_icon} " " {c.name.clone()}
+                                        {if can_link { view! {
+                                            <input type="checkbox" class="ai-channel-checkbox"
+                                                checked={is_selected}
+                                                on:click=move |ev| {
+                                                    ev.stop_propagation();
+                                                    toggle_selected.run(cid);
+                                                }
+                                            />
+                                        }.into_any() } else { ().into_any() }}
+                                        <span class="ai-channel-status-icon">{icon}</span>
+                                        <span class="ai-channel-row-name">{c.name.clone()}</span>
+                                        <span class="ai-channel-row-badge ai-channel-type-badge">{label}</span>
+                                        <span class="ai-channel-row-badge ai-channel-status-badge">{status}</span>
+                                        <span class="ai-channel-row-rate">{rate}</span>
+                                        <span class="ai-channel-row-last">{last}</span>
                                     </div>
                                 }
                             }).collect::<Vec<_>>()}
@@ -669,28 +888,35 @@ pub(crate) fn AssetLinkingControls(
                 }
             }}
 
-            {move || if can_link {
-                let channels = channels_for_asset.get();
-                if channels.is_empty() {
-                    ().into_any()
-                } else {
-                    view! {
-                        <div class="ai-channel-actions">
-                            {channels.into_iter().map(|c| {
-                                let cid = c.id;
-                                view! {
-                                    <span class="ai-channel-action-group">
-                                        <button class="pf-small-btn" on:click=move |_| connect_channel.run(cid)>"Connect"</button>
-                                        <button class="pf-small-btn" on:click=move |_| disconnect_channel.run(cid)>"Disconnect"</button>
-                                        <button class="pf-small-btn" on:click=move |_| check_channel.run(cid)>"Check"</button>
-                                        <button class="pf-small-btn" on:click=move |_| sync_channel.run(cid)>"Sync"</button>
-                                    </span>
-                                }
-                            }).collect::<Vec<_>>()}
+            {move || {
+                let total = total_pages.get();
+                let current = page.get() + 1;
+                if total > 1 { view! {
+                    <div class="ai-channel-pagination">
+                        <button class="pf-small-btn" on:click=move |_| set_page.set(0) disabled={move || page.get() == 0}>"First"</button>
+                        <button class="pf-small-btn" on:click=move |_| set_page.set(page.get().saturating_sub(1)) disabled={move || page.get() == 0}>"Prev"</button>
+                        <span class="ai-channel-page-info">{current.to_string()}" / "{total.to_string()}</span>
+                        <button class="pf-small-btn" on:click=move |_| set_page.set((page.get() + 1).min(total - 1)) disabled={move || page.get() + 1 >= total}>"Next"</button>
+                        <button class="pf-small-btn" on:click=move |_| set_page.set(total - 1) disabled={move || page.get() + 1 >= total}>"Last"</button>
+                    </div>
+                }.into_any() } else { ().into_any() }
+            }}
+
+            {move || {
+                let count = selected.get().len();
+                if can_link && count > 0 { view! {
+                    <div class="ai-channel-bulk-bar">
+                        <span class="ai-channel-bulk-count">{count.to_string()}" selected"</span>
+                        <div class="ai-channel-bulk-actions">
+                            <button class="pf-small-btn" on:click=move |_| bulk_connect.run(())>"Connect"</button>
+                            <button class="pf-small-btn" on:click=move |_| bulk_disconnect.run(())>"Disconnect"</button>
+                            <button class="pf-small-btn" on:click=move |_| bulk_sync.run(())>"Sync"</button>
+                            <button class="pf-small-btn" on:click=move |_| bulk_delete.run(())>"Delete"</button>
                         </div>
-                    }.into_any()
-                }
-            } else { ().into_any() }}
+                        <button class="pf-small-btn" on:click=move |_| clear_selection.run(())>"Clear"</button>
+                    </div>
+                }.into_any() } else { ().into_any() }
+            }}
 
             {move || if let Some(cid) = editing_channel.get() {
                 view! {
@@ -1286,66 +1512,6 @@ pub(crate) fn ChannelManagementWindow(channel_id: Uuid, on_close: Callback<()>) 
                             <button class="login-btn sell" on:click=move |_| save.run(())>"Save"</button>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    }
-}
-
-/// Combined modal that hosts Linking (channel) and Booking controls in a tabbed overlay.
-#[component]
-pub(crate) fn LinkingBookingModal(
-    asset_id: Uuid,
-    asset_name: String,
-    portfolio_id: Option<Uuid>,
-    can_link: bool,
-    can_book: bool,
-    on_close: Callback<()>,
-) -> impl IntoView {
-    let (active_tab, set_active_tab) = signal("linking".to_string());
-
-    view! {
-        <div class="doc-modal-overlay" on:click=move |_| on_close.run(())>
-            <div class="doc-modal doc-modal-tabbed linking-booking-modal" on:click=|ev| ev.stop_propagation()>
-                <div class="doc-modal-header">
-                    <span class="doc-modal-title">"Linking & Booking"</span>
-                    <button class="doc-modal-close" aria-label="Close linking and booking" on:click=move |_| on_close.run(())>"✕"</button>
-                </div>
-                <div class="lbm-tabs">
-                    <button
-                        class="lbm-tab"
-                        class:lbm-tab-active={move || active_tab.get() == "linking"}
-                        on:click=move |_| set_active_tab.set("linking".to_string())
-                    >
-                        "Linking"
-                    </button>
-                    <button
-                        class="lbm-tab"
-                        class:lbm-tab-active={move || active_tab.get() == "booking"}
-                        on:click=move |_| set_active_tab.set("booking".to_string())
-                    >
-                        "Booking"
-                    </button>
-                </div>
-                <div class="doc-modal-body lbm-body">
-                    {move || match active_tab.get().as_str() {
-                        "booking" => view! {
-                            <AssetBookingControls
-                                asset_id={asset_id}
-                                asset_name={asset_name.clone()}
-                                portfolio_id={portfolio_id}
-                                can_book={can_book}
-                            />
-                        }.into_any(),
-                        _ => view! {
-                            <AssetLinkingControls
-                                asset_id={asset_id}
-                                asset_name={asset_name.clone()}
-                                portfolio_id={portfolio_id}
-                                can_link={can_link}
-                            />
-                        }.into_any(),
-                    }}
                 </div>
             </div>
         </div>

@@ -73,13 +73,16 @@ pub fn Navbar() -> impl IntoView {
 
     // Handlers
     let on_tabs_drawer = move |_| {
-        ui_store.update(|ui| {
-            ui.toggle_tabs_drawer();
-            if ui.tabs_drawer_open {
-                messenger_store.update(|store| store.set_message_drawer(false));
-                ui.close_search();
-            }
-        });
+        let was_open = ui_store.get_untracked().tabs_drawer_open;
+        if !was_open {
+            ui_store.update(|ui| {
+                ui.tabs_drawer_open = true;
+                ui.is_search_open = false;
+            });
+            messenger_store.update(|store| store.set_message_drawer(false));
+        } else {
+            ui_store.update(|ui| ui.tabs_drawer_open = false);
+        }
         notification_store.update(|store| store.close_drawer());
         click_feedback(0);
     };
@@ -215,43 +218,46 @@ pub fn Navbar() -> impl IntoView {
     };
 
     let on_search_click = move |_| {
-        ui_store.update(|s| {
-            s.is_search_open = !s.is_search_open;
-            if s.is_search_open {
-                s.close_tabs_drawer();
-                messenger_store.update(|store| store.set_message_drawer(false));
-            }
-        });
+        let was_open = ui_store.get_untracked().is_search_open;
+        if !was_open {
+            ui_store.update(|s| {
+                s.is_search_open = true;
+                s.tabs_drawer_open = false;
+            });
+            messenger_store.update(|store| store.set_message_drawer(false));
+        } else {
+            ui_store.update(|s| s.is_search_open = false);
+        }
         notification_store.update(|s| s.close_drawer());
         click_feedback(3);
     };
 
     let on_message_click = move |_| {
-        messenger_store.update(|store| {
-            store.toggle_message_drawer();
-            if store.message_drawer_open {
-                ui_store.update(|ui| {
-                    ui.close_tabs_drawer();
-                    ui.close_search();
-                });
-            }
-        });
+        let was_open = messenger_store.get_untracked().message_drawer_open;
+        messenger_store.update(|store| store.message_drawer_open = !was_open);
+        if !was_open {
+            ui_store.update(|ui| {
+                ui.tabs_drawer_open = false;
+                ui.is_search_open = false;
+            });
+        }
         notification_store.update(|s| s.close_drawer());
         click_feedback(5);
     };
 
     let on_notifications_click = move |_| {
+        let was_open = notification_store.get_untracked().drawer_open;
         notification_store.update(|store| {
             store.clear_drawer_scope();
-            store.toggle_drawer();
-            if store.drawer_open {
-                messenger_store.update(|s| s.set_message_drawer(false));
-                ui_store.update(|ui| {
-                    ui.close_tabs_drawer();
-                    ui.close_search();
-                });
-            }
+            store.drawer_open = !was_open;
         });
+        if !was_open {
+            messenger_store.update(|s| s.set_message_drawer(false));
+            ui_store.update(|ui| {
+                ui.tabs_drawer_open = false;
+                ui.is_search_open = false;
+            });
+        }
         click_feedback(6);
     };
 

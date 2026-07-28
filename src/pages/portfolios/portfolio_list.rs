@@ -141,6 +141,29 @@ pub(crate) fn PortfolioListItem(
     };
     let save_edit_now = move || do_save();
 
+    // Deep-link scrolling from search / notifications.
+    Effect::new(move |_| {
+        let target = app_store.get().pending_scroll_target.clone();
+        let slider_target = app_store.get().pending_doc_slider.clone();
+        if let Some(crate::stores::ScrollTarget::Portfolio(id)) = target {
+            if id == pid {
+                crate::utils::dom::scroll_to_id(&format!("portfolio-{}", pid));
+                app_store.update(|s| s.pending_scroll_target = None);
+            }
+        }
+        if let Some(sid) = slider_target {
+            if sid == pid {
+                set_show_doc_slider.set(true);
+                app_store.update(|s| {
+                    s.pending_doc_slider = None;
+                    if matches!(s.pending_scroll_target, Some(crate::stores::ScrollTarget::Document(_))) {
+                        s.pending_scroll_target = None;
+                    }
+                });
+            }
+        }
+    });
+
     let add_doc = move |n: String| {
         if n.trim().is_empty() {
             return;
@@ -259,7 +282,7 @@ pub(crate) fn PortfolioListItem(
     });
 
     view! {
-        <div class="asset-group pf-portfolio" class:expanded={expanded} on:contextmenu=on_context>
+        <div class="asset-group pf-portfolio" id={format!("portfolio-{}", pid)} class:expanded={expanded} on:contextmenu=on_context>
             // Header row — same structure as asset-group-header
             <div class="asset-group-header pf-accordion-header"
                 class:editing={move || is_editing_name.get() || is_editing_desc.get() || is_editing_org.get()}

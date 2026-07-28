@@ -41,6 +41,14 @@ pub struct AppStore {
     pub pending_nav_target: Option<PendingNavTarget>,
     /// When set, PortfolioListItem should expand this group (set by notification navigation).
     pub pending_group_expand: Option<Uuid>,
+    /// When set, the UI should scroll this target into view and then clear it.
+    pub pending_scroll_target: Option<ScrollTarget>,
+    /// When set, AssetItem should expand its detail panel for this asset.
+    pub pending_asset_detail: Option<Uuid>,
+    /// When set, DocSlider should open the viewer for this document.
+    pub pending_doc_view: Option<Uuid>,
+    /// When set, the owner of this entity id should open its document slider.
+    pub pending_doc_slider: Option<Uuid>,
     // Authentication state
     pub is_authenticated: bool,
     // Credential store for password verification
@@ -57,6 +65,17 @@ pub struct PendingNavTarget {
     pub group_id: Option<Uuid>,
     pub asset_id: Option<Uuid>,
     pub doc_id: Option<Uuid>,
+}
+
+/// Scroll target used by search (and other deep links) to centre a specific
+/// portfolio, asset group, asset, document, or asset detail section.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ScrollTarget {
+    Portfolio(Uuid),
+    AssetGroup(Uuid),
+    Asset(Uuid),
+    AssetDetail { asset_id: Uuid, detail_type: String },
+    Document(Uuid),
 }
 
 #[cfg(feature = "hydrate")]
@@ -102,6 +121,10 @@ impl Default for AppStore {
             selected_asset_id: None,
             pending_nav_target: None,
             pending_group_expand: None,
+            pending_scroll_target: None,
+            pending_asset_detail: None,
+            pending_doc_view: None,
+            pending_doc_slider: None,
             is_authenticated: false,
             credentials,
             developer_mode: false,
@@ -1040,6 +1063,10 @@ impl AppStore {
         self.selected_asset_id = None;
         self.pending_nav_target = None;
         self.pending_group_expand = None;
+        self.pending_scroll_target = None;
+        self.pending_asset_detail = None;
+        self.pending_doc_view = None;
+        self.pending_doc_slider = None;
         self.portfolios.clear();
         let _ = crypto::clear_cached("farley_home_cache");
     }
@@ -1262,11 +1289,45 @@ impl AppStore {
     }
 
     pub fn remove_channel(&mut self, id: Uuid) -> Option<Channel> {
-        if let Some(pos) = self.channels.iter().position(|c| c.id == id) {
-            Some(self.channels.remove(pos))
-        } else {
-            None
+        let pos = self.channels.iter().position(|c| c.id == id)?;
+        let channel = self.channels.remove(pos);
+        // Remove the channel id from any asset references so the UI does not
+        // reference a stale channel.
+        let asset_id = channel.linked_asset_id;
+        let portfolio_id = channel.portfolio_id;
+        let remove = |a: &mut crate::models::Asset| {
+            a.channel_ids.retain(|cid| *cid != id);
+        };
+        if let (Some(pid), Some(aid)) = (portfolio_id, asset_id) {
+            if let Some(p) = self.get_portfolio_mut(pid) {
+                if let Some(a) = p.assets.iter_mut().find(|a| a.id == aid) {
+                    remove(a);
+                } else {
+                    for g in p.asset_groups.iter_mut() {
+                        if let Some(a) = g.assets.iter_mut().find(|a| a.id == aid) {
+                            remove(a);
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if let Some(aid) = asset_id {
+            for p in self.portfolios.iter_mut() {
+                if let Some(a) = p.assets.iter_mut().find(|a| a.id == aid) {
+                    remove(a);
+                    break;
+                }
+                let found = p
+                    .asset_groups
+                    .iter_mut()
+                    .find_map(|g| g.assets.iter_mut().find(|a| a.id == aid).map(|a| a));
+                if let Some(a) = found {
+                    remove(a);
+                    break;
+                }
+            }
         }
+        Some(channel)
     }
 
     // ── Bookings ─────────────────────────────────────────────────────────────

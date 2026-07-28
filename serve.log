@@ -1,9 +1,5 @@
-[2m2026-07-16T10:02:02.137340Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
-[2m2026-07-16T10:02:02.181047Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://127.0.0.1:3000
-[2m2026-07-16T10:02:02.181112Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://127.0.0.1:3000/emailvalid
-[2m2026-07-16T11:12:46.811435Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
-[2m2026-07-16T11:12:46.849558Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://127.0.0.1:3000
-[2m2026-07-16T11:12:46.849592Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://127.0.0.1:3000/emailvalid
-[2m2026-07-16T11:15:21.795212Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
-[2m2026-07-16T11:15:21.840474Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Server listening on http://127.0.0.1:3000
-[2m2026-07-16T11:15:21.840542Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Email validation inbox at http://127.0.0.1:3000/emailvalid
+[2m2026-07-28T00:48:25.429539Z[0m [32m INFO[0m [2mfarley[0m[2m:[0m Starting Red server...
+
+thread 'main' (1242701) panicked at src/storage/db.rs:23:52:
+Failed to open local DB: Io(Custom { kind: Other, error: "could not acquire lock on \"./data/farley/db\": Os { code: 11, kind: WouldBlock, message: \"Resource temporarily unavailable\" }" })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

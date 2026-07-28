@@ -1,4 +1,4 @@
-use crate::stores::use_ui_store;
+use crate::stores::{use_app_store, use_ui_store};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -32,12 +32,27 @@ pub fn DocSlider(
     let (modal_target, set_modal_target) = signal(Option::<ModalTarget>::None);
     let (doc_ctx, set_doc_ctx) = signal(Option::<(i32, i32, DocEntry)>::None);
     let ui_store = use_ui_store();
+    let app_store = use_app_store();
 
     // External triggers (e.g. context menu "Add Document") open the add modal.
     Effect::new(move |_| {
         if ui_store.get().is_doc_modal_open(entity_id) {
             set_modal_target.set(Some(ModalTarget::Add));
             ui_store.update(|s| s.close_doc_modal(entity_id));
+        }
+    });
+
+    // Deep-link from search: if a specific document is requested, open its viewer
+    // and scroll the card into view.
+    Effect::new(move |_| {
+        let doc_id = app_store.get().pending_doc_view;
+        if let Some(did) = doc_id {
+            let entries = entries.get();
+            if let Some(entry) = entries.iter().find(|e| e.doc.id == did).cloned() {
+                set_modal_target.set(Some(ModalTarget::View(entry)));
+                app_store.update(|s| s.pending_doc_view = None);
+                crate::utils::dom::scroll_to_id(&format!("doc-card-{}", did));
+            }
         }
     });
 
@@ -80,6 +95,7 @@ pub fn DocSlider(
                         view! {
                             <div
                                 class="ai-doc-slider-item"
+                                id={format!("doc-card-{}", entry.doc.id)}
                                 aria-label={format!("View document {}. Type {}", entry.doc.name, ft)}
                                 on:click=move |_| open_view(doc_for_click.clone())
                                 on:contextmenu=move |ev: leptos::ev::MouseEvent| {

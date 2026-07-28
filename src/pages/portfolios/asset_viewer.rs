@@ -139,6 +139,49 @@ pub(crate) fn AssetViewer(
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
     let (new_asset_id, set_new_asset_id) = signal(Option::<Uuid>::None);
+    let portfolio_for_scroll = portfolio.clone();
+
+    // Search / deep-link scroll target: highlight a direct asset, expand a group, or
+    // route a document result to the asset/group that owns it.
+    Effect::new(move |_| {
+        let target = app_store_inner.get().pending_scroll_target.clone();
+        if let Some(crate::stores::ScrollTarget::Asset(aid))
+            | Some(crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. }) = target
+        {
+            // Direct assets live on the portfolio.
+            if portfolio_for_scroll.assets.iter().any(|a| a.id == aid) {
+                set_new_asset_id.set(Some(aid));
+                // Let AssetItem consume the scroll target and apply the highlight.
+                return;
+            }
+            // Otherwise find the group containing the asset and expand it.
+            if let Some(g) = portfolio_for_scroll.asset_groups.iter().find(|g| g.assets.iter().any(|a| a.id == aid)) {
+                set_expanded_groups.update(|set| {
+                    set.insert(g.id);
+                });
+                // AssetGroupItem's own Effect will pick up the asset id and AssetItem will clear the target.
+            }
+        }
+        if let Some(crate::stores::ScrollTarget::Document(did)) = target {
+            // Direct asset document.
+            if let Some(a) = portfolio_for_scroll.assets.iter().find(|a| a.documents.iter().any(|d| d.id == did)) {
+                set_new_asset_id.set(Some(a.id));
+                app_store_inner.update(|s| s.pending_scroll_target = None);
+                return;
+            }
+            // Group or group-asset document.
+            if let Some(g) = portfolio_for_scroll.asset_groups.iter().find(|g| {
+                g.documents.iter().any(|d| d.id == did)
+                    || g.assets.iter().any(|a| a.documents.iter().any(|d| d.id == did))
+            }) {
+                set_expanded_groups.update(|set| {
+                    set.insert(g.id);
+                });
+                // Let AssetGroupItem effect route to the exact doc.
+                return;
+            }
+        }
+    });
 
     let (grid_columns, _set_grid_columns) = signal(3usize);
     let (selected_asset, set_selected_asset) = signal::<Option<Asset>>(None);

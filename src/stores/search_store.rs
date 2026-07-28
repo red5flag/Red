@@ -1,7 +1,7 @@
-use crate::models::{Asset, Document, Organization, Perm, Portfolio, User};
+use crate::models::{Asset, AssetGroup, Document, Organization, Perm, Portfolio, User};
 use crate::stores::{AppStore, OrganizationStore};
 use crate::types::{SearchFilters, SortMode, TabType};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -44,41 +44,56 @@ pub struct SearchQuery {
     pub result_count: usize,
 }
 
-#[derive(Clone, Debug)]
-pub struct SearchDocumentResult {
-    pub document: Document,
+#[derive(Clone, Debug, Default)]
+pub struct SearchResults {
+    pub items: Vec<SearchResultItem>,
+    pub total_count: usize,
+    pub search_time_ms: u64,
+}
+
+/// A single, mixed search result row with full hierarchical context.
+#[derive(Clone, Debug, PartialEq)]
+pub struct AssetDetailResult {
     pub portfolio_id: Uuid,
     pub portfolio_name: String,
     pub group_id: Option<Uuid>,
-    pub asset_id: Option<Uuid>,
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct SearchResults {
-    pub portfolios: Vec<Portfolio>,
-    pub assets: Vec<Asset>,
-    pub documents: Vec<SearchDocumentResult>,
-    pub organizations: Vec<Organization>,
-    pub users: Vec<User>,
-    pub total_count: usize,
-    pub search_time_ms: u64,
+    pub group_name: Option<String>,
+    pub asset_id: Uuid,
+    pub asset_name: String,
+    pub detail_id: Uuid,
+    pub detail_type: &'static str,
+    pub title: String,
+    pub snippet: String,
+    pub last_accessed_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub score: f64,
 }
 
 /// A single, mixed search result row.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SearchResultItem {
     Portfolio(Portfolio),
+    AssetGroup {
+        group: AssetGroup,
+        portfolio_id: Uuid,
+        portfolio_name: String,
+    },
     Asset {
         asset: Asset,
         portfolio_id: Uuid,
         portfolio_name: String,
+        group_id: Option<Uuid>,
+        group_name: Option<String>,
     },
+    AssetDetail(AssetDetailResult),
     Document {
         document: Document,
         portfolio_id: Uuid,
         portfolio_name: String,
         group_id: Option<Uuid>,
+        group_name: Option<String>,
         asset_id: Option<Uuid>,
+        asset_name: Option<String>,
     },
     Organization(Organization),
     User(User),
@@ -88,7 +103,9 @@ impl SearchResultItem {
     pub fn id(&self) -> Uuid {
         match self {
             SearchResultItem::Portfolio(p) => p.id,
+            SearchResultItem::AssetGroup { group, .. } => group.id,
             SearchResultItem::Asset { asset, .. } => asset.id,
+            SearchResultItem::AssetDetail(d) => d.detail_id,
             SearchResultItem::Document { document, .. } => document.id,
             SearchResultItem::Organization(o) => o.id,
             SearchResultItem::User(u) => u.id,
@@ -98,7 +115,9 @@ impl SearchResultItem {
     pub fn name(&self) -> String {
         match self {
             SearchResultItem::Portfolio(p) => p.name.clone(),
+            SearchResultItem::AssetGroup { group, .. } => group.name.clone(),
             SearchResultItem::Asset { asset, .. } => asset.name.clone(),
+            SearchResultItem::AssetDetail(d) => d.title.clone(),
             SearchResultItem::Document { document, .. } => document.name.clone(),
             SearchResultItem::Organization(o) => o.name.clone(),
             SearchResultItem::User(u) => u.name.clone(),
@@ -108,27 +127,82 @@ impl SearchResultItem {
     pub fn entity_type(&self) -> &'static str {
         match self {
             SearchResultItem::Portfolio(_) => "Portfolio",
+            SearchResultItem::AssetGroup { .. } => "Asset Group",
             SearchResultItem::Asset { .. } => "Asset",
+            SearchResultItem::AssetDetail(d) => d.detail_type,
             SearchResultItem::Document { .. } => "Document",
             SearchResultItem::Organization(_) => "Organization",
             SearchResultItem::User(_) => "Member",
         }
     }
 
-    pub fn last_accessed(&self) -> chrono::DateTime<chrono::Utc> {
+    /// Hierarchical path for display as a breadcrumb.
+    pub fn breadcrumb(&self) -> String {
+        match self {
+            SearchResultItem::Portfolio(p) => p.name.clone(),
+            SearchResultItem::AssetGroup {
+                group,
+                portfolio_name,
+                ..
+            } => format!("{} > {}", portfolio_name, group.name),
+            SearchResultItem::Asset {
+                asset,
+                portfolio_name,
+                group_name,
+                ..
+            } => match group_name {
+                Some(g) => format!("{} > {} > {}", portfolio_name, g, asset.name),
+                None => format!("{} > {}", portfolio_name, asset.name),
+            },
+            SearchResultItem::AssetDetail(d) => {
+                let mut path = vec![d.portfolio_name.clone()];
+                if let Some(g) = &d.group_name {
+                    path.push(g.clone());
+                }
+                path.push(d.asset_name.clone());
+                path.push(d.title.clone());
+                path.join(" > ")
+            }
+            SearchResultItem::Document {
+                document,
+                portfolio_name,
+                group_name,
+                asset_name,
+                ..
+            } => {
+                let mut path = vec![portfolio_name.clone()];
+                if let Some(g) = group_name {
+                    path.push(g.clone());
+                }
+                if let Some(a) = asset_name {
+                    path.push(a.clone());
+                }
+                path.push(document.name.clone());
+                path.join(" > ")
+            }
+            SearchResultItem::Organization(o) => o.name.clone(),
+            SearchResultItem::User(u) => u.name.clone(),
+        }
+    }
+
+    pub fn last_accessed(&self) -> DateTime<Utc> {
         match self {
             SearchResultItem::Portfolio(p) => p.last_accessed_at,
+            SearchResultItem::AssetGroup { group, .. } => group.updated_at,
             SearchResultItem::Asset { asset, .. } => asset.last_accessed_at,
+            SearchResultItem::AssetDetail(d) => d.last_accessed_at,
             SearchResultItem::Document { document, .. } => document.uploaded_at,
             SearchResultItem::Organization(o) => o.updated_at,
             SearchResultItem::User(u) => u.updated_at,
         }
     }
 
-    pub fn updated_at(&self) -> chrono::DateTime<chrono::Utc> {
+    pub fn updated_at(&self) -> DateTime<Utc> {
         match self {
             SearchResultItem::Portfolio(p) => p.updated_at,
+            SearchResultItem::AssetGroup { group, .. } => group.updated_at,
             SearchResultItem::Asset { asset, .. } => asset.last_accessed_at,
+            SearchResultItem::AssetDetail(d) => d.updated_at,
             SearchResultItem::Document { document, .. } => document.uploaded_at,
             SearchResultItem::Organization(o) => o.updated_at,
             SearchResultItem::User(u) => u.updated_at,
@@ -141,9 +215,13 @@ impl SearchResultItem {
                 let asset_count = p.get_all_assets().len() as f64;
                 p.total_value + p.revenue + asset_count * 1000.0 + p.profit_loss.max(0.0)
             }
+            SearchResultItem::AssetGroup { group, .. } => {
+                group.total_value + group.revenue + group.profit_loss.max(0.0)
+            }
             SearchResultItem::Asset { asset, .. } => {
                 asset.current_value + asset.revenue + asset.profit_loss.max(0.0)
             }
+            SearchResultItem::AssetDetail(d) => d.score,
             SearchResultItem::Document { .. } => 50.0,
             SearchResultItem::Organization(o) => {
                 o.members.len() as f64 * 500.0 + o.roles.len() as f64 * 200.0
@@ -152,18 +230,43 @@ impl SearchResultItem {
         }
     }
 
+    /// Whether this item is a portfolio, asset group, asset, asset detail, or document.
+    pub fn is_portfolio_content(&self) -> bool {
+        matches!(
+            self,
+            SearchResultItem::Portfolio(_)
+                | SearchResultItem::AssetGroup { .. }
+                | SearchResultItem::Asset { .. }
+                | SearchResultItem::AssetDetail(_)
+                | SearchResultItem::Document { .. }
+        )
+    }
+
     /// Whether this item belongs to the given tab context.
     pub fn matches_tab(&self, tab: &TabType) -> bool {
-        match (self, tab) {
-            (SearchResultItem::Portfolio(_), TabType::Portfolios) => true,
-            (SearchResultItem::Asset { .. }, TabType::Portfolios) => true,
-            (SearchResultItem::Document { .. }, TabType::Portfolios) => true,
-            (SearchResultItem::Document { .. }, TabType::Reporting) => true,
-            (SearchResultItem::Organization(_), TabType::Organization) => true,
-            (SearchResultItem::User(_), TabType::Networking) => true,
-            (SearchResultItem::User(_), TabType::NetworkingAddMember) => true,
-            (SearchResultItem::User(_), TabType::Organization) => true,
-            _ => false,
+        match tab {
+            TabType::Portfolios => matches!(
+                self,
+                SearchResultItem::Portfolio(_)
+                    | SearchResultItem::AssetGroup { .. }
+                    | SearchResultItem::Asset { .. }
+                    | SearchResultItem::AssetDetail(_)
+                    | SearchResultItem::Document { .. }
+            ),
+            TabType::Organization => matches!(
+                self,
+                SearchResultItem::Organization(_) | SearchResultItem::User(_)
+            ),
+            TabType::Networking | TabType::NetworkingAddMember => {
+                matches!(self, SearchResultItem::User(_))
+            }
+            TabType::Overview
+            | TabType::Reporting
+            | TabType::Calendar
+            | TabType::Transactions
+            | TabType::History
+            | TabType::Settings
+            | TabType::Agent => true,
         }
     }
 }
@@ -272,11 +375,10 @@ impl SearchStore {
     }
 
     /// Perform search across the current AppStore data.
-    /// Prioritizes results matching the current tab context first, then includes
-    /// other results by relevance. If the query is empty, returns 10 relevant
-    /// results based on recent access, recent modification, and productivity.
+    /// Indexes portfolios, asset groups, assets, documents, and asset details
+    /// (channels, bookings, and core fields) into a single ranked list.
     pub fn perform_search(&mut self, app_store: &AppStore, organization_store: &OrganizationStore) {
-        let start = std::time::SystemTime::now();
+        let start = chrono::Utc::now();
         let user_id = app_store.current_user.id;
         let org_ids: std::collections::HashSet<Uuid> = organization_store
             .organizations
@@ -289,10 +391,8 @@ impl SearchStore {
         let empty_query = self.query.trim().is_empty();
         let current_tab = self.current_tab.clone();
 
-        // Collect all visible items across data types.
         let mut items: Vec<SearchResultItem> = Vec::new();
 
-        // Portfolios, assets, and documents
         for p in &app_store.portfolios {
             if let Some(oid) = p.organization_id {
                 if !organization_store.can_view_org_content(oid, user_id, can_view_all) {
@@ -320,12 +420,29 @@ impl SearchStore {
                         portfolio_id: p.id,
                         portfolio_name: p.name.clone(),
                         group_id: None,
+                        group_name: None,
                         asset_id: None,
+                        asset_name: None,
                     });
                 }
             }
 
             for group in &p.asset_groups {
+                let group_visible = can_view_all
+                    || group.is_visible_to(user_id, can_view_all)
+                    || group.assigned_users.contains(&user_id);
+                if !group_visible {
+                    continue;
+                }
+
+                if empty_query || Self::group_matches(group, &query_lower, &self.filters) {
+                    items.push(SearchResultItem::AssetGroup {
+                        group: group.clone(),
+                        portfolio_id: p.id,
+                        portfolio_name: p.name.clone(),
+                    });
+                }
+
                 // Group-level documents
                 for doc in &group.documents {
                     if empty_query || Self::document_matches(doc, &query_lower) {
@@ -334,7 +451,9 @@ impl SearchStore {
                             portfolio_id: p.id,
                             portfolio_name: p.name.clone(),
                             group_id: Some(group.id),
+                            group_name: Some(group.name.clone()),
                             asset_id: None,
+                            asset_name: None,
                         });
                     }
                 }
@@ -358,6 +477,8 @@ impl SearchStore {
                             asset: asset.clone(),
                             portfolio_id: p.id,
                             portfolio_name: p.name.clone(),
+                            group_id: Some(group.id),
+                            group_name: Some(group.name.clone()),
                         });
                     }
                     for doc in &asset.documents {
@@ -367,9 +488,22 @@ impl SearchStore {
                                 portfolio_id: p.id,
                                 portfolio_name: p.name.clone(),
                                 group_id: Some(group.id),
+                                group_name: Some(group.name.clone()),
                                 asset_id: Some(asset.id),
+                                asset_name: Some(asset.name.clone()),
                             });
                         }
+                    }
+                    if !empty_query {
+                        items.extend(Self::detail_matches(
+                            asset,
+                            p.id,
+                            &p.name,
+                            Some(group.id),
+                            Some(&group.name),
+                            &query_lower,
+                            app_store,
+                        ));
                     }
                 }
             }
@@ -393,6 +527,8 @@ impl SearchStore {
                         asset: asset.clone(),
                         portfolio_id: p.id,
                         portfolio_name: p.name.clone(),
+                        group_id: None,
+                        group_name: None,
                     });
                 }
                 for doc in &asset.documents {
@@ -402,9 +538,22 @@ impl SearchStore {
                             portfolio_id: p.id,
                             portfolio_name: p.name.clone(),
                             group_id: None,
+                            group_name: None,
                             asset_id: Some(asset.id),
+                            asset_name: Some(asset.name.clone()),
                         });
                     }
+                }
+                if !empty_query {
+                    items.extend(Self::detail_matches(
+                        asset,
+                        p.id,
+                        &p.name,
+                        None,
+                        None,
+                        &query_lower,
+                        app_store,
+                    ));
                 }
             }
         }
@@ -421,14 +570,14 @@ impl SearchStore {
             }
         }
 
-        // Users (organization_users)
+        // Users
         for u in &organization_store.organization_users {
             if empty_query || Self::user_matches(u, &query_lower) {
                 items.push(SearchResultItem::User(u.clone()));
             }
         }
 
-        // Partition: tab-matching items first, then the rest.
+        // Partition, sort, truncate.
         let (mut tab_items, mut other_items): (Vec<_>, Vec<_>) = if let Some(ref tab) = current_tab
         {
             items.into_iter().partition(|item| item.matches_tab(tab))
@@ -436,7 +585,6 @@ impl SearchStore {
             (Vec::new(), items)
         };
 
-        // Sort both partitions by relevance score.
         tab_items.sort_by(|a, b| {
             let score_a = Self::relevance_score(a);
             let score_b = Self::relevance_score(b);
@@ -452,93 +600,36 @@ impl SearchStore {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        // For empty query, truncate to keep results manageable.
-        if empty_query {
-            tab_items.truncate(7);
-            other_items.truncate(5);
-        } else {
-            tab_items.truncate(15);
-            other_items.truncate(10);
-        }
-
-        // Combine: tab items first, then other items.
+        // Show every matching result; the UI panel will scroll as needed.
         let mut combined: Vec<SearchResultItem> = tab_items;
         combined.extend(other_items);
 
-        let mut portfolios = Vec::new();
-        let mut assets = Vec::new();
-        let mut documents = Vec::new();
-        let mut organizations = Vec::new();
-        let mut users = Vec::new();
-        for item in combined {
-            match item {
-                SearchResultItem::Portfolio(p) => portfolios.push(p),
-                SearchResultItem::Asset { asset, .. } => assets.push(asset),
-                SearchResultItem::Document {
-                    document,
-                    portfolio_id,
-                    portfolio_name,
-                    group_id,
-                    asset_id,
-                } => {
-                    documents.push(SearchDocumentResult {
-                        document,
-                        portfolio_id,
-                        portfolio_name,
-                        group_id,
-                        asset_id,
-                    });
-                }
-                SearchResultItem::Organization(o) => organizations.push(o),
-                SearchResultItem::User(u) => users.push(u),
-            }
-        }
-
-        let total =
-            portfolios.len() + assets.len() + documents.len() + organizations.len() + users.len();
-        let elapsed = start.elapsed().map(|d| d.as_millis() as u64).unwrap_or(0);
+        let elapsed = (chrono::Utc::now() - start).num_milliseconds().max(0) as u64;
+        let total = combined.len();
 
         self.results = SearchResults {
-            portfolios,
-            assets,
-            documents,
-            organizations,
-            users,
+            items: combined,
             total_count: total,
             search_time_ms: elapsed,
         };
 
-        // Trim results to only those relevant to the current tab.
         self.filter_results_by_current_tab();
     }
 
-    /// Retain only result types relevant to the current tab. For tabs with
-    /// no specific search relevance, all results are kept.
+    /// Retain only result types relevant to the current tab.
+    /// For Organization and Networking tabs, also keep portfolio contents
+    /// (portfolios, asset groups, assets, asset details, documents) so the
+    /// searchbar shows content relevant to those contexts.
     pub fn filter_results_by_current_tab(&mut self) {
         if let Some(ref tab) = self.current_tab {
-            match tab {
-                TabType::Portfolios => {
-                    self.results.organizations.clear();
-                    self.results.users.clear();
-                }
-                TabType::Networking | TabType::NetworkingAddMember => {
-                    self.results.portfolios.clear();
-                    self.results.assets.clear();
-                    self.results.documents.clear();
-                    self.results.organizations.clear();
-                }
-                TabType::Organization => {
-                    self.results.portfolios.clear();
-                    self.results.assets.clear();
-                    self.results.documents.clear();
-                }
-                _ => {}
-            }
-            self.results.total_count = self.results.portfolios.len()
-                + self.results.assets.len()
-                + self.results.documents.len()
-                + self.results.organizations.len()
-                + self.results.users.len();
+            let include_portfolio_content = matches!(
+                tab,
+                TabType::Organization | TabType::Networking | TabType::NetworkingAddMember
+            );
+            self.results.items.retain(|item| {
+                item.matches_tab(tab) || (include_portfolio_content && item.is_portfolio_content())
+            });
+            self.results.total_count = self.results.items.len();
         }
     }
 
@@ -578,6 +669,24 @@ impl SearchStore {
         matches_query && matches_type && matches_value && matches_date && matches_status
     }
 
+    fn group_matches(g: &AssetGroup, query: &str, filters: &SearchFilters) -> bool {
+        let matches_query = query.is_empty()
+            || g.name.to_lowercase().contains(query)
+            || g.description
+                .as_ref()
+                .map_or(false, |d| d.to_lowercase().contains(query))
+            || g.tags.iter().any(|t| t.to_lowercase().contains(query));
+
+        let matches_value = filters.value_range.map_or(true, |(min, max)| {
+            g.total_value >= min && g.total_value <= max
+        });
+        let matches_date = filters.date_range.map_or(true, |(from, to)| {
+            g.updated_at >= from && g.updated_at <= to
+        });
+
+        matches_query && matches_value && matches_date
+    }
+
     fn asset_matches(a: &Asset, query: &str, filters: &SearchFilters) -> bool {
         let type_str = format!("{:?}", a.asset_type).to_lowercase();
         let status_str = format!(
@@ -595,9 +704,32 @@ impl SearchStore {
                 .map_or(false, |d| d.to_lowercase().contains(query))
             || a.tags.iter().any(|t| t.to_lowercase().contains(query))
             || type_str.contains(query)
+            || a.asset_subtype
+                .as_ref()
+                .map_or(false, |s| s.to_lowercase().contains(query))
             || a.location
                 .as_ref()
-                .map_or(false, |l| l.to_lowercase().contains(query));
+                .map_or(false, |l| l.to_lowercase().contains(query))
+            || a.code.to_lowercase().contains(query)
+            || a.reference_code
+                .as_ref()
+                .map_or(false, |r| r.to_lowercase().contains(query))
+            || a.status_reason
+                .as_ref()
+                .map_or(false, |r| r.to_lowercase().contains(query))
+            || a.classification
+                .serial_number
+                .as_ref()
+                .map_or(false, |s| s.to_lowercase().contains(query))
+            || a.classification
+                .vin
+                .as_ref()
+                .map_or(false, |v| v.to_lowercase().contains(query))
+            || a.classification
+                .sku
+                .as_ref()
+                .map_or(false, |s| s.to_lowercase().contains(query))
+            || status_str.contains(query);
 
         let matches_type =
             filters.asset_types.is_empty() || filters.asset_types.contains(&a.asset_type);
@@ -613,6 +745,142 @@ impl SearchStore {
             .map_or(true, |s| status_str == s.to_lowercase());
 
         matches_query && matches_type && matches_value && matches_date && matches_status
+    }
+
+    fn detail_matches(
+        asset: &Asset,
+        portfolio_id: Uuid,
+        portfolio_name: &str,
+        group_id: Option<Uuid>,
+        group_name: Option<&str>,
+        query: &str,
+        app_store: &AppStore,
+    ) -> Vec<SearchResultItem> {
+        if query.is_empty() {
+            return Vec::new();
+        }
+        let mut results = Vec::new();
+
+        let type_label = format!("{:?}", asset.asset_type);
+        let fields: Vec<(&str, String)> = vec![
+            (
+                "Type & Build",
+                format!(
+                    "{} {}",
+                    type_label,
+                    asset.asset_subtype.as_deref().unwrap_or("")
+                ),
+            ),
+            ("Location", asset.location.clone().unwrap_or_default()),
+            (
+                "Reference",
+                asset.reference_code.clone().unwrap_or_default(),
+            ),
+            ("Code", asset.code.clone()),
+            (
+                "Serial",
+                asset
+                    .classification
+                    .serial_number
+                    .clone()
+                    .unwrap_or_default(),
+            ),
+            ("VIN", asset.classification.vin.clone().unwrap_or_default()),
+            ("SKU", asset.classification.sku.clone().unwrap_or_default()),
+        ];
+
+        for (label, value) in fields {
+            if !value.is_empty() && value.to_lowercase().contains(query) {
+                results.push(SearchResultItem::AssetDetail(AssetDetailResult {
+                    portfolio_id,
+                    portfolio_name: portfolio_name.to_string(),
+                    group_id,
+                    group_name: group_name.map(|s| s.to_string()),
+                    asset_id: asset.id,
+                    asset_name: asset.name.clone(),
+                    detail_id: Uuid::new_v4(),
+                    detail_type: "Field",
+                    title: label.to_string(),
+                    snippet: value,
+                    last_accessed_at: asset.last_accessed_at,
+                    updated_at: asset.updated_at,
+                    score: asset.current_value,
+                }));
+            }
+        }
+
+        for channel in app_store.channels_for_asset(asset.id) {
+            let channel_text = format!(
+                "{} {:?} {:?}",
+                channel.name, channel.channel_type, channel.connection_status
+            );
+            if channel_text.to_lowercase().contains(query) {
+                let sync_info = channel
+                    .last_sync_status
+                    .as_ref()
+                    .map_or(String::new(), |s| format!(" · {}", s));
+                let snippet = format!(
+                    "{:?} · {:?}{}",
+                    channel.channel_type, channel.connection_status, sync_info
+                );
+                results.push(SearchResultItem::AssetDetail(AssetDetailResult {
+                    portfolio_id,
+                    portfolio_name: portfolio_name.to_string(),
+                    group_id,
+                    group_name: group_name.map(|s| s.to_string()),
+                    asset_id: asset.id,
+                    asset_name: asset.name.clone(),
+                    detail_id: channel.id,
+                    detail_type: "Channel",
+                    title: channel.name.clone(),
+                    snippet,
+                    last_accessed_at: asset.last_accessed_at,
+                    updated_at: channel.updated_at,
+                    score: channel.nightly_rate_override.unwrap_or(0.0),
+                }));
+            }
+        }
+
+        for booking in app_store.bookings_for_asset(asset.id) {
+            let booking_text = format!(
+                "{} {} {} {:?}",
+                booking.guest_name,
+                booking.code,
+                booking.external_reference.as_deref().unwrap_or(""),
+                booking.status
+            );
+            if booking_text.to_lowercase().contains(query)
+                || booking
+                    .notes
+                    .as_ref()
+                    .map_or(false, |n| n.to_lowercase().contains(query))
+            {
+                let snippet = format!(
+                    "{} · {} nights · {:?} · ${:.2}",
+                    booking.start_datetime.format("%Y-%m-%d"),
+                    booking.nights,
+                    booking.status,
+                    booking.total
+                );
+                results.push(SearchResultItem::AssetDetail(AssetDetailResult {
+                    portfolio_id,
+                    portfolio_name: portfolio_name.to_string(),
+                    group_id,
+                    group_name: group_name.map(|s| s.to_string()),
+                    asset_id: asset.id,
+                    asset_name: asset.name.clone(),
+                    detail_id: booking.id,
+                    detail_type: "Booking",
+                    title: booking.guest_name.clone(),
+                    snippet,
+                    last_accessed_at: asset.last_accessed_at,
+                    updated_at: booking.updated_at,
+                    score: booking.total,
+                }));
+            }
+        }
+
+        results
     }
 
     fn document_matches(d: &Document, query: &str) -> bool {
@@ -726,7 +994,6 @@ impl SearchStore {
             }
         }
 
-        suggestions.truncate(8);
         suggestions
     }
 
@@ -916,32 +1183,35 @@ fn parse_meilisearch_response(json: serde_json::Value) -> Result<SearchResults, 
         .cloned()
         .unwrap_or_default();
 
-    let mut portfolios = Vec::new();
-    let mut assets = Vec::new();
-    let mut organizations = Vec::new();
-    let mut users = Vec::new();
+    let mut items: Vec<SearchResultItem> = Vec::new();
 
     for hit in hits {
         let kind = hit.get("kind").and_then(|v| v.as_str()).unwrap_or("");
         match kind {
             "portfolio" => {
                 if let Ok(p) = serde_json::from_value::<Portfolio>(hit.clone()) {
-                    portfolios.push(p);
+                    items.push(SearchResultItem::Portfolio(p));
                 }
             }
             "asset" => {
                 if let Ok(a) = serde_json::from_value::<Asset>(hit.clone()) {
-                    assets.push(a);
+                    items.push(SearchResultItem::Asset {
+                        asset: a,
+                        portfolio_id: Uuid::nil(),
+                        portfolio_name: String::new(),
+                        group_id: None,
+                        group_name: None,
+                    });
                 }
             }
             "organization" => {
                 if let Ok(o) = serde_json::from_value::<Organization>(hit.clone()) {
-                    organizations.push(o);
+                    items.push(SearchResultItem::Organization(o));
                 }
             }
             "user" | "member" => {
                 if let Ok(u) = serde_json::from_value::<User>(hit.clone()) {
-                    users.push(u);
+                    items.push(SearchResultItem::User(u));
                 }
             }
             _ => {}
@@ -960,11 +1230,7 @@ fn parse_meilisearch_response(json: serde_json::Value) -> Result<SearchResults, 
         .unwrap_or(0);
 
     Ok(SearchResults {
-        portfolios,
-        assets,
-        documents: Vec::new(),
-        organizations,
-        users,
+        items,
         total_count,
         search_time_ms,
     })
@@ -1148,7 +1414,11 @@ mod tests {
         search_store.perform_search(&app_store, &organization_store);
 
         assert!(
-            !search_store.results.documents.is_empty(),
+            search_store
+                .results
+                .items
+                .iter()
+                .any(|i| matches!(i, SearchResultItem::Document { .. })),
             "expected documents for 'Title Deed'"
         );
         assert!(
@@ -1158,9 +1428,9 @@ mod tests {
         assert!(
             search_store
                 .results
-                .documents
+                .items
                 .iter()
-                .any(|d| d.document.name == "Title Deed"),
+                .any(|i| matches!(i, SearchResultItem::Document { document, .. } if document.name == "Title Deed")),
             "expected a 'Title Deed' document in results"
         );
     }
@@ -1176,9 +1446,9 @@ mod tests {
         assert!(
             search_store
                 .results
-                .documents
+                .items
                 .iter()
-                .any(|d| d.document.name == "Portfolio Overview"),
+                .any(|i| matches!(i, SearchResultItem::Document { document, .. } if document.name == "Portfolio Overview")),
             "expected 'Portfolio Overview' document"
         );
     }
@@ -1194,9 +1464,9 @@ mod tests {
         assert!(
             search_store
                 .results
-                .documents
+                .items
                 .iter()
-                .any(|d| d.document.name == "Group Overview"),
+                .any(|i| matches!(i, SearchResultItem::Document { document, .. } if document.name == "Group Overview")),
             "expected 'Group Overview' group-level document"
         );
     }
@@ -1210,11 +1480,9 @@ mod tests {
         search_store.perform_search(&app_store, &organization_store);
 
         assert!(
-            search_store
-                .results
-                .organizations
-                .iter()
-                .any(|o| o.name.contains("RedOrg")),
+            search_store.results.items.iter().any(
+                |i| matches!(i, SearchResultItem::Organization(o) if o.name.contains("RedOrg"))
+            ),
             "expected 'RedOrg' organization in Organization tab results"
         );
         assert!(
@@ -1234,9 +1502,9 @@ mod tests {
         assert!(
             search_store
                 .results
-                .users
+                .items
                 .iter()
-                .any(|u| u.name.contains("Red")),
+                .any(|i| matches!(i, SearchResultItem::User(u) if u.name.contains("Red"))),
             "expected a Red user in Networking tab results"
         );
         assert!(
@@ -1256,9 +1524,9 @@ mod tests {
         assert!(
             search_store
                 .results
-                .portfolios
+                .items
                 .iter()
-                .any(|p| p.name == "Commercial Real Estate"),
+                .any(|i| matches!(i, SearchResultItem::Portfolio(p) if p.name == "Commercial Real Estate")),
             "expected 'Commercial Real Estate' portfolio in Reporting tab results"
         );
         assert!(
