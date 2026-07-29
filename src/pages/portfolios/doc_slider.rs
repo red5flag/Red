@@ -3,8 +3,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    clamp_context_menu, document_icon, download_document, set_drag_tab_data, NavTabKind,
-    shorthand_name, DocEntry, DocModal,
+    clamp_context_menu, document_icon, download_document, mobile_tab_gestures, set_drag_tab_data,
+    NavTabKind, shorthand_name, DocEntry, DocModal,
 };
 
 #[derive(Clone)]
@@ -91,6 +91,16 @@ pub fn DocSlider(
                         let short_name = shorthand_name(&entry.doc.name);
                         let doc_for_click = entry.clone();
                         let doc_for_ctx = entry.clone();
+                        let doc_for_ctx_touch = doc_for_ctx.clone();
+                        let (touch_start, touch_move, touch_end) = mobile_tab_gestures(
+                            NavTabKind::Document,
+                            entry.doc.id,
+                            entry.doc.name.clone(),
+                            move |x, y| {
+                                set_doc_ctx.set(Some((x, y, doc_for_ctx_touch.clone())));
+                            },
+                            move || set_doc_ctx.set(None),
+                        );
                         view! {
                             <div
                                 class="ai-doc-slider-item"
@@ -107,6 +117,9 @@ pub fn DocSlider(
                                     let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
                                     set_doc_ctx.set(Some((x, y, doc_for_ctx.clone())));
                                 }
+                                on:touchstart=touch_start
+                                on:touchmove=touch_move
+                                on:touchend=touch_end
                             >
                                 <div class="ai-doc-slider-thumb">{icon}</div>
                                 <div class="ai-doc-slider-name">{short_name}</div>
@@ -118,12 +131,20 @@ pub fn DocSlider(
 
                 {move || doc_ctx.get().map(|(x, y, entry)| {
                     let entry_for_download = entry.doc.clone();
+                    let open_name = entry.doc.name.clone();
                     view! {
                         <div
                             class="context-menu-overlay"
                             on:click=move |_| set_doc_ctx.set(None)
                         >
                             <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                                <button
+                                    class="context-menu-item"
+                                    on:click=move |_| {
+                                        set_doc_ctx.set(None);
+                                        ui_store.update(|s| s.open_nav_tab("document", entry.doc.id, &open_name));
+                                    }
+                                >"🗔 Open in New Tab"</button>
                                 <button
                                     class="context-menu-item"
                                     on:click=move |_| {

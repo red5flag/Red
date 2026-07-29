@@ -5,8 +5,8 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, name_click_handlers, read_image_as_data_url, set_drag_tab_data,
-    single_sentence, AssetTarget, AssetViewer, DocEntry, DocSlider, NavTabKind,
+    detect_file_type, mobile_tab_gestures, name_click_handlers, read_image_as_data_url,
+    set_drag_tab_data, single_sentence, AssetTarget, AssetViewer, DocEntry, DocSlider, NavTabKind,
     UserAssignmentPanel,
 };
 
@@ -18,7 +18,8 @@ pub(crate) fn PortfolioListItem(
     #[prop(into)] can_edit_documents: Signal<bool>,
     #[prop(into)] expanded: Signal<bool>,
     on_toggle: Callback<()>,
-    on_context: impl Fn(leptos::ev::MouseEvent) + 'static,
+    on_context: impl Fn(i32, i32) + Clone + 'static,
+    on_context_close: impl Fn() + Clone + 'static,
     // AssetViewer props forwarded for expanded content
     #[prop(into)] show_add_group: Signal<Option<Uuid>>,
     set_show_add_group: WriteSignal<Option<Uuid>>,
@@ -282,8 +283,26 @@ pub(crate) fn PortfolioListItem(
         });
     });
 
+    let on_context_touch = on_context.clone();
+    let on_context_close_touch = on_context_close.clone();
+    let (touch_start, touch_move, touch_end) = mobile_tab_gestures(
+        NavTabKind::Portfolio,
+        pid,
+        name.clone(),
+        move |x, y| on_context_touch(x, y),
+        move || on_context_close_touch(),
+    );
+
     view! {
-        <div class="asset-group pf-portfolio" id={format!("portfolio-{}", pid)} class:expanded={expanded} on:contextmenu=on_context
+        <div class="asset-group pf-portfolio" id={format!("portfolio-{}", pid)} class:expanded={expanded}
+            on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                on_context(ev.client_x(), ev.client_y());
+            }
+            on:touchstart=touch_start
+            on:touchmove=touch_move
+            on:touchend=touch_end
             draggable="true"
             on:dragstart=move |ev: leptos::ev::DragEvent| {
                 set_drag_tab_data(&ev, &NavTabKind::Portfolio, pid, &name);
@@ -493,7 +512,7 @@ pub(crate) fn PortfolioListItem(
                 </div>
             </div>
 
-            {move || if show_doc_slider.get() {
+            {move || if view_mode.get() == ViewMode::List && show_doc_slider.get() {
                 view! {
                     <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
                         <DocSlider
@@ -509,7 +528,7 @@ pub(crate) fn PortfolioListItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if is_editing_name.get() && can_edit_here.get() {
+            {move || if view_mode.get() == ViewMode::List && is_editing_name.get() && can_edit_here.get() {
                 let users = org_users();
                 let assigned = assigned_users.clone();
                 view! {
@@ -518,8 +537,11 @@ pub(crate) fn PortfolioListItem(
             } else { ().into_any() }}
 
             // Expanded content — AssetViewer
-            <div id={format!("pf-content-{}", pid)} class="asset-group-content" class:hidden={move || !expanded.get()}>
-                <AssetViewer
+            {move || if view_mode.get() == ViewMode::List {
+                let portfolio_for_viewer = portfolio_for_viewer.clone();
+                view! {
+                    <div id={format!("pf-content-{}", pid)} class="asset-group-content" class:hidden={move || !expanded.get()}>
+                        <AssetViewer
                     portfolio={portfolio_for_viewer}
                     can_edit={can_edit_here}
                     can_edit_documents={can_edit_documents_here}
@@ -538,8 +560,10 @@ pub(crate) fn PortfolioListItem(
                     new_asset_value={new_asset_value}
                     set_new_asset_value={set_new_asset_value}
                     on_add_asset={on_add_asset}
-                />
-            </div>
+                    />
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
         </div>
     }.into_any()
 }

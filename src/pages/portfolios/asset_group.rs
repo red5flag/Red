@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, name_click_handlers, read_image_as_data_url, set_drag_tab_data,
-    single_sentence, AssetItem, AssetTarget, DocEntry, DocSlider, NavTabKind,
+    detect_file_type, mobile_tab_gestures, name_click_handlers, read_image_as_data_url,
+    set_drag_tab_data, single_sentence, AssetItem, AssetTarget, DocEntry, DocSlider, NavTabKind,
     UserAssignmentPanel,
 };
 
@@ -124,6 +124,7 @@ pub(crate) fn AssetGroupItem(
 
     let g_name = group.name.clone();
     let g_name_for_aria = g_name.clone();
+    let g_name_for_menu = g_name.clone();
     let g_name_for_doc_btn = g_name.clone();
     let g_name_for_slider = StoredValue::new(g_name.clone());
     let g_desc = single_sentence(&group.description.clone().unwrap_or_default());
@@ -267,6 +268,18 @@ pub(crate) fn AssetGroupItem(
         (tint_index as f64 * 0.1).min(0.9)
     );
 
+    let (touch_start, touch_move, touch_end) = mobile_tab_gestures(
+        NavTabKind::AssetGroup,
+        gid,
+        g_name.clone(),
+        move |x, y| {
+            if can_edit_here.get() {
+                set_group_context_menu.set(Some((x, y)));
+            }
+        },
+        move || set_group_context_menu.set(None),
+    );
+
     view! {
         <div class="asset-group" id={format!("asset-group-{}", gid)} class:expanded={move || expanded.get()} style={group_tint_style.clone()}
             draggable="true"
@@ -280,6 +293,9 @@ pub(crate) fn AssetGroupItem(
                     set_group_context_menu.set(Some((ev.client_x(), ev.client_y())));
                 }
             }
+            on:touchstart=touch_start
+            on:touchmove=touch_move
+            on:touchend=touch_end
         >
             <div class="asset-group-header"
                 role="button"
@@ -531,9 +547,16 @@ pub(crate) fn AssetGroupItem(
 
             // Context menu for group press-and-hold
             {move || group_context_menu.get().map(|(x, y)| {
+                let open_name = g_name_for_menu.clone();
                 view! {
                     <div class="context-menu-overlay" on:click=move |_| set_group_context_menu.set(None)>
                         <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    ui_store.update(|s| s.open_nav_tab("asset-group", gid, &open_name));
+                                }
+                            >"🗔 Open in New Tab"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);

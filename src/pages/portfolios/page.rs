@@ -10,9 +10,9 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, clamp_context_menu, detect_file_type, name_click_handlers,
-    nav_tab_from_drag_event, read_image_as_data_url, set_drag_tab_data, AddPortfolioModal,
-    AssetTarget, DocEntry, DocSlider, NavTab, NavTabKind, PortfolioListItem,
+    asset_placeholder_url, clamp_context_menu, detect_file_type, mobile_tab_gestures,
+    name_click_handlers, nav_tab_from_drag_event, read_image_as_data_url, set_drag_tab_data,
+    AddPortfolioModal, AssetTarget, DocEntry, DocSlider, NavTab, NavTabKind, PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -259,6 +259,22 @@ pub fn PortfoliosPage() -> impl IntoView {
         }
     };
 
+    // Consume pending "Open in new tab" requests from context menus / tap-hold.
+    Effect::new(move |_| {
+        let pending = ui_store.get().pending_open_tab;
+        if let Some(pending) = pending {
+            ui_store.update(|s| s.pending_open_tab = None);
+            if let Some(kind) = NavTabKind::from_str(&pending.kind) {
+                if matches!(kind, NavTabKind::Portfolio | NavTabKind::AssetGroup | NavTabKind::Asset | NavTabKind::Document) {
+                    ui_store.update(|s| s.portfolio_view_mode = ViewMode::List);
+                }
+                let tab = NavTab { kind, id: pending.id, name: pending.name };
+                add_nav_tab(tab);
+                navigate_from_tab(kind, pending.id);
+            }
+        }
+    });
+
     let render_nav_tabs = move || {
         view! {
             {move || if nav_tabs.get().is_empty() { ().into_any() } else {
@@ -392,6 +408,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Modal signal for editing portfolio assets
     let (edit_portfolio_id, set_edit_portfolio_id) = signal(Option::<Uuid>::None);
     let (context_menu, set_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
+    let (org_context_menu, set_org_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
     let (pf_image_upload_target, set_pf_image_upload_target) = signal(Option::<Uuid>::None);
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
     let (new_asset_name, set_new_asset_name) = signal(String::new());
@@ -439,14 +456,18 @@ pub fn PortfoliosPage() -> impl IntoView {
     });
 
     let on_toggle_view = move |id: Uuid| {
+        let in_grid = view_mode.get() == ViewMode::Grid;
         app_store.update(|s| {
-            if s.selected_portfolio_ids.contains(&id) {
+            if s.selected_portfolio_ids.contains(&id) && !in_grid {
                 s.selected_portfolio_ids.remove(&id);
             } else {
                 s.selected_portfolio_ids.insert(id);
                 s.touch_portfolio(id);
             }
         });
+        if in_grid {
+            ui_store.update(|s| s.portfolio_view_mode = ViewMode::List);
+        }
     };
 
     let on_delete_portfolio = move |id: Uuid| {
@@ -571,11 +592,12 @@ pub fn PortfoliosPage() -> impl IntoView {
                 can_edit_documents={can_docs}
                 expanded={is_expanded}
                 on_toggle=Callback::new(move |_| on_toggle_view(portfolio_id))
-                on_context=move |ev: leptos::ev::MouseEvent| {
-                    ev.prevent_default();
-                    ev.stop_propagation();
-                    let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                on_context=move |x, y| {
+                    let (x, y) = clamp_context_menu(x, y);
                     set_context_menu.set(Some((portfolio_id, x, y)));
+                }
+                on_context_close=move || {
+                    set_context_menu.set(None);
                 }
                 show_add_group={show_add_group}
                 set_show_add_group={set_show_add_group}
@@ -1118,12 +1140,22 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     let is_expanded = move || expanded_orgs.get().contains(&org_id);
                                     let (show_doc_slider, set_show_doc_slider) = signal(false);
                                     let org_name_for_slider = StoredValue::new(org.name.clone());
+                                    let (org_touch_start, org_touch_move, org_touch_end) = mobile_tab_gestures(
+                                        NavTabKind::Organization,
+                                        org_id,
+                                        org_name.clone(),
+                                        move |x, y| set_org_context_menu.set(Some((org_id, x, y))),
+                                        move || set_org_context_menu.set(None),
+                                    );
                                     view! {
                                         <div class="pf-org-group" id={format!("org-group-{}", org_id)} class:expanded={move || is_expanded()}
                                             draggable="true"
                                             on:dragstart=move |ev: leptos::ev::DragEvent| {
                                                 set_drag_tab_data(&ev, &NavTabKind::Organization, org_id, &org_name);
                                             }
+                                            on:touchstart=org_touch_start
+                                            on:touchmove=org_touch_move
+                                            on:touchend=org_touch_end
                                         >
                                             <div class="asset-group-header pf-org-group-header pf-accordion-header" role="button" tabindex="0"
                                                 aria-expanded={move || is_expanded()}
@@ -1165,13 +1197,10 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                 />
                                                 <div class="asset-group-icon"
                                                     on:contextmenu=move |ev: leptos::ev::MouseEvent| {
-                                                        if can_edit(Some(org_id)) {
-                                                            ev.prevent_default();
-                                                            ev.stop_propagation();
-                                                            if let Some(input) = org_image_ref.get() {
-                                                                let _ = input.click();
-                                                            }
-                                                        }
+                                                        ev.prevent_default();
+                                                        ev.stop_propagation();
+                                                        let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                                                        set_org_context_menu.set(Some((org_id, x, y)));
                                                     }
                                                 >
                                                     {if let Some(ref url) = org_image_url {
@@ -1303,6 +1332,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                 let pid_org = pid;
                 let pid_remove = pid;
                 let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
+                let pf_name = app_store.get().portfolios.iter().find(|p| p.id == pid).map(|p| p.name.clone()).unwrap_or_default();
+                let open_name = pf_name.clone();
                 let can = can_edit(org_id);
                 let content = if is_whitespace {
                     view! {
@@ -1424,6 +1455,15 @@ pub fn PortfoliosPage() -> impl IntoView {
                             class="context-menu-item"
                             on:click=move |_| {
                                 set_context_menu.set(None);
+                                ui_store.update(|s| s.open_nav_tab("portfolio", pid, &open_name));
+                            }
+                        >
+                            "🗔 Open in New Tab"
+                        </button>
+                        <button
+                            class="context-menu-item"
+                            on:click=move |_| {
+                                set_context_menu.set(None);
                                 on_toggle_view(pid);
                             }
                         >
@@ -1442,6 +1482,33 @@ pub fn PortfoliosPage() -> impl IntoView {
                             style={format!("left: {}px; top: {}px;", x, y)}
                         >
                             {content}
+                        </div>
+                    </div>
+                }.into_any()
+            })}
+
+            // Context menu for organization right-click
+            {move || org_context_menu.get().map(|(oid, x, y)| {
+                let org_name = organization_store.get().organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone()).unwrap_or_default();
+                let open_name = org_name.clone();
+                view! {
+                    <div
+                        class="context-menu-overlay"
+                        on:click=move |_| set_org_context_menu.set(None)
+                    >
+                        <div
+                            class="context-menu"
+                            style={format!("left: {}px; top: {}px;", x, y)}
+                        >
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_org_context_menu.set(None);
+                                    ui_store.update(|s| s.open_nav_tab("organization", oid, &open_name));
+                                }
+                            >
+                                "🗔 Open in New Tab"
+                            </button>
                         </div>
                     </div>
                 }.into_any()

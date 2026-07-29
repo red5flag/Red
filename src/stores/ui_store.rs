@@ -6,6 +6,14 @@ use leptos::prelude::*;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+/// A request from any child component to open an entity in a portfolio nav tab.
+#[derive(Clone, Debug)]
+pub struct PendingOpenTab {
+    pub kind: String,
+    pub id: Uuid,
+    pub name: String,
+}
+
 /// Default order of sections on the Overview dashboard.
 pub const OVERVIEW_DEFAULT_ORDER: [&str; 17] = [
     "current-organization",
@@ -76,6 +84,8 @@ pub struct UiStore {
     pub overview_touch_anchor: Option<(i32, i32)>,
     // Agent chat input queued from other screens
     pub agent_input: Option<String>,
+    // Request to open a portfolio nav tab from any descendant component
+    pub pending_open_tab: Option<PendingOpenTab>,
     // Display/accessibility preferences
     pub theme: Theme,
     pub blind_mode: bool,
@@ -152,6 +162,7 @@ impl Default for UiStore {
             overview_touch_long_id: None,
             overview_touch_anchor: None,
             agent_input: None,
+            pending_open_tab: None,
             theme: Theme::default(),
             blind_mode: false,
             font_size: "default".to_string(),
@@ -405,6 +416,19 @@ impl UiStore {
         self.overview_drag_over_id = None;
         self.overview_touch_long_id = None;
         self.overview_touch_anchor = None;
+    }
+
+    // Portfolio nav tab open requests
+    pub fn open_nav_tab(&mut self, kind: &str, id: Uuid, name: &str) {
+        self.pending_open_tab = Some(PendingOpenTab {
+            kind: kind.to_string(),
+            id,
+            name: name.to_string(),
+        });
+    }
+
+    pub fn take_pending_open_tab(&mut self) -> Option<PendingOpenTab> {
+        self.pending_open_tab.take()
     }
 }
 

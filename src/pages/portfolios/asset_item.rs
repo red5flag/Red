@@ -9,10 +9,10 @@ use std::sync::{
 use uuid::Uuid;
 
 use super::{
-    clamp_context_menu, detect_file_type, document_icon, download_document, name_click_handlers,
-    read_images_as_data_urls, set_drag_tab_data, shorthand_name, AddChannelModal,
-    AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal, NavTabKind,
-    UserAssignmentPanel,
+    clamp_context_menu, detect_file_type, document_icon, download_document, mobile_tab_gestures,
+    name_click_handlers, read_images_as_data_urls, set_drag_tab_data, shorthand_name,
+    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
+    NavTabKind, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -812,12 +812,27 @@ pub(crate) fn AssetItem(
         (tint_index as f64 * 0.1).min(0.9)
     );
 
+    let (touch_start, touch_move, touch_end) = mobile_tab_gestures(
+        NavTabKind::Asset,
+        asset_id,
+        a_name.clone(),
+        move |x, y| {
+            if can_edit_here.get() {
+                set_asset_context_menu.set(Some((x, y)));
+            }
+        },
+        move || set_asset_context_menu.set(None),
+    );
+
     if view_mode == ViewMode::Grid {
         let asset_for_click = asset.clone();
         let short_name = shorthand_name(&a_name);
         let a_name_grid_drag = a_name.clone();
         view! {
             <div class="asset-grid-card" node_ref=item_ref style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())
+                on:touchstart=touch_start
+                on:touchmove=touch_move
+                on:touchend=touch_end
                 draggable="true"
                 on:dragstart=move |ev: leptos::ev::DragEvent| {
                     set_drag_tab_data(&ev, &NavTabKind::Asset, asset_id, &a_name_grid_drag);
@@ -857,6 +872,9 @@ pub(crate) fn AssetItem(
                     set_asset_context_menu.set(Some((ev.client_x(), ev.client_y())));
                 }
             }
+            on:touchstart=touch_start
+            on:touchmove=touch_move
+            on:touchend=touch_end
         >
             {move || if collapsible {
                 view! {
@@ -1097,9 +1115,16 @@ pub(crate) fn AssetItem(
                                         let dx = doc_ctx_menu_x.get();
                                         let dy = doc_ctx_menu_y.get();
                                         let doc_for_download = doc.clone();
+                                        let open_doc_name = dname.clone();
                                         view! {
                                             <div class="context-menu-overlay" on:click=move |_| set_show_doc_ctx_menu.set(false)>
                                                 <div class="context-menu" style={format!("left: {}px; top: {}px;", dx, dy)}>
+                                                    <button class="context-menu-item"
+                                                        on:click=move |_| {
+                                                            set_show_doc_ctx_menu.set(false);
+                                                            ui_store.update(|s| s.open_nav_tab("document", doc_id, &open_doc_name));
+                                                        }
+                                                    >"🗔 Open in New Tab"</button>
                                                     <button class="context-menu-item"
                                                         on:click=move |_| {
                                                             set_show_doc_ctx_menu.set(false);
@@ -1324,9 +1349,16 @@ pub(crate) fn AssetItem(
 
             // Asset context menu (right-click / tap-and-hold)
             {move || asset_context_menu.get().map(|(x, y)| {
+                let open_name = a_name.clone();
                 view! {
                     <div class="context-menu-overlay" on:click=move |_| set_asset_context_menu.set(None)>
                         <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_asset_context_menu.set(None);
+                                    ui_store.update(|s| s.open_nav_tab("asset", asset_id, &open_name));
+                                }
+                            >"🗔 Open in New Tab"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_asset_context_menu.set(None);

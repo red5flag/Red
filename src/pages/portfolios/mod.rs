@@ -1,4 +1,5 @@
 use crate::models::User;
+use crate::stores::use_ui_store;
 use leptos::prelude::*;
 use uuid::Uuid;
 use wasm_bindgen::prelude::*;
@@ -328,7 +329,53 @@ pub(crate) fn set_drag_tab_data(ev: &leptos::ev::DragEvent, kind: &NavTabKind, i
         let payload = nav_tab_drag_payload(kind, id, name);
         let _ = dt.set_data("text/plain", &payload);
         let _ = dt.set_effect_allowed("copy");
+        #[cfg(target_arch = "wasm32")]
+        set_tab_drag_image(ev, kind);
         leptos::logging::log!("set_drag_tab_data: {} {}", kind.as_str(), payload);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn set_tab_drag_image(ev: &leptos::ev::DragEvent, kind: &NavTabKind) {
+    use std::cell::RefCell;
+    use web_sys::{Document, HtmlElement};
+    use wasm_bindgen::JsCast;
+
+    thread_local! {
+        static DRAG_IMAGE: RefCell<Option<HtmlElement>> = RefCell::new(None);
+    }
+
+    let dt = match ev.unchecked_ref::<web_sys::DragEvent>().data_transfer() {
+        Some(dt) => dt,
+        None => return,
+    };
+
+    let img = DRAG_IMAGE.with(|cell| -> Option<HtmlElement> {
+        let mut cell = cell.borrow_mut();
+        if let Some(el) = cell.as_ref() {
+            el.set_inner_html(&format!("<span>{}</span>", kind.icon()));
+            return Some(el.clone());
+        }
+
+        let doc: Document = leptos::prelude::document();
+        let el: HtmlElement = doc
+            .create_element("div")
+            .ok()?
+            .dyn_into::<HtmlElement>()
+            .ok()?;
+        el.set_class_name("pf-nav-tab-drag-image");
+        el.style().set_css_text(
+            "position:fixed;left:-1000px;top:-1000px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:var(--secondary-bg);border:2px solid var(--border-color);border-radius:0;color:var(--text-primary);font-size:24px;pointer-events:none;z-index:-1;"
+        );
+        el.set_inner_html(&format!("<span>{}</span>", kind.icon()));
+        doc.body().and_then(|b| b.append_child(el.as_ref()).ok());
+        let cloned = el.clone();
+        *cell = Some(el);
+        Some(cloned)
+    });
+
+    if let Some(img) = img {
+        let _ = dt.set_drag_image(img.as_ref(), 24, 24);
     }
 }
 
@@ -345,6 +392,82 @@ pub(crate) fn nav_tab_from_drag_event(ev: &leptos::ev::DragEvent) -> Option<NavT
         id,
         name,
     })
+}
+
+/// Return mobile touch handlers that:
+/// - Long-press (tap-hold) opens a context menu at the touch location.
+/// - Long-press then drag, released over the portfolio tab bar, opens the item in a new tab.
+pub(crate) fn mobile_tab_gestures(
+    kind: NavTabKind,
+    id: Uuid,
+    name: String,
+    open_context_menu: impl Fn(i32, i32) + Clone + 'static,
+    close_context_menu: impl Fn() + Clone + 'static,
+) -> (
+    impl Fn(leptos::ev::TouchEvent),
+    impl Fn(leptos::ev::TouchEvent),
+    impl Fn(leptos::ev::TouchEvent),
+) {
+    let ui_store = use_ui_store();
+    let (touch_anchor, set_touch_anchor) = signal(Option::<(i32, i32)>::None);
+    let (long_fired, set_long_fired) = signal(false);
+    let (dragging, set_dragging) = signal(false);
+
+    let start = move |ev: leptos::ev::TouchEvent| {
+        if let Some(t) = ev.touches().get(0) {
+            let x = t.client_x();
+            let y = t.client_y();
+            set_touch_anchor.set(Some((x, y)));
+            set_long_fired.set(false);
+            set_dragging.set(false);
+            let open_context_menu = open_context_menu.clone();
+            leptos::task::spawn_local(async move {
+                gloo_timers::future::TimeoutFuture::new(500).await;
+                if touch_anchor.get().is_some() && !long_fired.get() && !dragging.get() {
+                    let (x, y) = clamp_context_menu(x, y);
+                    set_long_fired.set(true);
+                    open_context_menu(x, y);
+                }
+            });
+        }
+    };
+
+    let move_fn = move |ev: leptos::ev::TouchEvent| {
+        if let (Some(t), Some((ax, ay))) = (ev.touches().get(0), touch_anchor.get()) {
+            let dx = (t.client_x() - ax).abs();
+            let dy = (t.client_y() - ay).abs();
+            if !long_fired.get() && (dx > 10 || dy > 10) {
+                set_touch_anchor.set(None);
+            } else if long_fired.get() && (dx > 10 || dy > 10) && !dragging.get() {
+                set_dragging.set(true);
+                close_context_menu.clone()();
+            }
+        }
+    };
+
+    let end = move |ev: leptos::ev::TouchEvent| {
+        if dragging.get() {
+            if let Some(t) = ev.changed_touches().get(0) {
+                let x = t.client_x();
+                let y = t.client_y();
+                if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+                    if let Some(elem) = doc.element_from_point(x as f32, y as f32) {
+                        if let Ok(Some(_)) = elem.closest(".portfolio-controls-bar, .pf-nav-controls, .pf-nav-tabs-scroll") {
+                            ui_store.update(|s| s.open_nav_tab(kind.as_str(), id, &name));
+                        }
+                    }
+                }
+            }
+            ev.prevent_default();
+        } else if long_fired.get() {
+            ev.prevent_default();
+        }
+        set_touch_anchor.set(None);
+        set_long_fired.set(false);
+        set_dragging.set(false);
+    };
+
+    (start, move_fn, end)
 }
 
 /// Read every selected image file from a file input change event and call the callback for each.
