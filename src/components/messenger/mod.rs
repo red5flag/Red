@@ -1,5 +1,9 @@
-use crate::models::{ContactSource, MessengerContact};
+use crate::models::{
+    ContactSource, MessengerContact, MessengerRequest, MessengerRequestKind, ServiceTask,
+    ServiceTaskStatus, ServiceTaskType,
+};
 use crate::stores::{use_app_store, use_messenger_store, use_organization_store};
+use chrono::{Duration, Utc};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -83,8 +87,86 @@ pub fn MessageDrawer() -> impl IntoView {
             contacts.push(MessengerContact::group("Red5flag Group", "🚩", members));
         }
 
+        let group = contacts.iter().find(|c| c.source == ContactSource::Group).cloned();
+
         if contacts != messenger_store.get_untracked().messenger_contacts {
             messenger_store.update(|s| s.messenger_contacts = contacts);
+        }
+
+        // Seed incoming requests once contacts have been populated.
+        let app = app_store.get_untracked();
+        let current_user_id = app.current_user.id;
+        let mut requests = messenger_store.get_untracked().messenger_requests.clone();
+
+        if requests.is_empty() && !org.organization_users.is_empty() {
+            if let Some(other) = org.organization_users.iter().find(|u| u.id != current_user_id) {
+                requests.push(
+                    MessengerRequest::new(
+                        MessengerRequestKind::FriendRequest,
+                        other.id,
+                        other.id,
+                    )
+                    .with_message("Would like to connect"),
+                );
+            }
+
+            if let Some(group) = group.as_ref() {
+                if let Some(manager) = org.organization_users.iter().find(|u| {
+                    matches!(
+                        u.role,
+                        crate::types::UserRole::Owner
+                            | crate::types::UserRole::Director
+                            | crate::types::UserRole::SeniorManager
+                            | crate::types::UserRole::Manager
+                    )
+                }) {
+                    requests.push(
+                        MessengerRequest::new(
+                            MessengerRequestKind::GroupInvite,
+                            manager.id,
+                            group.id,
+                        )
+                        .with_message(format!("You have been invited to {}", group.name)),
+                    );
+                }
+            }
+
+            if let Some(manager) = org.organization_users.iter().find(|u| {
+                matches!(
+                    u.role,
+                    crate::types::UserRole::Owner
+                        | crate::types::UserRole::Director
+                        | crate::types::UserRole::SeniorManager
+                        | crate::types::UserRole::Manager
+                )
+            }) {
+                let asset_id = app
+                    .portfolios
+                    .iter()
+                    .flat_map(|p| p.assets.iter())
+                    .next()
+                    .map(|a| a.id)
+                    .unwrap_or(Uuid::nil());
+                let mut task = ServiceTask::new(
+                    asset_id,
+                    None,
+                    ServiceTaskType::Maintenance,
+                    Utc::now(),
+                    Utc::now() + Duration::hours(2),
+                );
+                task.assigned_to = Some(current_user_id);
+                task.status = ServiceTaskStatus::Pending;
+                let task_id = task.id;
+                app_store.update(|s| s.add_service_task(task));
+                requests.push(
+                    MessengerRequest::new(MessengerRequestKind::WorkRequest, manager.id, task_id)
+                        .with_message("New maintenance job order"),
+                );
+            }
+        }
+
+        if requests != messenger_store.get_untracked().messenger_requests {
+            messenger_store.update(|s| s.messenger_requests = requests);
         }
     });
 
@@ -196,6 +278,217 @@ pub fn MessageDrawer() -> impl IntoView {
         Some((contact, thread))
     });
 
+    let friend_requests: Memo<Vec<MessengerRequest>> = Memo::new(move |_| {
+        messenger_store
+            .get()
+            .messenger_requests
+            .iter()
+            .filter(|r| matches!(r.kind, MessengerRequestKind::FriendRequest))
+            .cloned()
+            .collect()
+    });
+    let group_invites: Memo<Vec<MessengerRequest>> = Memo::new(move |_| {
+        messenger_store
+            .get()
+            .messenger_requests
+            .iter()
+            .filter(|r| matches!(r.kind, MessengerRequestKind::GroupInvite))
+            .cloned()
+            .collect()
+    });
+    let work_requests: Memo<Vec<MessengerRequest>> = Memo::new(move |_| {
+        messenger_store
+            .get()
+            .messenger_requests
+            .iter()
+            .filter(|r| matches!(r.kind, MessengerRequestKind::WorkRequest))
+            .cloned()
+            .collect()
+    });
+
+    #[derive(Clone, PartialEq)]
+    enum SidebarListItem {
+        Contact(MessengerContact),
+        Request(MessengerRequest),
+    }
+
+    let friend_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
+        let mut items: Vec<_> = friend_requests
+            .get()
+            .into_iter()
+            .map(SidebarListItem::Request)
+            .collect();
+        items.extend(friend_contacts.get().into_iter().map(SidebarListItem::Contact));
+        items
+    });
+    let group_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
+        let mut items: Vec<_> = group_invites
+            .get()
+            .into_iter()
+            .map(SidebarListItem::Request)
+            .collect();
+        items.extend(group_contacts.get().into_iter().map(SidebarListItem::Contact));
+        items
+    });
+    let request_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
+        let mut items: Vec<_> = work_requests
+            .get()
+            .into_iter()
+            .map(SidebarListItem::Request)
+            .collect();
+        items.extend(request_contacts.get().into_iter().map(SidebarListItem::Contact));
+        items
+    });
+
+    let accept_request = move |req: MessengerRequest| {
+        let current_user_id = app_store.get().current_user.id;
+        match req.kind {
+            MessengerRequestKind::FriendRequest => {
+                let org = organization_store.get();
+                if let Some(user) = org.organization_users.iter().find(|u| u.id == req.target_id) {
+                    let contact = MessengerContact {
+                        id: user.id,
+                        name: user.name.clone(),
+                        source: ContactSource::Imported,
+                        phone: user.phone.clone(),
+                        email: Some(user.email.clone()),
+                        icon: user.icon.clone().or(user.avatar_url.clone()),
+                        members: Vec::new(),
+                        unread_count: 0,
+                    };
+                    messenger_store.update(|s| s.accept_friend_request(req.id, contact));
+                }
+            }
+            MessengerRequestKind::GroupInvite => {
+                messenger_store.update(|s| s.accept_group_invite(req.id, current_user_id));
+            }
+            MessengerRequestKind::WorkRequest => {
+                app_store.update(|s| {
+                    if let Some(t) = s.get_service_task_mut(req.target_id) {
+                        t.status = ServiceTaskStatus::Scheduled;
+                        t.updated_at = Utc::now();
+                    }
+                });
+                messenger_store.update(|s| {
+                    s.remove_request(req.id);
+                });
+            }
+        }
+    };
+
+    let decline_request = move |id: Uuid| {
+        if let Some(req) = messenger_store
+            .get()
+            .messenger_requests
+            .iter()
+            .find(|r| r.id == id)
+            .cloned()
+        {
+            if matches!(req.kind, MessengerRequestKind::WorkRequest) {
+                app_store.update(|s| {
+                    if let Some(t) = s.get_service_task_mut(req.target_id) {
+                        t.status = ServiceTaskStatus::Cancelled;
+                        t.updated_at = Utc::now();
+                    }
+                });
+            }
+            messenger_store.update(|s| s.decline_request(id));
+        }
+    };
+
+    let render_request = move |req: MessengerRequest| {
+        let req_id = req.id;
+        let org = organization_store.get();
+        let store = messenger_store.get();
+        let app = app_store.get();
+        let from_user = org
+            .organization_users
+            .iter()
+            .find(|u| u.id == req.from_user_id);
+        let (avatar, title, sub) = match req.kind {
+            MessengerRequestKind::FriendRequest => {
+                let name = from_user
+                    .map(|u| u.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let avatar = from_user
+                    .and_then(|u| u.icon.clone().or(u.avatar_url.clone()))
+                    .unwrap_or_else(|| "👤".to_string());
+                (
+                    avatar,
+                    format!("Friend request from {}", name),
+                    req.message.clone().unwrap_or_default(),
+                )
+            }
+            MessengerRequestKind::GroupInvite => {
+                let group = store
+                    .messenger_contacts
+                    .iter()
+                    .find(|c| c.id == req.target_id);
+                let group_name = group
+                    .map(|c| c.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let avatar = group
+                    .and_then(|c| c.icon.clone())
+                    .unwrap_or_else(|| "👥".to_string());
+                let from_name = from_user
+                    .map(|u| u.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let sub = format!(
+                    "Invited by {}{}",
+                    from_name,
+                    req.message
+                        .as_ref()
+                        .map(|m| format!(" · {}", m))
+                        .unwrap_or_default()
+                );
+                (avatar, format!("Group invite: {}", group_name), sub)
+            }
+            MessengerRequestKind::WorkRequest => {
+                let task = app.service_tasks.iter().find(|t| t.id == req.target_id);
+                let task_title = task
+                    .map(|t| t.display_title())
+                    .unwrap_or_else(|| "Work request".to_string());
+                let from_name = from_user
+                    .map(|u| u.name.clone())
+                    .unwrap_or_else(|| "Unknown".to_string());
+                let sub = format!(
+                    "Job order from {}{}",
+                    from_name,
+                    req.message
+                        .as_ref()
+                        .map(|m| format!(" · {}", m))
+                        .unwrap_or_default()
+                );
+                ("🛠".to_string(), task_title, sub)
+            }
+        };
+        let accept_req = req.clone();
+        view! {
+            <div class="messenger-request">
+                <div class="messenger-request-avatar">{avatar}</div>
+                <div class="messenger-request-info">
+                    <div class="messenger-request-title">{title}</div>
+                    <div class="messenger-request-sub">{sub}</div>
+                </div>
+                <div class="messenger-request-actions">
+                    <button
+                        class="messenger-request-accept"
+                        on:click=move |_| accept_request(accept_req.clone())
+                    >
+                        "Accept"
+                    </button>
+                    <button
+                        class="messenger-request-decline"
+                        on:click=move |_| decline_request(req_id)
+                    >
+                        "Decline"
+                    </button>
+                </div>
+            </div>
+        }
+        .into_any()
+    };
+
     view! {
         <div class="messenger-drawer-overlay" on:click=on_close>
             <div class="messenger-screen" on:click=|ev| ev.stop_propagation()>
@@ -246,33 +539,41 @@ pub fn MessageDrawer() -> impl IntoView {
                     <div class="messenger-sidebar-list">
                         <For
                             each=move || match left_tab.get() {
-                                "friends" => friend_contacts.get(),
-                                "groups" => group_contacts.get(),
-                                _ => request_contacts.get(),
+                                "friends" => friend_items.get(),
+                                "groups" => group_items.get(),
+                                _ => request_items.get(),
                             }
-                            key=|c| c.id
-                            children=move |c| {
-                                let id = c.id;
-                                let name = c.name.clone();
-                                let avatar = c.icon.clone().unwrap_or_else(|| name.chars().next().unwrap_or('?').to_string());
-                                let sub = if c.source == ContactSource::Group {
-                                    let n = c.members.len();
-                                    format!("{} member{}", n, if n == 1 { "" } else { "s" })
-                                } else {
-                                    c.phone.clone().or(c.email.clone()).unwrap_or_else(|| match c.source {
-                                        ContactSource::Bot => "PQC-secured test bot".to_string(),
-                                        ContactSource::Recommended => "Request".to_string(),
-                                        _ => "Friend".to_string(),
-                                    })
-                                };
-                                view! {
-                                    <div class="messenger-contact" on:click=move |_| set_selected_contact(Some(id))>
-                                        <div class="messenger-contact-avatar">{avatar}</div>
-                                        <div class="messenger-contact-info">
-                                            <div class="messenger-contact-name">{name}</div>
-                                            <div class="messenger-contact-sub">{sub}</div>
-                                        </div>
-                                    </div>
+                            key=|item| match item.clone() {
+                                SidebarListItem::Contact(c) => format!("c-{}", c.id),
+                                SidebarListItem::Request(r) => format!("r-{}", r.id),
+                            }
+                            children=move |item: SidebarListItem| {
+                                match item {
+                                    SidebarListItem::Contact(c) => {
+                                        let id = c.id;
+                                        let name = c.name.clone();
+                                        let avatar = c.icon.clone().unwrap_or_else(|| name.chars().next().unwrap_or('?').to_string());
+                                        let sub = if c.source == ContactSource::Group {
+                                            let n = c.members.len();
+                                            format!("{} member{}", n, if n == 1 { "" } else { "s" })
+                                        } else {
+                                            c.phone.clone().or(c.email.clone()).unwrap_or_else(|| match c.source {
+                                                ContactSource::Bot => "PQC-secured test bot".to_string(),
+                                                ContactSource::Recommended => "Request".to_string(),
+                                                _ => "Friend".to_string(),
+                                            })
+                                        };
+                                        view! {
+                                            <div class="messenger-contact" on:click=move |_| set_selected_contact(Some(id))>
+                                                <div class="messenger-contact-avatar">{avatar}</div>
+                                                <div class="messenger-contact-info">
+                                                    <div class="messenger-contact-name">{name}</div>
+                                                    <div class="messenger-contact-sub">{sub}</div>
+                                                </div>
+                                            </div>
+                                        }.into_any()
+                                    }
+                                    SidebarListItem::Request(req) => render_request(req),
                                 }
                             }
                         />

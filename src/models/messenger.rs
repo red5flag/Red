@@ -146,6 +146,42 @@ pub enum ContactSource {
     Group,
 }
 
+/// Incoming request shown inside the messenger tabs (Friends, Groups, Requests).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MessengerRequestKind {
+    FriendRequest,
+    GroupInvite,
+    WorkRequest,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MessengerRequest {
+    pub id: Uuid,
+    pub kind: MessengerRequestKind,
+    pub from_user_id: Uuid,
+    pub target_id: Uuid,
+    pub message: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl MessengerRequest {
+    pub fn new(kind: MessengerRequestKind, from_user_id: Uuid, target_id: Uuid) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            kind,
+            from_user_id,
+            target_id,
+            message: None,
+            created_at: Utc::now(),
+        }
+    }
+
+    pub fn with_message(mut self, message: impl Into<String>) -> Self {
+        self.message = Some(message.into());
+        self
+    }
+}
+
 /// Calendar/booking event.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CalendarEvent {

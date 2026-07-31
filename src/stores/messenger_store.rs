@@ -1,4 +1,4 @@
-use crate::models::{ContactSource, Message, MessengerContact};
+use crate::models::{ContactSource, Message, MessengerContact, MessengerRequest};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -11,6 +11,7 @@ pub struct MessengerStore {
     pub selected_chat_id: Option<Uuid>,
     pub messages: Vec<Message>,
     pub messenger_contacts: Vec<MessengerContact>,
+    pub messenger_requests: Vec<MessengerRequest>,
 }
 
 impl Default for MessengerStore {
@@ -20,6 +21,7 @@ impl Default for MessengerStore {
             selected_chat_id: None,
             messages: Vec::new(),
             messenger_contacts: Vec::new(),
+            messenger_requests: Vec::new(),
         }
     }
 }
@@ -127,6 +129,37 @@ impl MessengerStore {
                 g.members.push(member_id);
             }
         }
+    }
+
+    // Requests
+
+    pub fn add_messenger_request(&mut self, request: MessengerRequest) {
+        if !self.messenger_requests.iter().any(|r| r.id == request.id) {
+            self.messenger_requests.push(request);
+        }
+    }
+
+    pub fn remove_request(&mut self, id: Uuid) -> Option<MessengerRequest> {
+        if let Some(pos) = self.messenger_requests.iter().position(|r| r.id == id) {
+            Some(self.messenger_requests.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    pub fn accept_friend_request(&mut self, request_id: Uuid, contact: MessengerContact) {
+        self.add_messenger_contact(contact);
+        self.remove_request(request_id);
+    }
+
+    pub fn accept_group_invite(&mut self, request_id: Uuid, current_user_id: Uuid) {
+        if let Some(req) = self.remove_request(request_id) {
+            self.add_group_member(req.target_id, current_user_id);
+        }
+    }
+
+    pub fn decline_request(&mut self, request_id: Uuid) {
+        let _ = self.remove_request(request_id);
     }
 
     // Developer/test helpers
