@@ -21,6 +21,8 @@ pub struct User {
     pub hire_date: Option<DateTime<Utc>>,
     pub base_salary: Option<f64>,
     pub avatar_url: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
     pub payment_settings: PaymentSettings,
     pub notification_preferences: Vec<(NotificationTrigger, Vec<NotificationType>)>,
     pub permissions: Vec<Permission>,
@@ -60,6 +62,7 @@ impl User {
             hire_date: None,
             base_salary: None,
             avatar_url: None,
+            icon: None,
             payment_settings: PaymentSettings::default(),
             notification_preferences: Vec::new(),
             permissions,

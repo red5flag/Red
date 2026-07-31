@@ -133,9 +133,6 @@ pub(crate) fn AssetViewer(
         }
     });
 
-    let (show_groups, set_show_groups) = signal(false);
-    let (show_direct_assets, set_show_direct_assets) = signal(false);
-
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
     let (new_asset_id, set_new_asset_id) = signal(Option::<Uuid>::None);
@@ -252,16 +249,6 @@ pub(crate) fn AssetViewer(
         });
     });
 
-    // Auto-expand the relevant section when an add form is targeted at this portfolio
-    Effect::new(move |_| {
-        if show_add_asset.get() == AssetTarget::PortfolioDirect(pid) {
-            set_show_direct_assets.set(true);
-        }
-        if show_add_group.get() == Some(pid) {
-            set_show_groups.set(true);
-        }
-    });
-
     let on_select_asset = Callback::new(move |asset: Asset| {
         set_selected_asset.set(Some(asset));
     });
@@ -273,7 +260,6 @@ pub(crate) fn AssetViewer(
     let view_mode_groups_content = view_mode;
     let view_mode_direct_title = view_mode;
     let view_mode_direct_content = view_mode;
-    let portfolio_groups_for_header = portfolio.clone();
     let portfolio_for_group_count = portfolio.clone();
     let portfolio_for_direct_count = portfolio.clone();
 
@@ -561,149 +547,11 @@ pub(crate) fn AssetViewer(
 
     view! {
         <div class="asset-viewer">
-            {if has_groups && has_direct {
-                view! {
-                    <div class="asset-section">
-                        <div class="asset-section-title"
-                            role="button"
-                            tabindex="0"
-                            aria-expanded={move || show_groups.get()}
-                            aria-controls="av-groups-content"
-                            aria-label={move || if show_groups.get() { "Collapse Asset Groups section" } else { "Expand Asset Groups section" }}
-                            on:click=move |_| set_show_groups.update(|v| *v = !*v)
-                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                if ev.key() == "Enter" || ev.key() == " " {
-                                    ev.prevent_default();
-                                    set_show_groups.update(|v| *v = !*v);
-                                }
-                            }
-                        >
-                            <div class="asset-section-title-left">
-                                <span class="asset-section-arrow" aria-hidden="true">
-                                    {move || if show_groups.get() { "▶" } else { "▼" }}
-                                </span>
-                                <span class="asset-section-label">"Asset Groups"</span>
-                            </div>
-                            <div class="section-title-right">
-                                {move || {
-                                    if show_groups.get() && view_mode_groups_content.get() == ViewMode::Grid && !portfolio_groups_for_header.asset_groups.is_empty() {
-                                        view! {
-                                            <div class="sort-dropdown-wrap sort-dropdown-inline">
-                                                <button class="sort-btn"
-                                                    on:click=move |ev: leptos::ev::MouseEvent| {
-                                                        ev.stop_propagation();
-                                                        set_group_sort_open.update(|v| *v = !*v)
-                                                    }
-                                                >{format!("Sort: {} ↕", sort_mode_label(group_sort_mode.get()))}</button>
-                                                {move || if group_sort_open.get() {
-                                                    view! {
-                                                        <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                                            {[
-                                                                AssetSortMode::Recent,
-                                                                AssetSortMode::NameAsc,
-                                                                AssetSortMode::NameDesc,
-                                                                AssetSortMode::ValueHigh,
-                                                                AssetSortMode::ValueLow,
-                                                            ].iter().map(|&m| {
-                                                                let set_m = set_group_sort_mode;
-                                                                let close = set_group_sort_open;
-                                                                view! {
-                                                                    <button class="sort-dropdown-item"
-                                                                        class:active={move || group_sort_mode.get() == m}
-                                                                        on:click=move |_| {
-                                                                            set_m.set(m);
-                                                                            close.set(false);
-                                                                        }
-                                                                    >{sort_mode_label(m)}</button>
-                                                                }
-                                                            }).collect::<Vec<_>>()}
-                                                        </div>
-                                                    }.into_any()
-                                                } else { ().into_any() }}
-                                            </div>
-                                        }.into_any()
-                                    } else { ().into_any() }
-                                }}
-                            </div>
-                        </div>
-
-                        {move || if show_groups.get() { groups_view(false) } else { ().into_any() }}
-                    </div>
-                }.into_any()
-            } else if has_groups {
+            {if has_groups {
                 groups_view(true)
             } else { ().into_any() }}
 
-            {if has_direct && has_groups {
-                view! {
-                    <div class="asset-section">
-                        <div class="asset-section-title"
-                            role="button"
-                            tabindex="0"
-                            aria-expanded={move || show_direct_assets.get()}
-                            aria-controls="av-direct-content"
-                            aria-label={move || if show_direct_assets.get() { "Collapse Direct Assets section" } else { "Expand Direct Assets section" }}
-                            on:click=move |_| set_show_direct_assets.update(|v| *v = !*v)
-                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
-                                if ev.key() == "Enter" || ev.key() == " " {
-                                    ev.prevent_default();
-                                    set_show_direct_assets.update(|v| *v = !*v);
-                                }
-                            }
-                        >
-                            <div class="asset-section-title-left">
-                                <span class="asset-section-arrow" aria-hidden="true">
-                                    {move || if show_direct_assets.get() { "▶" } else { "▼" }}
-                                </span>
-                                <span class="asset-section-label">"Direct Assets"</span>
-                            </div>
-                            <div class="section-title-right">
-                                {move || {
-                                    if show_direct_assets.get() && view_mode_direct_title.get() == ViewMode::Grid && !sorted_direct_assets.get().is_empty() {
-                                        view! {
-                                            <div class="sort-dropdown-wrap sort-dropdown-inline">
-                                                <button class="sort-btn"
-                                                    on:click=move |ev: leptos::ev::MouseEvent| {
-                                                        ev.stop_propagation();
-                                                        set_direct_sort_open.update(|v| *v = !*v)
-                                                    }
-                                                >{format!("Sort: {} ↕", sort_mode_label(direct_sort_mode.get()))}</button>
-                                                {move || if direct_sort_open.get() {
-                                                    view! {
-                                                        <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                                            {[
-                                                                AssetSortMode::Recent,
-                                                                AssetSortMode::NameAsc,
-                                                                AssetSortMode::NameDesc,
-                                                                AssetSortMode::ValueHigh,
-                                                                AssetSortMode::ValueLow,
-                                                            ].iter().map(|&m| {
-                                                                let set_m = set_direct_sort_mode;
-                                                                let close = set_direct_sort_open;
-                                                                view! {
-                                                                    <button class="sort-dropdown-item"
-                                                                        class:active={move || direct_sort_mode.get() == m}
-                                                                        on:click=move |_| {
-                                                                            set_m.set(m);
-                                                                            close.set(false);
-                                                                        }
-                                                                    >{sort_mode_label(m)}</button>
-                                                                }
-                                                            }).collect::<Vec<_>>()}
-                                                        </div>
-                                                    }.into_any()
-                                                } else { ().into_any() }}
-                                            </div>
-                                        }.into_any()
-                                    } else { ().into_any() }
-                                }}
-                            </div>
-                        </div>
-
-                        {move || if show_direct_assets.get() { direct_view(false) } else { ().into_any() }}
-                    </div>
-                }.into_any()
-            } else if has_direct {
+            {if has_direct {
                 direct_view(true)
             } else { ().into_any() }}
 

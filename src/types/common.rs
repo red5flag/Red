@@ -765,6 +765,8 @@ pub struct UserProfile {
     pub email: String,
     pub role: UserRole,
     pub organization_id: Option<Uuid>,
+    #[serde(default)]
+    pub icon: Option<String>,
     pub settings: OrganizationSettings,
     pub created_at: DateTime<Utc>,
 }
@@ -787,6 +789,7 @@ impl Default for UserProfile {
             email: String::new(),
             role: UserRole::Worker,
             organization_id: None,
+            icon: None,
             settings: OrganizationSettings::default(),
             created_at: Utc::now(),
         }

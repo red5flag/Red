@@ -1449,6 +1449,7 @@ pub(crate) fn AssetItem(
                                             hire_date: None,
                                             base_salary: None,
                                             avatar_url: None,
+                                            icon: None,
                                             payment_settings: Default::default(),
                                             notification_preferences: vec![],
                                             permissions: vec![],

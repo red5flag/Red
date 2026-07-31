@@ -103,7 +103,38 @@ pub struct MessengerContact {
     pub source: ContactSource,
     pub phone: Option<String>,
     pub email: Option<String>,
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub members: Vec<Uuid>,
     pub unread_count: usize,
+}
+
+impl MessengerContact {
+    pub fn group(name: impl Into<String>, icon: impl Into<String>, members: Vec<Uuid>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            source: ContactSource::Group,
+            phone: None,
+            email: None,
+            icon: Some(icon.into()),
+            members,
+            unread_count: 0,
+        }
+    }
+
+    pub fn person(id: Uuid, name: impl Into<String>, source: ContactSource, email: Option<String>) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            source,
+            phone: None,
+            email,
+            icon: None,
+            members: Vec::new(),
+            unread_count: 0,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,6 +143,7 @@ pub enum ContactSource {
     Imported,
     Recommended,
     Bot,
+    Group,
 }
 
 /// Calendar/booking event.

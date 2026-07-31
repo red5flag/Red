@@ -13,12 +13,25 @@ pub(crate) fn AccountSettings() -> impl IntoView {
             </div>
             <div class="settings-list">
                 <div class="account-current-user">
-                    <div class="account-avatar">{move || app_store.get().current_user.name.chars().next().unwrap_or('U')}</div>
+                    <div class="account-avatar">{move || app_store.get().current_user.icon.clone().unwrap_or_else(|| app_store.get().current_user.name.chars().next().unwrap_or('U').to_string())}</div>
                     <div class="account-user-info">
                         <div class="account-user-name">{move || app_store.get().current_user.name.clone()}</div>
                         <div class="account-user-email">{move || app_store.get().current_user.email.clone()}</div>
                         <div class="account-user-role">{move || format!("{:?}", app_store.get().current_user.role)}</div>
                     </div>
+                </div>
+                <div class="account-icon-setting">
+                    <span class="account-detail-label">"Profile Icon"</span>
+                    <input
+                        type="text"
+                        class="account-icon-input"
+                        placeholder="Emoji or icon..."
+                        prop:value={move || app_store.get().current_user.icon.clone().unwrap_or_default()}
+                        on:input=move |ev| {
+                            let v = event_target_value(&ev);
+                            app_store.update(|s| s.current_user.icon = if v.trim().is_empty() { None } else { Some(v) });
+                        }
+                    />
                 </div>
                 <div class="account-details-grid">
                     <div class="account-detail-row">

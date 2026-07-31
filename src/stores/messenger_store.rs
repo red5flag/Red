@@ -1,4 +1,4 @@
-use crate::models::{Message, MessengerContact};
+use crate::models::{ContactSource, Message, MessengerContact};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -93,6 +93,42 @@ impl MessengerStore {
         }
     }
 
+    pub fn create_group(
+        &mut self,
+        name: String,
+        icon: Option<String>,
+        members: Vec<Uuid>,
+    ) -> Uuid {
+        let group = MessengerContact::group(name, icon.unwrap_or_default(), members);
+        let id = group.id;
+        self.add_messenger_contact(group);
+        id
+    }
+
+    pub fn update_group(
+        &mut self,
+        id: Uuid,
+        name: Option<String>,
+        icon: Option<String>,
+    ) {
+        if let Some(g) = self.messenger_contacts.iter_mut().find(|c| c.id == id && c.source == ContactSource::Group) {
+            if let Some(name) = name {
+                g.name = name;
+            }
+            if let Some(icon) = icon {
+                g.icon = Some(icon);
+            }
+        }
+    }
+
+    pub fn add_group_member(&mut self, id: Uuid, member_id: Uuid) {
+        if let Some(g) = self.messenger_contacts.iter_mut().find(|c| c.id == id && c.source == ContactSource::Group) {
+            if !g.members.contains(&member_id) {
+                g.members.push(member_id);
+            }
+        }
+    }
+
     // Developer/test helpers
     pub fn dev_test_message_from_bot(&mut self, current_user_id: Uuid, content: &str) {
         self.receive_message(Uuid::new_v4(), current_user_id, content.to_string());
@@ -105,6 +141,8 @@ impl MessengerStore {
             source: crate::models::ContactSource::Bot,
             phone: None,
             email: Some("bot@farley.test".into()),
+            icon: None,
+            members: Vec::new(),
             unread_count: 1,
         });
     }

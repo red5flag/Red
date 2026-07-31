@@ -49,6 +49,9 @@ pub struct AppStore {
     pub pending_doc_view: Option<Uuid>,
     /// When set, the owner of this entity id should open its document slider.
     pub pending_doc_slider: Option<Uuid>,
+    // Pinned portfolios and assets for quick tab access
+    pub pinned_portfolio_ids: Vec<Uuid>,
+    pub pinned_asset_ids: Vec<Uuid>,
     // Authentication state
     pub is_authenticated: bool,
     // Credential store for password verification
@@ -125,6 +128,8 @@ impl Default for AppStore {
             pending_asset_detail: None,
             pending_doc_view: None,
             pending_doc_slider: None,
+            pinned_portfolio_ids: Vec::new(),
+            pinned_asset_ids: Vec::new(),
             is_authenticated: false,
             credentials,
             developer_mode: false,
@@ -206,6 +211,73 @@ impl AppStore {
         self.edit_mode_tabs.clear();
         #[cfg(feature = "hydrate")]
         self.save_tab_state();
+    }
+
+    pub fn is_portfolio_pinned(&self, id: Uuid) -> bool {
+        self.pinned_portfolio_ids.contains(&id)
+    }
+
+    pub fn is_asset_pinned(&self, id: Uuid) -> bool {
+        self.pinned_asset_ids.contains(&id)
+    }
+
+    pub fn toggle_pin_portfolio(&mut self, id: Uuid) {
+        if self.pinned_portfolio_ids.contains(&id) {
+            self.pinned_portfolio_ids.retain(|x| *x != id);
+        } else {
+            self.pinned_portfolio_ids.push(id);
+        }
+    }
+
+    pub fn toggle_pin_asset(&mut self, id: Uuid) {
+        if self.pinned_asset_ids.contains(&id) {
+            self.pinned_asset_ids.retain(|x| *x != id);
+        } else {
+            self.pinned_asset_ids.push(id);
+        }
+    }
+
+    /// Open a pinned portfolio by selecting it and switching to the Portfolios tab.
+    pub fn open_pinned_portfolio(&mut self, id: Uuid) {
+        self.touch_portfolio(id);
+        self.selected_portfolio_ids.clear();
+        self.selected_portfolio_ids.insert(id);
+        self.selected_asset_group_id = None;
+        self.selected_asset_id = None;
+        self.pending_asset_detail = None;
+        self.pending_doc_view = None;
+        self.pending_doc_slider = None;
+        self.pending_group_expand = None;
+        self.pending_scroll_target = Some(ScrollTarget::Portfolio(id));
+        self.expand_tab(TabType::Portfolios);
+    }
+
+    /// Open a pinned asset by selecting its containing portfolio and the asset.
+    pub fn open_pinned_asset(&mut self, id: Uuid) {
+        if let Some((portfolio_id, group_id, _asset_id)) = self.portfolios.iter().find_map(|p| {
+            if let Some(a) = p.assets.iter().find(|a| a.id == id) {
+                Some((p.id, None, a.id))
+            } else {
+                p.asset_groups.iter().find_map(|g| {
+                    g.assets
+                        .iter()
+                        .find(|a| a.id == id)
+                        .map(|a| (p.id, Some(g.id), a.id))
+                })
+            }
+        }) {
+            self.touch_portfolio(portfolio_id);
+            self.selected_portfolio_ids.clear();
+            self.selected_portfolio_ids.insert(portfolio_id);
+            self.selected_asset_id = Some(id);
+            self.selected_asset_group_id = group_id;
+            self.pending_group_expand = group_id;
+            self.pending_asset_detail = Some(id);
+            self.pending_doc_view = None;
+            self.pending_doc_slider = None;
+            self.pending_scroll_target = Some(ScrollTarget::Asset(id));
+            self.expand_tab(TabType::Portfolios);
+        }
     }
 
     // Portfolio management

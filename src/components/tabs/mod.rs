@@ -201,6 +201,8 @@ pub fn TabList() -> impl IntoView {
         items
     };
 
+    let app_store = use_app_store();
+
     view! {
         <div class="tab-list">
             {move || {
@@ -216,6 +218,62 @@ pub fn TabList() -> impl IntoView {
                         }
                     />
                 }.into_any()
+            }}
+            {move || {
+                let pids = app_store.get().pinned_portfolio_ids.clone();
+                let aids = app_store.get().pinned_asset_ids.clone();
+                if pids.is_empty() && aids.is_empty() {
+                    ().into_any()
+                } else {
+                    view! {
+                        <div class="tab-pinned-section">
+                            <div class="tab-pinned-title">"Pinned"</div>
+                            <For
+                                each=move || app_store.get().pinned_portfolio_ids.clone()
+                                key=|id| *id
+                                children=move |id| {
+                                    let name = app_store
+                                        .get()
+                                        .get_portfolio(id)
+                                        .map(|p| p.name.clone())
+                                        .unwrap_or_else(|| "Unknown Portfolio".to_string());
+                                    view! {
+                                        <div
+                                            class="tab-pinned-item"
+                                            on:click=move |_| app_store.update(|s| s.open_pinned_portfolio(id))
+                                        >
+                                            <span class="tab-pinned-icon">"📁"</span>
+                                            <span class="tab-pinned-name">{name}</span>
+                                        </div>
+                                    }.into_any()
+                                }
+                            />
+                            <For
+                                each=move || app_store.get().pinned_asset_ids.clone()
+                                key=|id| *id
+                                children=move |id| {
+                                    let store = app_store.get();
+                                    let name = store
+                                        .portfolios
+                                        .iter()
+                                        .flat_map(|p| p.get_all_assets())
+                                        .find(|a| a.id == id)
+                                        .map(|a| a.name.clone())
+                                        .unwrap_or_else(|| "Unknown Asset".to_string());
+                                    view! {
+                                        <div
+                                            class="tab-pinned-item"
+                                            on:click=move |_| app_store.update(|s| s.open_pinned_asset(id))
+                                        >
+                                            <span class="tab-pinned-icon">"📦"</span>
+                                            <span class="tab-pinned-name">{name}</span>
+                                        </div>
+                                    }.into_any()
+                                }
+                            />
+                        </div>
+                    }.into_any()
+                }
             }}
         </div>
     }

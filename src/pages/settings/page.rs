@@ -66,6 +66,8 @@ pub fn SettingsPage() -> impl IntoView {
                         200
                     )),
                     email: Some(format!("{}@example.com", name.to_lowercase())),
+                    icon: None,
+                    members: Vec::new(),
                     unread_count: 0,
                 };
                 s.add_messenger_contact(contact);
