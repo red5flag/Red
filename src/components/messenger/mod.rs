@@ -492,50 +492,48 @@ pub fn MessageDrawer() -> impl IntoView {
     view! {
         <div class="messenger-drawer-overlay" on:click=on_close>
             <div class="messenger-screen" on:click=|ev| ev.stop_propagation()>
-                <div class="messenger-sidebar">
-                    <div class="messenger-sidebar-search">
-                        <input
-                            class="messenger-search-input"
-                            type="text"
-                            placeholder="Search people..."
-                            prop:value={move || search.get()}
-                            on:input=move |ev| set_search.set(event_target_value(&ev))
-                        />
-                    </div>
-                    <div class="messenger-sidebar-tabs">
-                        <button
-                            class="messenger-tab"
-                            class:active={move || left_tab.get() == "friends"}
-                            on:click=move |_| set_left_tab.set("friends")
-                        >
-                            "Friends"
-                        </button>
-                        <button
-                            class="messenger-tab"
-                            class:active={move || left_tab.get() == "groups"}
-                            on:click=move |_| set_left_tab.set("groups")
-                        >
-                            "Groups"
-                        </button>
-                        <button
-                            class="messenger-tab"
-                            class:active={move || left_tab.get() == "requests"}
-                            on:click=move |_| set_left_tab.set("requests")
-                        >
-                            "Requests"
-                        </button>
-                        <button
-                            class="messenger-new-group-btn"
-                            on:click=move |_| {
-                                set_new_group_name.set("New Group".to_string());
-                                set_new_group_icon.set("👥".to_string());
-                                set_new_group_members.set(Vec::new());
-                                set_show_new_group.set(true);
-                            }
-                        >
-                            "+ New Group"
-                        </button>
-                    </div>
+                <div class="messenger-controls-bar">
+                    <button
+                        class="messenger-tab"
+                        class:active={move || left_tab.get() == "friends"}
+                        on:click=move |_| set_left_tab.set("friends")>
+                        "Friends"
+                    </button>
+                    <button
+                        class="messenger-tab"
+                        class:active={move || left_tab.get() == "groups"}
+                        on:click=move |_| set_left_tab.set("groups")>
+                        "Groups"
+                    </button>
+                    <button
+                        class="messenger-tab"
+                        class:active={move || left_tab.get() == "requests"}
+                        on:click=move |_| set_left_tab.set("requests")>
+                        "Requests"
+                    </button>
+                    <button
+                        class="messenger-new-group-btn"
+                        on:click=move |_| {
+                            set_new_group_name.set("New Group".to_string());
+                            set_new_group_icon.set("👥".to_string());
+                            set_new_group_members.set(Vec::new());
+                            set_show_new_group.set(true);
+                        }
+                    >
+                        "+ New Group"
+                    </button>
+                </div>
+                <div class="messenger-body">
+                    <div class="messenger-sidebar">
+                        <div class="messenger-sidebar-search">
+                            <input
+                                class="messenger-search-input"
+                                type="text"
+                                placeholder="Search people..."
+                                prop:value={move || search.get()}
+                                on:input=move |ev| set_search.set(event_target_value(&ev))
+                            />
+                        </div>
                     <div class="messenger-sidebar-list">
                         <For
                             each=move || match left_tab.get() {
@@ -745,7 +743,8 @@ pub fn MessageDrawer() -> impl IntoView {
                         }
                     }}
                 </div>
-                {move || if show_new_group.get() {
+            </div>
+            {move || if show_new_group.get() {
                     view! {
                         <div class="messenger-modal-overlay" on:click=move |_| set_show_new_group.set(false)>
                             <div class="messenger-modal" on:click=|ev| ev.stop_propagation()>
