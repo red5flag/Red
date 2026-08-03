@@ -32,12 +32,13 @@ pub(crate) fn MembersSection(
 ) -> impl IntoView {
     let mems = members.clone();
     let indexed_mems = Memo::new(move |_| mems.iter().cloned().enumerate().collect::<Vec<_>>());
+    let (open_member_id, set_open_member_id) = signal::<Option<Uuid>>(None);
     view! {
         <div class="org-sub-tab-header">
             <span class="org-sub-tab-title">"Members"</span>
             {if can_edit {
                 view! {
-                    <div style="display:flex;gap:6px;">
+                    <div class="org-sub-tab-actions">
                         <button class="add-btn-small"
                             on:click=move |_| {
                                 set_show_add_member.set(Some(org_id));
@@ -119,6 +120,12 @@ pub(crate) fn MembersSection(
                     children=move |(uidx, user)| {
                         let uid = user.id;
                         let is_exp = move || expanded_members.get().contains(&(org_id, uid));
+                        let is_role_open = Signal::derive(move || open_member_id.get() == Some(uid));
+                        let on_toggle_role_dropdown = Callback::new(move |uid: Uuid| {
+                            set_open_member_id.update(|v| {
+                                *v = if *v == Some(uid) { None } else { Some(uid) };
+                            });
+                        });
                         let user_role_names: Vec<String> = roles.iter()
                             .filter(|r| r.member_ids.contains(&uid))
                             .map(|r| r.name.clone())
@@ -138,6 +145,8 @@ pub(crate) fn MembersSection(
                                     on_toggle={Callback::new(move |v: (Uuid, Uuid)| on_toggle_member.run(v))}
                                     on_update_role={Callback::new(move |(id, role): (Uuid, UserRole)| on_update_member_role.run((id, role)))}
                                     on_remove={Callback::new(move |v: (Uuid, Uuid)| on_remove_member.run(v))}
+                                    is_role_dropdown_open=is_role_open
+                                    on_toggle_role_dropdown=on_toggle_role_dropdown
                                     role_names=user_role_names
                                     accessible_portfolios=accessible_portfolios
                                 />

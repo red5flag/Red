@@ -13,6 +13,8 @@ pub(crate) fn MemberCard(
     on_toggle: Callback<(Uuid, Uuid), ()>,
     on_update_role: Callback<(Uuid, UserRole), ()>,
     on_remove: Callback<(Uuid, Uuid), ()>,
+    #[prop(into)] is_role_dropdown_open: Signal<bool>,
+    #[prop(into)] on_toggle_role_dropdown: Callback<Uuid, ()>,
     #[prop(into)] role_names: Vec<String>,
     #[prop(into)] accessible_portfolios: Vec<String>,
 ) -> impl IntoView {
@@ -57,20 +59,38 @@ pub(crate) fn MemberCard(
                 {if can_edit {
                     view! {
                         <div class="org-member-actions" on:click=|ev| ev.stop_propagation()>
-                            <select class="org-role-select"
-                                on:change=move |ev| {
-                                    on_update_role.run((uid_role, crate::pages::organization::role_from_str(&event_target_value(&ev))));
-                                }>
-                                <option value="Owner" selected={user_role == UserRole::Owner}>"Owner"</option>
-                                <option value="Director" selected={user_role == UserRole::Director}>"Director"</option>
-                                <option value="SeniorManager" selected={user_role == UserRole::SeniorManager}>"Sr Mgr"</option>
-                                <option value="Manager" selected={user_role == UserRole::Manager}>"Manager"</option>
-                                <option value="Worker" selected={user_role == UserRole::Worker}>"Worker"</option>
-                                <option value="DocumentWorker" selected={user_role == UserRole::DocumentWorker}>"Doc Worker"</option>
-                                <option value="Contractor" selected={user_role == UserRole::Contractor}>"Contractor"</option>
-                                <option value="Guest" selected={user_role == UserRole::Guest}>"Guest"</option>
-                            </select>
-                            <button class="pf-action-btn"
+                            <div class="org-role-dropdown-wrap">
+                                <button
+                                    class="org-role-dropdown-toggle"
+                                    title={user_role_display.to_string()}
+                                    aria-label={format!("Current role: {}. Click to change.", user_role_display)}
+                                    on:click=move |_| on_toggle_role_dropdown.run(uid)>
+                                    {user_role_display}
+                                </button>
+                                {move || if is_role_dropdown_open.get() { view! {
+                                    <div class="org-role-dropdown" on:click=|ev| ev.stop_propagation()>
+                                        {[UserRole::Owner, UserRole::Director, UserRole::SeniorManager, UserRole::Manager, UserRole::Worker, UserRole::DocumentWorker, UserRole::Contractor, UserRole::Guest]
+                                            .into_iter()
+                                            .map(|role| {
+                                                let r_click = role.clone();
+                                                let label = role_display(&role);
+                                                view! {
+                                                    <button
+                                                        class="org-role-dropdown-option"
+                                                        class:org-role-dropdown-active={user_role == role}
+                                                        on:click=move |_| {
+                                                            on_update_role.run((uid_role, r_click));
+                                                            on_toggle_role_dropdown.run(uid);
+                                                        }
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any() } else { ().into_any() }}
+                            </div>
+                            <button class="pf-action-btn org-member-remove"
                                 aria-label={format!("Remove {} from organization", user_name)}
                                 on:click=move |_| on_remove.run((org_id, uid_del))>
                                 "\u{2715}"

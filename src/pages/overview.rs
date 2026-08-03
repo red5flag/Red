@@ -349,7 +349,6 @@ fn section_change_count(
 #[component]
 fn OverviewSection(
     id: &'static str,
-    #[prop(optional)] wide: bool,
     #[prop(optional)] on_click: Option<Arc<dyn Fn() + Send + Sync>>,
     section_order: Memo<HashMap<String, usize>>,
     children: Children,
@@ -358,7 +357,7 @@ fn OverviewSection(
     view! {
         <div
             class="overview-square"
-            class:overview-square-wide=wide
+            class:overview-square-wide={move || ui_store.get().is_overview_section_wide(id)}
             class:clickable={on_click.is_some()}
             class:overview-section-dragging={move || ui_store.get().overview_dragging_id.as_deref() == Some(id)}
             class:overview-section-drag-over={move || ui_store.get().overview_drag_over_id.as_deref() == Some(id)}
@@ -1036,7 +1035,7 @@ pub fn OverviewPage() -> impl IntoView {
             </div>
             <div class="overview-square-grid">
                 // Summary cards
-                <OverviewSection id="current-organization" section_order=sorted_section_order wide=true on_click={on_open_organization_detail.clone()}>
+                <OverviewSection id="current-organization" section_order=sorted_section_order on_click={on_open_organization_detail.clone()}>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"🏢"</span>
                         <span class="overview-detail-title">"Current Organization"</span>
@@ -1061,7 +1060,7 @@ pub fn OverviewPage() -> impl IntoView {
                     </div>
                 </OverviewSection>
 
-                <OverviewSection id="portfolio-summary" section_order=sorted_section_order wide=true on_click={on_open_portfolios_detail.clone()}>
+                <OverviewSection id="portfolio-summary" section_order=sorted_section_order on_click={on_open_portfolios_detail.clone()}>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"📊"</span>
                         <span class="overview-detail-title">"Portfolio Summary"</span>
@@ -1086,7 +1085,7 @@ pub fn OverviewPage() -> impl IntoView {
                     </div>
                 </OverviewSection>
 
-                <OverviewSection id="channel-status" section_order=sorted_section_order wide=true on_click={on_open_networking_detail.clone()}>
+                <OverviewSection id="channel-status" section_order=sorted_section_order on_click={on_open_networking_detail.clone()}>
                     <div class="overview-detail-header">
                         <span class="overview-detail-icon">"📡"</span>
                         <span class="overview-detail-title">"Channel Status"</span>
@@ -1332,7 +1331,7 @@ pub fn OverviewPage() -> impl IntoView {
                 </OverviewSection>
 
                 // Property Overview (full width)
-                <OverviewSection id="property-overview" section_order=sorted_section_order wide=true on_click={on_open_portfolios.clone()}>
+                <OverviewSection id="property-overview" section_order=sorted_section_order on_click={on_open_portfolios.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🏠"</span>
                         <span class="overview-square-label">"Property Overview"</span>
@@ -1362,7 +1361,7 @@ pub fn OverviewPage() -> impl IntoView {
                 </OverviewSection>
 
                 // Recent Activity (full width)
-                <OverviewSection id="recent-activity" section_order=sorted_section_order wide=true>
+                <OverviewSection id="recent-activity" section_order=sorted_section_order>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🔔"</span>
                         <span class="overview-square-label">"Recent Activity"</span>
@@ -1398,7 +1397,7 @@ pub fn OverviewPage() -> impl IntoView {
             // Linked-content continuation
             <div class="overview-square-grid">
                 // Organizations (wide rectangle)
-                <OverviewSection id="organizations" section_order=sorted_section_order wide=true on_click={on_open_organization.clone()}>
+                <OverviewSection id="organizations" section_order=sorted_section_order on_click={on_open_organization.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🏢"</span>
                         <span class="overview-square-label">"Organizations"</span>
@@ -1497,7 +1496,7 @@ pub fn OverviewPage() -> impl IntoView {
                 </OverviewSection>
 
                 // Channels (wide rectangle)
-                <OverviewSection id="channels" section_order=sorted_section_order wide=true on_click={on_open_networking.clone()}>
+                <OverviewSection id="channels" section_order=sorted_section_order on_click={on_open_networking.clone()}>
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📡"</span>
                         <span class="overview-square-label">"Channels"</span>

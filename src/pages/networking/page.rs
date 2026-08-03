@@ -8,7 +8,7 @@ use crate::pages::networking::{
     Channel, ExternalContact, ExternalOrganization, Integration, NetSort, NetTab,
     RelationshipEvent, RelationshipStatus, RiskLevel,
 };
-use crate::stores::{use_app_store, use_messenger_store, use_search_store, use_ui_store};
+use crate::stores::{use_app_store, use_messenger_store, use_organization_store, use_search_store, use_ui_store};
 use crate::types::{TabType, ViewCount};
 use chrono::Utc;
 use leptos::prelude::*;
@@ -354,47 +354,13 @@ fn mock_relationship_events() -> Vec<RelationshipEvent> {
 pub fn NetworkingPage() -> impl IntoView {
     let app_store = use_app_store();
     let messenger_store = use_messenger_store();
+    let organization_store = use_organization_store();
     let search_store = use_search_store();
     let ui_store = use_ui_store();
     let (active_tab, set_active_tab) = signal(NetTab::Contacts);
     let (selected_contact, set_selected_contact) = signal::<Option<ExternalContact>>(None);
     let (selected_org, set_selected_org) = signal::<Option<ExternalOrganization>>(None);
     let (_edit_mode, _set_edit_mode) = signal(false);
-
-    // Sort options horizontal scrollbar state
-    let sort_scroll_ref = NodeRef::<leptos::html::Div>::new();
-    let (sort_can_scroll_left, set_sort_can_scroll_left) = signal(false);
-    let (sort_can_scroll_right, set_sort_can_scroll_right) = signal(true);
-
-    let update_sort_scroll_state = move || {
-        if let Some(el) = sort_scroll_ref.get() {
-            let left = el.scroll_left() as f64;
-            let client = el.client_width() as f64;
-            let width = el.scroll_width() as f64;
-            set_sort_can_scroll_left.set(left > 0.0);
-            set_sort_can_scroll_right.set(left + client < width - 1.0);
-        }
-    };
-
-    let scroll_sort_left = move || {
-        if let Some(el) = sort_scroll_ref.get() {
-            let _ = el.scroll_by_with_x_and_y(-120.0, 0.0);
-        }
-        update_sort_scroll_state();
-    };
-
-    let scroll_sort_right = move || {
-        if let Some(el) = sort_scroll_ref.get() {
-            let _ = el.scroll_by_with_x_and_y(120.0, 0.0);
-        }
-        update_sort_scroll_state();
-    };
-
-    Effect::new(move |_| {
-        let _ = ui_store.get().net_sort_mode;
-        let _ = sort_scroll_ref.get();
-        update_sort_scroll_state();
-    });
 
     let sort_mode = move || match ui_store.get().net_sort_mode {
         0 => NetSort::Name,
@@ -437,22 +403,43 @@ pub fn NetworkingPage() -> impl IntoView {
             })
             .cloned()
             .collect();
+        let my_orgs: Vec<String> = organization_store
+            .get()
+            .organizations
+            .iter()
+            .map(|o| o.name.to_lowercase())
+            .collect();
+        let in_my_org = |c: &ExternalContact| {
+            let company = c.company.to_lowercase();
+            let company_match = my_orgs.iter().any(|n| company.contains(n) || n.contains(&company));
+            let portfolio_match = c.linked_portfolios.iter().any(|p| {
+                let pl = p.to_lowercase();
+                my_orgs.iter().any(|n| pl.contains(n))
+            });
+            company_match || portfolio_match
+        };
         list.sort_by(|a, b| {
-            let ord = match sm {
-                NetSort::Name => a.name.cmp(&b.name),
-                NetSort::Company => a.company.cmp(&b.company),
-                NetSort::Status => a.status.label().cmp(b.status.label()),
-                NetSort::Risk => a.risk_level.label().cmp(b.risk_level.label()),
-                NetSort::Type => a.relationship_type.cmp(&b.relationship_type),
-                NetSort::Transactions => a
-                    .linked_transactions
-                    .len()
-                    .cmp(&b.linked_transactions.len()),
-            };
-            if asc {
-                ord
-            } else {
-                ord.reverse()
+            match (in_my_org(a), in_my_org(b)) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => {
+                    let ord = match sm {
+                        NetSort::Name => a.name.cmp(&b.name),
+                        NetSort::Company => a.company.cmp(&b.company),
+                        NetSort::Status => a.status.label().cmp(b.status.label()),
+                        NetSort::Risk => a.risk_level.label().cmp(b.risk_level.label()),
+                        NetSort::Type => a.relationship_type.cmp(&b.relationship_type),
+                        NetSort::Transactions => a
+                            .linked_transactions
+                            .len()
+                            .cmp(&b.linked_transactions.len()),
+                    };
+                    if asc {
+                        ord
+                    } else {
+                        ord.reverse()
+                    }
+                }
             }
         });
         list
@@ -692,11 +679,11 @@ pub fn NetworkingPage() -> impl IntoView {
                             </div>
                         }.into_any()
                     }}
-                    // Sort option dropdown with horizontal scrollable sort options
+                    // Sort by dropdown (moved left, vertical)
                     {move || {
                         let is_open = sort_dropdown_open.get();
                         view! {
-                            <div class="net-sort-btn-wrap">
+                            <div class="net-sort-btn-wrap net-sort-btn-wrap-left">
                                 <button
                                     class="net-action-btn net-sort-btn"
                                     aria-haspopup="menu"
@@ -708,7 +695,7 @@ pub fn NetworkingPage() -> impl IntoView {
                                 </button>
                                 {if is_open {
                                     view! {
-                                        <div class="net-sort-dropdown" on:click=|ev| ev.stop_propagation()>
+                                        <div class="net-sort-dropdown net-sort-dropdown-left" on:click=|ev| ev.stop_propagation()>
                                             <div class="net-sort-dropdown-section">
                                                 <div class="net-sort-dropdown-section-title">
                                                     "SORT BY"
@@ -716,21 +703,7 @@ pub fn NetworkingPage() -> impl IntoView {
                                                         {if ui_store.get().net_sort_ascending { "↑ Asc" } else { "↓ Desc" }}
                                                     </button>
                                                 </div>
-                                                <div class="net-sort-tabs-outer net-sort-tabs-dropdown">
-                                                    <button
-                                                        class="net-scroll-arrow net-scroll-arrow-left"
-                                                        class:hidden={move || !sort_can_scroll_left.get()}
-                                                        title="Scroll sort options left"
-                                                        aria-label="Scroll sort options left"
-                                                        on:click=move |_| scroll_sort_left()
-                                                    >"<"</button>
-                                                <div
-                                                    class="net-sort-tabs"
-                                                    role="radiogroup"
-                                                    aria-label="Sort by"
-                                                    node_ref=sort_scroll_ref
-                                                    on:scroll=move |_| update_sort_scroll_state()
-                                                >
+                                                <div class="net-sort-vertical-list" role="radiogroup" aria-label="Sort by">
                                                     {[
                                                         (0, "Name"),
                                                         (1, "Company"),
@@ -745,8 +718,8 @@ pub fn NetworkingPage() -> impl IntoView {
                                                         let idx_for_click = idx_u8;
                                                         view! {
                                                             <button
-                                                                class="net-sort-tab"
-                                                                class:net-sort-tab-active={move || ui_store.get().net_sort_mode == idx_for_class}
+                                                                class="net-sort-vertical-tab"
+                                                                class:net-sort-vertical-tab-active={move || ui_store.get().net_sort_mode == idx_for_class}
                                                                 aria-pressed={move || ui_store.get().net_sort_mode == idx_for_class}
                                                                 on:click=move |_| {
                                                                     ui_store.update(|s| {
@@ -759,22 +732,19 @@ pub fn NetworkingPage() -> impl IntoView {
                                                                     set_sort_dropdown_open.set(false);
                                                                 }
                                                             >
-                                                                {label_text}
-                                                                {move || if ui_store.get().net_sort_mode == idx_for_class {
-                                                                    Some(view! { <span class="net-sort-tab-arrow">{if ui_store.get().net_sort_ascending { " ↑" } else { " ↓" }}</span> })
-                                                                } else { None }}
+                                                                <span class="net-sort-vertical-tab-label">{label_text}</span>
+                                                                <span
+                                                                    class="net-sort-vertical-tab-arrow"
+                                                                    class:net-sort-vertical-tab-arrow-active={move || ui_store.get().net_sort_mode == idx_for_class}
+                                                                >
+                                                                    {move || if ui_store.get().net_sort_mode == idx_for_class {
+                                                                        if ui_store.get().net_sort_ascending { "↑" } else { "↓" }
+                                                                    } else { "" }}
+                                                                </span>
                                                             </button>
                                                         }
                                                     }).collect::<Vec<_>>()}
                                                 </div>
-                                                <button
-                                                    class="net-scroll-arrow net-scroll-arrow-right"
-                                                    class:hidden={move || !sort_can_scroll_right.get()}
-                                                    title="Scroll sort options right"
-                                                    aria-label="Scroll sort options right"
-                                                    on:click=move |_| scroll_sort_right()
-                                                >">"</button>
-                                            </div>
                                             </div>
                                         </div>
                                     }.into_any()
@@ -828,7 +798,6 @@ pub fn NetworkingPage() -> impl IntoView {
                                 </div>
                                 <div class="net-detail-section">
                                     <div class="net-detail-section-title">"Recent Activity"</div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Last message"</span><span class="net-detail-value">{c.last_message.clone().unwrap_or_else(|| "—".into())}</span></div>
                                     <div class="net-detail-row"><span class="net-detail-label">"Last transaction"</span><span class="net-detail-value">{c.last_transaction.clone().unwrap_or_else(|| "—".into())}</span></div>
                                 </div>
                                 <div class="net-detail-actions">

@@ -197,7 +197,7 @@ pub fn MessageDrawer() -> impl IntoView {
         set_draft.set(String::new());
     };
 
-    let (left_tab, set_left_tab) = signal("friends");
+    let (left_tab, set_left_tab) = signal("recent");
     let (chat_search, set_chat_search) = signal(String::new());
 
     // Group creation / editing signals
@@ -320,6 +320,9 @@ pub fn MessageDrawer() -> impl IntoView {
             .collect();
         items.extend(friend_contacts.get().into_iter().map(SidebarListItem::Contact));
         items
+    });
+    let recent_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
+        recent_contacts.get().into_iter().map(SidebarListItem::Contact).collect()
     });
     let group_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
         let mut items: Vec<_> = group_invites
@@ -495,6 +498,12 @@ pub fn MessageDrawer() -> impl IntoView {
                 <div class="messenger-controls-bar">
                     <button
                         class="messenger-tab"
+                        class:active={move || left_tab.get() == "recent"}
+                        on:click=move |_| set_left_tab.set("recent")>
+                        "Recent"
+                    </button>
+                    <button
+                        class="messenger-tab"
                         class:active={move || left_tab.get() == "friends"}
                         on:click=move |_| set_left_tab.set("friends")>
                         "Friends"
@@ -537,6 +546,7 @@ pub fn MessageDrawer() -> impl IntoView {
                     <div class="messenger-sidebar-list">
                         <For
                             each=move || match left_tab.get() {
+                                "recent" => recent_items.get(),
                                 "friends" => friend_items.get(),
                                 "groups" => group_items.get(),
                                 _ => request_items.get(),
@@ -572,37 +582,6 @@ pub fn MessageDrawer() -> impl IntoView {
                                         }.into_any()
                                     }
                                     SidebarListItem::Request(req) => render_request(req),
-                                }
-                            }
-                        />
-                    </div>
-                    <div class="messenger-recent-title">"Recent Messages"</div>
-                    <div class="messenger-recent-list">
-                        <For
-                            each=move || recent_contacts.get()
-                            key=|c: &MessengerContact| c.id
-                            children=move |c| {
-                                let id = c.id;
-                                let name = c.name.clone();
-                                let avatar = c.icon.clone().unwrap_or_else(|| name.chars().next().unwrap_or('?').to_string());
-                                let sub = if c.source == ContactSource::Group {
-                                    let n = c.members.len();
-                                    format!("{} member{}", n, if n == 1 { "" } else { "s" })
-                                } else {
-                                    c.phone.clone().or(c.email.clone()).unwrap_or_else(|| match c.source {
-                                        ContactSource::Bot => "PQC-secured test bot".to_string(),
-                                        ContactSource::Recommended => "Request".to_string(),
-                                        _ => "Friend".to_string(),
-                                    })
-                                };
-                                view! {
-                                    <div class="messenger-contact" on:click=move |_| set_selected_contact(Some(id))>
-                                        <div class="messenger-contact-avatar">{avatar}</div>
-                                        <div class="messenger-contact-info">
-                                            <div class="messenger-contact-name">{name}</div>
-                                            <div class="messenger-contact-sub">{sub}</div>
-                                        </div>
-                                    </div>
                                 }
                             }
                         />

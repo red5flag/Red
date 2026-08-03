@@ -152,15 +152,18 @@ pub fn CalendarManager(
     let (view_month, set_view_month) = signal(today.month());
     let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Month);
     let (zoom, set_zoom) = signal(1.0_f64);
+    let multi_month_count = Memo::new(move |_| (3.0 / zoom.get()).clamp(3.0, 9.0).round() as u32);
+    let year_month_count = Memo::new(move |_| (12.0 / zoom.get()).clamp(12.0, 36.0).round() as u32);
     let (pinch_start, set_pinch_start) = signal(Option::<(f64, f64)>::None);
+    let (view_dropdown_open, set_view_dropdown_open) = signal(false);
     let (selected_date, set_selected_date) = signal::<Option<NaiveDate>>(None);
     let (editing_event, set_editing_event) = signal::<Option<CalendarEvent>>(None);
     let (show_form, set_show_form) = signal(false);
 
-    let step_months = |mode: CalendarViewMode| -> u32 {
+    let step_months = move |mode: CalendarViewMode| -> u32 {
         match mode {
             CalendarViewMode::Month => 1,
-            CalendarViewMode::MultiMonth => 3,
+            CalendarViewMode::MultiMonth => multi_month_count.get_untracked(),
             CalendarViewMode::Year => 12,
         }
     };
@@ -259,11 +262,34 @@ pub fn CalendarManager(
 
     let period_label = Memo::new(move |_| match calendar_view_mode.get() {
         CalendarViewMode::Month => month_label(view_year.get(), view_month.get()),
-        CalendarViewMode::Year => view_year.get().to_string(),
+        CalendarViewMode::Year => {
+            let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+            let count = year_month_count.get();
+            let half = count / 2;
+            let start = base.checked_sub_months(Months::new(half)).unwrap_or(base);
+            let end = start.checked_add_months(Months::new(count.saturating_sub(1))).unwrap_or(start);
+            if start.year() == end.year() {
+                format!(
+                    "{} – {}",
+                    month_label(start.year(), start.month()),
+                    month_label(end.year(), end.month())
+                )
+            } else {
+                format!(
+                    "{} {} – {} {}",
+                    start.month(),
+                    start.year(),
+                    end.month(),
+                    end.year()
+                )
+            }
+        }
         CalendarViewMode::MultiMonth => {
             let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
-            let start = base.checked_sub_months(Months::new(1)).unwrap_or(base);
-            let end = base.checked_add_months(Months::new(1)).unwrap_or(base);
+            let count = multi_month_count.get();
+            let half = count / 2;
+            let start = base.checked_sub_months(Months::new(half)).unwrap_or(base);
+            let end = start.checked_add_months(Months::new(count.saturating_sub(1))).unwrap_or(start);
             if start.year() == end.year() {
                 format!(
                     "{} – {}",
@@ -343,7 +369,7 @@ pub fn CalendarManager(
                         style={move || {
                             let z = zoom.get();
                             let base = if mini { 32.0 } else { 70.0 };
-                            format!("grid-auto-rows: {}px; aspect-ratio: auto;", base * z)
+                            format!("grid-auto-rows: {}px; aspect-ratio: auto; --calendar-zoom: {};", base * z, z)
                         }}
                     >
                         {move || {
@@ -353,7 +379,9 @@ pub fn CalendarManager(
                             let on_day_click = on_day_click.clone();
                             let on_day_add = on_day_add.clone();
                             let on_edit = on_edit.clone();
-                            let max_chips = if mini { 0 } else { (zoom.get() * 3.0).max(1.0) as usize };
+                            let z = zoom.get();
+                            let max_chips = if mini { (z * 2.0).max(0.0) as usize } else { (z * 4.0).max(1.0) as usize };
+                            let show_day_content = !mini || z > 1.2;
 
                             days.into_iter().map(|opt_date| {
                                 let on_dc = on_day_click.clone();
@@ -383,7 +411,7 @@ pub fn CalendarManager(
                                                 on:click=move |_| on_dc.run(date)
                                             >
                                                 <div class="calendar-grid-day-num">{date.day().to_string()}</div>
-                                                {if !mini { view! {
+                                                {if show_day_content { view! {
                                                     <div class="calendar-grid-day-events">
                                                         {day_events.iter().take(max_chips).map(|ev| {
                                                             let ev_clone = ev.clone();
@@ -442,21 +470,36 @@ pub fn CalendarManager(
                     <button class="calendar-nav-btn" on:click=prev_period title="Previous">"‹"</button>
                     <button class="calendar-today-btn" on:click=go_today>"Today"</button>
                     <button class="calendar-nav-btn" on:click=next_period title="Next">"›"</button>
-                    <div class="calendar-view-controls">
-                        {[CalendarViewMode::Month, CalendarViewMode::MultiMonth, CalendarViewMode::Year]
-                            .into_iter()
-                            .map(|mode| {
-                                let mode_clone = mode;
-                                view! {
-                                    <button
-                                        class="calendar-view-btn"
-                                        class:calendar-view-active={move || calendar_view_mode.get() == mode_clone}
-                                        on:click=move |_| set_calendar_view_mode.set(mode_clone)
-                                    >
-                                        {mode_clone.label()}
-                                    </button>
-                                }
-                            }).collect::<Vec<_>>()}
+                    <div class="calendar-view-dropdown-wrap">
+                        <button
+                            class="calendar-view-dropdown-toggle"
+                            aria-haspopup="menu"
+                            aria-expanded={move || view_dropdown_open.get()}
+                            on:click=move |_| set_view_dropdown_open.update(|v| *v = !*v)
+                        >
+                            {move || format!("View: {}", calendar_view_mode.get().label())}
+                        </button>
+                        {move || if view_dropdown_open.get() { view! {
+                            <div class="calendar-view-dropdown" on:click=|ev| ev.stop_propagation()>
+                                {[CalendarViewMode::Month, CalendarViewMode::MultiMonth, CalendarViewMode::Year]
+                                    .into_iter()
+                                    .map(|mode| {
+                                        let mode_clone = mode;
+                                        view! {
+                                            <button
+                                                class="calendar-view-dropdown-option"
+                                                class:calendar-view-dropdown-active={move || calendar_view_mode.get() == mode_clone}
+                                                on:click=move |_| {
+                                                    set_calendar_view_mode.set(mode_clone);
+                                                    set_view_dropdown_open.set(false);
+                                                }
+                                            >
+                                                {mode_clone.label()}
+                                            </button>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any() } else { ().into_any() }}
                     </div>
                     <button class="calendar-manager-btn" on:click=on_add_new title="Add event">"+"</button>
                 </div>
@@ -538,15 +581,18 @@ pub fn CalendarManager(
                     }.into_any(),
                     CalendarViewMode::MultiMonth => {
                         let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
-                        let mut months: Vec<(i32, u32)> = Vec::new();
-                        for offset in -1..=1i32 {
-                            let d = if offset < 0 {
-                                base.checked_sub_months(Months::new((-offset) as u32))
-                            } else {
-                                base.checked_add_months(Months::new(offset as u32))
-                            };
-                            if let Some(d) = d { months.push((d.year(), d.month())); }
-                        }
+                        let count = multi_month_count.get();
+                        let half = (count / 2) as i32;
+                        let months: Vec<(i32, u32)> = (-half..(count as i32 - half))
+                            .filter_map(|offset| {
+                                let d = if offset < 0 {
+                                    base.checked_sub_months(Months::new((-offset) as u32))
+                                } else {
+                                    base.checked_add_months(Months::new(offset as u32))
+                                };
+                                d.map(|d| (d.year(), d.month()))
+                            })
+                            .collect();
                         view! {
                             <div class="calendar-manager-grids calendar-manager-grids-multi">
                                 {months.into_iter().map(|(y, m)| view! {
@@ -561,8 +607,14 @@ pub fn CalendarManager(
                         }.into_any()
                     },
                     CalendarViewMode::Year => {
-                        let year = view_year.get();
-                        let months: Vec<_> = (1..=12).map(|m| (year, m)).collect();
+                        let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+                        let count = year_month_count.get();
+                        let half = count / 2;
+                        let start = base.checked_sub_months(Months::new(half)).unwrap_or(base);
+                        let months: Vec<_> = (0..count)
+                            .filter_map(|i| start.checked_add_months(Months::new(i)))
+                            .map(|d| (d.year(), d.month()))
+                            .collect();
                         view! {
                             <div class="calendar-manager-grids calendar-manager-grids-year">
                                 {months.into_iter().map(|(y, m)| view! {

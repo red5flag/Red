@@ -3624,6 +3624,38 @@ html, body {
     color: var(--primary-bg);
 }
 
+/* Move the sort control to the left of the view control */
+.net-sort-btn-wrap-left {
+    order: 0;
+}
+.net-view-btn-wrap {
+    order: 1;
+}
+.net-action-bar .net-sort-btn-wrap-left .net-action-btn {
+    border-right: 1px solid var(--border-color);
+}
+.net-action-bar .net-view-btn-wrap .net-action-btn {
+    border-right: none;
+}
+
+.net-sort-btn .net-sort-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+.net-sort-btn .net-sort-arrow {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4em;
+    text-align: center;
+}
+
 .net-sort-dropdown {
     position: absolute;
     top: 100%;
@@ -3637,6 +3669,12 @@ html, body {
     box-shadow: 0 4px 16px rgba(0,0,0,0.3);
     z-index: 200;
     overflow: hidden;
+}
+
+.net-sort-dropdown-left {
+    left: 0;
+    right: auto;
+    min-width: 220px;
 }
 
 .net-sort-dropdown-section {
@@ -3682,6 +3720,10 @@ html, body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
 
 .net-sort-vertical-tab:last-child {
@@ -3692,6 +3734,28 @@ html, body {
 .net-sort-vertical-tab-active {
     background: var(--highlight);
     color: var(--primary-bg);
+}
+
+.net-sort-vertical-tab-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.net-sort-vertical-tab-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4em;
+    text-align: center;
+    visibility: hidden;
+}
+
+.net-sort-vertical-tab-arrow-active {
+    visibility: visible;
 }
 
 .net-sort-dropdown-header {
@@ -3725,7 +3789,7 @@ html, body {
 .net-search-input { flex: 1; padding: 8px 12px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 14px; }
 .net-search-input:focus { outline: none; border-color: var(--highlight); }
 
-.net-relationship-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--primary-bg); border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; }
+.net-relationship-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--primary-bg); border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; min-height: 80px; }
 .net-relationship-card:hover { background: var(--accent-bg); }
 .net-relationship-card:last-child { border-bottom: none; }
 
@@ -3754,9 +3818,72 @@ html, body {
 .net-risk-high { color: var(--danger); }
 .net-risk-unknown { color: var(--text-secondary); }
 
-.net-rel-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.net-rel-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0; flex-shrink: 0; align-self: stretch; }
 .net-rel-btn { padding: 6px 14px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
 .net-rel-btn:hover { border-color: var(--highlight); color: var(--highlight); }
+
+.net-rel-icon-btn {
+    flex: 0 0 50%;
+    min-width: 40px;
+    min-height: 40px;
+    width: auto;
+    height: auto;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(16px, 2.5vh, 22px);
+    line-height: 1;
+    aspect-ratio: 1 / 1;
+}
+
+.net-rel-view-btn {
+    flex-direction: column;
+    position: relative;
+    gap: 2px;
+    font-size: clamp(16px, 2.5vh, 22px);
+}
+
+.net-rel-dropdown-arrow {
+    font-size: 10px;
+    line-height: 1;
+    margin-top: -2px;
+}
+
+.net-rel-dropdown-wrap {
+    position: relative;
+}
+
+.net-rel-dropdown {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    right: 0;
+    min-width: 120px;
+    background: var(--primary-bg);
+    border: 1px solid var(--highlight);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.net-rel-dropdown-item {
+    padding: 8px 12px;
+    background: var(--primary-bg);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.net-rel-dropdown-item:last-child { border-bottom: none; }
+.net-rel-dropdown-item:hover { background: var(--highlight); color: var(--primary-bg); }
 
 .net-cards-list { display: flex; flex-direction: column; border: 1px solid var(--border-color); border-top: none; }
 .net-section-title { font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px; background: var(--secondary-bg); border-bottom: 1px solid var(--border-color); }
@@ -5939,7 +6066,7 @@ html, body {
 }
 
 .add-btn-small {
-    background: var(--highlight);
+    background: var(--danger);
     border: none;
     color: white;
     font-size: 12px;
@@ -5954,6 +6081,17 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.org-sub-tab-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    height: 100%;
+}
+
+.org-sub-tab-actions .add-btn-small:not(:last-child) {
+    border-right: 1px solid rgba(255,255,255,0.25);
 }
 
 .add-btn-small.active {
@@ -6828,9 +6966,11 @@ html, body {
 
 /* Reporting page */
 .reporting-page {
+    --controls-h: clamp(56px, 14vmin, 80px);
     width: 100%;
     max-width: 1200px;
     padding: clamp(8px, 3vw, 24px);
+    padding-top: var(--controls-h);
     margin: 0 auto;
     box-sizing: border-box;
     overflow-x: hidden;
@@ -7148,14 +7288,14 @@ html, body {
     flex: 0 0 auto;
     min-width: 0;
     height: var(--controls-h);
-    padding: 0 clamp(4px, 1.5vw, 10px);
+    padding: 0 clamp(6px, 2vw, 14px);
     background: var(--accent-bg);
     border: none;
     border-right: 1px solid var(--border-color);
     border-radius: 0;
     color: var(--text-primary);
     cursor: pointer;
-    font-size: clamp(10px, 1.8vw, 14px);
+    font-size: clamp(12px, 2.2vw, 16px);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -7196,7 +7336,7 @@ html, body {
     border: none;
     border-right: 1px solid var(--border-color);
     color: var(--text-primary);
-    font-size: clamp(14px, 2.5vh, 20px);
+    font-size: clamp(18px, 3vh, 26px);
     font-weight: 700;
     cursor: pointer;
     user-select: none;
@@ -8603,12 +8743,16 @@ html, body {
 }
 
 .overview-detail-body {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     padding: 8px 12px;
-    gap: 6px;
+    gap: 6px 12px;
     width: 100%;
     box-sizing: border-box;
+}
+
+.overview-square:not(.overview-square-wide) .overview-detail-body {
+    grid-template-columns: 1fr;
 }
 
 .overview-square .overview-detail-header,
@@ -8845,6 +8989,7 @@ html, body {
 
 .overview-square {
     min-height: clamp(88px, 14.4vh, 144px);
+    max-height: clamp(120px, 22vh, 220px);
     background: var(--secondary-bg);
     border: none;
     border-top: 1px solid var(--border-color);
@@ -8857,7 +9002,8 @@ html, body {
     gap: 3px;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .overview-square:hover {
@@ -9002,6 +9148,7 @@ html, body {
 .overview-square-wide {
     grid-column: 1 / -1;
     min-height: clamp(112px, 17.6vh, 176px);
+    max-height: clamp(150px, 28vh, 280px);
     align-items: stretch;
     justify-content: flex-start;
 }
@@ -12394,45 +12541,76 @@ html, body {
     color: var(--highlight);
 }
 
-.calendar-view-controls {
+.calendar-view-dropdown-wrap {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 0;
     height: var(--controls-h);
     min-height: var(--controls-h);
 }
 
-.calendar-view-btn {
-    flex: 0 0 auto;
-    min-width: 0;
+.calendar-view-dropdown-toggle {
     height: var(--controls-h);
     min-height: var(--controls-h);
-    padding: 0 10px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     background: var(--accent-bg);
     border: none;
     border-right: 1px solid var(--border-color);
     color: var(--text-primary);
     cursor: pointer;
-    font-size: clamp(14px, 2vh, 16px);
+    font-size: clamp(13px, 2vh, 16px);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.4px;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     transition: background 0.15s, color 0.15s;
     -webkit-tap-highlight-color: transparent;
 }
 
-.calendar-view-controls .calendar-view-btn:last-child {
-    border-right: none;
+.calendar-view-dropdown-toggle:hover,
+.calendar-view-dropdown-wrap.open .calendar-view-dropdown-toggle {
+    background: var(--highlight);
+    color: #fff;
 }
 
-.calendar-view-btn.calendar-view-active,
-.calendar-view-btn:hover {
+.calendar-view-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 140px;
+    background: var(--accent-bg);
+    border: 1px solid var(--highlight);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.calendar-view-dropdown-option {
+    padding: 10px 14px;
+    background: var(--accent-bg);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.calendar-view-dropdown-option:last-child {
+    border-bottom: none;
+}
+
+.calendar-view-dropdown-option:hover,
+.calendar-view-dropdown-option.calendar-view-dropdown-active {
     background: var(--highlight);
     color: #fff;
 }
@@ -12453,7 +12631,7 @@ html, body {
 .calendar-grid-weekday {
     padding: 8px 4px;
     text-align: center;
-    font-size: clamp(11px, 1.5vh, 13px);
+    font-size: clamp(10px, calc(1.5vh * var(--calendar-zoom, 1)), 16px);
     font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
@@ -12513,7 +12691,7 @@ html, body {
 }
 
 .calendar-grid-day-num {
-    font-size: clamp(11px, 1.6vh, 14px);
+    font-size: clamp(11px, calc(1.6vh * var(--calendar-zoom, 1)), 20px);
     font-weight: 600;
     color: var(--text-primary);
     padding: 2px 4px;
@@ -12536,7 +12714,7 @@ html, body {
     background: var(--highlight);
     color: var(--primary-bg);
     border-radius: 3px;
-    font-size: clamp(9px, 1.3vh, 11px);
+    font-size: clamp(8px, calc(1.3vh * var(--calendar-zoom, 1)), 16px);
     font-weight: 600;
     overflow: hidden;
     white-space: nowrap;
@@ -12560,7 +12738,7 @@ html, body {
 }
 
 .calendar-grid-event-more {
-    font-size: clamp(9px, 1.2vh, 11px);
+    font-size: clamp(8px, calc(1.2vh * var(--calendar-zoom, 1)), 14px);
     color: var(--text-secondary);
     padding: 1px 4px;
     font-weight: 600;
@@ -12610,7 +12788,7 @@ html, body {
 }
 
 .calendar-manager-grids-year {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .calendar-month-wrapper.mini {
@@ -13017,7 +13195,9 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 12px;
+    padding: 12px;
+    min-height: 0;
+    box-sizing: border-box;
 }
 
 .messenger-message {
@@ -13051,6 +13231,7 @@ html, body {
 .messenger-composer {
     display: flex;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .messenger-composer-input {
@@ -14202,20 +14383,98 @@ html, body {
 
 .org-member-actions {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    align-items: stretch;
+    gap: 0;
     flex-shrink: 0;
+    height: 100%;
+    margin-left: auto;
 }
 
-.org-role-select {
-    height: 30px;
-    font-size: 12px;
-    background: var(--secondary-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    border-radius: 3px;
-    padding: 0 6px;
+.org-member-actions > *:not(:last-child) {
+    border-right: 1px solid rgba(255,255,255,0.25);
+}
+
+.org-role-dropdown-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.org-role-dropdown-toggle {
+    width: 48px;
+    height: 100%;
+    padding: 2px;
+    background: var(--danger);
+    border: none;
+    border-radius: 0;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.1;
+    text-align: center;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.org-role-dropdown-toggle:hover {
+    filter: brightness(1.15);
+}
+
+.org-role-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 140px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 120;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.org-role-dropdown-option {
+    padding: 10px 14px;
+    background: var(--primary-bg);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.org-role-dropdown-option:last-child {
+    border-bottom: none;
+}
+
+.org-role-dropdown-option:hover,
+.org-role-dropdown-option.org-role-dropdown-active {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.org-member-actions .pf-action-btn.org-member-remove {
+    width: 48px;
+    min-width: 48px;
+    height: 100%;
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-left: none;
+    font-size: 18px;
+}
+
+.org-member-actions .pf-action-btn.org-member-remove:hover {
+    filter: brightness(1.15);
 }
 
 .org-role-badge {
@@ -14644,7 +14903,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 0 0 0 12px;
     cursor: pointer;
     user-select: none;
     min-height: 48px;
@@ -14903,7 +15162,8 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    height: 53px;
+    padding: 0 0 0 12px;
     border-bottom: 1px solid var(--border-color);
 }
 .org-sub-tab-title {
@@ -16176,10 +16436,14 @@ html, body {
 }
 
 .org-section-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
     margin-left: 6px;
-    padding: 2px 6px;
+    padding: 0;
     font-size: 16px;
-    color: var(--text-secondary);
     cursor: pointer;
     border-radius: 4px;
     line-height: 1;
@@ -17049,6 +17313,11 @@ html, body {
     display: none;
 }
 
+.messenger-recent-title,
+.messenger-recent-list {
+    display: none;
+}
+
 .messenger-tab {
     flex: 1 1 0;
     min-width: 0;
@@ -17086,7 +17355,7 @@ html, body {
 }
 
 .messenger-sidebar-list {
-    flex: 1 1 45%;
+    flex: 1 1 auto;
     overflow-y: auto;
     min-height: 0;
 }
@@ -17209,6 +17478,7 @@ html, body {
     display: flex;
     flex-direction: column;
     min-width: 0;
+    min-height: 0;
     background: var(--primary-bg);
 }
 

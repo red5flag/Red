@@ -3,7 +3,7 @@ use crate::types::{
     Theme, ViewCount, ViewMode,
 };
 use leptos::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 /// A request from any child component to open an entity in a portfolio nav tab.
@@ -82,6 +82,7 @@ pub struct UiStore {
     pub overview_drag_over_id: Option<String>,
     pub overview_touch_long_id: Option<String>,
     pub overview_touch_anchor: Option<(i32, i32)>,
+    pub overview_section_wide: HashMap<String, bool>,
     // Agent chat input queued from other screens
     pub agent_input: Option<String>,
     // Request to open a portfolio nav tab from any descendant component
@@ -161,6 +162,18 @@ impl Default for UiStore {
             overview_drag_over_id: None,
             overview_touch_long_id: None,
             overview_touch_anchor: None,
+            overview_section_wide: {
+                let mut map = HashMap::new();
+                for id in OVERVIEW_DEFAULT_ORDER {
+                    map.insert(id.to_string(), false);
+                }
+                map.insert("channel-status".to_string(), true);
+                map.insert("property-overview".to_string(), true);
+                map.insert("recent-activity".to_string(), true);
+                map.insert("organizations".to_string(), true);
+                map.insert("channels".to_string(), true);
+                map
+            },
             agent_input: None,
             pending_open_tab: None,
             theme: Theme::default(),
@@ -384,6 +397,12 @@ impl UiStore {
                 .map(|s| s.to_string())
                 .collect();
         }
+        if self.overview_section_wide.is_empty() {
+            self.overview_section_wide = OVERVIEW_DEFAULT_ORDER
+                .iter()
+                .map(|s| (s.to_string(), false))
+                .collect();
+        }
         let from_pos = self
             .overview_selected_order
             .iter()
@@ -395,7 +414,15 @@ impl UiStore {
         if let (Some(from), Some(to)) = (from_pos, to_pos) {
             let id = self.overview_selected_order.remove(from);
             self.overview_selected_order.insert(to, id);
+            let from_wide = self.overview_section_wide.get(from_id).copied().unwrap_or(false);
+            let to_wide = self.overview_section_wide.get(to_id).copied().unwrap_or(false);
+            self.overview_section_wide.insert(from_id.to_string(), to_wide);
+            self.overview_section_wide.insert(to_id.to_string(), from_wide);
         }
+    }
+
+    pub fn is_overview_section_wide(&self, id: &str) -> bool {
+        self.overview_section_wide.get(id).copied().unwrap_or(false)
     }
 
     pub fn set_overview_dragging_id(&mut self, id: Option<String>) {

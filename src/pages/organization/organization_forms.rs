@@ -1,5 +1,5 @@
 use crate::models::{OrgRole, PermGroup};
-use crate::pages::portfolios::read_image_as_data_url;
+use crate::pages::portfolios::{clamp_context_menu, read_image_as_data_url};
 use crate::stores::OrganizationStore;
 use leptos::prelude::*;
 use std::collections::HashSet;
@@ -204,6 +204,7 @@ pub(crate) fn OrgContextMenu(
 ) -> impl IntoView {
     view! {
         {move || context_menu.get().map(|(x, y, id)| {
+            let (x, y) = clamp_context_menu(x, y);
             let org = organization_store.get().organizations.iter().find(|o| o.id == id).cloned();
             let name = org.as_ref().map(|o| o.name.clone()).unwrap_or_default();
             let image_url = org.as_ref().and_then(|o| o.image_url.clone());
@@ -294,6 +295,7 @@ pub(crate) fn RoleContextMenu(
 ) -> impl IntoView {
     view! {
         {move || context_menu.get().map(|(x, y, oid, rid)| {
+            let (x, y) = clamp_context_menu(x, y);
             let role = organization_store.get().organizations.iter()
                 .find(|o| o.id == oid)
                 .and_then(|o| o.roles.iter().find(|r| r.id == rid))

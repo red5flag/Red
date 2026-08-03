@@ -1,0 +1,117 @@
+error[E0425]: cannot find value `sort_can_scroll_left` in this scope
+error[E0425]: cannot find value `sort_scroll_ref` in this scope
+error[E0425]: cannot find value `sort_can_scroll_right` in this scope
+error[E0425]: cannot find value `sort_can_scroll_left` in this scope
+error[E0425]: cannot find value `sort_scroll_ref` in this scope
+error[E0425]: cannot find value `sort_can_scroll_right` in this scope
+error[E0425]: cannot find function `scroll_sort_left` in this scope
+error[E0425]: cannot find function `update_sort_scroll_state` in this scope
+error[E0425]: cannot find function `scroll_sort_right` in this scope
+error[E0425]: cannot find function `scroll_sort_left` in this scope
+error[E0425]: cannot find function `update_sort_scroll_state` in this scope
+error[E0425]: cannot find function `scroll_sort_right` in this scope
+error: could not compile `farley` (lib) due to 6 previous errors
+error: could not compile `farley` (lib) due to 6 previous errors
+error[E0425]: cannot find value `set_view_open` in this scope
+error[E0425]: cannot find value `view_open` in this scope
+error[E0425]: cannot find value `c_for_view` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+error[E0425]: cannot find value `app_store` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+error[E0425]: cannot find value `app_store` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+error[E0425]: cannot find value `view_open` in this scope
+error[E0425]: cannot find value `c_for_view` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+warning: unused import: `use_app_store`
+error[E0425]: cannot find value `app_store` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+error[E0425]: cannot find value `app_store` in this scope
+error[E0425]: cannot find value `set_view_open` in this scope
+warning: unused import: `use_app_store`
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused import: `use_organization_store`
+warning: unused import: `use_organization_store`
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+warning: unused variable: `organization_store`
+warning: unused variable: `organization_store`
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+error[E0507]: cannot move out of `c_for_view`, a captured variable in an `FnMut` closure
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0425]: cannot find value `zoom` in this scope
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error[E0689]: can't call method `clamp` on ambiguous numeric type `{float}`
+error: could not compile `farley` (lib) due to 4 previous errors
+error: could not compile `farley` (lib) due to 4 previous errors
+error[E0425]: cannot find value `c_for_click` in this scope
+error[E0425]: cannot find value `c_for_click` in this scope
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+error: open tag has no corresponding close tag
+error: ␛[1;34m[␛[0m␛[1;32mnote␛[0m␛[1;34m] ␛[0m␛[1;39mtreating all inputs after open tag as it content␛[0m
+warning: use of deprecated method `pages::organization::member_card::MemberCardPropsBuilder::<((uuid::Uuid,), (models::user::user::User,), (bool,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (leptos::prelude::Callback<(uuid::Uuid, types::common::UserRole)>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (), __on_toggle_role_dropdown, __role_names, __accessible_portfolios)>::build`: Missing required field is_role_dropdown_open
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 3 previous errors; 1 warning emitted
+warning: use of deprecated method `pages::organization::member_card::MemberCardPropsBuilder::<((uuid::Uuid,), (models::user::user::User,), (bool,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (leptos::prelude::Callback<(uuid::Uuid, types::common::UserRole)>,), (leptos::prelude::Callback<(uu

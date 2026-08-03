@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // User roles for organization hierarchy: Owner > Director > SeniorManager > Manager > Worker > DocumentWorker > Contractor > Guest
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserRole {
     Owner,
     Director,

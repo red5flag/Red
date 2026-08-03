@@ -3,7 +3,7 @@ use crate::pages::organization::{
     members::MembersSection, organization_summary::OrganizationSummary,
     portfolio_access::PortfolioAccessList, roles::RolesSection,
 };
-use crate::pages::portfolios::read_image_as_data_url;
+use crate::pages::portfolios::{clamp_context_menu, read_image_as_data_url};
 use crate::stores::{AppStore, OrganizationStore};
 use crate::types::UserRole;
 use leptos::prelude::*;
@@ -480,6 +480,7 @@ pub(crate) fn OrganizationCard(
 
             // Section header context menu
             {move || section_menu.get().map(|(x, y, section, menu_oid)| {
+                let (x, y) = clamp_context_menu(x, y);
                 view! {
                     <div class="context-menu-overlay org-context-overlay" on:click=move |_| set_section_menu.set(None)>
                         <div class="context-menu org-context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
