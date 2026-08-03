@@ -2,85 +2,36 @@ use crate::models::{BookingStatus, ChannelType, ServiceTaskStatus};
 use crate::stores::use_app_store;
 use leptos::prelude::*;
 
-pub(crate) fn bookings_view() -> impl IntoView {
+pub(crate) fn channels_view() -> impl IntoView {
     let app_store = use_app_store();
 
     let channels = Memo::new(move |_| app_store.get().channels.clone());
-    let bookings = Memo::new(move |_| app_store.get().bookings.clone());
-    let tasks = Memo::new(move |_| app_store.get().service_tasks.clone());
 
     let metrics = Memo::new(move |_| {
         let ch = channels.get();
-        let bk = bookings.get();
-        let tk = tasks.get();
         let total_channels = ch.len();
         let test_channels = ch
             .iter()
             .filter(|c| matches!(c.channel_type, ChannelType::Test))
             .count();
-        let total_bookings = bk.len();
-        let active_bookings = bk.iter().filter(|b| b.is_active()).count();
-        let total_revenue: f64 = bk
-            .iter()
-            .filter(|b| !matches!(b.status, BookingStatus::Cancelled))
-            .map(|b| b.total)
-            .sum();
-        let upcoming_nights: u32 = bk.iter().filter(|b| b.is_active()).map(|b| b.nights).sum();
-        let completed_tasks = tk
-            .iter()
-            .filter(|t| matches!(t.status, ServiceTaskStatus::Done))
-            .count();
-        let pending_tasks = tk
-            .iter()
-            .filter(|t| {
-                !matches!(
-                    t.status,
-                    ServiceTaskStatus::Done | ServiceTaskStatus::Cancelled
-                )
-            })
-            .count();
-        (
-            total_channels,
-            test_channels,
-            total_bookings,
-            active_bookings,
-            total_revenue,
-            upcoming_nights,
-            completed_tasks,
-            pending_tasks,
-        )
+        (total_channels, test_channels)
     });
 
     view! {
         <div class="reporting-section">
             <div class="reporting-section-header">
-                <h3 class="reporting-section-title">"Bookings & Channel Metrics"</h3>
+                <h3 class="reporting-section-title">"Channel Metrics"</h3>
                 <button class="reporting-btn" disabled title="Export via clipboard/file will be enabled in a later stage">"Export (deferred)"</button>
             </div>
 
             {move || {
-                let (tc, ttc, tb, ab, rev, nights, ct, pt) = metrics.get();
+                let (tc, ttc) = metrics.get();
                 view! {
                     <div class="reporting-metrics">
                         <div class="reporting-metric-card">
                             <div class="reporting-metric-value">{tc}</div>
                             <div class="reporting-metric-label">"Total Channels"</div>
                             <div class="reporting-metric-sub">{format!("{} Test", ttc)}</div>
-                        </div>
-                        <div class="reporting-metric-card">
-                            <div class="reporting-metric-value">{tb}</div>
-                            <div class="reporting-metric-label">"Total Bookings"</div>
-                            <div class="reporting-metric-sub">{format!("{} Active", ab)}</div>
-                        </div>
-                        <div class="reporting-metric-card">
-                            <div class="reporting-metric-value">{format!("${:.2}", rev)}</div>
-                            <div class="reporting-metric-label">"Booking Revenue"</div>
-                            <div class="reporting-metric-sub">{format!("{} upcoming nights", nights)}</div>
-                        </div>
-                        <div class="reporting-metric-card">
-                            <div class="reporting-metric-value">{ct}</div>
-                            <div class="reporting-metric-label">"Tasks Done"</div>
-                            <div class="reporting-metric-sub">{format!("{} pending", pt)}</div>
                         </div>
                     </div>
                 }.into_any()
@@ -123,6 +74,74 @@ pub(crate) fn bookings_view() -> impl IntoView {
                     }
                 }}
             </div>
+        </div>
+    }
+}
+
+pub(crate) fn bookings_view() -> impl IntoView {
+    let app_store = use_app_store();
+
+    let bookings = Memo::new(move |_| app_store.get().bookings.clone());
+    let tasks = Memo::new(move |_| app_store.get().service_tasks.clone());
+
+    let metrics = Memo::new(move |_| {
+        let bk = bookings.get();
+        let tk = tasks.get();
+        let total_bookings = bk.len();
+        let active_bookings = bk.iter().filter(|b| b.is_active()).count();
+        let total_revenue: f64 = bk
+            .iter()
+            .filter(|b| !matches!(b.status, BookingStatus::Cancelled))
+            .map(|b| b.total)
+            .sum();
+        let upcoming_nights: u32 = bk.iter().filter(|b| b.is_active()).map(|b| b.nights).sum();
+        let completed_tasks = tk
+            .iter()
+            .filter(|t| matches!(t.status, ServiceTaskStatus::Done))
+            .count();
+        let pending_tasks = tk
+            .iter()
+            .filter(|t| !matches!(t.status, ServiceTaskStatus::Done | ServiceTaskStatus::Cancelled))
+            .count();
+        (
+            total_bookings,
+            active_bookings,
+            total_revenue,
+            upcoming_nights,
+            completed_tasks,
+            pending_tasks,
+        )
+    });
+
+    view! {
+        <div class="reporting-section">
+            <div class="reporting-section-header">
+                <h3 class="reporting-section-title">"Booking Metrics"</h3>
+                <button class="reporting-btn" disabled title="Export via clipboard/file will be enabled in a later stage">"Export (deferred)"</button>
+            </div>
+
+            {move || {
+                let (tb, ab, rev, nights, ct, pt) = metrics.get();
+                view! {
+                    <div class="reporting-metrics">
+                        <div class="reporting-metric-card">
+                            <div class="reporting-metric-value">{tb}</div>
+                            <div class="reporting-metric-label">"Total Bookings"</div>
+                            <div class="reporting-metric-sub">{format!("{} Active", ab)}</div>
+                        </div>
+                        <div class="reporting-metric-card">
+                            <div class="reporting-metric-value">{format!("${:.2}", rev)}</div>
+                            <div class="reporting-metric-label">"Booking Revenue"</div>
+                            <div class="reporting-metric-sub">{format!("{} upcoming nights", nights)}</div>
+                        </div>
+                        <div class="reporting-metric-card">
+                            <div class="reporting-metric-value">{ct}</div>
+                            <div class="reporting-metric-label">"Tasks Done"</div>
+                            <div class="reporting-metric-sub">{format!("{} pending", pt)}</div>
+                        </div>
+                    </div>
+                }.into_any()
+            }}
 
             <div class="reporting-table">
                 {super::table_head(&["Guest", "Asset", "Dates", "Nights", "Total", "Status"])}

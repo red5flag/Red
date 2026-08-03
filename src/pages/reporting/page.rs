@@ -49,8 +49,9 @@ pub fn ReportingPage() -> impl IntoView {
         ReportTab::Assets,
         ReportTab::Compliance,
         ReportTab::Transactions,
-        ReportTab::ExportedRecords,
+        ReportTab::Exported,
         ReportTab::Bookings,
+        ReportTab::Channels,
     ];
 
     let tabs_container_ref = NodeRef::<leptos::html::Div>::new();
@@ -170,8 +171,9 @@ pub fn ReportingPage() -> impl IntoView {
                     ReportTab::Assets => super::report_list::assets_view(&app_store).into_any(),
                     ReportTab::Compliance => super::report_list::compliance_view(&app_store).into_any(),
                     ReportTab::Transactions => super::report_list::transactions_view(&app_store).into_any(),
-                    ReportTab::ExportedRecords => super::report_summary::exported_records_view(&app_store).into_any(),
+                    ReportTab::Exported => super::report_summary::exported_records_view(&app_store).into_any(),
                     ReportTab::Bookings => super::booking_report::bookings_view().into_any(),
+                    ReportTab::Channels => super::booking_report::channels_view().into_any(),
                     ReportTab::CamScan => view! {
                         <div class="reporting-camscan-wrap">
                             <crate::pages::camscan::CamScanView app_store />

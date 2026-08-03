@@ -33,8 +33,9 @@ pub(crate) enum ReportTab {
     Assets,
     Compliance,
     Transactions,
-    ExportedRecords,
+    Exported,
     Bookings,
+    Channels,
 }
 
 impl ReportTab {
@@ -52,8 +53,9 @@ impl ReportTab {
             ReportTab::Assets => "Assets",
             ReportTab::Compliance => "Compliance",
             ReportTab::Transactions => "Transactions",
-            ReportTab::ExportedRecords => "Exported Records",
-            ReportTab::Bookings => "Bookings & Channels",
+            ReportTab::Exported => "Exported",
+            ReportTab::Bookings => "Bookings",
+            ReportTab::Channels => "Channels",
         }
     }
 }
