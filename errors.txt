@@ -114,4 +114,85 @@ warning: use of deprecated method `pages::organization::member_card::MemberCardP
 error[E0061]: this method takes 1 argument but 0 arguments were supplied
 warning: `farley` (lib) generated 1 warning
 error: could not compile `farley` (lib) due to 3 previous errors; 1 warning emitted
-warning: use of deprecated method `pages::organization::member_card::MemberCardPropsBuilder::<((uuid::Uuid,), (models::user::user::User,), (bool,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (leptos::prelude::Callback<(uuid::Uuid, types::common::UserRole)>,), (leptos::prelude::Callback<(uu
+warning: use of deprecated method `pages::organization::member_card::MemberCardPropsBuilder::<((uuid::Uuid,), (models::user::user::User,), (bool,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (leptos::prelude::Callback<(uuid::Uuid, types::common::UserRole)>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (), __on_toggle_role_dropdown, __role_names, __accessible_portfolios)>::build`: Missing required field is_role_dropdown_open
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 3 previous errors; 1 warning emitted
+error[E0507]: cannot move out of `r_click`, a captured variable in an `FnMut` closure
+warning: use of deprecated method `pages::organization::member_card::MemberCardPropsBuilder::<((uuid::Uuid,), (models::user::user::User,), (bool,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (leptos::prelude::Callback<(uuid::Uuid, types::common::UserRole)>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (), __on_toggle_role_dropdown, __role_names, __accessible_portfolios)>::build`: Missing required field is_role_dropdown_open
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
+error[E0507]: cannot move out of `r_click`, a captured variable in an `FnMut` closure
+warning: use of deprecated method `pages::organization::member_card::MemberCardPropsBuilder::<((uuid::Uuid,), (models::user::user::User,), (bool,), (leptos::prelude::Signal<bool>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (leptos::prelude::Callback<(uuid::Uuid, types::common::UserRole)>,), (leptos::prelude::Callback<(uuid::Uuid, uuid::Uuid)>,), (), __on_toggle_role_dropdown, __role_names, __accessible_portfolios)>::build`: Missing required field is_role_dropdown_open
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 2 previous errors; 1 warning emitted
+error[E0507]: cannot move out of `r_click`, a captured variable in an `FnMut` closure
+error[E0507]: cannot move out of `r_click`, a captured variable in an `FnMut` closure
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+error[E0599]: no method named `wide` found for struct `OverviewSectionPropsBuilder<TypedBuilderFields>` in the current scope
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: unused variable: `on_forgot_login`
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: `farley` (lib) generated 1 warning
+error: could not compile `farley` (lib) due to 1 previous error; 1 warning emitted
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: unused import: `recover_form`
+warning: unused import: `recover_form`
+warning: unused import: `recover_form`
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
+warning: unused import: `recover_form`
+warning: unused import: `recover_form`
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: use of deprecated method `pages::login::login_form::LoginFormPropsBuilder::<((leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<std::string::String>,), (leptos::prelude::WriteSignal<std::string::String>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<bool>,), (leptos::prelude::WriteSignal<bool>,), (leptos::prelude::ReadSignal<std::option::Option<&'static str>>,), (leptos::prelude::Callback<&'static str>,), (leptos::prelude::Callback<()>,), ())>::build`: Missing required field on_forgot_login
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
+warning: `farley` (lib) generated 2 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 2 warnings emitted
+warning: unused import: `recover_form`
+warning: unused import: `recover_form`
+warning: unused variable: `show_recover`
+warning: unused variable: `recovery_message`
+warning: unused variable: `on_recover`
+warning: unused variable: `show_recover`
+warning: unused variable: `recovery_message`
+warning: unused variable: `on_recover`
+warning: multiple fields are never read
+warning: multiple fields are never read

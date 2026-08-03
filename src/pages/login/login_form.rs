@@ -17,6 +17,7 @@ pub(crate) fn LoginForm(
     pressed_btn: ReadSignal<Option<&'static str>>,
     flash_press: Callback<&'static str>,
     on_login: Callback<()>,
+    on_forgot_login: Callback<()>,
 ) -> impl IntoView {
     view! {
         // ── USERNAME ROW ──
@@ -106,6 +107,16 @@ pub(crate) fn LoginForm(
                     </span>
                 }.into_any()
             } else { ().into_any() }}
+        </div>
+
+        // ── FORGOT LOGIN ──
+        <div class="lp-remember-row">
+            <button
+                class="lp-forgot-login"
+                on:click=move |_| on_forgot_login.run(())
+            >
+                "Forgot my login"
+            </button>
         </div>
 
     }

@@ -1004,7 +1004,7 @@ impl AppStore {
 
         if !cred.validated {
             return Err(
-                "Account not validated. Please check your email or validate via /emailvalid."
+                "Account not validated. Please check your email for the validation token."
                     .to_string(),
             );
         }

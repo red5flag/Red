@@ -52,7 +52,7 @@ cfg_if! {
             }
         }
 
-        fn hash_password(password: &str) -> Result<String, String> {
+        pub fn hash_password(password: &str) -> Result<String, String> {
             let mut salt_bytes = [0u8; 32];
             rand::thread_rng().fill_bytes(&mut salt_bytes);
             let salt = SaltString::encode_b64(&salt_bytes)
@@ -282,6 +282,67 @@ cfg_if! {
             };
             enqueue_email(email).await;
         }
+
+        /// Find a validated user by email or by phone number.
+        pub async fn find_validated_user_by_email_or_phone(email: &str, phone: &str) -> Option<ValidatedUser> {
+            let validated = validated_users().lock().await;
+            validated.iter().find(|u| {
+                (!email.is_empty() && u.email.eq_ignore_ascii_case(email))
+                    || (!phone.is_empty() && u.phone_number.as_deref().unwrap_or("") == phone)
+            }).cloned()
+        }
+
+        /// Enqueue a recovery email with a 6-digit code.
+        pub async fn enqueue_recovery_email(email: String, username: String, code: String) {
+            let subject = format!("Red - Account recovery code for '{}'", username);
+            let body = format!(
+                "Your Red account recovery code is: {}\n\nThis code is valid for 10 minutes.\n\nIf you did not request this code, please ignore this email.\n\n- Red Team",
+                code
+            );
+            let username_clone = username.clone();
+            let email = ValidationEmail {
+                to: email,
+                username,
+                validation_token: format!("recover_{}_{}", username_clone, code),
+                subject,
+                body,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            };
+            enqueue_email(email).await;
+        }
+
+        /// Generate a secure random recovery passkey (temporary login password).
+        pub fn generate_recovery_passkey() -> String {
+            use rand::{thread_rng, Rng};
+            const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            let mut rng = thread_rng();
+            (0..24)
+                .map(|_| CHARSET[rng.gen_range(0..CHARSET.len())] as char)
+                .collect()
+        }
+
+        /// Enqueue an account recovery email containing the temporary passkey and 2FA code.
+        pub async fn enqueue_account_recovery_email(
+            email: String,
+            username: String,
+            passkey: String,
+            two_fa_code: String,
+        ) {
+            let subject = format!("Red - Account recovery for '{}'", username);
+            let body = format!(
+                "You requested account recovery for '{}'.\n\nTemporary login passkey: {}\n2FA verification code: {}\n\nLog in with the passkey, then enter the 2FA code when prompted.\n\nIf you did not request this, please ignore this email.\n\n- Red Team",
+                username, passkey, two_fa_code
+            );
+            let email = ValidationEmail {
+                to: email,
+                username: username.clone(),
+                validation_token: format!("recover_{}_{}", username, two_fa_code),
+                subject,
+                body,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+            };
+            enqueue_email(email).await;
+        }
     }
 }
 
@@ -304,7 +365,7 @@ impl ValidationEmail {
             validation_token: token.clone(),
             subject: format!("Red - Validate your email for user '{}'", username),
             body: format!(
-                "Welcome to Red!\n\nPlease validate your email address for username '{}'.\n\nClick the link below to validate:\n/emailvalid?token={}\n\nIf you did not create an account, please ignore this email.\n\n- Red Team",
+                "Welcome to Red!\n\nPlease validate your email address for username '{}'.\n\nYour validation token is: {}\n\nIf you did not create an account, please ignore this email.\n\n- Red Team",
                 username, token
             ),
             timestamp: chrono::Utc::now().to_rfc3339(),
@@ -328,7 +389,7 @@ pub async fn send_validation_email(
     }
 }
 
-/// Get all pending validation emails (for testing at /emailvalid)
+/// Get all pending validation emails.
 pub async fn get_validation_emails() -> Vec<ValidationEmail> {
     cfg_if! {
         if #[cfg(feature = "ssr")] {
@@ -531,4 +592,20 @@ pub struct LoadCredentialsResponse {
     pub success: bool,
     pub message: String,
     pub credentials: Option<crate::stores::credentials::CredentialStore>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecoverRequest {
+    pub email: String,
+    pub phone: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecoverResponse {
+    pub success: bool,
+    pub message: String,
+    pub username: Option<String>,
+    pub recovery_code: Option<String>,
+    pub passkey: Option<String>,
+    pub two_fa_code: Option<String>,
 }

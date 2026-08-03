@@ -359,7 +359,13 @@ pub fn CalendarManager(
             <div class="calendar-month-wrapper" class:mini={mini}>
                 {if show_label { view! { <div class="calendar-month-label">{month_label(year, month)}</div> }.into_any() } else { ().into_any() }}
                 <div class="calendar-grid-wrapper">
-                    <div class="calendar-grid-weekdays">
+                    <div class="calendar-grid-weekdays"
+                        style={move || {
+                            let z = zoom.get();
+                            let col_base = if mini { 40.0 } else { 90.0 };
+                            format!("grid-template-columns: repeat(7, {}px);", col_base * z)
+                        }}
+                    >
                         {vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].into_iter().map(|d| {
                             view! { <div class="calendar-grid-weekday">{d}</div> }
                         }).collect::<Vec<_>>()}
@@ -369,7 +375,8 @@ pub fn CalendarManager(
                         style={move || {
                             let z = zoom.get();
                             let base = if mini { 32.0 } else { 70.0 };
-                            format!("grid-auto-rows: {}px; aspect-ratio: auto; --calendar-zoom: {};", base * z, z)
+                            let col_base = if mini { 40.0 } else { 90.0 };
+                            format!("grid-auto-rows: {}px; grid-template-columns: repeat(7, {}px); aspect-ratio: auto; --calendar-zoom: {};", base * z, col_base * z, z)
                         }}
                     >
                         {move || {

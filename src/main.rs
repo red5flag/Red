@@ -4,10 +4,10 @@ cfg_if! {
     if #[cfg(feature = "ssr")] {
         use axum::Router;
         use farley::app::{shell, App};
-        use farley::pages::email_valid::{email_valid_page, api_signup, api_validate, api_login, api_stats,
+        use farley::pages::email_valid::{api_signup, api_validate, api_login, api_stats,
             api_verify_totp, api_verify_email_2fa, api_enable_totp, api_confirm_totp, api_toggle_email_2fa,
             api_toggle_phone_2fa, api_verify_phone_2fa,
-            api_sync_credentials, api_load_credentials};
+            api_sync_credentials, api_load_credentials, api_recover};
         use leptos::config::get_configuration;
         use leptos_axum::{generate_route_list, LeptosRoutes};
         use tracing::info;
@@ -24,7 +24,6 @@ cfg_if! {
             let routes = generate_route_list(App);
 
             let app = Router::new()
-                .route("/emailvalid", axum::routing::get(email_valid_page))
                 .route("/api/signup", axum::routing::post(api_signup))
                 .route("/api/validate", axum::routing::post(api_validate))
                 .route("/api/login", axum::routing::post(api_login))
@@ -35,6 +34,7 @@ cfg_if! {
                 .route("/api/toggle_email_2fa", axum::routing::post(api_toggle_email_2fa))
                 .route("/api/toggle_phone_2fa", axum::routing::post(api_toggle_phone_2fa))
                 .route("/api/verify_phone_2fa", axum::routing::post(api_verify_phone_2fa))
+                .route("/api/recover", axum::routing::post(api_recover))
                 .route(
                     "/api/credentials/sync",
                     axum::routing::post(api_sync_credentials).get(api_load_credentials),
@@ -48,7 +48,6 @@ cfg_if! {
                 .with_state(leptos_options);
 
             info!("Server listening on http://{}", addr);
-            info!("Email validation inbox at http://{}/emailvalid", addr);
 
             let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
             axum::serve(listener, app.into_make_service())

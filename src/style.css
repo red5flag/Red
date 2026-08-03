@@ -3818,14 +3818,14 @@ html, body {
 .net-risk-high { color: var(--danger); }
 .net-risk-unknown { color: var(--text-secondary); }
 
-.net-rel-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 0; flex-shrink: 0; align-self: stretch; }
+.net-rel-actions { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 0; flex-shrink: 0; align-self: stretch; padding: 0; }
 .net-rel-btn { padding: 6px 14px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
 .net-rel-btn:hover { border-color: var(--highlight); color: var(--highlight); }
 
 .net-rel-icon-btn {
-    flex: 0 0 50%;
-    min-width: 40px;
-    min-height: 40px;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
     width: auto;
     height: auto;
     padding: 0;
@@ -3840,7 +3840,7 @@ html, body {
 .net-rel-view-btn {
     flex-direction: column;
     position: relative;
-    gap: 2px;
+    gap: 0;
     font-size: clamp(16px, 2.5vh, 22px);
 }
 
@@ -5568,6 +5568,23 @@ html, body {
     width: 20px;
     height: 20px;
     accent-color: var(--highlight);
+}
+
+.lp-forgot-login {
+    background: none;
+    border: none;
+    color: var(--highlight);
+    font-size: clamp(12px, 1.8vh, 15px);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    text-decoration: underline;
+    transition: opacity 0.15s;
+}
+
+.lp-forgot-login:hover {
+    opacity: 0.8;
 }
 
 /* Storage options */
@@ -8606,9 +8623,21 @@ html, body {
     padding: 0 2vw;
 }
 
-/* register screen sits on top */
-.lp-register-screen {
+/* register/recover screens sit on top */
+.lp-register-screen,
+.lp-recover-screen {
     z-index: 3000;
+}
+.lp-recover-message {
+    background: var(--accent-bg, #1e293b);
+    color: var(--text-primary);
+    border: 1px solid var(--highlight);
+    border-radius: 6px;
+    padding: 12px 4vw;
+    margin: 8px 4vw;
+    font-size: clamp(12px, 2vh, 15px);
+    line-height: 1.4;
+    flex-shrink: 0;
 }
 .lp-close-btn {
     background: transparent;
@@ -12620,6 +12649,9 @@ html, body {
     flex-direction: column;
     border: 1px solid var(--border-color);
     background: var(--secondary-bg);
+    overflow-x: auto;
+    overflow-y: visible;
+    width: 100%;
 }
 
 .calendar-grid-weekdays {
@@ -17783,6 +17815,11 @@ html, body {
 
 .asset-viewer .asset-list .asset-group.expanded {
     border-bottom: none;
+}
+
+/* Small red gap when an expanded asset group meets the direct assets below it */
+.asset-viewer #av-groups-content:has(.asset-group.expanded) + #av-direct-content > .asset-list {
+    border-top: 3px solid var(--primary);
 }
 
 .asset-viewer .asset-group-header,

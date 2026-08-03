@@ -10,13 +10,14 @@ use leptos::task::spawn_local;
 use std::time::Duration;
 
 use crate::pages::login::{
-    auth_messages, commits, credential_controls, login_form, register_form, two_factor,
+    auth_messages, commits, credential_controls, login_form, recover_form, register_form, two_factor,
 };
 
 cfg_if! {
     if #[cfg(feature = "hydrate")] {
         use crate::api::email::{SignupResponse, LoginResponse,
-            VerifyTotpRequest, VerifyEmail2faRequest, VerifyPhone2faRequest};
+            VerifyTotpRequest, VerifyEmail2faRequest, VerifyPhone2faRequest,
+            RecoverRequest, RecoverResponse};
         use web_sys::window;
     }
 }
@@ -32,9 +33,13 @@ pub fn LoginPage() -> impl IntoView {
     let (password, set_password) = signal(String::new());
     let (error, set_error) = signal(String::new());
     let (show_signup, set_show_signup) = signal(false);
+    let (show_recover, set_show_recover) = signal(false);
     let (remember_me, set_remember_me) = signal(true);
     let (remember_password, set_remember_password) = signal(false);
     let (show_profiles, set_show_profiles) = signal(false);
+    let (recovery_email, set_recovery_email) = signal(String::new());
+    let (recovery_phone, set_recovery_phone) = signal(String::new());
+    let (recovery_message, set_recovery_message) = signal(String::new());
 
     let (pending_username, set_pending_username) = signal(String::new());
     let (pending_password, set_pending_password) = signal(String::new());
@@ -472,7 +477,7 @@ pub fn LoginPage() -> impl IntoView {
                                         let _ = store.register_user(&u, &p, &email_for_msg, true, false);
                                     });
                                     set_succ.set(format!(
-                                        "Account created! A validation email has been sent to {}. Check /emailvalid to validate and then sign in.",
+                                        "Account created! A validation email has been sent to {}. Validate with the token and then sign in.",
                                         email_for_msg
                                     ));
                                     set_u.set(String::new());
@@ -567,6 +572,73 @@ pub fn LoginPage() -> impl IntoView {
     let on_verify_2fa_cb = Callback::new(move |mode: &'static str| on_verify_2fa(mode));
     let on_signup_cb = Callback::new(on_signup);
 
+    let on_forgot_login = Callback::new(move |()| {
+        set_recovery_email.set(String::new());
+        set_recovery_phone.set(String::new());
+        set_recovery_message.set(String::new());
+        set_show_recover.set(true);
+    });
+
+    let on_recover = Callback::new(move |()| {
+        let email = recovery_email.get();
+        let phone = recovery_phone.get();
+        if email.trim().is_empty() && phone.trim().is_empty() {
+            set_recovery_message.set("Please enter an email or phone number".to_string());
+            return;
+        }
+
+        cfg_if! {
+            if #[cfg(feature = "hydrate")] {
+                let req = RecoverRequest {
+                    email: email.clone(),
+                    phone: phone.clone(),
+                };
+                let set_recovery_message = set_recovery_message.clone();
+                spawn_local(async move {
+                    set_recovery_message.set("Sending recovery code…".to_string());
+                    match gloo_net::http::Request::post("/api/recover")
+                        .json(&req)
+                        .unwrap()
+                        .send()
+                        .await
+                    {
+                        Ok(resp) => {
+                            match resp.json::<RecoverResponse>().await {
+                                Ok(data) => {
+                                    if data.success {
+                                        let passkey = data.passkey.unwrap_or_default();
+                                        let two_fa = data.two_fa_code.unwrap_or_default();
+                                        let msg = format!(
+                                            "{}\nPasskey: {}\n2FA code: {}",
+                                            data.message, passkey, two_fa
+                                        );
+                                        set_recovery_message.set(msg);
+                                    } else {
+                                        set_recovery_message.set(data.message);
+                                    }
+                                }
+                                Err(e) => {
+                                    set_recovery_message.set(format!("Failed to read response: {}", e));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            set_recovery_message.set(format!("Network error: {}", e));
+                        }
+                    }
+                });
+            } else {
+                // SSR fallback: display a demo code without making a network request
+                use rand::Rng;
+                let code = format!("{:06}", rand::thread_rng().gen_range(0..1_000_000u32));
+                set_recovery_message.set(format!(
+                    "If an account exists for {} / {}, use this demo recovery code: {}",
+                    email, phone, code
+                ));
+            }
+        }
+    });
+
     view! {
         <div class="lp-screen">
             <div class="lp-header">
@@ -607,6 +679,7 @@ pub fn LoginPage() -> impl IntoView {
                 pressed_btn={pressed_btn}
                 flash_press={flash_press}
                 on_login={on_login_cb}
+                on_forgot_login={on_forgot_login}
             />
 
             <two_factor::TwoFactor
@@ -623,7 +696,11 @@ pub fn LoginPage() -> impl IntoView {
             <div class="lp-action-row">
                 <button class="lp-action-btn lp-register"
                     class:lp-pressed={move || pressed_btn.get() == Some("register")}
-                    on:click=move |_| { flash_press.run("register"); set_show_signup.set(true); }>
+                    on:click=move |_| {
+                        flash_press.run("register");
+                        set_su_username.set(username.get());
+                        set_show_signup.set(true);
+                    }>
                     "REGISTER"
                 </button>
                 <button class="lp-action-btn lp-login"
@@ -692,6 +769,18 @@ pub fn LoginPage() -> impl IntoView {
             su_show_confirm={su_show_confirm}
             set_su_show_confirm={set_su_show_confirm}
             on_signup={on_signup_cb}
+        />
+
+        // ── RECOVER SCREEN (lp-style) ──
+        <recover_form::RecoverForm
+            show_recover={show_recover}
+            set_show_recover={set_show_recover}
+            recovery_email={recovery_email}
+            set_recovery_email={set_recovery_email}
+            recovery_phone={recovery_phone}
+            set_recovery_phone={set_recovery_phone}
+            recovery_message={recovery_message}
+            on_recover={on_recover}
         />
     }
 }

@@ -1,13 +1,10 @@
 use cfg_if::cfg_if;
-use leptos::prelude::*;
 
 cfg_if! {
     if #[cfg(feature = "ssr")] {
         use axum::extract::Query;
-        use axum::response::Html;
         use axum::Json as AxumJson;
         use axum::http::StatusCode;
-        use serde::Deserialize;
         use crate::api::email;
         use crate::api::email::{SignupRequest, SignupResponse, ValidateRequest, ValidateResponse, LoginRequest, LoginResponse,
             VerifyTotpRequest, VerifyTotpResponse, VerifyEmail2faRequest, VerifyEmail2faResponse,
@@ -15,156 +12,8 @@ cfg_if! {
             ToggleEmail2faRequest, ToggleEmail2faResponse,
             TogglePhone2faRequest, TogglePhone2faResponse,
             VerifyPhone2faRequest, VerifyPhone2faResponse,
-            SyncCredentialsRequest, SyncCredentialsResponse, LoadCredentialsRequest, LoadCredentialsResponse};
-
-        #[derive(Deserialize)]
-        pub struct EmailValidQuery {
-            pub token: Option<String>,
-        }
-
-        pub async fn email_valid_page(Query(q): Query<EmailValidQuery>) -> Html<String> {
-            let pending = email::get_pending_registrations().await;
-
-            // Re-enqueue emails from pending registrations if queue is empty (e.g. after server restart)
-            let emails = email::get_validation_emails().await;
-            if emails.is_empty() && !pending.is_empty() {
-                for p in &pending {
-                    let email_obj = email::ValidationEmail::new(p.email.clone(), p.username.clone());
-                    email::enqueue_email(email_obj).await;
-                }
-            }
-
-            // If token is provided, validate the user
-            let validation_result: Option<Result<String, String>> = if let Some(token) = &q.token {
-                Some(email::validate_user_by_token(token).await
-                    .map(|u| u.username)
-                    .map_err(|e| e))
-            } else {
-                None
-            };
-
-            // Refresh emails after validation (may have removed the validated one)
-            let emails = email::get_validation_emails().await;
-
-            let mut html = String::from(r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Red - Email Validation</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 40px; max-width: 900px; }
-        h1 { color: #64ffda; }
-        h2 { color: #64ffda; margin-top: 32px; }
-        .email-card { background: #16213e; border-radius: 8px; padding: 20px; margin: 16px 0; border: 1px solid #233; }
-        .email-to { color: #64ffda; font-weight: bold; }
-        .email-subject { font-size: 16px; margin: 8px 0; }
-        .email-body { white-space: pre-wrap; background: #0f1623; padding: 16px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #a0a0b0; }
-        .email-token { color: #ffd166; font-size: 12px; }
-        .email-timestamp { color: #888; font-size: 12px; }
-        .validate-btn { display: inline-block; background: #64ffda; color: #1a1a2e; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-weight: bold; margin-top: 8px; cursor: pointer; border: none; font-size: 14px; }
-        .validate-btn:hover { opacity: 0.9; }
-        .validated-banner { background: #1a3a2e; border: 2px solid #64ffda; border-radius: 8px; padding: 16px; margin: 16px 0; }
-        .validated-banner h2 { margin: 0 0 8px 0; }
-        .error-banner { background: #3a1a1a; border: 2px solid #ff6b6b; border-radius: 8px; padding: 16px; margin: 16px 0; }
-        .error-banner h2 { color: #ff6b6b; margin: 0 0 8px 0; }
-        .empty { color: #888; font-style: italic; }
-        .pending-card { background: #16213e; border-radius: 8px; padding: 16px; margin: 8px 0; border: 1px solid #233; display: flex; justify-content: space-between; align-items: center; }
-        .pending-info { flex: 1; }
-        .pending-username { color: #64ffda; font-weight: bold; }
-        .pending-email { color: #a0a0b0; font-size: 13px; }
-        .tick-btn { background: #64ffda; color: #1a1a2e; border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: 12px; text-decoration: none; }
-        .tick-btn:hover { opacity: 0.9; }
-        .info-box { background: #0f1623; border-radius: 8px; padding: 16px; margin: 16px 0; border: 1px solid #233; font-size: 13px; color: #a0a0b0; }
-    </style>
-</head>
-<body>
-    <h1>Red Email Validation - Test Inbox</h1>
-    <p>This page shows pending validation emails and registrations for testing purposes.</p>
-"#);
-
-            // Show validation result if token was provided
-            if let Some(result) = validation_result {
-                match result {
-                    Ok(username) => {
-                        html.push_str(&format!(
-                            r#"<div class="validated-banner">
-    <h2>&#9989; Email Validated Successfully!</h2>
-    <p>User <strong>{}</strong> has been validated and can now sign in.</p>
-    <a class="validate-btn" href="/">Go to Login</a>
-</div>
-"#, username));
-                    }
-                    Err(e) => {
-                        html.push_str(&format!(
-                            r#"<div class="error-banner">
-    <h2>&#10060; Validation Failed</h2>
-    <p>{}</p>
-</div>
-"#, e));
-                    }
-                }
-            }
-
-            // Show pending registrations with tick buttons
-            if !pending.is_empty() {
-                html.push_str(&format!("<h2>Pending Registrations ({})</h2>\n", pending.len()));
-                html.push_str("<p>Click the &#10003; button to validate a user and allow them to sign in.</p>\n");
-                for p in &pending {
-                    html.push_str(&format!(
-                        r#"<div class="pending-card">
-    <div class="pending-info">
-        <div class="pending-username">&#128100; {}</div>
-        <div class="pending-email">&#128231; {}</div>
-        <div class="email-token">Token: {}</div>
-    </div>
-    <a class="tick-btn" href="/emailvalid?token={}" title="Validate user">&#10003;</a>
-</div>
-"#,
-                        p.username,
-                        p.email,
-                        p.validation_token,
-                        p.validation_token
-                    ));
-                }
-            }
-
-            // Show emails
-            if emails.is_empty() {
-                html.push_str("<h2>Validation Emails</h2>\n");
-                html.push_str("<p class=\"empty\">No validation emails.</p>\n");
-            } else {
-                html.push_str(&format!("<h2>Validation Emails ({})</h2>\n", emails.len()));
-                for e in &emails {
-                    html.push_str(&format!(
-                        r#"<div class="email-card">
-    <div class="email-to">To: {}</div>
-    <div class="email-subject">{}</div>
-    <div class="email-timestamp">{}</div>
-    <div class="email-token">Token: {}</div>
-    <div class="email-body">{}</div>
-    <a class="validate-btn" href="/emailvalid?token={}">&#10003; Validate</a>
-</div>
-"#,
-                        e.to,
-                        e.subject,
-                        e.timestamp,
-                        e.validation_token,
-                        e.body,
-                        e.validation_token
-                    ));
-                }
-            }
-
-            html.push_str("<div class=\"info-box\">\n<p><strong>How it works:</strong></p>\n<ol>\n");
-            html.push_str("<li>User signs up on the login page with username, email, and password</li>\n");
-            html.push_str("<li>A validation email appears here with a &#10003; Validate button</li>\n");
-            html.push_str("<li>Click &#10003; to validate the user - they can then sign in with their credentials</li>\n");
-            html.push_str("</ol>\n</div>\n");
-
-            html.push_str("</body>\n</html>");
-            Html(html)
-        }
+            SyncCredentialsRequest, SyncCredentialsResponse, LoadCredentialsRequest, LoadCredentialsResponse,
+            RecoverRequest, RecoverResponse};
 
         // API: POST /api/signup
         pub async fn api_signup(
@@ -192,7 +41,7 @@ cfg_if! {
             match email::add_pending_registration(req.username, req.password, req.email).await {
                 Ok(_) => Ok(AxumJson(SignupResponse {
                     success: true,
-                    message: "Account created! Check /emailvalid to validate your email.".to_string(),
+                    message: "Account created! Check your email for the validation token.".to_string(),
                 })),
                 Err(e) => Ok(AxumJson(SignupResponse {
                     success: false,
@@ -498,6 +347,90 @@ cfg_if! {
             }
         }
 
+        // API: POST /api/recover
+        pub async fn api_recover(
+            axum::Json(req): axum::Json<RecoverRequest>,
+        ) -> Result<AxumJson<RecoverResponse>, (StatusCode, String)> {
+            let email = req.email.trim().to_string();
+            let phone = req.phone.trim().to_string();
+
+            if email.is_empty() && phone.is_empty() {
+                return Ok(AxumJson(RecoverResponse {
+                    success: false,
+                    message: "Please provide an email or phone number".to_string(),
+                    username: None,
+                    recovery_code: None,
+                    passkey: None,
+                    two_fa_code: None,
+                }));
+            }
+
+            match email::find_validated_user_by_email_or_phone(&email, &phone).await {
+                Some(mut user) => {
+                    let passkey = email::generate_recovery_passkey();
+                    let two_fa_code = email::generate_email_2fa_code();
+
+                    let new_hash = match email::hash_password(&passkey) {
+                        Ok(h) => h,
+                        Err(e) => return Ok(AxumJson(RecoverResponse {
+                            success: false,
+                            message: e,
+                            username: None,
+                            recovery_code: None,
+                            passkey: None,
+                            two_fa_code: None,
+                        })),
+                    };
+
+                    user.password_hash = new_hash;
+                    user.email_2fa_enabled = true;
+                    if !phone.is_empty() && user.phone_number.is_none() {
+                        user.phone_number = Some(phone);
+                    }
+
+                    if let Err(e) = email::update_user_2fa(user.clone()).await {
+                        return Ok(AxumJson(RecoverResponse {
+                            success: false,
+                            message: e,
+                            username: None,
+                            recovery_code: None,
+                            passkey: None,
+                            two_fa_code: None,
+                        }));
+                    }
+
+                    email::enqueue_account_recovery_email(
+                        user.email.clone(),
+                        user.username.clone(),
+                        passkey.clone(),
+                        two_fa_code.clone(),
+                    ).await;
+
+                    Ok(AxumJson(RecoverResponse {
+                        success: true,
+                        message: format!(
+                            "Recovery email sent to '{}'. Use the temporary passkey and 2FA code to log in.",
+                            user.email
+                        ),
+                        username: Some(user.username),
+                        recovery_code: Some(two_fa_code.clone()),
+                        passkey: Some(passkey),
+                        two_fa_code: Some(two_fa_code),
+                    }))
+                }
+                None => {
+                    Ok(AxumJson(RecoverResponse {
+                        success: false,
+                        message: "No account found with that email or phone".to_string(),
+                        username: None,
+                        recovery_code: None,
+                        passkey: None,
+                        two_fa_code: None,
+                    }))
+                }
+            }
+        }
+
         // API: GET /api/stats
         pub async fn api_stats() -> Result<AxumJson<serde_json::Value>, (StatusCode, String)> {
             Ok(AxumJson(serde_json::json!({
@@ -541,15 +474,5 @@ cfg_if! {
                 })),
             }
         }
-    }
-}
-
-#[component]
-pub fn EmailValidPage() -> impl IntoView {
-    view! {
-        <div class="email-valid-page">
-            <h1>"Email Validation"</h1>
-            <p>"Email validation is available at the /emailvalid endpoint on the server."</p>
-        </div>
     }
 }

@@ -322,7 +322,24 @@ pub fn MessageDrawer() -> impl IntoView {
         items
     });
     let recent_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
-        recent_contacts.get().into_iter().map(SidebarListItem::Contact).collect()
+        let mut items: Vec<_> = recent_contacts
+            .get()
+            .into_iter()
+            .map(SidebarListItem::Contact)
+            .collect();
+        let mut seen: std::collections::HashSet<uuid::Uuid> = items
+            .iter()
+            .filter_map(|item| match item {
+                SidebarListItem::Contact(c) => Some(c.id),
+                SidebarListItem::Request(_) => None,
+            })
+            .collect();
+        for group in group_contacts.get() {
+            if seen.insert(group.id) {
+                items.push(SidebarListItem::Contact(group));
+            }
+        }
+        items
     });
     let group_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
         let mut items: Vec<_> = group_invites
@@ -334,11 +351,12 @@ pub fn MessageDrawer() -> impl IntoView {
         items
     });
     let request_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
-        let mut items: Vec<_> = work_requests
+        let mut items: Vec<_> = group_invites
             .get()
             .into_iter()
             .map(SidebarListItem::Request)
             .collect();
+        items.extend(work_requests.get().into_iter().map(SidebarListItem::Request));
         items.extend(request_contacts.get().into_iter().map(SidebarListItem::Contact));
         items
     });

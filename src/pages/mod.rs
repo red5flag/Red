@@ -14,7 +14,6 @@ pub mod transactions;
 
 pub use agent::AgentPage;
 pub use calendar::CalendarPage;
-pub use email_valid::EmailValidPage;
 pub use history::HistoryPage;
 pub use login::LoginPage;
 pub use networking::{AddTeamMemberPage, NetworkingPage};
