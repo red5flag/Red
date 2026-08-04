@@ -1,4 +1,4 @@
-use crate::pages::history::{HistoryFilters, HistoryList, HistorySummary};
+use crate::pages::history::{HistoryFilters, HistoryList};
 use crate::stores::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, use_app_store,
     use_undo_redo_store, HistoryQuery,
@@ -17,8 +17,6 @@ pub fn HistoryPage() -> impl IntoView {
     let (has_reason_only, set_has_reason_only) = signal(false);
     let (sort_mode, set_sort_mode) = signal(SortMode::Recent);
 
-    let current_user_name = move || app_store.get().current_user.name.clone();
-    let current_user_role = move || format!("{:?}", app_store.get().current_user.role);
     let current_user_id = move || app_store.get().current_user.id;
 
     let filtered_actions = move || {
@@ -43,9 +41,6 @@ pub fn HistoryPage() -> impl IntoView {
         }
         actions
     };
-
-    let action_count = move || filtered_actions().len();
-    let total_count = move || undo_store.get().past.len();
 
     let build_history_action = move |kind: ActionType, description: String| {
         let store = app_store.get();
@@ -102,17 +97,6 @@ pub fn HistoryPage() -> impl IntoView {
 
     view! {
         <div class="home-screen">
-            <div class="history-page-header">
-                <div class="history-page-title">
-                    <span class="history-page-name">{move || current_user_name()}</span>
-                    <span class="history-page-role">{move || current_user_role()}</span>
-                </div>
-                <HistorySummary
-                    action_count={Signal::derive(action_count)}
-                    total_count={Signal::derive(total_count)}
-                />
-            </div>
-
             // Redo bar: per-item redo for actions currently in the future stack
             {move || {
                 let reds = redoable_actions();

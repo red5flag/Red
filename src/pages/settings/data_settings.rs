@@ -119,7 +119,7 @@ pub(crate) fn DataSettings(
     };
 
     view! {
-        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Storage}>
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Storage && tab.get() != SettingsTab::All}>
             <div class="card-header">
                 <span class="card-title">"Storage Options"</span>
             </div>
@@ -188,7 +188,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Developer}>
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Developer && tab.get() != SettingsTab::All}>
             <div class="card-header">
                 <span class="card-title">"Developer Mode"</span>
             </div>
@@ -451,7 +451,7 @@ pub(crate) fn DataSettings(
             } else { ().into_any() }}
         </div>
 
-        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import}>
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import && tab.get() != SettingsTab::All}>
             <div class="card-header">
                 <span class="card-title">"Import Contacts"</span>
             </div>
@@ -468,7 +468,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import}>
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import && tab.get() != SettingsTab::All}>
             <div class="card-header">
                 <span class="card-title">"Import Booking Data"</span>
             </div>
@@ -500,7 +500,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import}>
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Import && tab.get() != SettingsTab::All}>
             <div class="card-header">
                 <span class="card-title">"Import Organizations"</span>
             </div>
@@ -578,7 +578,7 @@ pub(crate) fn DataSettings(
             </div>
         </div>
 
-        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Data}>
+        <div class="data-card" class:settings-hidden={move || tab.get() != SettingsTab::Data && tab.get() != SettingsTab::All}>
             <div class="card-header">
                 <span class="card-title">"Data & Reset"</span>
             </div>
@@ -614,7 +614,7 @@ pub(crate) fn DataSettings(
 
         {move || if !import_status.get().is_empty() {
             view! {
-                <div class="data-card import-status-card" class:settings-hidden={move || !matches!(tab.get(), SettingsTab::Storage | SettingsTab::Import | SettingsTab::Developer | SettingsTab::Data)}>
+                <div class="data-card import-status-card" class:settings-hidden={move || !matches!(tab.get(), SettingsTab::All | SettingsTab::Storage | SettingsTab::Import | SettingsTab::Developer | SettingsTab::Data)}>
                     <div class="import-status">{import_status.get()}</div>
                 </div>
             }.into_any()

@@ -10,6 +10,7 @@ enum ScanSource {
     Camera,
     GoogleDrive,
     ProtonDrive,
+    Frogbox,
 }
 
 impl ScanSource {
@@ -19,6 +20,7 @@ impl ScanSource {
             ScanSource::Camera => "Camera",
             ScanSource::GoogleDrive => "Google Drive",
             ScanSource::ProtonDrive => "Proton Drive",
+            ScanSource::Frogbox => "Frogbox",
         }
     }
 
@@ -28,6 +30,7 @@ impl ScanSource {
             ScanSource::Camera => "📷",
             ScanSource::GoogleDrive => "🔗",
             ScanSource::ProtonDrive => "🔗",
+            ScanSource::Frogbox => "🐸",
         }
     }
 }
@@ -68,6 +71,7 @@ pub fn CamScanView(app_store: leptos::prelude::RwSignal<crate::stores::AppStore>
         ScanSource::Camera,
         ScanSource::GoogleDrive,
         ScanSource::ProtonDrive,
+        ScanSource::Frogbox,
     ];
 
     let open_source = move |src: ScanSource| {
@@ -296,8 +300,10 @@ fn CamScanModal(
 
     let source_label = source.map(|s| s.label()).unwrap_or("Files");
     let _source_is_camera = source == Some(ScanSource::Camera);
-    let source_is_cloud =
-        source == Some(ScanSource::GoogleDrive) || source == Some(ScanSource::ProtonDrive);
+    let source_is_cloud = matches!(
+        source,
+        Some(ScanSource::GoogleDrive) | Some(ScanSource::ProtonDrive) | Some(ScanSource::Frogbox)
+    );
 
     // Capture a frame from the live camera video element
     let on_capture_frame = move |_| {

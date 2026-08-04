@@ -25,5 +25,6 @@ pub use transaction_store::*;
 pub use ui_store::*;
 pub use undo_redo::{
     apply_redo_side_effects, apply_undo_side_effects, create_action, create_undo_redo_store,
-    format_action_description, use_undo_redo_store, HistoryQuery, UndoRedoStore,
+    format_action_description, record_tab_navigation, use_undo_redo_store, HistoryQuery,
+    UndoRedoStore,
 };

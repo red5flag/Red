@@ -13,6 +13,8 @@ pub struct Organization {
     pub name: String,
     pub description: Option<String>,
     pub owner_id: Uuid,
+    #[serde(default)]
+    pub parent_organization_id: Option<Uuid>, // Parent company for shell companies / subsidiaries
     pub members: Vec<Uuid>,
     pub settings: OrganizationSettings,
     pub roles: Vec<OrgRole>,
@@ -48,6 +50,7 @@ impl Organization {
             name,
             description: None,
             owner_id,
+            parent_organization_id: None,
             members: vec![owner_id],
             settings: OrganizationSettings::default(),
             roles,

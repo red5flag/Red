@@ -23,7 +23,7 @@ pub fn SettingsPage() -> impl IntoView {
     let calendar_store = use_calendar_store();
     let messenger_store = use_messenger_store();
     let (import_status, set_import_status) = signal(String::new());
-    let (active_tab, set_active_tab) = signal(SettingsTab::Appearance);
+    let (active_tab, set_active_tab) = signal(SettingsTab::All);
 
     // 2FA setup signals
     let (setup_user, set_setup_user) = signal(String::new());
@@ -274,6 +274,7 @@ pub fn SettingsPage() -> impl IntoView {
             <div class="reporting-tabs-outer reporting-tabs-top">
                 <div class="reporting-tabs">
                     {[
+                        SettingsTab::All,
                         SettingsTab::Appearance,
                         SettingsTab::Account,
                         SettingsTab::Import,
@@ -303,7 +304,8 @@ pub fn SettingsPage() -> impl IntoView {
                 class="settings-data-wrapper"
                 class:settings-hidden={move || !matches!(
                     active_tab.get(),
-                    SettingsTab::Import
+                    SettingsTab::All
+                        | SettingsTab::Import
                         | SettingsTab::Storage
                         | SettingsTab::Data
                         | SettingsTab::Developer
@@ -341,6 +343,35 @@ pub fn SettingsPage() -> impl IntoView {
             </div>
 
             {move || match active_tab.get() {
+                SettingsTab::All => view! {
+                    <display_settings::DisplaySettings />
+                    <preset_selector::PresetSelector />
+                    <account_settings::AccountSettings />
+                    <accessibility_settings::AccessibilitySettings />
+                    <notification_settings::NotificationSettings />
+                    <security_settings::SecuritySettings
+                        setup_user={setup_user}
+                        set_setup_user={set_setup_user}
+                        setup_pass={setup_pass}
+                        set_setup_pass={set_setup_pass}
+                        setup_secret={setup_secret}
+                        setup_uri={setup_uri}
+                        setup_code={setup_code}
+                        set_setup_code={set_setup_code}
+                        setup_error={setup_error}
+                        setup_success={setup_success}
+                        setup_step={setup_step}
+                        email_2fa_status={email_2fa_status}
+                        phone_number={phone_number}
+                        set_phone_number={set_phone_number}
+                        phone_2fa_status={phone_2fa_status}
+                        on_enable_totp={on_enable_totp}
+                        on_confirm_totp={on_confirm_totp}
+                        on_toggle_email_2fa={on_toggle_email_2fa}
+                        on_toggle_phone_2fa={on_toggle_phone_2fa}
+                    />
+                    <api_test::ApiTestPage />
+                }.into_any(),
                 SettingsTab::Appearance => view! {
                     <display_settings::DisplaySettings />
                     <preset_selector::PresetSelector />

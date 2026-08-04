@@ -3,6 +3,7 @@ use leptos::prelude::*;
 #[component]
 pub(crate) fn OrganizationSummary(
     #[prop(into)] owner_name: String,
+    #[prop(default = "Owner")] owner_label: &'static str,
     portfolio_count: usize,
     member_count: usize,
     role_count: usize,
@@ -11,7 +12,7 @@ pub(crate) fn OrganizationSummary(
     view! {
         <div class="org-overview">
             <div class="org-overview-row">
-                <span class="org-overview-label">"Owner"</span>
+                <span class="org-overview-label">{owner_label}</span>
                 <span class="org-overview-value">{owner_name}</span>
             </div>
             <div class="org-overview-row">

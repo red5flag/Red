@@ -20,11 +20,6 @@ pub(crate) fn HistoryCard(
     } else {
         action.user_name.clone()
     };
-    let user_role = if action.user_role.is_empty() {
-        "—".to_string()
-    } else {
-        action.user_role.clone()
-    };
     let why = action.reason.clone();
     let action_id = action.id;
     let is_current_user = action.user_id == current_user_id;
@@ -46,7 +41,6 @@ pub(crate) fn HistoryCard(
                 </div>
                 <div class="timeline-meta">
                     <span class="timeline-user">{user_name}</span>
-                    <span class="timeline-role">{user_role}</span>
                     <span class="timeline-date">{date}</span>
                     {if let Some(ref ctx) = viewport_context {
                         let page = ctx.page.clone();

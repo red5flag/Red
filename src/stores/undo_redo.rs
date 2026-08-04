@@ -439,6 +439,36 @@ pub fn apply_redo_side_effects(action: &Action, app_store: &mut crate::stores::A
     false
 }
 
+/// Record a tab navigation action and then expand the target tab.
+/// This should be used whenever UI code switches tabs outside of the main tab list
+/// so that the history/undo system can navigate back to the correct previous tab.
+pub fn record_tab_navigation(
+    app_store: &crate::stores::AppStore,
+    undo_store: &mut UndoRedoStore,
+    to: &TabType,
+) {
+    let from = app_store.active_tabs.first().cloned();
+    let user_id = app_store.current_user.id;
+    let user_name = app_store.current_user.name.clone();
+    let user_role = format!("{:?}", app_store.current_user.role);
+    let org_id = app_store.current_user.organization_id;
+    let action = create_action(
+        ActionType::View,
+        "Tab",
+        &format!("Opened {:?} tab", to),
+        user_id,
+        &user_name,
+        &user_role,
+        org_id,
+        None,
+    )
+    .with_navigation(
+        from.map(|t| t.as_str().to_string()).unwrap_or_default(),
+        to.as_str().to_string(),
+    );
+    undo_store.record_action(action);
+}
+
 pub fn use_undo_redo_store() -> RwSignal<UndoRedoStore> {
     expect_context::<RwSignal<UndoRedoStore>>()
 }

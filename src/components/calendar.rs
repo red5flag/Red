@@ -26,20 +26,116 @@ impl CalendarScope {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 enum CalendarViewMode {
     Month,
     MultiMonth,
     Year,
+    Day,
 }
 
+#[allow(dead_code)]
 impl CalendarViewMode {
     fn label(&self) -> &'static str {
         match self {
             CalendarViewMode::Month => "Month",
             CalendarViewMode::MultiMonth => "Multi-month",
             CalendarViewMode::Year => "Year",
+            CalendarViewMode::Day => "Day",
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CalendarScale {
+    Minute,
+    Hour,
+    Date,
+    Month,
+    Year,
+}
+
+impl CalendarScale {
+    fn all() -> [Self; 5] {
+        [Self::Minute, Self::Hour, Self::Date, Self::Month, Self::Year]
+    }
+
+    fn label(&self) -> &'static str {
+        match self {
+            CalendarScale::Minute => "Minute",
+            CalendarScale::Hour => "Hour",
+            CalendarScale::Date => "Date",
+            CalendarScale::Month => "Month",
+            CalendarScale::Year => "Year",
+        }
+    }
+
+    fn format_now(&self, now: chrono::DateTime<chrono::Utc>) -> String {
+        match self {
+            CalendarScale::Minute => now.format("%Y-%m-%d %H:%M").to_string(),
+            CalendarScale::Hour => now.format("%Y-%m-%d %H:00").to_string(),
+            CalendarScale::Date => now.format("%Y-%m-%d").to_string(),
+            CalendarScale::Month => now.format("%B %Y").to_string(),
+            CalendarScale::Year => now.format("%Y").to_string(),
+        }
+    }
+}
+
+fn scale_for_level(level: f64) -> CalendarScale {
+    if level >= 2.0 {
+        CalendarScale::Minute
+    } else if level >= 1.0 {
+        CalendarScale::Hour
+    } else if level >= 0.0 {
+        CalendarScale::Date
+    } else if level >= -1.0 {
+        CalendarScale::Month
+    } else {
+        CalendarScale::Year
+    }
+}
+
+fn view_mode_for_scale(scale: CalendarScale) -> CalendarViewMode {
+    match scale {
+        CalendarScale::Minute | CalendarScale::Hour | CalendarScale::Date => {
+            CalendarViewMode::Day
+        }
+        CalendarScale::Month => CalendarViewMode::MultiMonth,
+        CalendarScale::Year => CalendarViewMode::Year,
+    }
+}
+
+fn base_level_for_scale(scale: CalendarScale) -> f64 {
+    match scale {
+        CalendarScale::Minute => 2.5,
+        CalendarScale::Hour => 1.0,
+        CalendarScale::Date => 0.5,
+        CalendarScale::Month => -0.5,
+        CalendarScale::Year => -1.5,
+    }
+}
+
+fn day_zoom_for_level(level: f64) -> f64 {
+    if level >= 2.0 {
+        6.0 + (level - 2.0) * 6.0
+    } else if level >= 1.0 {
+        3.0 + (level - 1.0) * 3.0
+    } else if level >= 0.0 {
+        1.0 + level * 2.0
+    } else {
+        1.0
+    }
+}
+
+fn month_zoom_for_level(level: f64) -> f64 {
+    let value = if level < -1.0 {
+        3.0 + (level + 1.0) * (8.0 / 3.0)
+    } else if level < 0.0 {
+        (1.0 / 3.0) + (level + 1.0) * (8.0 / 3.0)
+    } else {
+        1.0
+    };
+    value.clamp(1.0 / 3.0, 3.0)
 }
 
 fn month_label(year: i32, month: u32) -> String {
@@ -150,12 +246,37 @@ pub fn CalendarManager(
     let today = Utc::now().date_naive();
     let (view_year, set_view_year) = signal(today.year());
     let (view_month, set_view_month) = signal(today.month());
-    let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Month);
+    let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Day);
     let (zoom, set_zoom) = signal(1.0_f64);
+    let (day_zoom, set_day_zoom) = signal(3.0_f64);
     let multi_month_count = Memo::new(move |_| (3.0 / zoom.get()).clamp(3.0, 9.0).round() as u32);
     let year_month_count = Memo::new(move |_| (12.0 / zoom.get()).clamp(12.0, 36.0).round() as u32);
     let (pinch_start, set_pinch_start) = signal(Option::<(f64, f64)>::None);
-    let (view_dropdown_open, set_view_dropdown_open) = signal(false);
+    let (zoom_level, set_zoom_level) = signal(1.0_f64);
+    let calendar_scale = Memo::new(move |_| scale_for_level(zoom_level.get()));
+    let (scale_dropdown_open, set_scale_dropdown_open) = signal(false);
+    let (now, _set_now) = signal(chrono::Utc::now());
+    let (frozen_now, set_frozen_now) = signal(chrono::Utc::now());
+
+    Effect::new(move |_| {
+        let level = zoom_level.get();
+        let scale = scale_for_level(level);
+        set_calendar_view_mode.set(view_mode_for_scale(scale));
+        set_day_zoom.set(day_zoom_for_level(level));
+        set_zoom.set(month_zoom_for_level(level));
+    });
+
+    #[cfg(feature = "hydrate")]
+    {
+        use futures::StreamExt;
+        use gloo_timers::future::IntervalStream;
+        leptos::task::spawn_local(async move {
+            let mut interval = IntervalStream::new(1_000);
+            while interval.next().await.is_some() {
+                _set_now.set(chrono::Utc::now());
+            }
+        });
+    }
     let (selected_date, set_selected_date) = signal::<Option<NaiveDate>>(None);
     let (editing_event, set_editing_event) = signal::<Option<CalendarEvent>>(None);
     let (show_form, set_show_form) = signal(false);
@@ -165,23 +286,42 @@ pub fn CalendarManager(
             CalendarViewMode::Month => 1,
             CalendarViewMode::MultiMonth => multi_month_count.get_untracked(),
             CalendarViewMode::Year => 12,
+            CalendarViewMode::Day => 1,
         }
     };
 
     let prev_period = move |_| {
-        let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
-        let step = step_months(calendar_view_mode.get_untracked());
-        if let Some(d) = base.checked_sub_months(Months::new(step)) {
-            set_view_year.set(d.year());
-            set_view_month.set(d.month());
+        if calendar_view_mode.get_untracked() == CalendarViewMode::Day {
+            let current = selected_date.get().unwrap_or(today);
+            if let Some(d) = current.checked_sub_signed(Duration::days(1)) {
+                set_selected_date.set(Some(d));
+                set_view_year.set(d.year());
+                set_view_month.set(d.month());
+            }
+        } else {
+            let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+            let step = step_months(calendar_view_mode.get_untracked());
+            if let Some(d) = base.checked_sub_months(Months::new(step)) {
+                set_view_year.set(d.year());
+                set_view_month.set(d.month());
+            }
         }
     };
     let next_period = move |_| {
-        let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
-        let step = step_months(calendar_view_mode.get_untracked());
-        if let Some(d) = base.checked_add_months(Months::new(step)) {
-            set_view_year.set(d.year());
-            set_view_month.set(d.month());
+        if calendar_view_mode.get_untracked() == CalendarViewMode::Day {
+            let current = selected_date.get().unwrap_or(today);
+            if let Some(d) = current.checked_add_signed(Duration::days(1)) {
+                set_selected_date.set(Some(d));
+                set_view_year.set(d.year());
+                set_view_month.set(d.month());
+            }
+        } else {
+            let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
+            let step = step_months(calendar_view_mode.get_untracked());
+            if let Some(d) = base.checked_add_months(Months::new(step)) {
+                set_view_year.set(d.year());
+                set_view_month.set(d.month());
+            }
         }
     };
     let go_today = move |_| {
@@ -262,6 +402,10 @@ pub fn CalendarManager(
 
     let period_label = Memo::new(move |_| match calendar_view_mode.get() {
         CalendarViewMode::Month => month_label(view_year.get(), view_month.get()),
+        CalendarViewMode::Day => {
+            let date = selected_date.get().unwrap_or(today);
+            date.format("%A, %d %B %Y").to_string()
+        }
         CalendarViewMode::Year => {
             let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
             let count = year_month_count.get();
@@ -463,6 +607,144 @@ pub fn CalendarManager(
         }
     }
 
+    fn day_view(
+        date: NaiveDate,
+        events: Memo<Vec<CalendarEvent>>,
+        day_zoom: ReadSignal<f64>,
+        on_edit: Callback<CalendarEvent>,
+        on_add: Callback<NaiveDate>,
+    ) -> impl IntoView {
+        let day_start = date.and_hms_opt(0, 0, 0).unwrap().and_utc();
+        let day_end = day_start + Duration::days(1);
+        let hours: Vec<u32> = (0..24).collect();
+
+        view! {
+            <div class="calendar-day-view">
+                <div class="calendar-day-view-header">
+                    <div class="calendar-day-view-date">{date.format("%A, %d %B %Y").to_string()}</div>
+                    <button class="calendar-day-view-add" on:click=move |_| on_add.run(date)>"+ Add"</button>
+                </div>
+                {move || {
+                    let z = day_zoom.get();
+                    let all_day: Vec<CalendarEvent> = events
+                        .get()
+                        .iter()
+                        .filter(|e| e.all_day && e.start.date_naive() <= date && e.end.date_naive() >= date)
+                        .cloned()
+                        .collect();
+                    let mut timed: Vec<CalendarEvent> = events
+                        .get()
+                        .iter()
+                        .filter(|e| !e.all_day && e.end > day_start && e.start < day_end)
+                        .cloned()
+                        .collect();
+                    timed.sort_by(|a, b| a.start.cmp(&b.start));
+
+                    view! {
+                        <div class="calendar-day-view-scroll">
+                            {if all_day.is_empty() { ().into_any() } else { view! {
+                                <div class="calendar-day-view-allday">
+                                    {all_day.iter().map(|ev| {
+                                        let ev_clone = ev.clone();
+                                        view! {
+                                            <div
+                                                class="calendar-day-view-allday-chip"
+                                                on:click=move |e: leptos::ev::MouseEvent| {
+                                                    e.stop_propagation();
+                                                    on_edit.run(ev_clone.clone());
+                                                }
+                                            >
+                                                {ev.title.clone()}
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any() }}
+                            <div class="calendar-day-view-content" style={format!("height: {}px;", 1440.0 * z)}>
+                                <div class="calendar-day-view-time-col">
+                                    {hours.iter().map(|h| {
+                                        view! {
+                                            <div class="calendar-day-view-hour-row" style={format!("height: {}px;", 60.0 * z)}>
+                                                <span class="calendar-day-view-hour-label">{format!("{:02}:00", h)}</span>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                                <div class="calendar-day-view-events-col">
+                                    {hours.iter().map(|_h| {
+                                        view! {
+                                            <div
+                                                class="calendar-day-view-hour-row"
+                                                style={format!("height: {}px; position: relative;", 60.0 * z)}
+                                            >
+                                                {(1..12).filter_map(|s| {
+                                                    let top = (s * 5) as f64 * z;
+                                                    let show_label = z >= 3.0;
+                                                    let label = if show_label { Some(format!(":{:02}", s * 5)) } else { None };
+                                                    Some(view! {
+                                                        <div class="calendar-day-view-minute-marker" style={format!("top: {}px;", top)}>
+                                                            {if let Some(l) = label { view! { <span class="calendar-day-view-minute-label">{l}</span> }.into_any() } else { ().into_any() }}
+                                                        </div>
+                                                    }.into_any())
+                                                }).collect::<Vec<_>>()}
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                    <div class="calendar-day-view-events-layer">
+                                        {move || {
+                                            let mut lanes: Vec<i64> = Vec::new();
+                                            let mut positioned: Vec<(CalendarEvent, usize, i64, i64)> = Vec::new();
+                                            for ev in &timed {
+                                                let start_min = (ev.start - day_start).num_minutes().clamp(0, 1440);
+                                                let end_min = (ev.end - day_start).num_minutes().clamp(0, 1440);
+                                                let mut lane = 0usize;
+                                                for (i, end) in lanes.iter().enumerate() {
+                                                    if *end <= start_min {
+                                                        lane = i;
+                                                        break;
+                                                    }
+                                                    lane = i + 1;
+                                                }
+                                                if lane >= lanes.len() {
+                                                    lanes.push(end_min);
+                                                } else {
+                                                    lanes[lane] = end_min;
+                                                }
+                                                positioned.push((ev.clone(), lane, start_min, end_min));
+                                            }
+                                            let lane_count = lanes.len().max(1);
+                                            positioned.into_iter().map(|(ev, lane, start, end)| {
+                                                let duration = (end - start).max(5);
+                                                let top = start as f64 * z;
+                                                let height = duration as f64 * z;
+                                                let left = (lane as f64 / lane_count as f64) * 100.0;
+                                                let width = (100.0 / lane_count as f64) - 2.0;
+                                                let ev_for_click = ev.clone();
+                                                view! {
+                                                    <div
+                                                        class="calendar-day-view-event"
+                                                        style={format!("top: {}px; height: {}px; left: {}%; width: {}%;", top, height, left, width)}
+                                                        on:click=move |e: leptos::ev::MouseEvent| {
+                                                            e.stop_propagation();
+                                                            on_edit.run(ev_for_click.clone());
+                                                        }
+                                                    >
+                                                        <div class="calendar-day-view-event-time">{format!("{} – {}", ev.start.format("%H:%M"), ev.end.format("%H:%M"))}</div>
+                                                        <div class="calendar-day-view-event-title">{ev.title.clone()}</div>
+                                                    </div>
+                                                }
+                                            }).collect::<Vec<_>>()
+                                        }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }.into_any()
+                }}
+            </div>
+        }
+    }
+
     view! {
         <div class={if embedded { "calendar-manager embedded" } else { "calendar-manager" }}>
             <div class="calendar-manager-header">
@@ -477,31 +759,40 @@ pub fn CalendarManager(
                     <button class="calendar-nav-btn" on:click=prev_period title="Previous">"‹"</button>
                     <button class="calendar-today-btn" on:click=go_today>"Today"</button>
                     <button class="calendar-nav-btn" on:click=next_period title="Next">"›"</button>
-                    <div class="calendar-view-dropdown-wrap">
+                    <div class="calendar-view-dropdown-wrap calendar-scale-dropdown-wrap">
                         <button
-                            class="calendar-view-dropdown-toggle"
+                            class="calendar-view-dropdown-toggle calendar-scale-dropdown-toggle"
                             aria-haspopup="menu"
-                            aria-expanded={move || view_dropdown_open.get()}
-                            on:click=move |_| set_view_dropdown_open.update(|v| *v = !*v)
+                            aria-expanded={move || scale_dropdown_open.get()}
+                            on:click=move |_| {
+                                if !scale_dropdown_open.get_untracked() {
+                                    set_frozen_now.set(now.get());
+                                }
+                                set_scale_dropdown_open.update(|v| *v = !*v);
+                            }
                         >
-                            {move || format!("View: {}", calendar_view_mode.get().label())}
+                            {move || {
+                                let display_now = if scale_dropdown_open.get() { frozen_now.get() } else { now.get() };
+                                let scale = calendar_scale.get();
+                                scale.format_now(display_now)
+                            }}
                         </button>
-                        {move || if view_dropdown_open.get() { view! {
-                            <div class="calendar-view-dropdown" on:click=|ev| ev.stop_propagation()>
-                                {[CalendarViewMode::Month, CalendarViewMode::MultiMonth, CalendarViewMode::Year]
+                        {move || if scale_dropdown_open.get() { view! {
+                            <div class="calendar-view-dropdown calendar-scale-dropdown" on:click=|ev| ev.stop_propagation()>
+                                {CalendarScale::all()
                                     .into_iter()
-                                    .map(|mode| {
-                                        let mode_clone = mode;
+                                    .map(|scale| {
+                                        let scale_clone = scale;
                                         view! {
                                             <button
-                                                class="calendar-view-dropdown-option"
-                                                class:calendar-view-dropdown-active={move || calendar_view_mode.get() == mode_clone}
+                                                class="calendar-view-dropdown-option calendar-scale-dropdown-option"
+                                                class:calendar-scale-dropdown-active={move || calendar_scale.get() == scale_clone}
                                                 on:click=move |_| {
-                                                    set_calendar_view_mode.set(mode_clone);
-                                                    set_view_dropdown_open.set(false);
+                                                    set_zoom_level.set(base_level_for_scale(scale_clone));
+                                                    set_scale_dropdown_open.set(false);
                                                 }
                                             >
-                                                {mode_clone.label()}
+                                                {scale_clone.label()}
                                             </button>
                                         }
                                     }).collect::<Vec<_>>()}
@@ -539,10 +830,11 @@ pub fn CalendarManager(
             } else { ().into_any() }}
 
             <div class="calendar-grids"
+                class:calendar-day-mode={move || calendar_view_mode.get() == CalendarViewMode::Day}
                 on:wheel=move |ev: leptos::ev::WheelEvent| {
                     ev.prevent_default();
                     let delta = ev.delta_y() as f64;
-                    set_zoom.update(|z| *z = (*z - delta * 0.002).clamp(0.5, 3.0));
+                    set_zoom_level.update(|l| *l = (*l - delta * 0.004).clamp(-2.0, 3.0));
                 }
                 on:touchstart=move |ev: leptos::ev::TouchEvent| {
                     let touches = ev.touches();
@@ -551,7 +843,8 @@ pub fn CalendarManager(
                             let dx = (t1.client_x() - t0.client_x()) as f64;
                             let dy = (t1.client_y() - t0.client_y()) as f64;
                             let dist = (dx * dx + dy * dy).sqrt();
-                            set_pinch_start.set(Some((dist, zoom.get())));
+                            let start_level = zoom_level.get();
+                            set_pinch_start.set(Some((dist, start_level)));
                         }
                     }
                 }
@@ -562,10 +855,11 @@ pub fn CalendarManager(
                             let dx = (t1.client_x() - t0.client_x()) as f64;
                             let dy = (t1.client_y() - t0.client_y()) as f64;
                             let dist = (dx * dx + dy * dy).sqrt();
-                            if let Some((start_dist, start_zoom)) = pinch_start.get() {
+                            if let Some((start_dist, start_level)) = pinch_start.get() {
                                 ev.prevent_default();
-                                let new_zoom = start_zoom * (dist / start_dist);
-                                set_zoom.set(new_zoom.clamp(0.5, 3.0));
+                                let ratio = dist / start_dist;
+                                let new_level = start_level + ratio.ln() * 0.8;
+                                set_zoom_level.set(new_level.clamp(-2.0, 3.0));
                             }
                         }
                     }
@@ -586,6 +880,16 @@ pub fn CalendarManager(
                             false, false
                         )}
                     }.into_any(),
+                    CalendarViewMode::Day => {
+                        let date = selected_date.get().unwrap_or(today);
+                        day_view(
+                            date,
+                            events_for_scope,
+                            day_zoom,
+                            on_edit.clone(),
+                            on_day_add.clone(),
+                        ).into_any()
+                    }
                     CalendarViewMode::MultiMonth => {
                         let base = NaiveDate::from_ymd_opt(view_year.get(), view_month.get(), 1).unwrap();
                         let count = multi_month_count.get();
@@ -639,59 +943,63 @@ pub fn CalendarManager(
             </div>
 
             // Selected day detail panel
-            {move || selected_date.get().map(|date| {
-                let events = selected_day_events.get();
-                let on_edit2 = on_edit.clone();
-                let on_delete2 = on_delete.clone();
-                let on_add2 = on_day_add.clone();
-                let date_label = date.format("%A, %d %B %Y").to_string();
-                view! {
-                    <div class="calendar-day-detail">
-                        <div class="calendar-day-detail-header">
-                            <div class="calendar-day-detail-date">{date_label}</div>
-                            <div class="calendar-day-detail-actions">
-                                <button class="calendar-day-detail-add" on:click=move |_| on_add2.run(date)>"+ Add event"</button>
-                                <button class="calendar-day-detail-close" on:click=move |_| set_selected_date.set(None)>"✕"</button>
+            {move || if calendar_view_mode.get() != CalendarViewMode::Day {
+                selected_date.get().map(|date| {
+                    let events = selected_day_events.get();
+                    let on_edit2 = on_edit.clone();
+                    let on_delete2 = on_delete.clone();
+                    let on_add2 = on_day_add.clone();
+                    let date_label = date.format("%A, %d %B %Y").to_string();
+                    view! {
+                        <div class="calendar-day-detail">
+                            <div class="calendar-day-detail-header">
+                                <div class="calendar-day-detail-date">{date_label}</div>
+                                <div class="calendar-day-detail-actions">
+                                    <button class="calendar-day-detail-add" on:click=move |_| on_add2.run(date)>"+ Add event"</button>
+                                    <button class="calendar-day-detail-close" on:click=move |_| set_selected_date.set(None)>"✕"</button>
+                                </div>
+                            </div>
+                            <div class="calendar-day-detail-body">
+                                {if events.is_empty() {
+                                    view! { <div class="calendar-day-detail-empty">"No events on this day"</div> }.into_any()
+                                } else {
+                                    events.into_iter().map(|ev| {
+                                        let on_e3 = on_edit2.clone();
+                                        let on_d3 = on_delete2.clone();
+                                        let ev_for_edit = ev.clone();
+                                        let id = ev.id;
+                                        let time = if ev.all_day {
+                                            "All day".to_string()
+                                        } else {
+                                            format!("{} – {}", ev.start.format("%H:%M"), ev.end.format("%H:%M"))
+                                        };
+                                        let cat = ev.category.clone().unwrap_or_else(|| "General".to_string());
+                                        let desc = ev.description.clone();
+                                        view! {
+                                            <div class="calendar-day-detail-event">
+                                                <div class="calendar-day-detail-event-time">{time}</div>
+                                                <div class="calendar-day-detail-event-body">
+                                                    <div class="calendar-day-detail-event-title">{ev.title.clone()}</div>
+                                                    <div class="calendar-day-detail-event-cat">{cat}</div>
+                                                    {desc.map(|d| view! {
+                                                        <div class="calendar-day-detail-event-desc">{d}</div>
+                                                    }.into_any()).unwrap_or_else(|| ().into_any())}
+                                                </div>
+                                                <div class="calendar-day-detail-event-actions">
+                                                    <button class="calendar-event-row-btn" on:click=move |_| on_e3.run(ev_for_edit.clone())>"✎"</button>
+                                                    <button class="calendar-event-row-btn danger" on:click=move |_| on_d3.run(id)>"✕"</button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>().into_any()
+                                }}
                             </div>
                         </div>
-                        <div class="calendar-day-detail-body">
-                            {if events.is_empty() {
-                                view! { <div class="calendar-day-detail-empty">"No events on this day"</div> }.into_any()
-                            } else {
-                                events.into_iter().map(|ev| {
-                                    let on_e3 = on_edit2.clone();
-                                    let on_d3 = on_delete2.clone();
-                                    let ev_for_edit = ev.clone();
-                                    let id = ev.id;
-                                    let time = if ev.all_day {
-                                        "All day".to_string()
-                                    } else {
-                                        format!("{} – {}", ev.start.format("%H:%M"), ev.end.format("%H:%M"))
-                                    };
-                                    let cat = ev.category.clone().unwrap_or_else(|| "General".to_string());
-                                    let desc = ev.description.clone();
-                                    view! {
-                                        <div class="calendar-day-detail-event">
-                                            <div class="calendar-day-detail-event-time">{time}</div>
-                                            <div class="calendar-day-detail-event-body">
-                                                <div class="calendar-day-detail-event-title">{ev.title.clone()}</div>
-                                                <div class="calendar-day-detail-event-cat">{cat}</div>
-                                                {desc.map(|d| view! {
-                                                    <div class="calendar-day-detail-event-desc">{d}</div>
-                                                }.into_any()).unwrap_or_else(|| ().into_any())}
-                                            </div>
-                                            <div class="calendar-day-detail-event-actions">
-                                                <button class="calendar-event-row-btn" on:click=move |_| on_e3.run(ev_for_edit.clone())>"✎"</button>
-                                                <button class="calendar-event-row-btn danger" on:click=move |_| on_d3.run(id)>"✕"</button>
-                                            </div>
-                                        </div>
-                                    }
-                                }).collect::<Vec<_>>().into_any()
-                            }}
-                        </div>
-                    </div>
-                }.into_any()
-            }).unwrap_or_else(|| ().into_any())}
+                    }.into_any()
+                }).unwrap_or_else(|| ().into_any())
+            } else {
+                ().into_any()
+            }}
         </div>
     }
 }

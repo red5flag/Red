@@ -8,7 +8,10 @@ use crate::pages::networking::{
     Channel, ExternalContact, ExternalOrganization, Integration, NetSort, NetTab,
     RelationshipEvent, RelationshipStatus, RiskLevel,
 };
-use crate::stores::{use_app_store, use_messenger_store, use_organization_store, use_search_store, use_ui_store};
+use crate::stores::{
+    record_tab_navigation, use_app_store, use_organization_store,
+    use_search_store, use_ui_store, use_undo_redo_store,
+};
 use crate::types::{TabType, ViewCount};
 use chrono::Utc;
 use leptos::prelude::*;
@@ -353,12 +356,17 @@ fn mock_relationship_events() -> Vec<RelationshipEvent> {
 #[component]
 pub fn NetworkingPage() -> impl IntoView {
     let app_store = use_app_store();
-    let messenger_store = use_messenger_store();
+    let undo_store = use_undo_redo_store();
     let organization_store = use_organization_store();
     let search_store = use_search_store();
     let ui_store = use_ui_store();
+
+    let navigate_to = move |tab: TabType| {
+        let store = app_store.get();
+        undo_store.update(|u| record_tab_navigation(&store, u, &tab));
+        app_store.update(|s| s.expand_tab(tab));
+    };
     let (active_tab, set_active_tab) = signal(NetTab::Contacts);
-    let (selected_contact, set_selected_contact) = signal::<Option<ExternalContact>>(None);
     let (selected_org, set_selected_org) = signal::<Option<ExternalOrganization>>(None);
     let (_edit_mode, _set_edit_mode) = signal(false);
 
@@ -498,7 +506,6 @@ pub fn NetworkingPage() -> impl IntoView {
                 let visible_count = Signal::derive(move || visible_for(NetTab::Contacts));
                 render_contacts(
                     filtered_contacts.get(),
-                    set_selected_contact,
                     visible_count,
                     expand_scope,
                 )
@@ -758,59 +765,6 @@ pub fn NetworkingPage() -> impl IntoView {
             // Tab content
             {render_tab_content}
 
-            // Contact detail modal
-            {move || selected_contact.get().map(|c| {
-                let on_close = move |_| set_selected_contact.set(None);
-                let on_message = {
-                    let _name = c.name.clone();
-                    move |_| { messenger_store.update(|s| s.set_message_drawer(true)); }
-                };
-                view! {
-                    <div class="net-detail-overlay" on:click=on_close>
-                        <div class="net-detail-modal" on:click=|ev| ev.stop_propagation()>
-                            <div class="net-detail-header">
-                                <img class="net-detail-avatar" src={c.avatar_url.clone().unwrap_or_default()} alt={c.name.clone()} />
-                                <div class="net-detail-title-block">
-                                    <div class="net-detail-name">{c.name.clone()}</div>
-                                    <div class="net-detail-subtitle">{format!("{} • {}", c.title, c.company)}</div>
-                                </div>
-                                <button class="net-detail-close" on:click=move |_| set_selected_contact.set(None)>"✕"</button>
-                            </div>
-                            <div class="net-detail-body">
-                                <div class="net-detail-section">
-                                    <div class="net-detail-row"><span class="net-detail-label">"Type"</span><span class="net-detail-value">{c.relationship_type.clone()}</span></div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Status"</span><span class={format!("net-detail-value {}", c.status.css_class())}>{c.status.label()}</span></div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Risk"</span><span class={format!("net-detail-value {}", c.risk_level.css_class())}>{c.risk_level.label()}</span></div>
-                                    {c.email.as_ref().map(|e| view! { <div class="net-detail-row"><span class="net-detail-label">"Email"</span><span class="net-detail-value">{e.clone()}</span></div> }.into_any()).unwrap_or_else(|| ().into_any())}
-                                    {c.phone.as_ref().map(|p| view! { <div class="net-detail-row"><span class="net-detail-label">"Phone"</span><span class="net-detail-value">{p.clone()}</span></div> }.into_any()).unwrap_or_else(|| ().into_any())}
-                                </div>
-                                <div class="net-detail-section">
-                                    <div class="net-detail-section-title">"Linked Items"</div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Portfolios"</span><span class="net-detail-value">{c.linked_portfolios.join(", ")}</span></div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Transactions"</span><span class="net-detail-value">{c.linked_transactions.join(", ")}</span></div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Reports"</span><span class="net-detail-value">{if c.linked_reports.is_empty() { "—".into() } else { c.linked_reports.join(", ") }}</span></div>
-                                </div>
-                                <div class="net-detail-section">
-                                    <div class="net-detail-section-title">"Channels"</div>
-                                    <div class="net-detail-channels">
-                                        {c.channels.iter().map(|ch| view! { <span class="net-channel-tag">{ch.clone()}</span> }).collect::<Vec<_>>()}
-                                    </div>
-                                </div>
-                                <div class="net-detail-section">
-                                    <div class="net-detail-section-title">"Recent Activity"</div>
-                                    <div class="net-detail-row"><span class="net-detail-label">"Last transaction"</span><span class="net-detail-value">{c.last_transaction.clone().unwrap_or_else(|| "—".into())}</span></div>
-                                </div>
-                                <div class="net-detail-actions">
-                                    <button class="net-detail-btn net-detail-btn-primary" on:click=on_message>"Message"</button>
-                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Transactions))>"View Transactions"</button>
-                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Reporting))>"View Reports"</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                }
-            })}
-
             // Organization detail modal
             {move || selected_org.get().map(|o| {
                 view! {
@@ -844,8 +798,8 @@ pub fn NetworkingPage() -> impl IntoView {
                                     </div>
                                 </div>
                                 <div class="net-detail-actions">
-                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Transactions))>"View Transactions"</button>
-                                    <button class="net-detail-btn" on:click=move |_| app_store.update(|s| s.expand_tab(TabType::Reporting))>"View Reports"</button>
+                                    <button class="net-detail-btn" on:click=move |_| navigate_to(TabType::Transactions)>"View Transactions"</button>
+                                    <button class="net-detail-btn" on:click=move |_| navigate_to(TabType::Reporting)>"View Reports"</button>
                                 </div>
                             </div>
                         </div>

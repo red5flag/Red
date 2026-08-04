@@ -110,13 +110,23 @@ pub(crate) fn OrganizationCard(
         .filter(|p| p.organization_id == Some(oid))
         .count();
     let role_count = org.roles.len();
-    let owner_name = organization_store
-        .get()
-        .organization_users
-        .iter()
-        .find(|u| u.id == org.owner_id)
-        .map(|u| u.name.clone())
-        .unwrap_or_else(|| "Unknown".to_string());
+    let (owner_name, owner_label) = if let Some(parent_id) = org.parent_organization_id {
+        let parent_name = organization_store
+            .get()
+            .get_organization(parent_id)
+            .map(|o| o.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        (parent_name, "Parent")
+    } else {
+        let user_name = organization_store
+            .get()
+            .organization_users
+            .iter()
+            .find(|u| u.id == org.owner_id)
+            .map(|u| u.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        (user_name, "Owner")
+    };
     let document_count: usize = app_store
         .get()
         .portfolios
@@ -328,6 +338,7 @@ pub(crate) fn OrganizationCard(
                 // Organization Overview
                 <OrganizationSummary
                     owner_name={owner_name.clone()}
+                    owner_label={owner_label}
                     portfolio_count={portfolio_count}
                     member_count={member_count}
                     role_count={role_count}

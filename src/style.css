@@ -3789,9 +3789,14 @@ html, body {
 .net-search-input { flex: 1; padding: 8px 12px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 14px; }
 .net-search-input:focus { outline: none; border-color: var(--highlight); }
 
-.net-relationship-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--primary-bg); border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; min-height: 80px; }
+.net-relationship-wrap { border-bottom: 1px solid var(--border-color); }
+.net-relationship-wrap .net-relationship-card { border-bottom: none; }
+
+.net-relationship-card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--primary-bg); border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background 0.15s; min-height: 120px; }
 .net-relationship-card:hover { background: var(--accent-bg); }
 .net-relationship-card:last-child { border-bottom: none; }
+
+.net-rel-detail { padding: 12px; background: var(--secondary-bg); border-top: 1px solid var(--border-color); cursor: default; }
 
 .net-rel-avatar { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; object-fit: cover; background: var(--accent-bg); }
 .net-rel-avatar-org, .net-rel-avatar-int { display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-color); }
@@ -3824,15 +3829,15 @@ html, body {
 
 .net-rel-icon-btn {
     flex: 1 1 0;
-    min-width: 0;
-    min-height: 0;
+    min-width: clamp(48px, 8vmin, 60px);
+    min-height: clamp(48px, 8vmin, 60px);
     width: auto;
     height: auto;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(16px, 2.5vh, 22px);
+    font-size: clamp(18px, 3vh, 26px);
     line-height: 1;
     aspect-ratio: 1 / 1;
 }
@@ -3848,6 +3853,11 @@ html, body {
     font-size: 10px;
     line-height: 1;
     margin-top: -2px;
+    transition: transform 0.15s;
+}
+
+.net-rel-dropdown-arrow.open {
+    transform: rotate(180deg);
 }
 
 .net-rel-dropdown-wrap {
@@ -11336,6 +11346,9 @@ html, body {
    TRANSACTIONS PAGE
    ═══════════════════════════════════════════ */
 .tx-tabs {
+    position: sticky;
+    top: var(--navbar-height);
+    z-index: 100;
     display: flex;
     flex-wrap: nowrap;
     gap: 0;
@@ -11343,6 +11356,7 @@ html, body {
     background: var(--secondary-bg);
     border: 1px solid var(--border-color);
     border-bottom: 1px solid var(--border-color);
+    border-top: none;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
@@ -11364,15 +11378,16 @@ html, body {
 }
 
 .tx-tab-btn {
-    flex: 0 0 auto;
-    min-width: 70px;
-    padding: 8px 14px;
+    flex: 1 0 auto;
+    min-width: 90px;
+    min-height: 48px;
+    padding: 12px 18px;
     background: var(--depth-1-bg);
     border: none;
     border-right: 1px solid var(--border-color);
     border-radius: 0;
     color: var(--text-primary);
-    font-size: clamp(11px, 1.8vh, 13px);
+    font-size: clamp(13px, 2vh, 16px);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -11895,13 +11910,16 @@ html, body {
     }
 
     .tx-tabs {
-        padding: 10px 12px;
-        gap: 6px;
+        padding: 0;
+        gap: 0;
     }
 
     .tx-tab-btn {
-        padding: 6px 8px;
-        font-size: 10px;
+        flex: 1 0 auto;
+        min-width: 80px;
+        min-height: 44px;
+        padding: 10px 12px;
+        font-size: clamp(11px, 1.8vh, 13px);
     }
 }
 
@@ -12069,10 +12087,17 @@ html, body {
 }
 
 .calendar-manager-header {
+    position: sticky;
+    top: var(--navbar-height);
+    z-index: 100;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0;
+    padding: 6px 12px;
+    background: var(--primary-bg);
+    border-bottom: 1px solid var(--border-color);
+    box-sizing: border-box;
 }
 
 .calendar-scroll-arrow {
@@ -12639,9 +12664,14 @@ html, body {
 }
 
 .calendar-view-dropdown-option:hover,
-.calendar-view-dropdown-option.calendar-view-dropdown-active {
+.calendar-view-dropdown-option.calendar-view-dropdown-active,
+.calendar-scale-dropdown-option.calendar-scale-dropdown-active {
     background: var(--highlight);
     color: #fff;
+}
+
+.calendar-scale-dropdown-toggle {
+    min-width: 170px;
 }
 
 .calendar-grid-wrapper {
@@ -12981,6 +13011,164 @@ html, body {
     display: flex;
     gap: 4px;
     flex-shrink: 0;
+}
+
+/* Day view with hour / 5-minute zoom */
+.calendar-grids.calendar-day-mode {
+    display: block;
+}
+
+.calendar-day-view {
+    display: flex;
+    flex-direction: column;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+}
+
+.calendar-day-view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.calendar-day-view-date {
+    font-size: clamp(14px, 2.2vh, 18px);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.calendar-day-view-add {
+    height: 32px;
+    padding: 0 12px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.calendar-day-view-add:hover {
+    border-color: var(--highlight);
+    color: var(--highlight);
+}
+
+.calendar-day-view-scroll {
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.calendar-day-view-allday {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--primary-bg);
+}
+
+.calendar-day-view-allday-chip {
+    padding: 4px 8px;
+    background: var(--highlight);
+    color: var(--primary-bg);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.calendar-day-view-content {
+    display: flex;
+    position: relative;
+    min-width: 100%;
+}
+
+.calendar-day-view-time-col {
+    width: 60px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    background: var(--primary-bg);
+}
+
+.calendar-day-view-events-col {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-day-view-hour-row {
+    border-bottom: 1px solid var(--border-color);
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+.calendar-day-view-hour-label {
+    padding-right: 8px;
+    font-size: clamp(10px, 1.5vh, 12px);
+    font-weight: 700;
+    color: var(--text-primary);
+    transform: translateY(-50%);
+}
+
+.calendar-day-view-minute-marker {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px dashed var(--border-color);
+    pointer-events: none;
+}
+
+.calendar-day-view-minute-label {
+    position: absolute;
+    right: 4px;
+    top: -9px;
+    font-size: 9px;
+    color: var(--text-secondary);
+}
+
+.calendar-day-view-events-layer {
+    position: absolute;
+    inset: 0;
+}
+
+.calendar-day-view-event {
+    position: absolute;
+    box-sizing: border-box;
+    background: var(--highlight);
+    color: #fff;
+    border-radius: 4px;
+    padding: 3px 6px;
+    overflow: hidden;
+    cursor: pointer;
+    font-size: clamp(10px, 1.4vh, 12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.calendar-day-view-event:hover {
+    filter: brightness(1.1);
+}
+
+.calendar-day-view-event-time {
+    font-size: 9px;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-day-view-event-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Event editor overlay */
@@ -14654,14 +14842,15 @@ html, body {
 /* Org overview stats */
 .org-overview {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 0;
     border-bottom: 1px solid var(--border-color);
     background: var(--depth-1-bg);
 }
 .org-overview-row {
-    flex: 1 1 auto;
-    min-width: 120px;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     padding: 8px 12px;
@@ -14678,6 +14867,9 @@ html, body {
     font-weight: 700;
     color: var(--text-primary);
     margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* Role list container */
@@ -16883,6 +17075,26 @@ html, body {
     top: var(--navbar-height);
     z-index: 100;
     margin-bottom: 12px;
+    height: var(--controls-h);
+    background: var(--accent-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-page .reporting-tabs {
+    height: var(--controls-h);
+}
+
+.settings-page .reporting-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    height: var(--controls-h);
+    padding: 0 10px;
+    font-size: clamp(14px, 2vh, 16px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Document dropdown under action buttons */

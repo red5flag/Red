@@ -4,7 +4,7 @@ use crate::pages::transactions::transaction_detail::{InvoiceForm, InvoiceList};
 use crate::pages::transactions::transaction_form::{CreateTransactionRecord, PaymentForm};
 use crate::pages::transactions::transaction_list::{PaymentList, TransactionList};
 use crate::pages::transactions::transaction_summary::{
-    PayeeList, PayerList, SummaryCards, WalletCards, WalletDashboard, WalletDetails,
+    PayeeList, PayerList, SummaryCards, WalletCards, WalletDetails,
 };
 use crate::pages::transactions::{
     create_mock_transaction, Card, Contact, Invoice, Payment, Wallet,
@@ -308,9 +308,6 @@ pub fn TransactionsPage() -> impl IntoView {
 
     view! {
         <div class="home-screen tx-page">
-            // Wallet dashboard always visible at top
-            {move || view! { <WalletDashboard wallets={wallets.get()} /> }}
-
             <div class="tx-tabs">
                 {tab_btn("Recent", "recent")}
                 {tab_btn("Send", "send")}
@@ -319,9 +316,6 @@ pub fn TransactionsPage() -> impl IntoView {
                 {tab_btn("Payees", "payees")}
                 {tab_btn("Payers", "payers")}
                 {tab_btn("Wallets", "wallets")}
-                {tab_btn("FIAT", "fiat")}
-                {tab_btn("CRYPTO", "crypto")}
-                {tab_btn("BTC", "btc")}
             </div>
 
             // Action bar
@@ -356,24 +350,6 @@ pub fn TransactionsPage() -> impl IntoView {
                     <div class="tx-wallets-section">
                         <WalletCards wallets={wallets.get()} />
                         <WalletDetails wallets={wallets.get()} />
-                    </div>
-                }.into_any(),
-                "fiat" => view! {
-                    <div class="tx-wallets-section">
-                        <WalletCards wallets={wallets.get().into_iter().filter(|w| w.wallet_type == "Bank").collect::<Vec<_>>()} />
-                        <WalletDetails wallets={wallets.get().into_iter().filter(|w| w.wallet_type == "Bank").collect::<Vec<_>>()} />
-                    </div>
-                }.into_any(),
-                "crypto" => view! {
-                    <div class="tx-wallets-section">
-                        <WalletCards wallets={wallets.get().into_iter().filter(|w| w.wallet_type == "Crypto" && w.currency != "BTC").collect::<Vec<_>>()} />
-                        <WalletDetails wallets={wallets.get().into_iter().filter(|w| w.wallet_type == "Crypto" && w.currency != "BTC").collect::<Vec<_>>()} />
-                    </div>
-                }.into_any(),
-                "btc" => view! {
-                    <div class="tx-wallets-section">
-                        <WalletCards wallets={wallets.get().into_iter().filter(|w| w.currency == "BTC").collect::<Vec<_>>()} />
-                        <WalletDetails wallets={wallets.get().into_iter().filter(|w| w.currency == "BTC").collect::<Vec<_>>()} />
                     </div>
                 }.into_any(),
                 "send" => view! {

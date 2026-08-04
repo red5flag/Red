@@ -4,46 +4,6 @@ use crate::pages::transactions::{
 use leptos::prelude::*;
 
 #[component]
-pub(crate) fn WalletDashboard(wallets: Vec<Wallet>) -> impl IntoView {
-    let total_fiat: f64 = wallets
-        .iter()
-        .filter(|w| w.wallet_type != "Crypto")
-        .map(|w| w.balance)
-        .sum();
-    let total_crypto: f64 = wallets
-        .iter()
-        .filter(|w| w.wallet_type == "Crypto" && w.currency != "BTC")
-        .map(|w| w.balance)
-        .sum();
-    let btc_balance: f64 = wallets
-        .iter()
-        .filter(|w| w.currency == "BTC")
-        .map(|w| w.balance)
-        .sum();
-
-    view! {
-        <div class="wallet-dashboard">
-            <div class="wallet-balance-bar">
-                <div class="wallet-bal-item">
-                    <div class="wallet-bal-label">"FIAT"</div>
-                    <div class="wallet-bal-value">{format!("${:.2}", total_fiat)}</div>
-                </div>
-                <div class="wallet-bal-divider"></div>
-                <div class="wallet-bal-item">
-                    <div class="wallet-bal-label">"CRYPTO"</div>
-                    <div class="wallet-bal-value">{format!("${:.2}", total_crypto)}</div>
-                </div>
-                <div class="wallet-bal-divider"></div>
-                <div class="wallet-bal-item">
-                    <div class="wallet-bal-label">"BTC"</div>
-                    <div class="wallet-bal-value">{format!("₿{:.4}", btc_balance)}</div>
-                </div>
-            </div>
-        </div>
-    }
-}
-
-#[component]
 pub(crate) fn SummaryCards(
     invoices: Vec<Invoice>,
     set_active_tab: Callback<String>,

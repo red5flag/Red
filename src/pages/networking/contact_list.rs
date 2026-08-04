@@ -4,7 +4,6 @@ use leptos::prelude::*;
 
 pub(crate) fn render_contacts(
     contacts: Vec<ExternalContact>,
-    set_selected: WriteSignal<Option<ExternalContact>>,
     visible_count: Signal<usize>,
     on_expand: Callback<NetTab>,
 ) -> impl IntoView {
@@ -37,7 +36,7 @@ pub(crate) fn render_contacts(
                             <For
                                 each=move || visible_items.get()
                                 key=|c: &ExternalContact| c.id
-                                children=move |c| render_contact_card(c, set_selected)
+                                children=move |c| render_contact_card(c)
                             />
                             {if remaining > 0 {
                                 view! {

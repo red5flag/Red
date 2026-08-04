@@ -12,6 +12,7 @@ pub use page::SettingsPage;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsTab {
+    All,
     Appearance,
     Account,
     Import,
@@ -27,6 +28,7 @@ pub enum SettingsTab {
 impl SettingsTab {
     pub const fn label(&self) -> &'static str {
         match self {
+            SettingsTab::All => "All",
             SettingsTab::Appearance => "Appearance",
             SettingsTab::Account => "Accounts",
             SettingsTab::Import => "Import",
