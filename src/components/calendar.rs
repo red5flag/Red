@@ -97,9 +97,8 @@ fn scale_for_level(level: f64) -> CalendarScale {
 
 fn view_mode_for_scale(scale: CalendarScale) -> CalendarViewMode {
     match scale {
-        CalendarScale::Minute | CalendarScale::Hour | CalendarScale::Date => {
-            CalendarViewMode::Day
-        }
+        CalendarScale::Minute | CalendarScale::Hour => CalendarViewMode::Day,
+        CalendarScale::Date => CalendarViewMode::Month,
         CalendarScale::Month => CalendarViewMode::MultiMonth,
         CalendarScale::Year => CalendarViewMode::Year,
     }

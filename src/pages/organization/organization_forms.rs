@@ -220,14 +220,30 @@ pub(crate) fn OrgContextMenu(
             view! {
                 <div class="context-menu-overlay" on:click=move |_| set_context_menu.set(None)>
                     <div class="context-menu org-context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
-                        <button class="context-menu-item org-context-menu-item"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                set_expanded_orgs.update(|s| { s.insert(id); });
-                            }>
-                            "\u{25BC} Open Organization"
-                        </button>
-                        <button class="context-menu-item org-context-menu-item"
+                    <div class="org-context-tabs" role="tablist" aria-label="Open organization to tab">
+                        {[
+                            ("portfolios", "\u{1F4C1} Portfolios"),
+                            ("roles", "\u{1F465} Roles"),
+                            ("members", "\u{1F465} Members"),
+                        ].iter().map(|(tab, label)| {
+                            let tab_for_click = *tab;
+                            let label = *label;
+                            view! {
+                                <button
+                                    class="org-context-tab"
+                                    role="tab"
+                                    on:click=move |_| {
+                                        set_context_menu.set(None);
+                                        set_expanded_orgs.update(|s| { s.insert(id); });
+                                        set_org_tab.run((id, tab_for_click));
+                                    }
+                                >
+                                    {label}
+                                </button>
+                            }
+                        }).collect::<Vec<_>>()}
+                    </div>
+                    <button class="context-menu-item org-context-menu-item"
                             on:click=move |_| {
                                 set_context_menu.set(None);
                                 on_start_edit.run((id, name_for_edit.clone(), image_url.clone(), desc.clone(), color.clone(), abn.clone(), lei.clone(), business_type.clone(), business_address.clone(), business_phone.clone(), business_email.clone()));

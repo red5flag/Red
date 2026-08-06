@@ -48,15 +48,15 @@
 
 /* Dark mode */
 [data-theme="dark"] {
-    --primary: #ff3333;
-    --primary-light: #ff6666;
-    --primary-dark: #cc0000;
-    --secondary: #330000;
-    --secondary-light: #551111;
-    --secondary-dark: #220000;
-    --tertiary: #cc3333;
-    --tertiary-light: #ff5555;
-    --tertiary-dark: #990000;
+    --primary: #cc0000;
+    --primary-light: #ff3333;
+    --primary-dark: #990000;
+    --secondary: #220000;
+    --secondary-light: #3d0f0f;
+    --secondary-dark: #110000;
+    --tertiary: #993333;
+    --tertiary-light: #cc5555;
+    --tertiary-dark: #660000;
 
     --primary-bg: #000000;
     --secondary-bg: #111111;
@@ -66,7 +66,7 @@
     --text-secondary: #aaaaaa;
     --success: #4ade80;
     --warning: #fbbf24;
-    --danger: #ef4444;
+    --danger: #b91c1c;
     --border-color: #444444;
 
     /* Depth-based indentation tones (dark: dark to lighter red-tint) */
@@ -74,6 +74,12 @@
     --depth-1-bg: #181010;
     --depth-2-bg: #241818;
     --depth-3-bg: #302020;
+}
+
+/* Dark mode red badge icons */
+[data-theme="dark"] .tab-notif-badge,
+[data-theme="dark"] .pf-notif-count {
+    background: var(--danger);
 }
 
 /* Accessibility modes */
@@ -2433,6 +2439,46 @@ html, body {
     font-size: 11px;
     color: var(--text-secondary);
 }
+
+/* Portfolio/Organization document action: square and flush with the right-side tab */
+.pf-accordion .pf-accordion-header:not(.editing) .pf-list-actions {
+    position: relative;
+    align-self: stretch;
+    width: calc(var(--bar-h) * 1.65 - 16px);
+    border-left: none;
+    box-sizing: border-box;
+}
+.pf-accordion .pf-accordion-header:not(.editing) .pf-list-actions .pf-action-btn.pf-doc-action-btn {
+    position: absolute;
+    top: 0;
+    right: -16px;
+    bottom: 0;
+    left: auto;
+    width: auto;
+    min-width: 0;
+    height: 100%;
+    aspect-ratio: 1 / 1;
+}
+
+/* Asset group document action: square and flush with the right-side tab */
+.pf-accordion .asset-group-header:not(.editing) .pf-list-actions {
+    position: relative;
+    align-self: stretch;
+    width: calc(var(--bar-h) - 16px);
+    border-left: none;
+    box-sizing: border-box;
+}
+.pf-accordion .asset-group-header:not(.editing) .pf-list-actions .pf-action-btn.pf-doc-action-btn {
+    position: absolute;
+    top: 0;
+    right: -16px;
+    bottom: 0;
+    left: auto;
+    width: auto;
+    min-width: 0;
+    height: 100%;
+    aspect-ratio: 1 / 1;
+}
 .grid-view .asset-group.expanded > .asset-group-header {
     min-height: var(--bar-h);
     padding: 0 16px 0 var(--bar-h);
@@ -2935,6 +2981,7 @@ html, body {
 .networking-controls-bar .net-action-bar .net-sort-btn-wrap .net-action-btn {
     flex: 1 1 0;
     min-width: 0;
+    width: 100%;
     height: var(--controls-h);
     min-height: var(--controls-h);
     padding: 0 10px;
@@ -2958,8 +3005,11 @@ html, body {
     -webkit-tap-highlight-color: transparent;
 }
 
-.networking-controls-bar .net-action-bar > .net-action-btn:last-child,
-.networking-controls-bar .net-action-bar .net-sort-btn-wrap:last-child .net-action-btn {
+.networking-controls-bar .net-action-bar > .net-action-btn:last-child {
+    border-right: none;
+}
+
+.networking-controls-bar .net-action-bar .net-view-btn-wrap .net-action-btn {
     border-right: none;
 }
 
@@ -3450,20 +3500,6 @@ html, body {
     text-overflow: ellipsis;
 }
 
-/* Remove the default action-btn right border inside the Networking action bar so we can add it precisely */
-.net-action-bar .net-action-btn {
-    border-right: none;
-}
-
-/* Show a right border on every action-bar button except the last one so each edge is visible */
-.net-action-bar > .net-action-btn,
-.net-action-bar .net-sort-btn-wrap:not(:last-child) .net-action-btn {
-    border-right: 1px solid var(--border-color);
-}
-
-.net-action-bar .net-sort-btn-wrap:last-child .net-action-btn {
-    border-right: none;
-}
 
 .net-action-bar .net-view-select {
     padding: 0 8px;
@@ -3630,12 +3666,6 @@ html, body {
 }
 .net-view-btn-wrap {
     order: 1;
-}
-.net-action-bar .net-sort-btn-wrap-left .net-action-btn {
-    border-right: 1px solid var(--border-color);
-}
-.net-action-bar .net-view-btn-wrap .net-action-btn {
-    border-right: none;
 }
 
 .net-sort-btn .net-sort-label {
@@ -3824,6 +3854,7 @@ html, body {
 .net-risk-unknown { color: var(--text-secondary); }
 
 .net-rel-actions { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 0; flex-shrink: 0; align-self: stretch; padding: 0; }
+.net-rel-card-header .net-rel-actions { margin: -12px 0; }
 .net-rel-btn { padding: 6px 14px; background: var(--primary-bg); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
 .net-rel-btn:hover { border-color: var(--highlight); color: var(--highlight); }
 
@@ -3846,7 +3877,7 @@ html, body {
     flex-direction: column;
     position: relative;
     gap: 0;
-    font-size: clamp(16px, 2.5vh, 22px);
+    font-size: clamp(18px, 3vh, 26px);
 }
 
 .net-rel-dropdown-arrow {
@@ -6095,13 +6126,13 @@ html, body {
 .add-btn-small {
     background: var(--danger);
     border: none;
-    color: white;
+    color: #fff;
     font-size: 12px;
-    width: 53px;
+    width: auto;
     height: 53px;
     min-width: 53px;
     min-height: 53px;
-    padding: 0;
+    padding: 0 12px;
     cursor: pointer;
     margin-left: 0;
     flex-shrink: 0;
@@ -6993,7 +7024,7 @@ html, body {
 
 /* Reporting page */
 .reporting-page {
-    --controls-h: clamp(56px, 14vmin, 80px);
+    --controls-h: var(--bar-h);
     width: 100%;
     max-width: 1200px;
     padding: clamp(8px, 3vw, 24px);
@@ -14583,10 +14614,12 @@ html, body {
 }
 
 .org-member-info {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    padding: 10px 0;
     gap: 2px;
 }
 
@@ -14896,15 +14929,18 @@ html, body {
 
 .org-role-header {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 0 0 0 12px;
     cursor: pointer;
     user-select: none;
     min-height: 48px;
 }
 .org-role-header:hover { background: rgba(255,255,255,0.04); }
 .org-role-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 12px;
     color: var(--text-secondary);
     flex-shrink: 0;
@@ -14914,10 +14950,12 @@ html, body {
 }
 
 .org-role-info {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    padding: 10px 0;
     gap: 2px;
 }
 .org-role-name {
@@ -14938,24 +14976,45 @@ html, body {
 
 .org-role-actions {
     display: flex;
-    gap: 4px;
-    flex-shrink: 0;
-    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0;
+    flex: 1;
     justify-content: flex-end;
+    height: 100%;
+    margin-left: 0;
 }
 .org-role-btn {
-    min-height: 36px;
+    height: 100%;
+    min-height: 0;
     min-width: 44px;
-    padding: 4px 10px;
+    padding: 0 12px;
     font-size: 12px;
     font-weight: 600;
     background: var(--accent-bg);
-    border: 1px solid var(--border-color);
+    border: none;
+    border-right: 1px solid var(--border-color);
     color: var(--text-primary);
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.org-role-btn:last-child {
+    border-right: none;
 }
 .org-role-btn:hover { filter: brightness(1.15); }
+.org-role-btn-edit {
+    flex: 0 0 48px;
+    width: 48px;
+    min-width: 48px;
+    aspect-ratio: 1 / 1;
+}
+.org-role-btn-dup {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+}
 .org-role-btn-sm {
     min-height: 28px;
     min-width: 28px;
@@ -15125,7 +15184,7 @@ html, body {
 
 .org-member-header {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 8px;
     padding: 0 0 0 12px;
     cursor: pointer;
@@ -15134,6 +15193,9 @@ html, body {
 }
 .org-member-header:hover { background: rgba(255,255,255,0.04); }
 .org-member-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 12px;
     color: var(--text-secondary);
     flex-shrink: 0;
@@ -15143,10 +15205,12 @@ html, body {
 }
 
 .org-member-info {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    justify-content: center;
+    padding: 10px 0;
     gap: 2px;
 }
 .org-member-name {
@@ -16678,8 +16742,45 @@ html, body {
 }
 
 .org-context-menu {
-    min-width: 180px;
+    min-width: 220px;
     z-index: 1100;
+}
+
+.org-context-tabs {
+    display: flex;
+    width: 100%;
+    background: var(--accent-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.org-context-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 4px;
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.15s, color 0.15s;
+}
+
+.org-context-tab:last-child {
+    border-right: none;
+}
+
+.org-context-tab:hover {
+    background: var(--highlight);
+    color: var(--primary-bg);
 }
 
 .org-context-menu-item {
@@ -17085,8 +17186,8 @@ html, body {
 }
 
 .settings-page .reporting-tab {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: auto;
     height: var(--controls-h);
     padding: 0 10px;
     font-size: clamp(14px, 2vh, 16px);

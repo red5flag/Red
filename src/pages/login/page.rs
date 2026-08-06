@@ -502,7 +502,7 @@ pub fn LoginPage() -> impl IntoView {
         });
     };
 
-    let (changelog_open, set_changelog_open) = signal(false);
+    let (changelog_open, set_changelog_open) = signal(true);
     let initial_commits = commits::RECENT_COMMITS
         .iter()
         .map(|(sha, msg)| (sha.to_string(), msg.to_string()))
@@ -515,23 +515,22 @@ pub fn LoginPage() -> impl IntoView {
         cfg_if! {
             if #[cfg(feature = "hydrate")] {
                 spawn_local(async move {
-                    let resp = gloo_net::http::Request::get("https://api.github.com/repos/red5flag/Carly/commits?per_page=10")
+                    let resp = gloo_net::http::Request::get("https://api.github.com/repos/red5flag/Carly/commits?per_page=20")
                         .header("Accept", "application/vnd.github+json")
-                        .header("User-Agent", "Carly-App")
                         .send()
                         .await;
                     if let Ok(r) = resp {
                         if let Ok(text) = r.text().await {
-                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                                if let Some(arr) = json.as_array() {
-                                    let parsed: Vec<(String, String)> = arr.iter().filter_map(|c| {
-                                        let sha = c.get("sha")?.as_str()?.chars().take(7).collect::<String>();
-                                        let msg = c.get("commit")?.get("message")?.as_str()?;
-                                        let first_line = msg.lines().next().unwrap_or(msg).to_string();
-                                        Some((sha, first_line))
-                                    }).collect();
-                                    _set_commits.set(parsed);
-                                }
+                            if let Ok(parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&text) {
+                                let online_commits = parsed
+                                    .into_iter()
+                                    .filter_map(|entry| {
+                                        let sha = entry.get("sha")?.as_str()?.to_string();
+                                        let msg = entry.get("commit")?.get("message")?.as_str()?.to_string();
+                                        Some((sha, msg))
+                                    })
+                                    .collect::<Vec<(String, String)>>();
+                                _set_commits.set(online_commits);
                             }
                         }
                     }
@@ -540,6 +539,19 @@ pub fn LoginPage() -> impl IntoView {
             }
         }
     };
+
+    // Refresh commits immediately on hydration and then every hour.
+    cfg_if! {
+        if #[cfg(feature = "hydrate")] {
+            spawn_local(async move {
+                fetch_commits(());
+                loop {
+                    gloo_timers::future::TimeoutFuture::new(3_600_000).await;
+                    fetch_commits(());
+                }
+            });
+        }
+    }
 
     let on_toggle_changelog = Callback::new(move |_: leptos::ev::MouseEvent| {
         set_changelog_open.update(|v| {

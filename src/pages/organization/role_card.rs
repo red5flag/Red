@@ -78,14 +78,14 @@ pub(crate) fn RoleCard(
                 {if can_edit {
                     view! {
                         <div class="org-role-actions" on:click=|ev| ev.stop_propagation()>
-                            <button class="org-role-btn"
+                            <button class="org-role-btn org-role-btn-edit"
                                 aria-label={format!("Edit {} role", role_name)}
                                 on:click=move |_| {
                                     on_start_edit.run((org_id, edit_role.clone()));
                                 }>
                                 "Edit"
                             </button>
-                            <button class="org-role-btn"
+                            <button class="org-role-btn org-role-btn-dup"
                                 aria-label={format!("Duplicate {} role", role_name_for_dup)}
                                 on:click=move |_| on_duplicate.run((org_id, rid))>
                                 "Duplicate"

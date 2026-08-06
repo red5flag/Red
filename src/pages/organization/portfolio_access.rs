@@ -132,25 +132,7 @@ pub(crate) fn PortfolioAccessList(
             }.into_any()
         } else { ().into_any() }}
 
-        {move || if portfolios.get().is_empty() {
-            view! {
-                <div class="empty-state org-section-empty">
-                    <div class="empty-text">"No portfolios."</div>
-                    {if can_edit {
-                        view! {
-                            <div class="org-section-empty-actions">
-                                <button class="add-btn-small" on:click=move |_| set_show_assign.set(true)>
-                                    "+ Assign Portfolio"
-                                </button>
-                                <button class="add-btn-small" on:click=move |_| set_show_create.set(true)>
-                                    "+ Create Portfolio"
-                                </button>
-                            </div>
-                        }.into_any()
-                    } else { ().into_any() }}
-                </div>
-            }.into_any()
-        } else {
+        {move || {
             let indexed = portfolios.get().into_iter().enumerate().collect::<Vec<_>>();
             view! {
                 <div class="asset-list">

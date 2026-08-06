@@ -1,6 +1,4 @@
-/// Most recent commits from the local git history.
-/// These are shown in the login changelog by default, with the live GitHub
-/// fetch refreshing them when the changelog is opened (when available).
+/// Fallback commit list shown when online git history cannot be loaded.
 pub(crate) const RECENT_COMMITS: &[(&str, &str)] = &[
     ("1e9cbc9", "Update README.md"),
     ("b9eefb0", "Update README.md"),

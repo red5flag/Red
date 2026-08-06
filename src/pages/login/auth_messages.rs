@@ -35,9 +35,9 @@ pub(crate) fn AuthMessages(
                     <div class="lp-changelog-body">
                         <div class="lp-changelog-summary">
                             {move || if commits_loading.get() {
-                                "Loading recent commits from GitHub…"
+                                "Loading recent commits…"
                             } else {
-                                "Latest commits from red5flag/Carly on GitHub."
+                                ""
                             }}
                         </div>
                         <ul class="lp-changelog-list">
