@@ -1,7 +1,8 @@
 use crate::models::{OrgRole, Organization, Perm, User};
 use crate::pages::organization::{
-    members::MembersSection, organization_summary::OrganizationSummary,
-    portfolio_access::PortfolioAccessList, roles::RolesSection,
+    members::MembersSection, organization_forms::OrgOptionsPanel,
+    organization_summary::OrganizationSummary, portfolio_access::PortfolioAccessList,
+    roles::RolesSection,
 };
 use crate::pages::portfolios::{clamp_context_menu, read_image_as_data_url};
 use crate::stores::{AppStore, OrganizationStore};
@@ -18,6 +19,7 @@ pub(crate) fn OrganizationCard(
     org: Organization,
     #[prop(into)] can_manage: bool,
     #[prop(into)] is_expanded: Signal<bool>,
+    #[prop(into)] set_expanded_orgs: WriteSignal<HashSet<Uuid>>,
     on_toggle_org: Callback<Uuid, ()>,
     #[prop(into)] is_editing: bool,
     #[prop(into)] edit_name: ReadSignal<String>,
@@ -83,12 +85,14 @@ pub(crate) fn OrganizationCard(
     on_add_member: Callback<Uuid, ()>,
     on_remove_member: Callback<(Uuid, Uuid), ()>,
     on_update_member_role: Callback<(Uuid, UserRole), ()>,
-    on_context_menu: Callback<(i32, i32, Uuid), ()>,
+    on_add_image: Callback<Uuid, ()>,
+    on_add_org: Callback<(), ()>,
     on_role_context_menu: Callback<(i32, i32, Uuid, Uuid), ()>,
     #[prop(into)] edit_image_url: ReadSignal<Option<String>>,
     #[prop(into)] set_edit_image_url: WriteSignal<Option<String>>,
 ) -> impl IntoView {
     let (section_menu, set_section_menu) = signal(Option::<(i32, i32, &'static str, Uuid)>::None);
+    let (actions_open, set_actions_open) = signal(false);
     let role_context_menu = on_role_context_menu;
     let oid = org.id;
     let current_user = app_store.get().current_user.clone();
@@ -285,7 +289,7 @@ pub(crate) fn OrganizationCard(
                                     if can_manage && !blind {
                                         ev.prevent_default();
                                         ev.stop_propagation();
-                                        on_context_menu.run((ev.client_x(), ev.client_y(), oid));
+                                        set_actions_open.set(true);
                                     }
                                 }
                             >
@@ -306,11 +310,11 @@ pub(crate) fn OrganizationCard(
                             <button class="pf-action-btn org-context-trigger"
                                 aria-label="Open organization actions"
                                 aria-haspopup="menu"
-                                aria-expanded={move || section_menu.get().is_some()}
+                                aria-expanded={move || actions_open.get()}
                                 on:click=move |ev: leptos::ev::MouseEvent| {
                                     ev.prevent_default();
                                     ev.stop_propagation();
-                                    on_context_menu.run((ev.client_x(), ev.client_y(), oid));
+                                    set_actions_open.update(|v| *v = !*v);
                                 }>
                                 "\u{22EE}"
                             </button>
@@ -332,6 +336,20 @@ pub(crate) fn OrganizationCard(
                     }.into_any()
                 } else { ().into_any() }}
             </div>
+
+            {move || if can_manage && actions_open.get() { view! {
+                <OrgOptionsPanel
+                    org_id={oid}
+                    set_actions_open={set_actions_open}
+                    set_show_add_member={set_show_add_member}
+                    set_expanded_orgs={set_expanded_orgs}
+                    set_org_tab={set_org_tab}
+                    on_start_new_role={on_start_new_role}
+                    on_delete_org={on_delete_org}
+                    on_add_image={on_add_image}
+                    on_add_org={on_add_org}
+                />
+            }.into_any() } else { ().into_any() }}
 
             // Expanded content
             <div class="asset-group-content" class:hidden={move || !is_expanded.get()}>

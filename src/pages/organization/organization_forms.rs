@@ -174,126 +174,118 @@ pub(crate) fn RoleEditorModal(
 }
 
 #[component]
-pub(crate) fn OrgContextMenu(
-    organization_store: RwSignal<OrganizationStore>,
-    #[prop(into)] context_menu: ReadSignal<Option<(i32, i32, Uuid)>>,
-    #[prop(into)] set_context_menu: WriteSignal<Option<(i32, i32, Uuid)>>,
-    #[prop(into)] set_show_add_org: WriteSignal<bool>,
+pub(crate) fn OrgOptionsPanel(
+    org_id: Uuid,
+    #[prop(into)] set_actions_open: WriteSignal<bool>,
     #[prop(into)] set_show_add_member: WriteSignal<Option<Uuid>>,
     #[prop(into)] set_expanded_orgs: WriteSignal<HashSet<Uuid>>,
     set_org_tab: Callback<(Uuid, &'static str), ()>,
-    on_start_edit: Callback<
-        (
-            Uuid,
-            String,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-        ),
-        (),
-    >,
     on_start_new_role: Callback<Uuid, ()>,
     on_delete_org: Callback<Uuid, ()>,
     on_add_image: Callback<Uuid, ()>,
+    on_add_org: Callback<(), ()>,
 ) -> impl IntoView {
+    let (expanded_submenu, set_expanded_submenu) = signal(Option::<&'static str>::None);
     view! {
-        {move || context_menu.get().map(|(x, y, id)| {
-            let (x, y) = clamp_context_menu(x, y);
-            let org = organization_store.get().organizations.iter().find(|o| o.id == id).cloned();
-            let name = org.as_ref().map(|o| o.name.clone()).unwrap_or_default();
-            let image_url = org.as_ref().and_then(|o| o.image_url.clone());
-            let desc = org.as_ref().and_then(|o| o.description.clone());
-            let color = org.as_ref().and_then(|o| o.settings.color.clone());
-            let abn = org.as_ref().and_then(|o| o.abn.clone());
-            let lei = org.as_ref().and_then(|o| o.lei.clone());
-            let business_type = org.as_ref().and_then(|o| o.business_type.clone());
-            let business_address = org.as_ref().and_then(|o| o.business_address.clone());
-            let business_phone = org.as_ref().and_then(|o| o.business_phone.clone());
-            let business_email = org.as_ref().and_then(|o| o.business_email.clone());
-            let name_for_edit = name.clone();
-            view! {
-                <div class="context-menu-overlay" on:click=move |_| set_context_menu.set(None)>
-                    <div class="context-menu org-context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
-                    <div class="org-context-tabs" role="tablist" aria-label="Open organization to tab">
-                        {[
-                            ("portfolios", "\u{1F4C1} Portfolios"),
-                            ("roles", "\u{1F465} Roles"),
-                            ("members", "\u{1F465} Members"),
-                        ].iter().map(|(tab, label)| {
-                            let tab_for_click = *tab;
-                            let label = *label;
-                            view! {
-                                <button
-                                    class="org-context-tab"
-                                    role="tab"
-                                    on:click=move |_| {
-                                        set_context_menu.set(None);
-                                        set_expanded_orgs.update(|s| { s.insert(id); });
-                                        set_org_tab.run((id, tab_for_click));
-                                    }
-                                >
-                                    {label}
-                                </button>
-                            }
-                        }).collect::<Vec<_>>()}
-                    </div>
-                    <button class="context-menu-item org-context-menu-item"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                on_start_edit.run((id, name_for_edit.clone(), image_url.clone(), desc.clone(), color.clone(), abn.clone(), lei.clone(), business_type.clone(), business_address.clone(), business_phone.clone(), business_email.clone()));
-                            }>"\u{270E} Edit Organization"</button>
-                        <button class="context-menu-item org-context-menu-item"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                on_add_image.run(id);
-                            }>
-                            "\u{1F5BC} Add Image"
-                        </button>
-                        <button class="context-menu-item org-context-menu-item" disabled>
-                            "\u{2795} Assign Portfolio (coming soon)"
-                        </button>
-                        <button class="context-menu-item org-context-menu-item"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                set_show_add_member.set(Some(id));
-                                set_expanded_orgs.update(|s| { s.insert(id); });
-                                set_org_tab.run((id, "members"));
-                            }>
-                            "\u{2795} Add Member"
-                        </button>
-                        <button class="context-menu-item org-context-menu-item"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                on_start_new_role.run(id);
-                                set_expanded_orgs.update(|s| { s.insert(id); });
-                                set_org_tab.run((id, "roles"));
-                            }>
-                            "\u{2795} Create Role"
-                        </button>
-                        <button class="context-menu-item org-context-menu-item"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                set_show_add_org.set(true);
-                            }>
-                            "\u{2795} Add Organization"
-                        </button>
-                        <button class="context-menu-item org-context-menu-item danger"
-                            on:click=move |_| {
-                                set_context_menu.set(None);
-                                on_delete_org.run(id);
-                            }>
-                            "\u{1F5D1} Delete Organization"
-                        </button>
-                    </div>
+        <div class="org-options-panel" on:click=move |ev: leptos::ev::MouseEvent| ev.stop_propagation()>
+            <button class="context-menu-item org-options-item"
+                on:click=move |_| {
+                    set_actions_open.set(false);
+                    set_expanded_submenu.set(None);
+                    on_add_image.run(org_id);
+                }>
+                "\u{1F5BC} Add Image"
+            </button>
+            <button class="context-menu-item org-options-item"
+                on:click=move |_| set_expanded_submenu.update(|v| *v = if *v == Some("add_member") { None } else { Some("add_member") })>
+                {move || if expanded_submenu.get() == Some("add_member") { "\u{25BC} Add Member" } else { "\u{25B6} Add Member" }}
+            </button>
+            {move || if expanded_submenu.get() == Some("add_member") { view! {
+                <div class="org-options-submenu">
+                    <button class="context-menu-item org-options-item org-options-sub"
+                        on:click=move |_| {
+                            set_actions_open.set(false);
+                            set_expanded_submenu.set(None);
+                            set_show_add_member.set(Some(org_id));
+                            set_expanded_orgs.update(|s| { s.insert(org_id); });
+                            set_org_tab.run((org_id, "members"));
+                        }>
+                        "Add member"
+                    </button>
+                    <button class="context-menu-item org-options-item org-options-sub"
+                        on:click=move |_| {
+                            set_actions_open.set(false);
+                            set_expanded_submenu.set(None);
+                            set_expanded_orgs.update(|s| { s.insert(org_id); });
+                            set_org_tab.run((org_id, "roles"));
+                        }>
+                        "Add member to role"
+                    </button>
                 </div>
-            }.into_any()
-        })}
+            }.into_any() } else { ().into_any() }}
+            <button class="context-menu-item org-options-item"
+                on:click=move |_| set_expanded_submenu.update(|v| *v = if *v == Some("create_role") { None } else { Some("create_role") })>
+                {move || if expanded_submenu.get() == Some("create_role") { "\u{25BC} Create Role" } else { "\u{25B6} Create Role" }}
+            </button>
+            {move || if expanded_submenu.get() == Some("create_role") { view! {
+                <div class="org-options-submenu">
+                    <button class="context-menu-item org-options-item org-options-sub"
+                        on:click=move |_| {
+                            set_actions_open.set(false);
+                            set_expanded_submenu.set(None);
+                            on_start_new_role.run(org_id);
+                            set_expanded_orgs.update(|s| { s.insert(org_id); });
+                            set_org_tab.run((org_id, "roles"));
+                        }>
+                        "Create New Role"
+                    </button>
+                    <button class="context-menu-item org-options-item org-options-sub"
+                        on:click=move |_| {
+                            set_actions_open.set(false);
+                            set_expanded_submenu.set(None);
+                            set_expanded_orgs.update(|s| { s.insert(org_id); });
+                            set_org_tab.run((org_id, "roles"));
+                        }>
+                        "Create role from duplicate"
+                    </button>
+                </div>
+            }.into_any() } else { ().into_any() }}
+            <button class="context-menu-item org-options-item"
+                on:click=move |_| set_expanded_submenu.update(|v| *v = if *v == Some("add_org") { None } else { Some("add_org") })>
+                {move || if expanded_submenu.get() == Some("add_org") { "\u{25BC} Add Organization" } else { "\u{25B6} Add Organization" }}
+            </button>
+            {move || if expanded_submenu.get() == Some("add_org") { view! {
+                <div class="org-options-submenu">
+                    <button class="context-menu-item org-options-item org-options-sub"
+                        on:click=move |_| {
+                            set_actions_open.set(false);
+                            set_expanded_submenu.set(None);
+                            on_add_org.run(());
+                        }>
+                        "Add Organization"
+                    </button>
+                    <button class="context-menu-item org-options-item org-options-sub"
+                        on:click=move |_| {
+                            set_actions_open.set(false);
+                            set_expanded_submenu.set(None);
+                            on_add_org.run(());
+                        }>
+                        "Add new organization"
+                    </button>
+                    <button class="context-menu-item org-options-item org-options-sub" disabled>
+                        "Add Organization from network"
+                    </button>
+                </div>
+            }.into_any() } else { ().into_any() }}
+            <button class="context-menu-item org-options-item danger"
+                on:click=move |_| {
+                    set_actions_open.set(false);
+                    set_expanded_submenu.set(None);
+                    on_delete_org.run(org_id);
+                }>
+                "\u{1F5D1} Delete Organization"
+            </button>
+        </div>
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::models::{OrgRole, Organization, Perm, User};
 use crate::pages::organization::{
-    organization_forms::{AddOrgForm, OrgContextMenu, RoleContextMenu, RoleEditorModal},
+    organization_forms::{AddOrgForm, RoleContextMenu, RoleEditorModal},
     organization_list::OrganizationList,
 };
 use crate::pages::portfolios::read_image_as_data_url;
@@ -101,7 +101,6 @@ pub fn OrganizationPage() -> impl IntoView {
     let (edit_business_address, set_edit_business_address) = signal(String::new());
     let (edit_business_phone, set_edit_business_phone) = signal(String::new());
     let (edit_business_email, set_edit_business_email) = signal(String::new());
-    let (context_menu, set_context_menu) = signal(Option::<(i32, i32, Uuid)>::None);
     let (org_image_upload_target, set_org_image_upload_target) = signal(Option::<Uuid>::None);
     let org_image_input_ref = NodeRef::<leptos::html::Input>::new();
     let (role_context_menu, set_role_context_menu) = signal(Option::<(i32, i32, Uuid, Uuid)>::None);
@@ -208,6 +207,17 @@ pub fn OrganizationPage() -> impl IntoView {
         organization_store.update(|s| {
             s.remove_organization(id);
         });
+    };
+
+    let on_open_add_org = move || {
+        set_show_add_org.set(true);
+    };
+
+    let on_add_image = move |oid: Uuid| {
+        set_org_image_upload_target.set(Some(oid));
+        if let Some(input) = org_image_input_ref.get() {
+            let _ = input.click();
+        }
     };
 
     let on_start_edit = move |id: Uuid,
@@ -468,6 +478,7 @@ pub fn OrganizationPage() -> impl IntoView {
                         organizations={orgs}
                         editing_org={editing_org}
                         expanded_orgs={expanded_orgs}
+                        set_expanded_orgs={set_expanded_orgs}
                         on_toggle_org={Callback::new(move |v: Uuid| toggle_org(v))}
                         edit_name={edit_name}
                         set_edit_name={set_edit_name}
@@ -519,9 +530,9 @@ pub fn OrganizationPage() -> impl IntoView {
                         on_add_member={Callback::new(move |v: Uuid| on_add_member(v))}
                         on_remove_member={Callback::new(move |v: (Uuid, Uuid)| on_remove_member(v.0, v.1))}
                         on_update_member_role={Callback::new(move |v: (Uuid, UserRole)| on_update_member_role(v.0, v.1))}
-                        on_context_menu={Callback::new(move |v: (i32, i32, Uuid)| set_context_menu.set(Some(v)))}
                         on_role_context_menu={Callback::new(move |v: (i32, i32, Uuid, Uuid)| set_role_context_menu.set(Some(v)))}
-                        on_add_org={Callback::new(move |_| set_show_add_org.set(true))}
+                        on_add_image={Callback::new(move |v: Uuid| on_add_image(v))}
+                        on_add_org={Callback::new(move |_| on_open_add_org())}
                     />
                 }
             }}
@@ -561,25 +572,6 @@ pub fn OrganizationPage() -> impl IntoView {
                 edit_role_scope={edit_role_scope}
                 set_edit_role_scope={set_edit_role_scope}
                 on_save_role={Callback::new(move |_| on_save_role(()))}
-            />
-
-            <OrgContextMenu
-                organization_store={organization_store}
-                context_menu={context_menu}
-                set_context_menu={set_context_menu}
-                set_show_add_org={set_show_add_org}
-                set_show_add_member={set_show_add_member}
-                set_expanded_orgs={set_expanded_orgs}
-                set_org_tab={Callback::new(move |(oid, tab): (Uuid, &'static str)| set_org_tab(oid, tab))}
-                on_start_edit={Callback::new(move |(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email): (Uuid, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)| on_start_edit(id, name, image_url, desc, color, abn, lei, business_type, business_address, business_phone, business_email))}
-                on_start_new_role={Callback::new(move |v: Uuid| on_start_new_role(v))}
-                on_delete_org={Callback::new(move |v: Uuid| on_delete_org(v))}
-                on_add_image={Callback::new(move |oid: Uuid| {
-                    set_org_image_upload_target.set(Some(oid));
-                    if let Some(input) = org_image_input_ref.get() {
-                        let _ = input.click();
-                    }
-                })}
             />
 
             <RoleContextMenu

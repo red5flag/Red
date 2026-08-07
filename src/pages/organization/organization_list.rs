@@ -14,6 +14,7 @@ pub(crate) fn OrganizationList(
     #[prop(into)] organizations: Vec<Organization>,
     #[prop(into)] editing_org: ReadSignal<Option<Uuid>>,
     #[prop(into)] expanded_orgs: ReadSignal<HashSet<Uuid>>,
+    #[prop(into)] set_expanded_orgs: WriteSignal<HashSet<Uuid>>,
     on_toggle_org: Callback<Uuid, ()>,
     #[prop(into)] edit_name: ReadSignal<String>,
     #[prop(into)] set_edit_name: WriteSignal<String>,
@@ -80,8 +81,8 @@ pub(crate) fn OrganizationList(
     on_add_member: Callback<Uuid, ()>,
     on_remove_member: Callback<(Uuid, Uuid), ()>,
     on_update_member_role: Callback<(Uuid, UserRole), ()>,
-    on_context_menu: Callback<(i32, i32, Uuid), ()>,
     on_role_context_menu: Callback<(i32, i32, Uuid, Uuid), ()>,
+    on_add_image: Callback<Uuid, ()>,
     #[prop(into)] on_add_org: Callback<(), ()>,
 ) -> impl IntoView {
     let orgs = organizations.clone();
@@ -116,6 +117,7 @@ pub(crate) fn OrganizationList(
                                 org={org}
                                 can_manage={can_manage}
                                 is_expanded={Signal::derive(is_exp)}
+                                set_expanded_orgs={set_expanded_orgs}
                                 on_toggle_org={on_toggle_org}
                                 is_editing={is_editing}
                                 edit_name={edit_name}
@@ -168,8 +170,9 @@ pub(crate) fn OrganizationList(
                                 on_add_member={on_add_member}
                                 on_remove_member={on_remove_member}
                                 on_update_member_role={on_update_member_role}
-                                on_context_menu={on_context_menu}
                                 on_role_context_menu={on_role_context_menu}
+                                on_add_image={on_add_image}
+                                on_add_org={on_add_org}
                             />
                         }
                     }
