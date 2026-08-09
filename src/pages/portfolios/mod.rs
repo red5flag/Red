@@ -85,7 +85,7 @@ pub(crate) fn single_sentence(text: &str) -> String {
 /// Clamp context-menu coordinates so the menu stays inside the viewport.
 pub(crate) fn clamp_context_menu(x: i32, y: i32) -> (i32, i32) {
     const MENU_MAX_W: i32 = 240;
-    const MENU_MAX_H: i32 = 320;
+    const MENU_MAX_H: i32 = 480;
     let Some(window) = web_sys::window() else {
         return (x, y);
     };

@@ -59,7 +59,7 @@ pub struct Payment {
     pub created_at: chrono::DateTime<Utc>,
 }
 
-/// Local invoice model.
+/// Local invoice model (sales — money owed to us).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Invoice {
     #[allow(dead_code)]
@@ -73,6 +73,53 @@ pub struct Invoice {
     pub from_name: String,
     pub to_name: String,
     pub description: String,
+}
+
+/// Local bill model (purchases — money we owe to suppliers).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Bill {
+    #[allow(dead_code)]
+    pub id: Uuid,
+    pub number: String,
+    pub issue_date: chrono::DateTime<Utc>,
+    pub due_date: chrono::DateTime<Utc>,
+    pub amount: f64,
+    pub currency: String,
+    pub status: BillStatus,
+    pub from_name: String,
+    pub to_name: String,
+    pub description: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BillStatus {
+    Draft,
+    AwaitingApproval,
+    AwaitingPayment,
+    Paid,
+    Overdue,
+}
+
+impl BillStatus {
+    pub(crate) fn label(&self) -> &'static str {
+        match self {
+            BillStatus::Draft => "Draft",
+            BillStatus::AwaitingApproval => "Awaiting Approval",
+            BillStatus::AwaitingPayment => "Awaiting Payment",
+            BillStatus::Paid => "Paid",
+            BillStatus::Overdue => "Overdue",
+        }
+    }
+}
+
+pub(crate) fn bill_status_class(status: &BillStatus) -> &'static str {
+    match status {
+        BillStatus::Draft => "tx-status-draft",
+        BillStatus::AwaitingApproval => "tx-status-pending",
+        BillStatus::AwaitingPayment => "tx-status-pending",
+        BillStatus::Paid => "tx-status-success",
+        BillStatus::Overdue => "tx-status-danger",
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -191,5 +238,29 @@ pub(crate) fn create_mock_transaction(
         rejection_reason: None,
         approval_history: Vec::new(),
         locked: false,
+    }
+}
+
+pub(crate) fn create_mock_bill(
+    number: &str,
+    amount: f64,
+    currency: &str,
+    from_name: &str,
+    to_name: &str,
+    description: &str,
+    status: BillStatus,
+    due_in_days: i64,
+) -> Bill {
+    Bill {
+        id: Uuid::new_v4(),
+        number: number.to_string(),
+        issue_date: Utc::now(),
+        due_date: Utc::now() + chrono::Duration::days(due_in_days),
+        amount,
+        currency: currency.to_string(),
+        status,
+        from_name: from_name.to_string(),
+        to_name: to_name.to_string(),
+        description: description.to_string(),
     }
 }

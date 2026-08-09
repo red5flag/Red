@@ -6341,7 +6341,7 @@ html, body {
     min-width: 120px;
     max-width: 240px;
     max-width: min(240px, 90vw);
-    max-height: min(320px, 80vh);
+    max-height: min(480px, 80vh);
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: none;
@@ -11572,6 +11572,218 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════
+   TRANSACTIONS CONTROLS BAR (portfolios-style)
+   ═══════════════════════════════════════════ */
+.tx-controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 16px;
+    background: var(--secondary-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 10;
+}
+
+.tx-controls-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.tx-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.tx-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+    min-width: 160px;
+    max-width: 280px;
+    flex: 1 1 auto;
+}
+
+.tx-search-input {
+    flex: 1;
+    padding: 5px 10px;
+    padding-right: 26px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.tx-search-input:focus {
+    border-color: var(--highlight);
+}
+
+.tx-search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.tx-search-clear {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.tx-search-clear:hover {
+    color: var(--text-primary);
+    background: var(--accent-bg);
+}
+
+.tx-ctrl-select {
+    padding: 5px 8px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+    white-space: nowrap;
+}
+
+.tx-ctrl-select:hover {
+    border-color: var(--highlight);
+}
+
+.tx-ctrl-select:focus {
+    border-color: var(--highlight);
+}
+
+.tx-ctrl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 10px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+    min-width: 32px;
+}
+
+.tx-ctrl-btn:hover {
+    border-color: var(--highlight);
+}
+
+.sort-direction-btn {
+    padding: 5px 8px;
+}
+
+/* ═══════════════════════════════════════════
+   CASH FLOW SUMMARY GRID
+   ═══════════════════════════════════════════ */
+.tx-cashflow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    padding: 12px 16px;
+}
+
+.tx-cashflow-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    transition: border-color 0.15s;
+}
+
+.tx-cashflow-card:hover {
+    border-color: var(--highlight);
+}
+
+.tx-cashflow-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.tx-cashflow-value {
+    font-size: clamp(16px, 2vh, 20px);
+    font-weight: 800;
+    color: var(--text-primary);
+}
+
+.tx-cashflow-value.negative {
+    color: #e74c3c;
+}
+
+.tx-cashflow-sub {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.tx-cashflow-danger {
+    color: #e74c3c;
+}
+
+.tx-cashflow-inflow {
+    border-left: 3px solid #27ae60;
+}
+
+.tx-cashflow-outflow {
+    border-left: 3px solid #e74c3c;
+}
+
+.tx-cashflow-net {
+    border-left: 3px solid var(--highlight);
+}
+
+.tx-cashflow-balance {
+    border-left: 3px solid #3498db;
+}
+
+.tx-cashflow-receivable {
+    border-left: 3px solid #f39c12;
+}
+
+.tx-cashflow-payable {
+    border-left: 3px solid #9b59b6;
+}
+
+/* ═══════════════════════════════════════════
+   BILL LIST / FORM (reuses invoice styles)
+   ═══════════════════════════════════════════ */
+.tx-action-btn-small {
+    padding: 4px 10px;
+    font-size: 12px;
+}
+
+/* ═══════════════════════════════════════════
    WALLET DASHBOARD & DIGITAL CARDS
    ═══════════════════════════════════════════ */
 .tx-page {
@@ -12299,6 +12511,210 @@ html, body {
     border-color: var(--highlight);
 }
 
+/* Calendar dial controls (month/year selectors) */
+.calendar-dial-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.calendar-dial-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.calendar-dial-wrap {
+    position: relative;
+    display: inline-flex;
+}
+
+.calendar-dial-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 14px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: clamp(14px, 2vh, 17px);
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+}
+
+.calendar-dial-btn:hover {
+    border-color: var(--highlight);
+}
+
+.calendar-dial-open {
+    border-color: var(--highlight);
+    background: var(--highlight);
+    color: var(--primary-bg);
+}
+
+.calendar-dial-caret {
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+.calendar-dial-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    max-height: 280px;
+    overflow-y: auto;
+    min-width: 80px;
+}
+
+.calendar-dial-option {
+    padding: 8px 14px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.calendar-dial-option:hover {
+    background: var(--highlight);
+    color: var(--primary-bg);
+}
+
+.calendar-dial-active {
+    font-weight: 700;
+    color: var(--highlight);
+}
+
+/* Calendar controls row (range + search) */
+.calendar-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.calendar-range-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.calendar-range-toggle {
+    padding: 5px 12px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.calendar-range-toggle:hover {
+    border-color: var(--highlight);
+}
+
+.calendar-range-active {
+    background: var(--highlight);
+    color: var(--primary-bg);
+    border-color: var(--highlight);
+}
+
+.calendar-range-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.calendar-range-input {
+    padding: 4px 8px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    border-radius: 4px;
+}
+
+.calendar-range-sep {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.calendar-range-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 2px 6px;
+    background: var(--accent-bg);
+    border-radius: 4px;
+}
+
+/* Calendar search bar */
+.calendar-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex: 1 1 auto;
+    min-width: 180px;
+    max-width: 320px;
+    position: relative;
+}
+
+.calendar-search-input {
+    flex: 1;
+    padding: 5px 10px;
+    padding-right: 28px;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 13px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.calendar-search-input:focus {
+    border-color: var(--highlight);
+}
+
+.calendar-search-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.calendar-search-clear {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.calendar-search-clear:hover {
+    color: var(--text-primary);
+    background: var(--highlight);
+}
+
 .calendar-manager-months {
     display: flex;
     flex-direction: column;
@@ -12719,6 +13135,7 @@ html, body {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     border-bottom: 1px solid var(--border-color);
+    transition: grid-template-columns 0.2s ease;
 }
 
 .calendar-grid-weekday {
@@ -12736,6 +13153,7 @@ html, body {
     grid-template-columns: repeat(7, 1fr);
     grid-auto-rows: 1fr;
     aspect-ratio: 7 / 6;
+    transition: grid-auto-rows 0.2s ease, grid-template-columns 0.2s ease;
 }
 
 .calendar-grid-day {
@@ -16848,6 +17266,19 @@ html, body {
 
 .org-options-submenu .org-options-sub:hover {
     background: var(--accent-bg);
+}
+
+.tx-options-panel {
+    display: flex;
+    flex-direction: column;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-top: none;
+}
+
+.tx-options-item {
+    width: 100%;
+    text-align: left;
 }
 
 .org-section-empty {

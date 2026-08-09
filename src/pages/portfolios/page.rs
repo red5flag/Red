@@ -408,7 +408,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Modal signal for editing portfolio assets
     let (edit_portfolio_id, set_edit_portfolio_id) = signal(Option::<Uuid>::None);
     let (context_menu, set_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
-    let (org_context_menu, set_org_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
+    let (_org_context_menu, set_org_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
     let (pf_image_upload_target, set_pf_image_upload_target) = signal(Option::<Uuid>::None);
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
     let (new_asset_name, set_new_asset_name) = signal(String::new());
@@ -594,6 +594,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                 on_toggle=Callback::new(move |_| on_toggle_view(portfolio_id))
                 on_context=move |x, y| {
                     let (x, y) = clamp_context_menu(x, y);
+                    set_org_context_menu.set(None);
                     set_context_menu.set(Some((portfolio_id, x, y)));
                 }
                 on_context_close=move || {
@@ -991,6 +992,7 @@ pub fn PortfoliosPage() -> impl IntoView {
             }}
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 ev.prevent_default();
+                set_org_context_menu.set(None);
                 let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
                 set_context_menu.set(Some((Uuid::new_v4(), x, y)));
             }>
@@ -1144,8 +1146,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                                         NavTabKind::Organization,
                                         org_id,
                                         org_name.clone(),
-                                        move |x, y| set_org_context_menu.set(Some((org_id, x, y))),
-                                        move || set_org_context_menu.set(None),
+                                        move |_x, _y| {},
+                                        move || {},
                                     );
                                     view! {
                                         <div class="pf-org-group" id={format!("org-group-{}", org_id)} class:expanded={move || is_expanded()}
@@ -1199,8 +1201,6 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                     on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                                                         ev.prevent_default();
                                                         ev.stop_propagation();
-                                                        let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
-                                                        set_org_context_menu.set(Some((org_id, x, y)));
                                                     }
                                                 >
                                                     {if let Some(ref url) = org_image_url {
@@ -1476,39 +1476,20 @@ pub fn PortfoliosPage() -> impl IntoView {
                     <div
                         class="context-menu-overlay"
                         on:click=move |_| set_context_menu.set(None)
+                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                            ev.prevent_default();
+                            set_context_menu.set(None);
+                        }
                     >
                         <div
                             class="context-menu"
                             style={format!("left: {}px; top: {}px;", x, y)}
+                            on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                                ev.prevent_default();
+                                ev.stop_propagation();
+                            }
                         >
                             {content}
-                        </div>
-                    </div>
-                }.into_any()
-            })}
-
-            // Context menu for organization right-click
-            {move || org_context_menu.get().map(|(oid, x, y)| {
-                let org_name = organization_store.get().organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone()).unwrap_or_default();
-                let open_name = org_name.clone();
-                view! {
-                    <div
-                        class="context-menu-overlay"
-                        on:click=move |_| set_org_context_menu.set(None)
-                    >
-                        <div
-                            class="context-menu"
-                            style={format!("left: {}px; top: {}px;", x, y)}
-                        >
-                            <button
-                                class="context-menu-item"
-                                on:click=move |_| {
-                                    set_org_context_menu.set(None);
-                                    ui_store.update(|s| s.open_nav_tab("organization", oid, &open_name));
-                                }
-                            >
-                                "🗔 Open in New Tab"
-                            </button>
                         </div>
                     </div>
                 }.into_any()

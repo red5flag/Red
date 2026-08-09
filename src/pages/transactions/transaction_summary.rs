@@ -1,6 +1,9 @@
 use crate::pages::transactions::{
-    currency_symbol, format_dollars, Card, Contact, Invoice, InvoiceStatus, Wallet,
+    currency_symbol, format_dollars, Bill, BillStatus, Card, Contact, Invoice, InvoiceStatus,
+    Wallet,
 };
+use crate::models::Transaction;
+use crate::types::TransactionType;
 use leptos::prelude::*;
 
 #[component]
@@ -138,6 +141,100 @@ pub(crate) fn WalletDetails(wallets: Vec<Wallet>) -> impl IntoView {
                     </div>
                 }
             />
+        </div>
+    }
+}
+
+#[component]
+pub(crate) fn CashFlowSummary(
+    transactions: Vec<Transaction>,
+    invoices: Vec<Invoice>,
+    bills: Vec<Bill>,
+    wallets: Vec<Wallet>,
+) -> impl IntoView {
+    let total_inflow: f64 = transactions
+        .iter()
+        .filter(|t| {
+            t.status == crate::models::TransactionStatus::Executed
+                && matches!(
+                    t.transaction_type,
+                    TransactionType::Sale | TransactionType::Rent | TransactionType::Dividend
+                )
+        })
+        .map(|t| t.amount)
+        .sum();
+    let total_outflow: f64 = transactions
+        .iter()
+        .filter(|t| {
+            t.status == crate::models::TransactionStatus::Executed
+                && matches!(
+                    t.transaction_type,
+                    TransactionType::Purchase
+                        | TransactionType::Fee
+                        | TransactionType::Tax
+                        | TransactionType::Payout
+                )
+        })
+        .map(|t| t.amount)
+        .sum();
+    let net_flow = total_inflow - total_outflow;
+
+    let invoices_outstanding: f64 = invoices
+        .iter()
+        .filter(|i| matches!(i.status, InvoiceStatus::Sent | InvoiceStatus::Viewed | InvoiceStatus::Draft))
+        .map(|i| i.amount)
+        .sum();
+    let invoices_overdue: f64 = invoices
+        .iter()
+        .filter(|i| i.status == InvoiceStatus::Overdue)
+        .map(|i| i.amount)
+        .sum();
+
+    let bills_owing: f64 = bills
+        .iter()
+        .filter(|b| matches!(b.status, BillStatus::AwaitingApproval | BillStatus::AwaitingPayment))
+        .map(|b| b.amount)
+        .sum();
+    let bills_overdue: f64 = bills
+        .iter()
+        .filter(|b| b.status == BillStatus::Overdue)
+        .map(|b| b.amount)
+        .sum();
+
+    let total_balance: f64 = wallets.iter().map(|w| w.balance).sum();
+
+    view! {
+        <div class="tx-cashflow-grid">
+            <div class="tx-cashflow-card tx-cashflow-inflow">
+                <div class="tx-cashflow-label">"Money In"</div>
+                <div class="tx-cashflow-value">{format_dollars(total_inflow, "AUD")}</div>
+            </div>
+            <div class="tx-cashflow-card tx-cashflow-outflow">
+                <div class="tx-cashflow-label">"Money Out"</div>
+                <div class="tx-cashflow-value">{format_dollars(total_outflow, "AUD")}</div>
+            </div>
+            <div class="tx-cashflow-card tx-cashflow-net">
+                <div class="tx-cashflow-label">"Net Flow"</div>
+                <div class="tx-cashflow-value" class:negative={net_flow < 0.0}>{format_dollars(net_flow, "AUD")}</div>
+            </div>
+            <div class="tx-cashflow-card tx-cashflow-balance">
+                <div class="tx-cashflow-label">"Bank Balance"</div>
+                <div class="tx-cashflow-value">{format_dollars(total_balance, "AUD")}</div>
+            </div>
+            <div class="tx-cashflow-card tx-cashflow-receivable">
+                <div class="tx-cashflow-label">"Owed to You"</div>
+                <div class="tx-cashflow-value">{format_dollars(invoices_outstanding, "AUD")}</div>
+                {if invoices_overdue > 0.0 {
+                    view! { <div class="tx-cashflow-sub tx-cashflow-danger">{format!("{} overdue", format_dollars(invoices_overdue, "AUD"))}</div> }.into_any()
+                } else { ().into_any() }}
+            </div>
+            <div class="tx-cashflow-card tx-cashflow-payable">
+                <div class="tx-cashflow-label">"You Owe"</div>
+                <div class="tx-cashflow-value">{format_dollars(bills_owing, "AUD")}</div>
+                {if bills_overdue > 0.0 {
+                    view! { <div class="tx-cashflow-sub tx-cashflow-danger">{format!("{} overdue", format_dollars(bills_overdue, "AUD"))}</div> }.into_any()
+                } else { ().into_any() }}
+            </div>
         </div>
     }
 }

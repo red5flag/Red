@@ -56,8 +56,8 @@ enum CalendarScale {
 }
 
 impl CalendarScale {
-    fn all() -> [Self; 5] {
-        [Self::Minute, Self::Hour, Self::Date, Self::Month, Self::Year]
+    fn all() -> [Self; 4] {
+        [Self::Minute, Self::Hour, Self::Date, Self::Month]
     }
 
     fn label(&self) -> &'static str {
@@ -127,14 +127,15 @@ fn day_zoom_for_level(level: f64) -> f64 {
 }
 
 fn month_zoom_for_level(level: f64) -> f64 {
-    let value = if level < -1.0 {
-        3.0 + (level + 1.0) * (8.0 / 3.0)
-    } else if level < 0.0 {
-        (1.0 / 3.0) + (level + 1.0) * (8.0 / 3.0)
+    if level >= 1.0 {
+        2.5 + (level - 1.0) * 1.5
+    } else if level >= 0.0 {
+        1.0 + level * 1.5
+    } else if level >= -1.0 {
+        1.0 + level * 0.5
     } else {
-        1.0
-    };
-    value.clamp(1.0 / 3.0, 3.0)
+        0.5 + (level + 1.0) * 0.5
+    }
 }
 
 fn month_label(year: i32, month: u32) -> String {
@@ -165,7 +166,7 @@ pub fn CalendarManager(
     let (selected_types, set_selected_types) = signal(HashSet::<CalendarEventType>::from_iter(
         CalendarEventType::all().iter().copied(),
     ));
-    let toggle_type = Callback::new(move |t: CalendarEventType| {
+    let _toggle_type = Callback::new(move |t: CalendarEventType| {
         set_selected_types.update(|set| {
             if set.contains(&t) {
                 set.remove(&t);
@@ -245,13 +246,13 @@ pub fn CalendarManager(
     let today = Utc::now().date_naive();
     let (view_year, set_view_year) = signal(today.year());
     let (view_month, set_view_month) = signal(today.month());
-    let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Day);
+    let (calendar_view_mode, set_calendar_view_mode) = signal(CalendarViewMode::Month);
     let (zoom, set_zoom) = signal(1.0_f64);
-    let (day_zoom, set_day_zoom) = signal(3.0_f64);
-    let multi_month_count = Memo::new(move |_| (3.0 / zoom.get()).clamp(3.0, 9.0).round() as u32);
+    let (day_zoom, set_day_zoom) = signal(1.0_f64);
+    let multi_month_count = Memo::new(move |_| 2u32);
     let year_month_count = Memo::new(move |_| (12.0 / zoom.get()).clamp(12.0, 36.0).round() as u32);
     let (pinch_start, set_pinch_start) = signal(Option::<(f64, f64)>::None);
-    let (zoom_level, set_zoom_level) = signal(1.0_f64);
+    let (zoom_level, set_zoom_level) = signal(-0.5_f64);
     let calendar_scale = Memo::new(move |_| scale_for_level(zoom_level.get()));
     let (scale_dropdown_open, set_scale_dropdown_open) = signal(false);
     let (now, _set_now) = signal(chrono::Utc::now());
@@ -262,7 +263,7 @@ pub fn CalendarManager(
         let scale = scale_for_level(level);
         set_calendar_view_mode.set(view_mode_for_scale(scale));
         set_day_zoom.set(day_zoom_for_level(level));
-        set_zoom.set(month_zoom_for_level(level));
+        set_zoom.set(month_zoom_for_level(level).clamp(0.5, 3.0));
     });
 
     #[cfg(feature = "hydrate")]
@@ -279,6 +280,18 @@ pub fn CalendarManager(
     let (selected_date, set_selected_date) = signal::<Option<NaiveDate>>(None);
     let (editing_event, set_editing_event) = signal::<Option<CalendarEvent>>(None);
     let (show_form, set_show_form) = signal(false);
+
+    // Date range signals for rangefinder view
+    let (range_start, set_range_start) = signal::<Option<NaiveDate>>(None);
+    let (range_end, set_range_end) = signal::<Option<NaiveDate>>(None);
+    let (range_mode, set_range_mode) = signal(false);
+
+    // Calendar search signal
+    let (cal_search, set_cal_search) = signal(String::new());
+
+    // Month/year dial dropdown state
+    let (month_dial_open, set_month_dial_open) = signal(false);
+    let (year_dial_open, set_year_dial_open) = signal(false);
 
     let step_months = move |mode: CalendarViewMode| -> u32 {
         match mode {
@@ -367,39 +380,74 @@ pub fn CalendarManager(
     });
 
     let on_day_click = Callback::new(move |date: NaiveDate| {
+        if range_mode.get() {
+            let rs = range_start.get();
+            let re = range_end.get();
+            if rs.is_none() || (rs.is_some() && re.is_some()) {
+                set_range_start.set(Some(date));
+                set_range_end.set(None);
+            } else if let Some(start) = rs {
+                if date < start {
+                    set_range_start.set(Some(date));
+                    set_range_end.set(Some(start));
+                } else {
+                    set_range_end.set(Some(date));
+                }
+            }
+            return;
+        }
         set_selected_date.set(Some(date));
+        if calendar_view_mode.get_untracked() != CalendarViewMode::Day {
+            set_zoom_level.set(1.0);
+        }
     });
 
     let on_day_add = Callback::new(move |date: NaiveDate| {
         open_new_event(date);
     });
 
-    let actions_ref = NodeRef::<leptos::html::Div>::new();
-    let scroll_actions_left = move |_| {
-        if let Some(el) = actions_ref.get() {
-            let _ = el.scroll_by_with_x_and_y(-120.0, 0.0);
-        }
-    };
-    let scroll_actions_right = move |_| {
-        if let Some(el) = actions_ref.get() {
-            let _ = el.scroll_by_with_x_and_y(120.0, 0.0);
-        }
-    };
-
     // Events for the selected day
     let selected_day_events = Memo::new(move |_| {
         let date = selected_date.get();
         let events = events_for_scope.get();
+        let search = cal_search.get();
         match date {
             Some(d) => events
                 .into_iter()
                 .filter(|e| e.start.date_naive() == d)
+                .filter(|e| search.trim().is_empty() || e.title.to_lowercase().contains(&search.to_lowercase()) || e.description.as_deref().unwrap_or("").to_lowercase().contains(&search.to_lowercase()))
                 .collect::<Vec<_>>(),
             None => Vec::new(),
         }
     });
 
-    let period_label = Memo::new(move |_| match calendar_view_mode.get() {
+    // Search-filtered events for the current view
+    let filtered_events = Memo::new(move |_| {
+        let search = cal_search.get();
+        if search.trim().is_empty() {
+            return events_for_scope.get();
+        }
+        let search_lower = search.to_lowercase();
+        events_for_scope
+            .get()
+            .into_iter()
+            .filter(|e| {
+                e.title.to_lowercase().contains(&search_lower)
+                    || e.description
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&search_lower)
+                    || e.category
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .contains(&search_lower)
+            })
+            .collect::<Vec<_>>()
+    });
+
+    let _period_label = Memo::new(move |_| match calendar_view_mode.get() {
         CalendarViewMode::Month => month_label(view_year.get(), view_month.get()),
         CalendarViewMode::Day => {
             let date = selected_date.get().unwrap_or(today);
@@ -505,8 +553,12 @@ pub fn CalendarManager(
                     <div class="calendar-grid-weekdays"
                         style={move || {
                             let z = zoom.get();
-                            let col_base = if mini { 40.0 } else { 90.0 };
-                            format!("grid-template-columns: repeat(7, {}px);", col_base * z)
+                            if mini {
+                                "grid-template-columns: repeat(7, 1fr);".to_string()
+                            } else {
+                                let col_base = 90.0;
+                                format!("grid-template-columns: repeat(7, {}px);", col_base * z)
+                            }
                         }}
                     >
                         {vec!["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].into_iter().map(|d| {
@@ -518,8 +570,12 @@ pub fn CalendarManager(
                         style={move || {
                             let z = zoom.get();
                             let base = if mini { 32.0 } else { 70.0 };
-                            let col_base = if mini { 40.0 } else { 90.0 };
-                            format!("grid-auto-rows: {}px; grid-template-columns: repeat(7, {}px); aspect-ratio: auto; --calendar-zoom: {};", base * z, col_base * z, z)
+                            if mini {
+                                format!("grid-auto-rows: 1fr; grid-template-columns: repeat(7, 1fr); aspect-ratio: 7 / 6; --calendar-zoom: {};", z)
+                            } else {
+                                let col_base = 90.0;
+                                format!("grid-auto-rows: {}px; grid-template-columns: repeat(7, {}px); aspect-ratio: auto; --calendar-zoom: {};", base * z, col_base * z, z)
+                            }
                         }}
                     >
                         {move || {
@@ -747,16 +803,78 @@ pub fn CalendarManager(
     view! {
         <div class={if embedded { "calendar-manager embedded" } else { "calendar-manager" }}>
             <div class="calendar-manager-header">
-                <div class="calendar-manager-title">
-                    {move || period_label.get()}
-                </div>
-                <button class="calendar-scroll-arrow calendar-scroll-arrow-left"
-                    title="Scroll controls left"
-                    aria-label="Scroll calendar controls left"
-                    on:click=scroll_actions_left>"‹"</button>
-                <div class="calendar-manager-actions" node_ref=actions_ref>
-                    <button class="calendar-nav-btn" on:click=prev_period title="Previous">"‹"</button>
+                <div class="calendar-dial-row">
+                    <div class="calendar-dial-group">
+                        <div class="calendar-dial-wrap">
+                            <button
+                                class="calendar-dial-btn"
+                                class:calendar-dial-open={move || month_dial_open.get()}
+                                on:click=move |_| {
+                                    set_month_dial_open.update(|v| *v = !*v);
+                                    set_year_dial_open.set(false);
+                                }
+                            >
+                                {move || {
+                                    let m = view_month.get();
+                                    month_label(view_year.get(), m).split_whitespace().next().unwrap_or("").to_string()
+                                }}
+                                <span class="calendar-dial-caret">"▾"</span>
+                            </button>
+                            {move || if month_dial_open.get() { view! {
+                                <div class="calendar-dial-dropdown" on:click=|ev| ev.stop_propagation()>
+                                    {(1u32..=12u32).map(|m| {
+                                        let is_current = move || view_month.get() == m;
+                                        view! {
+                                            <button
+                                                class="calendar-dial-option"
+                                                class:calendar-dial-active={is_current}
+                                                on:click=move |_| {
+                                                    set_view_month.set(m);
+                                                    set_month_dial_open.set(false);
+                                                }
+                                            >
+                                                {month_label(view_year.get(), m).split_whitespace().next().unwrap_or("").to_string()}
+                                            </button>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any() } else { ().into_any() }}
+                        </div>
+                        <div class="calendar-dial-wrap">
+                            <button
+                                class="calendar-dial-btn"
+                                class:calendar-dial-open={move || year_dial_open.get()}
+                                on:click=move |_| {
+                                    set_year_dial_open.update(|v| *v = !*v);
+                                    set_month_dial_open.set(false);
+                                }
+                            >
+                                {move || view_year.get().to_string()}
+                                <span class="calendar-dial-caret">"▾"</span>
+                            </button>
+                            {move || if year_dial_open.get() { view! {
+                                <div class="calendar-dial-dropdown" on:click=|ev| ev.stop_propagation()>
+                                    {((view_year.get() - 10)..=(view_year.get() + 10)).map(|y| {
+                                        let is_current = move || view_year.get() == y;
+                                        view! {
+                                            <button
+                                                class="calendar-dial-option"
+                                                class:calendar-dial-active={is_current}
+                                                on:click=move |_| {
+                                                    set_view_year.set(y);
+                                                    set_year_dial_open.set(false);
+                                                }
+                                            >
+                                                {y.to_string()}
+                                            </button>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any() } else { ().into_any() }}
+                        </div>
+                    </div>
                     <button class="calendar-today-btn" on:click=go_today>"Today"</button>
+                    <button class="calendar-nav-btn" on:click=prev_period title="Previous">"‹"</button>
                     <button class="calendar-nav-btn" on:click=next_period title="Next">"›"</button>
                     <div class="calendar-view-dropdown-wrap calendar-scale-dropdown-wrap">
                         <button
@@ -800,26 +918,85 @@ pub fn CalendarManager(
                     </div>
                     <button class="calendar-manager-btn" on:click=on_add_new title="Add event">"+"</button>
                 </div>
-                <button class="calendar-scroll-arrow calendar-scroll-arrow-right"
-                    title="Scroll controls right"
-                    aria-label="Scroll calendar controls right"
-                    on:click=scroll_actions_right>"›"</button>
-            </div>
-
-            <div class="calendar-filter-bar" aria-label="Event type filters">
-                {CalendarEventType::all().iter().copied().map(|t| {
-                    let toggle = toggle_type.clone();
-                    view! {
+                <div class="calendar-controls-row">
+                    <div class="calendar-range-group">
                         <button
-                            class="calendar-filter-btn"
-                            class:calendar-filter-active={move || selected_types.get().contains(&t)}
-                            on:click=move |_| toggle.run(t)
-                            title={format!("Toggle {}", t.display())}
+                            class="calendar-range-toggle"
+                            class:calendar-range-active={move || range_mode.get()}
+                            on:click=move |_| {
+                                set_range_mode.update(|v| *v = !*v);
+                                if !range_mode.get_untracked() {
+                                    set_range_start.set(None);
+                                    set_range_end.set(None);
+                                }
+                            }
+                            title="Toggle range selection mode"
                         >
-                            {t.display()}
+                            "📅 Range"
                         </button>
-                    }
-                }).collect::<Vec<_>>()}
+                        {move || if range_mode.get() {
+                            let rs = range_start.get();
+                            let re = range_end.get();
+                            let rs_str = rs.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+                            let re_str = re.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+                            view! {
+                                <div class="calendar-range-inputs">
+                                    <input
+                                        class="calendar-range-input"
+                                        type="date"
+                                        prop:value={rs_str.clone()}
+                                        on:change=move |ev| {
+                                            let v = event_target_value(&ev);
+                                            if let Ok(d) = NaiveDate::parse_from_str(&v, "%Y-%m-%d") {
+                                                set_range_start.set(Some(d));
+                                            } else {
+                                                set_range_start.set(None);
+                                            }
+                                        }
+                                    />
+                                    <span class="calendar-range-sep">"–"</span>
+                                    <input
+                                        class="calendar-range-input"
+                                        type="date"
+                                        prop:value={re_str.clone()}
+                                        on:change=move |ev| {
+                                            let v = event_target_value(&ev);
+                                            if let Ok(d) = NaiveDate::parse_from_str(&v, "%Y-%m-%d") {
+                                                set_range_end.set(Some(d));
+                                            } else {
+                                                set_range_end.set(None);
+                                            }
+                                        }
+                                    />
+                                    {(rs.is_some() && re.is_some()).then(|| {
+                                        let days = (re.unwrap() - rs.unwrap()).num_days() + 1;
+                                        view! {
+                                            <span class="calendar-range-info">{format!("{} days", days)}</span>
+                                        }
+                                    })}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
+                    <div class="calendar-search-wrap">
+                        <input
+                            class="calendar-search-input"
+                            type="text"
+                            placeholder="Search events in current view..."
+                            prop:value={move || cal_search.get()}
+                            on:input=move |ev| set_cal_search.set(event_target_value(&ev))
+                        />
+                        {move || if !cal_search.get().is_empty() {
+                            view! {
+                                <button
+                                    class="calendar-search-clear"
+                                    on:click=move |_| set_cal_search.set(String::new())
+                                    title="Clear search"
+                                >"✕"</button>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
+                </div>
             </div>
 
             {move || if show_form.get() {
@@ -833,7 +1010,7 @@ pub fn CalendarManager(
                 on:wheel=move |ev: leptos::ev::WheelEvent| {
                     ev.prevent_default();
                     let delta = ev.delta_y() as f64;
-                    set_zoom_level.update(|l| *l = (*l - delta * 0.004).clamp(-2.0, 3.0));
+                    set_zoom_level.update(|l| *l = (*l - delta * 0.004).clamp(-0.5, 3.0));
                 }
                 on:touchstart=move |ev: leptos::ev::TouchEvent| {
                     let touches = ev.touches();
@@ -858,7 +1035,7 @@ pub fn CalendarManager(
                                 ev.prevent_default();
                                 let ratio = dist / start_dist;
                                 let new_level = start_level + ratio.ln() * 0.8;
-                                set_zoom_level.set(new_level.clamp(-2.0, 3.0));
+                                set_zoom_level.set(new_level.clamp(-0.5, 3.0));
                             }
                         }
                     }
@@ -874,7 +1051,7 @@ pub fn CalendarManager(
                     CalendarViewMode::Month => view! {
                         {month_grid(
                             view_year.get(), view_month.get(), today,
-                            events_for_scope, selected_date, zoom,
+                            filtered_events, selected_date, zoom,
                             on_day_click.clone(), on_day_add.clone(), on_edit.clone(),
                             false, false
                         )}
@@ -883,7 +1060,7 @@ pub fn CalendarManager(
                         let date = selected_date.get().unwrap_or(today);
                         day_view(
                             date,
-                            events_for_scope,
+                            filtered_events,
                             day_zoom,
                             on_edit.clone(),
                             on_day_add.clone(),
@@ -908,7 +1085,7 @@ pub fn CalendarManager(
                                 {months.into_iter().map(|(y, m)| view! {
                                     {month_grid(
                                         y, m, today,
-                                        events_for_scope, selected_date, zoom,
+                                        filtered_events, selected_date, zoom,
                                         on_day_click.clone(), on_day_add.clone(), on_edit.clone(),
                                         true, true
                                     )}
@@ -930,7 +1107,7 @@ pub fn CalendarManager(
                                 {months.into_iter().map(|(y, m)| view! {
                                     {month_grid(
                                         y, m, today,
-                                        events_for_scope, selected_date, zoom,
+                                        filtered_events, selected_date, zoom,
                                         on_day_click.clone(), on_day_add.clone(), on_edit.clone(),
                                         true, true
                                     )}
