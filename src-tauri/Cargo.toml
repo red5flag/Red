@@ -1,0 +1,45 @@
+[package]
+name = "red-tauri"
+version = "0.1.0"
+edition = "2021"
+description = "Red — Tauri 2 native shell for Android/desktop"
+
+[lib]
+name = "red_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["wry"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["macros", "rt-multi-thread", "sync"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sled = "0.34"
+zstd = "0.13"
+chacha20poly1305 = "0.10"
+rand = "0.8"
+base64 = "0.22"
+uuid = { version = "1.6", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+parking_lot = "0.12"
+dashmap = "5.5"
+
+# The main farley library for shared models/types
+farley = { path = "..", default-features = false, features = ["tauri"] }
+red-core = { path = "../crates/red-core" }
+red-storage = { path = "../crates/red-storage" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

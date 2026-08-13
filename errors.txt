@@ -1,8 +1,539 @@
 warning: unused variable: `on_update_role`
 warning: unused variable: `is_role_dropdown_open`
 warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
 warning: unused variable: `on_update_role`
 warning: unused variable: `is_role_dropdown_open`
 warning: unused variable: `on_toggle_role_dropdown`
-warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 3 suggestions)
-warning: `farley` (lib) generated 3 warnings (run `cargo fix --lib -p farley` to apply 3 suggestions)
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: unused variable: `notification_store`
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+error[E0425]: cannot find value `set_expanded_nodes` in this scope
+error[E0425]: cannot find value `set_selected_node` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `set_expanded_nodes` in this scope
+error[E0425]: cannot find value `set_selected_node` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+error[E0425]: cannot find value `selected_node` in this scope
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 16 previous errors; 4 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 16 previous errors; 4 warnings emitted
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 21 previous errors; 4 warnings emitted
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 21 previous errors; 4 warnings emitted
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find value `expanded_nodes` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0425]: cannot find function `toggle_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+error[E0425]: cannot find function `select_node` in this scope
+error[E0599]: the method `get` exists for closure `{closure@src/pages/transactions/page.rs:522:25: 522:32}`, but its trait bounds were not satisfied
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 21 previous errors; 4 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 21 previous errors; 4 warnings emitted
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `org_name`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `org_name`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 14 warnings (run `cargo fix --lib -p farley` to apply 5 suggestions)
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `organization_store`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `organization_store`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+error[E0425]: cannot find function `use_organization_store` in this scope
+error[E0425]: cannot find function `use_organization_store` in this scope
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 13 warnings (run `cargo fix --lib -p farley` to apply 4 suggestions)
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `selected_org_id`
+warning: unused variable: `set_selected_org_id`
+warning: unused variable: `selected_portfolio_id`
+warning: unused variable: `set_selected_portfolio_id`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `selected_org_id`
+warning: unused variable: `set_selected_org_id`
+warning: unused variable: `selected_portfolio_id`
+warning: unused variable: `set_selected_portfolio_id`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 5 previous errors; 4 warnings emitted
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 5 previous errors; 4 warnings emitted
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0609]: no field `organization_id` on type `&&transaction::Transaction`
+error[E0609]: no field `portfolio_id` on type `&&transaction::Transaction`
+error[E0609]: no field `organization_id` on type `&&models::transaction::Transaction`
+error[E0609]: no field `portfolio_id` on type `&&models::transaction::Transaction`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 6 previous errors; 4 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 6 previous errors; 4 warnings emitted
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+warning: unused import: `use_organization_store`
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+warning: unused import: `use_organization_store`
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 4 previous errors; 4 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 4 previous errors; 4 warnings emitted
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+error[E0425]: cannot find value `search_query` in this scope
+error[E0425]: cannot find value `set_search_query` in this scope
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 4 previous errors; 4 warnings emitted
+warning: `farley` (lib) generated 4 warnings
+error: could not compile `farley` (lib) due to 4 previous errors; 4 warnings emitted
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `workers_for_org`
+warning: unused variable: `managers_for_org`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `workers_for_org`
+warning: unused variable: `managers_for_org`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_

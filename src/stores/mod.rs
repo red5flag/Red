@@ -1,3 +1,4 @@
+pub mod account_store;
 pub mod app_store;
 pub mod calendar_store;
 pub mod credentials;
@@ -12,6 +13,7 @@ pub mod transaction_store;
 pub mod ui_store;
 pub mod undo_redo;
 
+pub use account_store::*;
 pub use app_store::*;
 pub use calendar_store::*;
 pub use credentials::*;

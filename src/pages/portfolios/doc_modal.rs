@@ -286,7 +286,9 @@ pub fn DocModal(
                     } else { ().into_any() }}
                 </div>
             }.into_any()
-        } else { ().into_any() }
+        } else {
+            ().into_any()
+        }
     };
 
     if add_only {
@@ -296,7 +298,8 @@ pub fn DocModal(
                     {render_add_row()}
                 </div>
             </div>
-        }.into_any()
+        }
+        .into_any()
     } else {
         view! {
             <div class="doc-modal-overlay" on:click=move |_| on_close()>
@@ -517,7 +520,7 @@ pub fn DocModal(
             </div>
         </div>
     }.into_any()
-}
+    }
 }
 /// In-app document viewer — sticky toolbar, zoom, edit mode, inline editing, image popup, why/save.
 #[component]

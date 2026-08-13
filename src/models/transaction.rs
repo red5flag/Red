@@ -16,6 +16,10 @@ pub struct Transaction {
     pub related_portfolio_id: Option<Uuid>,
     pub related_asset_group_id: Option<Uuid>,
     pub related_asset_id: Option<Uuid>,
+    #[serde(default)]
+    pub account_id: Option<Uuid>,
+    #[serde(default)]
+    pub card_id: Option<Uuid>,
     pub executed_by: Uuid,
     pub status: TransactionStatus,
     pub created_at: DateTime<Utc>,
@@ -103,6 +107,8 @@ pub struct EntityReference {
 pub enum EntityType {
     User,
     Organization,
+    Account,
+    Card,
     Portfolio,
     AssetGroup,
     Asset,
@@ -130,6 +136,8 @@ impl Transaction {
             related_portfolio_id: None,
             related_asset_group_id: None,
             related_asset_id: None,
+            account_id: None,
+            card_id: None,
             executed_by,
             status: TransactionStatus::Draft,
             created_at: Utc::now(),

@@ -158,7 +158,10 @@ pub(crate) fn PortfolioListItem(
                 set_show_doc_slider.set(true);
                 app_store.update(|s| {
                     s.pending_doc_slider = None;
-                    if matches!(s.pending_scroll_target, Some(crate::stores::ScrollTarget::Document(_))) {
+                    if matches!(
+                        s.pending_scroll_target,
+                        Some(crate::stores::ScrollTarget::Document(_))
+                    ) {
                         s.pending_scroll_target = None;
                     }
                 });

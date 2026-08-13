@@ -143,7 +143,7 @@ pub(crate) fn AssetViewer(
     Effect::new(move |_| {
         let target = app_store_inner.get().pending_scroll_target.clone();
         if let Some(crate::stores::ScrollTarget::Asset(aid))
-            | Some(crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. }) = target
+        | Some(crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. }) = target
         {
             // Direct assets live on the portfolio.
             if portfolio_for_scroll.assets.iter().any(|a| a.id == aid) {
@@ -152,7 +152,11 @@ pub(crate) fn AssetViewer(
                 return;
             }
             // Otherwise find the group containing the asset and expand it.
-            if let Some(g) = portfolio_for_scroll.asset_groups.iter().find(|g| g.assets.iter().any(|a| a.id == aid)) {
+            if let Some(g) = portfolio_for_scroll
+                .asset_groups
+                .iter()
+                .find(|g| g.assets.iter().any(|a| a.id == aid))
+            {
                 set_expanded_groups.update(|set| {
                     set.insert(g.id);
                 });
@@ -161,7 +165,11 @@ pub(crate) fn AssetViewer(
         }
         if let Some(crate::stores::ScrollTarget::Document(did)) = target {
             // Direct asset document.
-            if let Some(a) = portfolio_for_scroll.assets.iter().find(|a| a.documents.iter().any(|d| d.id == did)) {
+            if let Some(a) = portfolio_for_scroll
+                .assets
+                .iter()
+                .find(|a| a.documents.iter().any(|d| d.id == did))
+            {
                 set_new_asset_id.set(Some(a.id));
                 app_store_inner.update(|s| s.pending_scroll_target = None);
                 return;
@@ -169,7 +177,9 @@ pub(crate) fn AssetViewer(
             // Group or group-asset document.
             if let Some(g) = portfolio_for_scroll.asset_groups.iter().find(|g| {
                 g.documents.iter().any(|d| d.id == did)
-                    || g.assets.iter().any(|a| a.documents.iter().any(|d| d.id == did))
+                    || g.assets
+                        .iter()
+                        .any(|a| a.documents.iter().any(|d| d.id == did))
             }) {
                 set_expanded_groups.update(|set| {
                     set.insert(g.id);

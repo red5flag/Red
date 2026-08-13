@@ -414,10 +414,20 @@ impl UiStore {
         if let (Some(from), Some(to)) = (from_pos, to_pos) {
             let id = self.overview_selected_order.remove(from);
             self.overview_selected_order.insert(to, id);
-            let from_wide = self.overview_section_wide.get(from_id).copied().unwrap_or(false);
-            let to_wide = self.overview_section_wide.get(to_id).copied().unwrap_or(false);
-            self.overview_section_wide.insert(from_id.to_string(), to_wide);
-            self.overview_section_wide.insert(to_id.to_string(), from_wide);
+            let from_wide = self
+                .overview_section_wide
+                .get(from_id)
+                .copied()
+                .unwrap_or(false);
+            let to_wide = self
+                .overview_section_wide
+                .get(to_id)
+                .copied()
+                .unwrap_or(false);
+            self.overview_section_wide
+                .insert(from_id.to_string(), to_wide);
+            self.overview_section_wide
+                .insert(to_id.to_string(), from_wide);
         }
     }
 

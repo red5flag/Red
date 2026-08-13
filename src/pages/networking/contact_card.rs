@@ -41,7 +41,6 @@ pub(crate) fn render_contact_card(c: ExternalContact) -> impl IntoView {
                         title="View details"
                         on:click=move |_| set_details_open.update(|v| *v = !*v)
                     >
-                        "👁"
                         <span class="net-rel-dropdown-arrow" class:open={move || details_open.get()}>"▼"</span>
                     </button>
                 </div>

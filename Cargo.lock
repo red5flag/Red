@@ -895,6 +895,7 @@ dependencies = [
  "parking_lot 0.12.5",
  "printpdf",
  "rand 0.8.6",
+ "red-core",
  "reqwest",
  "serde",
  "serde-wasm-bindgen",
@@ -2894,6 +2895,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "red-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

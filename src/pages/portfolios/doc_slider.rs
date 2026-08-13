@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use super::{
     clamp_context_menu, document_icon, download_document, mobile_tab_gestures, set_drag_tab_data,
-    NavTabKind, shorthand_name, DocEntry, DocModal,
+    shorthand_name, DocEntry, DocModal, NavTabKind,
 };
 
 #[derive(Clone)]

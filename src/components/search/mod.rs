@@ -387,7 +387,10 @@ pub fn SearchResults() -> impl IntoView {
         ui_store.update(|s| s.close_search());
     };
 
-    let on_asset_click = move |portfolio_id: Uuid, group_id: Option<Uuid>, asset_id: Uuid, detail_type: Option<&str>| {
+    let on_asset_click = move |portfolio_id: Uuid,
+                               group_id: Option<Uuid>,
+                               asset_id: Uuid,
+                               detail_type: Option<&str>| {
         let detail_type = detail_type.map(|s| s.to_string());
         app_store.update(|s| {
             s.touch_portfolio(portfolio_id);
@@ -396,7 +399,10 @@ pub fn SearchResults() -> impl IntoView {
             s.pending_group_expand = group_id;
             s.pending_asset_detail = Some(asset_id);
             s.pending_scroll_target = if let Some(dt) = detail_type {
-                Some(crate::stores::ScrollTarget::AssetDetail { asset_id, detail_type: dt })
+                Some(crate::stores::ScrollTarget::AssetDetail {
+                    asset_id,
+                    detail_type: dt,
+                })
             } else {
                 Some(crate::stores::ScrollTarget::Asset(asset_id))
             };

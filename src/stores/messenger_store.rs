@@ -30,7 +30,7 @@ impl MessengerStore {
     pub fn new() -> Self {
         #[allow(unused_mut)]
         let mut store = Self::default();
-        #[cfg(feature = "ssr")]
+        #[cfg(any(feature = "ssr", feature = "tauri"))]
         {
             let db = crate::storage::message_store();
             store.messages = db.load_all_messages();
@@ -61,19 +61,26 @@ impl MessengerStore {
     }
 
     // Lifecycle
-    pub fn send_message(&mut self, sender_id: Uuid, recipient_id: Uuid, content: String) {
+    pub fn send_message(
+        &mut self,
+        sender_id: Uuid,
+        recipient_id: Uuid,
+        content: String,
+    ) -> Message {
         let message = Message::new(sender_id, recipient_id, content);
-        #[cfg(feature = "ssr")]
+        #[cfg(any(feature = "ssr", feature = "tauri"))]
         {
             let store = crate::storage::message_store();
             let _ = store.save_message(&message);
         }
-        self.messages.push(message);
+        self.messages.push(message.clone());
+
+        message
     }
 
     pub fn receive_message(&mut self, sender_id: Uuid, recipient_id: Uuid, content: String) {
         let message = Message::new(sender_id, recipient_id, content);
-        #[cfg(feature = "ssr")]
+        #[cfg(any(feature = "ssr", feature = "tauri"))]
         {
             let store = crate::storage::message_store();
             let _ = store.save_message(&message);
@@ -95,25 +102,19 @@ impl MessengerStore {
         }
     }
 
-    pub fn create_group(
-        &mut self,
-        name: String,
-        icon: Option<String>,
-        members: Vec<Uuid>,
-    ) -> Uuid {
+    pub fn create_group(&mut self, name: String, icon: Option<String>, members: Vec<Uuid>) -> Uuid {
         let group = MessengerContact::group(name, icon.unwrap_or_default(), members);
         let id = group.id;
         self.add_messenger_contact(group);
         id
     }
 
-    pub fn update_group(
-        &mut self,
-        id: Uuid,
-        name: Option<String>,
-        icon: Option<String>,
-    ) {
-        if let Some(g) = self.messenger_contacts.iter_mut().find(|c| c.id == id && c.source == ContactSource::Group) {
+    pub fn update_group(&mut self, id: Uuid, name: Option<String>, icon: Option<String>) {
+        if let Some(g) = self
+            .messenger_contacts
+            .iter_mut()
+            .find(|c| c.id == id && c.source == ContactSource::Group)
+        {
             if let Some(name) = name {
                 g.name = name;
             }
@@ -124,7 +125,11 @@ impl MessengerStore {
     }
 
     pub fn add_group_member(&mut self, id: Uuid, member_id: Uuid) {
-        if let Some(g) = self.messenger_contacts.iter_mut().find(|c| c.id == id && c.source == ContactSource::Group) {
+        if let Some(g) = self
+            .messenger_contacts
+            .iter_mut()
+            .find(|c| c.id == id && c.source == ContactSource::Group)
+        {
             if !g.members.contains(&member_id) {
                 g.members.push(member_id);
             }

@@ -1,5 +1,5 @@
 use crate::stores::{
-    create_action, use_app_store, use_notification_store, use_ui_store, use_undo_redo_store,
+    create_action, use_app_store, use_ui_store, use_undo_redo_store,
     UiStore,
 };
 use crate::types::{ActionType, TabType};
@@ -8,7 +8,6 @@ use leptos::prelude::*;
 #[component]
 pub fn Footer() -> impl IntoView {
     let app_store = use_app_store();
-    let notification_store = use_notification_store();
     let ui_store = use_ui_store();
     let undo_store = use_undo_redo_store();
 
@@ -43,11 +42,8 @@ pub fn Footer() -> impl IntoView {
     };
 
     let on_contact = move |_| {
-        notification_store.update(|store| {
-            store.add_notification(
-                "Contact: support@red.app".to_string(),
-                crate::stores::NotificationType::Info,
-            );
+        app_store.update(|store| {
+            store.expand_tab(TabType::Settings);
         });
     };
 

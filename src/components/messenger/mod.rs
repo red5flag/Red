@@ -87,7 +87,10 @@ pub fn MessageDrawer() -> impl IntoView {
             contacts.push(MessengerContact::group("Red5flag Group", "🚩", members));
         }
 
-        let group = contacts.iter().find(|c| c.source == ContactSource::Group).cloned();
+        let group = contacts
+            .iter()
+            .find(|c| c.source == ContactSource::Group)
+            .cloned();
 
         if contacts != messenger_store.get_untracked().messenger_contacts {
             messenger_store.update(|s| s.messenger_contacts = contacts);
@@ -99,14 +102,14 @@ pub fn MessageDrawer() -> impl IntoView {
         let mut requests = messenger_store.get_untracked().messenger_requests.clone();
 
         if requests.is_empty() && !org.organization_users.is_empty() {
-            if let Some(other) = org.organization_users.iter().find(|u| u.id != current_user_id) {
+            if let Some(other) = org
+                .organization_users
+                .iter()
+                .find(|u| u.id != current_user_id)
+            {
                 requests.push(
-                    MessengerRequest::new(
-                        MessengerRequestKind::FriendRequest,
-                        other.id,
-                        other.id,
-                    )
-                    .with_message("Would like to connect"),
+                    MessengerRequest::new(MessengerRequestKind::FriendRequest, other.id, other.id)
+                        .with_message("Would like to connect"),
                 );
             }
 
@@ -188,7 +191,9 @@ pub fn MessageDrawer() -> impl IntoView {
         if text.trim().is_empty() {
             return;
         }
-        messenger_store.update(|s| s.send_message(current_user_id, recipient_id, text.clone()));
+        messenger_store.update(|s| {
+            s.send_message(current_user_id, recipient_id, text.clone());
+        });
         // Echo from bot for testing
         if recipient_id == Uuid::nil() {
             let reply = format!("Bot received: {}", text);
@@ -240,12 +245,18 @@ pub fn MessageDrawer() -> impl IntoView {
             .iter()
             .filter_map(|c| {
                 let last = if c.source == ContactSource::Group {
-                    messages.iter().filter(|m| m.recipient_id == c.id).max_by_key(|m| m.timestamp)
+                    messages
+                        .iter()
+                        .filter(|m| m.recipient_id == c.id)
+                        .max_by_key(|m| m.timestamp)
                 } else {
-                    messages.iter().filter(|m| {
-                        (m.sender_id == c.id && m.recipient_id == current_user_id)
-                            || (m.sender_id == current_user_id && m.recipient_id == c.id)
-                    }).max_by_key(|m| m.timestamp)
+                    messages
+                        .iter()
+                        .filter(|m| {
+                            (m.sender_id == c.id && m.recipient_id == current_user_id)
+                                || (m.sender_id == current_user_id && m.recipient_id == c.id)
+                        })
+                        .max_by_key(|m| m.timestamp)
                 };
                 last.map(|m| (c.clone(), m.timestamp))
             })
@@ -318,7 +329,12 @@ pub fn MessageDrawer() -> impl IntoView {
             .into_iter()
             .map(SidebarListItem::Request)
             .collect();
-        items.extend(friend_contacts.get().into_iter().map(SidebarListItem::Contact));
+        items.extend(
+            friend_contacts
+                .get()
+                .into_iter()
+                .map(SidebarListItem::Contact),
+        );
         items
     });
     let recent_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
@@ -347,7 +363,12 @@ pub fn MessageDrawer() -> impl IntoView {
             .into_iter()
             .map(SidebarListItem::Request)
             .collect();
-        items.extend(group_contacts.get().into_iter().map(SidebarListItem::Contact));
+        items.extend(
+            group_contacts
+                .get()
+                .into_iter()
+                .map(SidebarListItem::Contact),
+        );
         items
     });
     let request_items: Memo<Vec<SidebarListItem>> = Memo::new(move |_| {
@@ -356,8 +377,18 @@ pub fn MessageDrawer() -> impl IntoView {
             .into_iter()
             .map(SidebarListItem::Request)
             .collect();
-        items.extend(work_requests.get().into_iter().map(SidebarListItem::Request));
-        items.extend(request_contacts.get().into_iter().map(SidebarListItem::Contact));
+        items.extend(
+            work_requests
+                .get()
+                .into_iter()
+                .map(SidebarListItem::Request),
+        );
+        items.extend(
+            request_contacts
+                .get()
+                .into_iter()
+                .map(SidebarListItem::Contact),
+        );
         items
     });
 
@@ -366,7 +397,11 @@ pub fn MessageDrawer() -> impl IntoView {
         match req.kind {
             MessengerRequestKind::FriendRequest => {
                 let org = organization_store.get();
-                if let Some(user) = org.organization_users.iter().find(|u| u.id == req.target_id) {
+                if let Some(user) = org
+                    .organization_users
+                    .iter()
+                    .find(|u| u.id == req.target_id)
+                {
                     let contact = MessengerContact {
                         id: user.id,
                         name: user.name.clone(),

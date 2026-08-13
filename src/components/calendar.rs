@@ -284,7 +284,6 @@ pub fn CalendarManager(
     // Date range signals for rangefinder view
     let (range_start, set_range_start) = signal::<Option<NaiveDate>>(None);
     let (range_end, set_range_end) = signal::<Option<NaiveDate>>(None);
-    let (range_mode, set_range_mode) = signal(false);
 
     // Calendar search signal
     let (cal_search, set_cal_search) = signal(String::new());
@@ -380,21 +379,19 @@ pub fn CalendarManager(
     });
 
     let on_day_click = Callback::new(move |date: NaiveDate| {
-        if range_mode.get() {
-            let rs = range_start.get();
-            let re = range_end.get();
-            if rs.is_none() || (rs.is_some() && re.is_some()) {
+        // Range selection: first click sets start, second click sets end
+        let rs = range_start.get();
+        let re = range_end.get();
+        if rs.is_none() || (rs.is_some() && re.is_some()) {
+            set_range_start.set(Some(date));
+            set_range_end.set(None);
+        } else if let Some(start) = rs {
+            if date < start {
                 set_range_start.set(Some(date));
-                set_range_end.set(None);
-            } else if let Some(start) = rs {
-                if date < start {
-                    set_range_start.set(Some(date));
-                    set_range_end.set(Some(start));
-                } else {
-                    set_range_end.set(Some(date));
-                }
+                set_range_end.set(Some(start));
+            } else {
+                set_range_end.set(Some(date));
             }
-            return;
         }
         set_selected_date.set(Some(date));
         if calendar_view_mode.get_untracked() != CalendarViewMode::Day {
@@ -415,7 +412,15 @@ pub fn CalendarManager(
             Some(d) => events
                 .into_iter()
                 .filter(|e| e.start.date_naive() == d)
-                .filter(|e| search.trim().is_empty() || e.title.to_lowercase().contains(&search.to_lowercase()) || e.description.as_deref().unwrap_or("").to_lowercase().contains(&search.to_lowercase()))
+                .filter(|e| {
+                    search.trim().is_empty()
+                        || e.title.to_lowercase().contains(&search.to_lowercase())
+                        || e.description
+                            .as_deref()
+                            .unwrap_or("")
+                            .to_lowercase()
+                            .contains(&search.to_lowercase())
+                })
                 .collect::<Vec<_>>(),
             None => Vec::new(),
         }
@@ -458,7 +463,9 @@ pub fn CalendarManager(
             let count = year_month_count.get();
             let half = count / 2;
             let start = base.checked_sub_months(Months::new(half)).unwrap_or(base);
-            let end = start.checked_add_months(Months::new(count.saturating_sub(1))).unwrap_or(start);
+            let end = start
+                .checked_add_months(Months::new(count.saturating_sub(1)))
+                .unwrap_or(start);
             if start.year() == end.year() {
                 format!(
                     "{} – {}",
@@ -480,7 +487,9 @@ pub fn CalendarManager(
             let count = multi_month_count.get();
             let half = count / 2;
             let start = base.checked_sub_months(Months::new(half)).unwrap_or(base);
-            let end = start.checked_add_months(Months::new(count.saturating_sub(1))).unwrap_or(start);
+            let end = start
+                .checked_add_months(Months::new(count.saturating_sub(1)))
+                .unwrap_or(start);
             if start.year() == end.year() {
                 format!(
                     "{} – {}",
@@ -918,85 +927,70 @@ pub fn CalendarManager(
                     </div>
                     <button class="calendar-manager-btn" on:click=on_add_new title="Add event">"+"</button>
                 </div>
-                <div class="calendar-controls-row">
-                    <div class="calendar-range-group">
-                        <button
-                            class="calendar-range-toggle"
-                            class:calendar-range-active={move || range_mode.get()}
-                            on:click=move |_| {
-                                set_range_mode.update(|v| *v = !*v);
-                                if !range_mode.get_untracked() {
-                                    set_range_start.set(None);
-                                    set_range_end.set(None);
-                                }
-                            }
-                            title="Toggle range selection mode"
-                        >
-                            "📅 Range"
-                        </button>
-                        {move || if range_mode.get() {
-                            let rs = range_start.get();
-                            let re = range_end.get();
-                            let rs_str = rs.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
-                            let re_str = re.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
-                            view! {
-                                <div class="calendar-range-inputs">
-                                    <input
-                                        class="calendar-range-input"
-                                        type="date"
-                                        prop:value={rs_str.clone()}
-                                        on:change=move |ev| {
-                                            let v = event_target_value(&ev);
-                                            if let Ok(d) = NaiveDate::parse_from_str(&v, "%Y-%m-%d") {
-                                                set_range_start.set(Some(d));
-                                            } else {
-                                                set_range_start.set(None);
-                                            }
+            </div>
+            <div class="calendar-controls-row">
+                <div class="calendar-range-group">
+                    {move || {
+                        let rs = range_start.get();
+                        let re = range_end.get();
+                        let rs_str = rs.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+                        let re_str = re.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+                        view! {
+                            <div class="calendar-range-inputs">
+                                <input
+                                    class="calendar-range-input"
+                                    type="date"
+                                    prop:value={rs_str.clone()}
+                                    on:change=move |ev| {
+                                        let v = event_target_value(&ev);
+                                        if let Ok(d) = NaiveDate::parse_from_str(&v, "%Y-%m-%d") {
+                                            set_range_start.set(Some(d));
+                                        } else {
+                                            set_range_start.set(None);
                                         }
-                                    />
-                                    <span class="calendar-range-sep">"–"</span>
-                                    <input
-                                        class="calendar-range-input"
-                                        type="date"
-                                        prop:value={re_str.clone()}
-                                        on:change=move |ev| {
-                                            let v = event_target_value(&ev);
-                                            if let Ok(d) = NaiveDate::parse_from_str(&v, "%Y-%m-%d") {
-                                                set_range_end.set(Some(d));
-                                            } else {
-                                                set_range_end.set(None);
-                                            }
+                                    }
+                                />
+                                <input
+                                    class="calendar-range-input"
+                                    type="date"
+                                    prop:value={re_str.clone()}
+                                    on:change=move |ev| {
+                                        let v = event_target_value(&ev);
+                                        if let Ok(d) = NaiveDate::parse_from_str(&v, "%Y-%m-%d") {
+                                            set_range_end.set(Some(d));
+                                        } else {
+                                            set_range_end.set(None);
                                         }
-                                    />
-                                    {(rs.is_some() && re.is_some()).then(|| {
-                                        let days = (re.unwrap() - rs.unwrap()).num_days() + 1;
-                                        view! {
-                                            <span class="calendar-range-info">{format!("{} days", days)}</span>
-                                        }
-                                    })}
-                                </div>
-                            }.into_any()
-                        } else { ().into_any() }}
-                    </div>
-                    <div class="calendar-search-wrap">
-                        <input
-                            class="calendar-search-input"
-                            type="text"
-                            placeholder="Search events in current view..."
-                            prop:value={move || cal_search.get()}
-                            on:input=move |ev| set_cal_search.set(event_target_value(&ev))
-                        />
-                        {move || if !cal_search.get().is_empty() {
-                            view! {
-                                <button
-                                    class="calendar-search-clear"
-                                    on:click=move |_| set_cal_search.set(String::new())
-                                    title="Clear search"
-                                >"✕"</button>
-                            }.into_any()
-                        } else { ().into_any() }}
-                    </div>
+                                    }
+                                />
+                                {(rs.is_some() && re.is_some()).then(|| {
+                                    let days = (re.unwrap() - rs.unwrap()).num_days() + 1;
+                                    view! {
+                                        <span class="calendar-range-info">{format!("{} days", days)}</span>
+                                    }
+                                })}
+                            </div>
+                        }.into_any()
+                    }}
                 </div>
+            </div>
+            <div class="calendar-search-wrap">
+                <input
+                    class="calendar-search-input"
+                    type="text"
+                    placeholder="Search events in current view..."
+                    prop:value={move || cal_search.get()}
+                    on:input=move |ev| set_cal_search.set(event_target_value(&ev))
+                />
+                {move || if !cal_search.get().is_empty() {
+                    view! {
+                        <button
+                            class="calendar-search-clear"
+                            on:click=move |_| set_cal_search.set(String::new())
+                            title="Clear search"
+                        >"✕"</button>
+                    }.into_any()
+                } else { ().into_any() }}
             </div>
 
             {move || if show_form.get() {

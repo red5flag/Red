@@ -10,7 +10,8 @@ use leptos::task::spawn_local;
 use std::time::Duration;
 
 use crate::pages::login::{
-    auth_messages, commits, credential_controls, login_form, recover_form, register_form, two_factor,
+    auth_messages, commits, credential_controls, login_form, recover_form, register_form,
+    two_factor,
 };
 
 cfg_if! {

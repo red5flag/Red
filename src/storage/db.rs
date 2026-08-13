@@ -1,9 +1,15 @@
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use crate::models::{Message, Portfolio};
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use crate::stores::credentials::CredentialStore;
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use dashmap::DashMap;
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use std::sync::{Arc, OnceLock};
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use uuid::Uuid;
 
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 const DB_PATH: &str = "./data/farley";
 
 /// Global singleton: local sled DB + DashMap write-through cache for portfolios

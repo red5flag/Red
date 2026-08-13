@@ -377,6 +377,11 @@ impl NotificationStore {
             .count()
     }
 
+    /// Remove all notifications targeting a specific tab.
+    pub fn clear_notifications_for_tab(&mut self, tab: &TabType) {
+        self.notifications.retain(|n| n.target_tab.as_ref() != Some(tab));
+    }
+
     /// Count notifications linked to a specific document.
     pub fn notifications_for_doc(&self, doc_id: Uuid) -> usize {
         self.notifications

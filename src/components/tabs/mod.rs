@@ -28,6 +28,7 @@ fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
     let app_store = use_app_store();
     let ui_store = use_ui_store();
     let undo_store = use_undo_redo_store();
+    let notification_store = use_notification_store();
     let tab_type_for_scroll = tab_type.clone();
     Callback::new(move |_| {
         let current_tab = tab_type.clone();
@@ -51,6 +52,9 @@ fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
             ui_store.update(|ui| ui.close_tabs_drawer());
             return;
         }
+
+        // Clear notifications targeting this tab so the badge disappears on open
+        notification_store.update(|s| s.clear_notifications_for_tab(&current_tab));
 
         app_store.update(|store| {
             let prev_tab = store.active_tabs.first().cloned();

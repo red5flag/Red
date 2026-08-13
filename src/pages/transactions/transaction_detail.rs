@@ -1,6 +1,6 @@
 use crate::pages::transactions::{
-    bill_status_class, format_date, format_dollars, invoice_status_class, Bill, BillStatus, Invoice,
-    InvoiceStatus,
+    bill_status_class, format_date, format_dollars, invoice_status_class, Bill, BillStatus,
+    Invoice, InvoiceStatus,
 };
 use chrono::Utc;
 use leptos::prelude::*;
@@ -159,7 +159,10 @@ pub(crate) fn BillForm(on_create: Callback<Bill>) -> impl IntoView {
         let bill = Bill {
             id: Uuid::new_v4(),
             number: if number.get().trim().is_empty() {
-                format!("BILL-{}", Uuid::new_v4().to_string().split('-').next().unwrap())
+                format!(
+                    "BILL-{}",
+                    Uuid::new_v4().to_string().split('-').next().unwrap()
+                )
             } else {
                 number.get()
             },

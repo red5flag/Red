@@ -1,8 +1,8 @@
+use crate::models::Transaction;
 use crate::pages::transactions::{
     currency_symbol, format_dollars, Bill, BillStatus, Card, Contact, Invoice, InvoiceStatus,
     Wallet,
 };
-use crate::models::Transaction;
 use crate::types::TransactionType;
 use leptos::prelude::*;
 
@@ -181,7 +181,12 @@ pub(crate) fn CashFlowSummary(
 
     let invoices_outstanding: f64 = invoices
         .iter()
-        .filter(|i| matches!(i.status, InvoiceStatus::Sent | InvoiceStatus::Viewed | InvoiceStatus::Draft))
+        .filter(|i| {
+            matches!(
+                i.status,
+                InvoiceStatus::Sent | InvoiceStatus::Viewed | InvoiceStatus::Draft
+            )
+        })
         .map(|i| i.amount)
         .sum();
     let invoices_overdue: f64 = invoices
@@ -192,7 +197,12 @@ pub(crate) fn CashFlowSummary(
 
     let bills_owing: f64 = bills
         .iter()
-        .filter(|b| matches!(b.status, BillStatus::AwaitingApproval | BillStatus::AwaitingPayment))
+        .filter(|b| {
+            matches!(
+                b.status,
+                BillStatus::AwaitingApproval | BillStatus::AwaitingPayment
+            )
+        })
         .map(|b| b.amount)
         .sum();
     let bills_overdue: f64 = bills

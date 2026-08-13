@@ -1,6 +1,7 @@
 use crate::models::{EntityReference, EntityType, Transaction, TransactionStatus};
 use crate::types::{Currency, TransactionType};
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub mod approval_panel;
@@ -14,15 +15,104 @@ pub mod transaction_summary;
 
 pub use page::TransactionsPage;
 
-/// Local card model for wallet display.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Card {
-    pub id: Uuid,
-    pub label: String,
-    pub last4: String,
+/// Account type — bank, crypto, cash, etc.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountType {
+    Bank,
+    Crypto,
+    Cash,
+    Credit,
+    Savings,
+    Investment,
+    Other,
 }
 
-/// Local wallet model for transaction page UI.
+impl AccountType {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Bank => "Bank",
+            Self::Crypto => "Crypto",
+            Self::Cash => "Cash",
+            Self::Credit => "Credit",
+            Self::Savings => "Savings",
+            Self::Investment => "Investment",
+            Self::Other => "Other",
+        }
+    }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            Self::Bank => "🏦",
+            Self::Crypto => "₿",
+            Self::Cash => "💵",
+            Self::Credit => "💳",
+            Self::Savings => "🐷",
+            Self::Investment => "📈",
+            Self::Other => "📂",
+        }
+    }
+}
+
+/// Account model — belongs to an organization (or person if sole trader / no org).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Account {
+    pub id: Uuid,
+    pub organization_id: Option<Uuid>,
+    pub name: String,
+    pub account_type: AccountType,
+    pub balance: f64,
+    pub currency: Currency,
+    pub cards: Vec<Card>,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+impl Account {
+    pub fn new(
+        organization_id: Option<Uuid>,
+        name: String,
+        account_type: AccountType,
+        balance: f64,
+        currency: Currency,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            organization_id,
+            name,
+            account_type,
+            balance,
+            currency,
+            cards: Vec::new(),
+            created_at: Utc::now(),
+        }
+    }
+}
+
+/// Card model — belongs to an account.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Card {
+    pub id: Uuid,
+    pub account_id: Uuid,
+    pub label: String,
+    pub last4: String,
+    pub card_type: String,
+    pub active: bool,
+}
+
+impl Card {
+    pub fn new(account_id: Uuid, label: String, last4: String, card_type: String) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            account_id,
+            label,
+            last4,
+            card_type,
+            active: true,
+        }
+    }
+}
+
+/// Local wallet model for transaction page UI (legacy compat).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Wallet {
     pub id: Uuid,
@@ -224,6 +314,8 @@ pub(crate) fn create_mock_transaction(
         related_portfolio_id: None,
         related_asset_group_id: None,
         related_asset_id: None,
+        account_id: None,
+        card_id: None,
         executed_by: Uuid::new_v4(),
         status,
         created_at: Utc::now(),

@@ -1,6 +1,6 @@
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use base64::{engine::general_purpose, Engine};
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Derive a 32-byte ChaCha20-Poly1305 key from an arbitrary password hash.
@@ -54,7 +54,7 @@ pub fn local_storage_key() -> [u8; 32] {
 /// ChaCha20-Poly1305 using the provided key. The returned bytes are
 /// `[nonce(12) | ciphertext+tag | ...]` and can be fed directly to
 /// `decompress_and_decrypt`.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 pub fn compress_and_encrypt<T: Serialize>(
     value: &T,
     key: &[u8],
@@ -67,7 +67,7 @@ pub fn compress_and_encrypt<T: Serialize>(
 
 /// Decrypt and then decompress a value previously produced by
 /// `compress_and_encrypt`.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 pub fn decompress_and_decrypt<T: DeserializeOwned>(
     data: &[u8],
     key: &[u8],
@@ -82,7 +82,7 @@ pub fn decompress_and_decrypt<T: DeserializeOwned>(
 // AEAD helpers (ChaCha20-Poly1305)
 // ------------------------------------------------------------------
 
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 fn aead_encrypt(plaintext: &[u8], key: &[u8]) -> Vec<u8> {
     use chacha20poly1305::{
         aead::{Aead, KeyInit},
@@ -102,7 +102,7 @@ fn aead_encrypt(plaintext: &[u8], key: &[u8]) -> Vec<u8> {
     out
 }
 
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 fn aead_decrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, String> {
     use chacha20poly1305::{
         aead::{Aead, KeyInit},
@@ -127,14 +127,14 @@ fn aead_decrypt(data: &[u8], key: &[u8]) -> Result<Vec<u8>, String> {
 
 /// Encrypt a string for client-side localStorage with the user's key.
 /// Uses the same AEAD construction as the server store.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 pub fn encrypt(plaintext: &str, key: &[u8]) -> String {
     let bytes = aead_encrypt(plaintext.as_bytes(), key);
     general_purpose::STANDARD.encode(&bytes)
 }
 
 /// Decrypt a base64 AEAD ciphertext stored in localStorage.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 pub fn decrypt(ciphertext: &str, key: &[u8]) -> Result<String, String> {
     let data = general_purpose::STANDARD
         .decode(ciphertext)
@@ -257,13 +257,13 @@ pub fn pqc_key_exchange(_public_key: &[u8], _secret_key: &[u8]) -> Vec<u8> {
 /// Encrypt a plaintext string using the PQC shared secret.
 /// The secret is formatted to a 32-byte ChaCha20-Poly1305 key and the
 /// result is returned as a base64-encoded string.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 pub fn pqc_encrypt(plaintext: &str, shared_secret: &[u8]) -> String {
     encrypt(plaintext, shared_secret)
 }
 
 /// Decrypt a ciphertext produced by `pqc_encrypt`.
-#[cfg(feature = "ssr")]
+#[cfg(any(feature = "ssr", feature = "tauri"))]
 pub fn pqc_decrypt(ciphertext: &str, shared_secret: &[u8]) -> Result<String, String> {
     decrypt(ciphertext, shared_secret)
 }

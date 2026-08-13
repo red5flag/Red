@@ -252,6 +252,10 @@ pub fn Navbar() -> impl IntoView {
         notification_store.update(|store| {
             store.clear_drawer_scope();
             store.drawer_open = !was_open;
+            // Clear notifications when opening the drawer so the badge resets
+            if !was_open {
+                store.clear_notifications();
+            }
         });
         if !was_open {
             messenger_store.update(|s| s.set_message_drawer(false));

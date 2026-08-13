@@ -165,14 +165,17 @@ pub(crate) fn AssetGroupItem(
             }
         }
         if let Some(crate::stores::ScrollTarget::Asset(aid))
-            | Some(crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. }) = target
+        | Some(crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. }) = target
         {
             if group_assets.iter().any(|a| a.id == aid) {
                 set_new_asset_id.set(Some(aid));
             }
         }
         if let Some(crate::stores::ScrollTarget::Document(did)) = target {
-            if let Some(asset) = group_assets.iter().find(|a| a.documents.iter().any(|d| d.id == did)) {
+            if let Some(asset) = group_assets
+                .iter()
+                .find(|a| a.documents.iter().any(|d| d.id == did))
+            {
                 set_new_asset_id.set(Some(asset.id));
                 app_store.update(|s| s.pending_scroll_target = None);
             } else if group_documents.iter().any(|d| d.id == did) {

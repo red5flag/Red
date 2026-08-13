@@ -104,37 +104,53 @@ pub(crate) fn AssetItem(
                         on_select.run(asset_for_highlight.clone());
                     }
 
-                    let scroll_id = app_store.get_untracked().pending_scroll_target.clone().and_then(|t| {
-                        let is_for_me = match &t {
-                            crate::stores::ScrollTarget::Asset(aid) if *aid == asset_id => true,
-                            crate::stores::ScrollTarget::AssetDetail { asset_id: aid, .. } if *aid == asset_id => true,
-                            _ => false,
-                        };
-                        if !is_for_me {
-                            return None;
-                        }
-                        if matches!(t, crate::stores::ScrollTarget::AssetDetail { .. }) {
-                            set_expanded_detail.set(true);
-                        }
-                        match t {
-                            crate::stores::ScrollTarget::Asset(_) => Some(format!("asset-{}", asset_id)),
-                            crate::stores::ScrollTarget::AssetDetail { detail_type, .. } => {
-                                // Map detail type to a known section id; fall back to the asset top for
-                                // generic field results.
-                                match detail_type.as_str() {
-                                    "Channel" => Some(format!("asset-{}-channels", asset_id)),
-                                    "Booking" => Some(format!("asset-{}-bookings", asset_id)),
-                                    "Link" | "Linking" => Some(format!("asset-{}-links", asset_id)),
-                                    _ => Some(format!("asset-{}", asset_id)),
-                                }
+                    let scroll_id = app_store
+                        .get_untracked()
+                        .pending_scroll_target
+                        .clone()
+                        .and_then(|t| {
+                            let is_for_me = match &t {
+                                crate::stores::ScrollTarget::Asset(aid) if *aid == asset_id => true,
+                                crate::stores::ScrollTarget::AssetDetail {
+                                    asset_id: aid, ..
+                                } if *aid == asset_id => true,
+                                _ => false,
+                            };
+                            if !is_for_me {
+                                return None;
                             }
-                            _ => None,
-                        }
-                    });
+                            if matches!(t, crate::stores::ScrollTarget::AssetDetail { .. }) {
+                                set_expanded_detail.set(true);
+                            }
+                            match t {
+                                crate::stores::ScrollTarget::Asset(_) => {
+                                    Some(format!("asset-{}", asset_id))
+                                }
+                                crate::stores::ScrollTarget::AssetDetail {
+                                    detail_type, ..
+                                } => {
+                                    // Map detail type to a known section id; fall back to the asset top for
+                                    // generic field results.
+                                    match detail_type.as_str() {
+                                        "Channel" => Some(format!("asset-{}-channels", asset_id)),
+                                        "Booking" => Some(format!("asset-{}-bookings", asset_id)),
+                                        "Link" | "Linking" => {
+                                            Some(format!("asset-{}-links", asset_id))
+                                        }
+                                        _ => Some(format!("asset-{}", asset_id)),
+                                    }
+                                }
+                                _ => None,
+                            }
+                        });
 
                     if let Some(scroll_id) = scroll_id {
                         app_store.update(|s| {
-                            if matches!(s.pending_scroll_target, Some(crate::stores::ScrollTarget::Asset(_)) | Some(crate::stores::ScrollTarget::AssetDetail { .. })) {
+                            if matches!(
+                                s.pending_scroll_target,
+                                Some(crate::stores::ScrollTarget::Asset(_))
+                                    | Some(crate::stores::ScrollTarget::AssetDetail { .. })
+                            ) {
                                 s.pending_scroll_target = None;
                             }
                             if s.pending_asset_detail == Some(asset_id) {
@@ -267,7 +283,12 @@ pub(crate) fn AssetItem(
         let open = open_doc_modal.clone();
         move |_| {
             if let Some(did) = app_store.get().pending_doc_view {
-                if let Some(doc) = asset_docs_reactive.get().iter().find(|d| d.id == did).cloned() {
+                if let Some(doc) = asset_docs_reactive
+                    .get()
+                    .iter()
+                    .find(|d| d.id == did)
+                    .cloned()
+                {
                     open.run(DocModalTarget::View(doc));
                     app_store.update(|s| s.pending_doc_view = None);
                     crate::utils::dom::scroll_to_id(&format!("doc-card-{}", did));

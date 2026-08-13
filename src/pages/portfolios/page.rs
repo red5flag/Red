@@ -3,7 +3,9 @@ use crate::models::{
     Asset, AssetGroup, AvailabilityStatus, Channel, CommercialStatus, ConditionStatus, Document,
     LifecycleStatus, Organization, Perm, Portfolio,
 };
-use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store, ScrollTarget};
+use crate::stores::{
+    use_app_store, use_notification_store, use_organization_store, use_ui_store, ScrollTarget,
+};
 use crate::types::{AssetType, SortMode, UserRole, ViewCount, ViewMode};
 use leptos::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -162,7 +164,9 @@ pub fn PortfoliosPage() -> impl IntoView {
         set_active_tab_id.set(Some(id));
         match kind {
             NavTabKind::Organization => {
-                set_expanded_orgs.update(|s| { s.insert(id); });
+                set_expanded_orgs.update(|s| {
+                    s.insert(id);
+                });
                 crate::utils::dom::scroll_to_id(&format!("org-group-{}", id));
             }
             NavTabKind::Portfolio => {
@@ -229,11 +233,19 @@ pub fn PortfoliosPage() -> impl IntoView {
                             return Some((p.id, Some(g.id), None));
                         }
                         for g in &p.asset_groups {
-                            if let Some(a) = g.assets.iter().find(|a| a.documents.iter().any(|d| d.id == id)) {
+                            if let Some(a) = g
+                                .assets
+                                .iter()
+                                .find(|a| a.documents.iter().any(|d| d.id == id))
+                            {
                                 return Some((p.id, Some(g.id), Some(a.id)));
                             }
                         }
-                        if let Some(a) = p.assets.iter().find(|a| a.documents.iter().any(|d| d.id == id)) {
+                        if let Some(a) = p
+                            .assets
+                            .iter()
+                            .find(|a| a.documents.iter().any(|d| d.id == id))
+                        {
                             return Some((p.id, None, Some(a.id)));
                         }
                         None
@@ -265,10 +277,20 @@ pub fn PortfoliosPage() -> impl IntoView {
         if let Some(pending) = pending {
             ui_store.update(|s| s.pending_open_tab = None);
             if let Some(kind) = NavTabKind::from_str(&pending.kind) {
-                if matches!(kind, NavTabKind::Portfolio | NavTabKind::AssetGroup | NavTabKind::Asset | NavTabKind::Document) {
+                if matches!(
+                    kind,
+                    NavTabKind::Portfolio
+                        | NavTabKind::AssetGroup
+                        | NavTabKind::Asset
+                        | NavTabKind::Document
+                ) {
                     ui_store.update(|s| s.portfolio_view_mode = ViewMode::List);
                 }
-                let tab = NavTab { kind, id: pending.id, name: pending.name };
+                let tab = NavTab {
+                    kind,
+                    id: pending.id,
+                    name: pending.name,
+                };
                 add_nav_tab(tab);
                 navigate_from_tab(kind, pending.id);
             }
@@ -701,6 +723,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                     <option value="sort_lowest_revenue">"Sort: Low Rev"</option>
                     <option value="sort_by_organization">"Sort: Org"</option>
                 </select>
+                <span class="nav-portfolio-divider"></span>
                 <button
                     class="nav-portfolio-btn sort-direction-btn"
                     aria-label={move || if ui_store.get().sort_ascending { "Sort ascending" } else { "Sort descending" }}

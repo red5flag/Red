@@ -1,0 +1,20 @@
+[package]
+name = "red-storage"
+version = "0.1.0"
+edition = "2021"
+description = "Red — sled-backed local storage with schema versioning and ordered indexes"
+
+[dependencies]
+red-core = { path = "../red-core" }
+sled = "0.34"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.6", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+thiserror = "2"
+parking_lot = "0.12"
+dashmap = "5.5"
+
+[dev-dependencies]
+tempfile = "3"

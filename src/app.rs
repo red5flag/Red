@@ -3,8 +3,8 @@ use crate::components::navbar::Navbar;
 use crate::components::tabs::TabsContainer;
 use crate::pages::LoginPage;
 use crate::stores::{
-    AppStore, CalendarStore, MessengerStore, NotificationStore, OrganizationStore, RuleStore,
-    SearchStore, TransactionStore, UiStore, UndoRedoStore,
+    AccountStore, AppStore, CalendarStore, MessengerStore, NotificationStore,
+    OrganizationStore, RuleStore, SearchStore, TransactionStore, UiStore, UndoRedoStore,
 };
 use leptos::prelude::*;
 use leptos_meta::*;
@@ -35,6 +35,7 @@ pub fn App() -> impl IntoView {
 
     // Initialize stores as signals
     let app_store = RwSignal::new(AppStore::default());
+    let account_store = RwSignal::new(AccountStore::new());
     let calendar_store = RwSignal::new(CalendarStore::new());
     let messenger_store = RwSignal::new(MessengerStore::new());
     let notification_store = RwSignal::new(NotificationStore::default());
@@ -47,6 +48,7 @@ pub fn App() -> impl IntoView {
 
     // Provide stores to all children
     provide_context(app_store);
+    provide_context(account_store);
     provide_context(calendar_store);
     provide_context(messenger_store);
     provide_context(notification_store);

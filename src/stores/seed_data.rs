@@ -5,7 +5,7 @@ use crate::models::{
     RelatedParty, SyncDirection, User,
 };
 use crate::stores::app_store::AppStore;
-use crate::stores::notifications::{NotificationStore, NotificationType};
+use crate::stores::notifications::NotificationStore;
 use crate::stores::OrganizationStore;
 use crate::types::{AssetType, UserRole};
 use uuid::Uuid;
@@ -166,7 +166,7 @@ pub fn seed_red_family_data(
         "Sales",
     ));
 
-    seed_notred_data(app_store, organization_store, notification_store);
+    seed_notred_data(app_store, organization_store);
 
     seed_red_channel_data(app_store, organization_store);
 
@@ -523,7 +523,6 @@ pub fn seed_org_portfolio(org_id: Uuid, owner_id: Uuid, name: &str, asset_name: 
 pub fn seed_notred_data(
     app_store: &mut AppStore,
     organization_store: &mut OrganizationStore,
-    notification_store: &mut NotificationStore,
 ) {
     let guest_id = app_store.current_user.id;
     let guest_name = app_store.current_user.name.clone();
@@ -584,27 +583,10 @@ pub fn seed_notred_data(
             uploaded_by: notred_owner,
             content: Some("@red — Please review this audit report for compliance. Notes: financial statements verified, tax filings current, 2 discrepancies flagged for follow-up. @red ping for approval.".to_string()),
         };
-    let audit_doc_id = audit_doc.id;
-    let notred_pid = p.id;
-    let notred_aid = asset.id;
     asset.documents.push(audit_doc);
     p.assets.push(asset);
     p.recalculate_values();
     app_store.portfolios.push(p);
-
-    // Linked document notifications: one on Reporting tab, one on Portfolios tab.
-    notification_store.add_document_notification(
-            audit_doc_id,
-            "NotRed Q3 Audit Report",
-            "red",
-            "Red1 (NotRed Owner) has listed a new document and requested audit review by Red (Auditor).",
-            NotificationType::Warning,
-            Some(crate::types::TabType::Reporting),
-            Some("Red1".to_string()),
-            Some(notred_pid),
-            None,
-            Some(notred_aid),
-        );
 }
 
 fn make_doc(name: &str, ext: &str) -> crate::models::Document {

@@ -101,7 +101,12 @@ pub(crate) fn bookings_view() -> impl IntoView {
             .count();
         let pending_tasks = tk
             .iter()
-            .filter(|t| !matches!(t.status, ServiceTaskStatus::Done | ServiceTaskStatus::Cancelled))
+            .filter(|t| {
+                !matches!(
+                    t.status,
+                    ServiceTaskStatus::Done | ServiceTaskStatus::Cancelled
+                )
+            })
             .count();
         (
             total_bookings,

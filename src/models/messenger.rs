@@ -123,7 +123,12 @@ impl MessengerContact {
         }
     }
 
-    pub fn person(id: Uuid, name: impl Into<String>, source: ContactSource, email: Option<String>) -> Self {
+    pub fn person(
+        id: Uuid,
+        name: impl Into<String>,
+        source: ContactSource,
+        email: Option<String>,
+    ) -> Self {
         Self {
             id,
             name: name.into(),

@@ -9,8 +9,8 @@ use crate::pages::networking::{
     RelationshipEvent, RelationshipStatus, RiskLevel,
 };
 use crate::stores::{
-    record_tab_navigation, use_app_store, use_organization_store,
-    use_search_store, use_ui_store, use_undo_redo_store,
+    record_tab_navigation, use_app_store, use_organization_store, use_search_store, use_ui_store,
+    use_undo_redo_store,
 };
 use crate::types::{TabType, ViewCount};
 use chrono::Utc;
@@ -419,34 +419,34 @@ pub fn NetworkingPage() -> impl IntoView {
             .collect();
         let in_my_org = |c: &ExternalContact| {
             let company = c.company.to_lowercase();
-            let company_match = my_orgs.iter().any(|n| company.contains(n) || n.contains(&company));
+            let company_match = my_orgs
+                .iter()
+                .any(|n| company.contains(n) || n.contains(&company));
             let portfolio_match = c.linked_portfolios.iter().any(|p| {
                 let pl = p.to_lowercase();
                 my_orgs.iter().any(|n| pl.contains(n))
             });
             company_match || portfolio_match
         };
-        list.sort_by(|a, b| {
-            match (in_my_org(a), in_my_org(b)) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => {
-                    let ord = match sm {
-                        NetSort::Name => a.name.cmp(&b.name),
-                        NetSort::Company => a.company.cmp(&b.company),
-                        NetSort::Status => a.status.label().cmp(b.status.label()),
-                        NetSort::Risk => a.risk_level.label().cmp(b.risk_level.label()),
-                        NetSort::Type => a.relationship_type.cmp(&b.relationship_type),
-                        NetSort::Transactions => a
-                            .linked_transactions
-                            .len()
-                            .cmp(&b.linked_transactions.len()),
-                    };
-                    if asc {
-                        ord
-                    } else {
-                        ord.reverse()
-                    }
+        list.sort_by(|a, b| match (in_my_org(a), in_my_org(b)) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => {
+                let ord = match sm {
+                    NetSort::Name => a.name.cmp(&b.name),
+                    NetSort::Company => a.company.cmp(&b.company),
+                    NetSort::Status => a.status.label().cmp(b.status.label()),
+                    NetSort::Risk => a.risk_level.label().cmp(b.risk_level.label()),
+                    NetSort::Type => a.relationship_type.cmp(&b.relationship_type),
+                    NetSort::Transactions => a
+                        .linked_transactions
+                        .len()
+                        .cmp(&b.linked_transactions.len()),
+                };
+                if asc {
+                    ord
+                } else {
+                    ord.reverse()
                 }
             }
         });
@@ -504,12 +504,7 @@ pub fn NetworkingPage() -> impl IntoView {
         match tab {
             NetTab::Contacts => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::Contacts));
-                render_contacts(
-                    filtered_contacts.get(),
-                    visible_count,
-                    expand_scope,
-                )
-                .into_any()
+                render_contacts(filtered_contacts.get(), visible_count, expand_scope).into_any()
             }
             NetTab::ExternalOrgs => {
                 let visible_count = Signal::derive(move || visible_for(NetTab::ExternalOrgs));

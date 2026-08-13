@@ -1,0 +1,15 @@
+{
+  "identifier": "default",
+  "description": "Default capability set for Red — conservative permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-title",
+    "core:webview:allow-eval",
+    "shell:allow-open",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file"
+  ]
+}

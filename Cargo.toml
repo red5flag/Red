@@ -16,6 +16,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.6", features = ["v4", "v7", "serde", "js"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+red-core = { path = "crates/red-core" }
 
 # Web Framework - Axum
 axum = { version = "0.8", optional = true }
@@ -74,6 +75,8 @@ default = []
 hydrate = ["leptos/hydrate", "gloo-net", "chacha20poly1305"]
 ssr = ["leptos/ssr", "leptos_axum", "leptos_router/ssr", "leptos_meta/ssr", "axum", "tower", "tower-http", "tokio-stream", "bcrypt", "jsonwebtoken", "meilisearch-sdk", "reqwest", "parking_lot", "dashmap", "sled", "zstd", "tracing-subscriber", "tokio", "tokio/rt-multi-thread", "tokio/net", "totp-rs", "printpdf", "chacha20poly1305"]
 csr = ["leptos/csr"]
+# tauri feature: enables native deps for use by src-tauri/ crate
+tauri = ["leptos/csr", "tokio", "tokio/rt-multi-thread", "sled", "zstd", "chacha20poly1305", "parking_lot", "dashmap", "tracing-subscriber", "reqwest", "bcrypt", "jsonwebtoken", "totp-rs", "printpdf"]
 
 [[bin]]
 name = "farley"

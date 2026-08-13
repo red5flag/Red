@@ -218,6 +218,8 @@ pub(crate) fn CreateTransactionRecord(
             related_portfolio_id: None,
             related_asset_group_id: None,
             related_asset_id: None,
+            account_id: None,
+            card_id: None,
             executed_by: Uuid::new_v4(),
             status: st.clone(),
             created_at: Utc::now(),

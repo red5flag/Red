@@ -324,7 +324,12 @@ pub(crate) fn nav_tab_drag_payload(kind: &NavTabKind, id: Uuid, name: &str) -> S
 }
 
 /// Attach nav tab drag data to a DragEvent.
-pub(crate) fn set_drag_tab_data(ev: &leptos::ev::DragEvent, kind: &NavTabKind, id: Uuid, name: &str) {
+pub(crate) fn set_drag_tab_data(
+    ev: &leptos::ev::DragEvent,
+    kind: &NavTabKind,
+    id: Uuid,
+    name: &str,
+) {
     if let Some(dt) = ev.data_transfer() {
         let payload = nav_tab_drag_payload(kind, id, name);
         let _ = dt.set_data("text/plain", &payload);
@@ -338,8 +343,8 @@ pub(crate) fn set_drag_tab_data(ev: &leptos::ev::DragEvent, kind: &NavTabKind, i
 #[cfg(target_arch = "wasm32")]
 fn set_tab_drag_image(ev: &leptos::ev::DragEvent, kind: &NavTabKind) {
     use std::cell::RefCell;
-    use web_sys::{Document, HtmlElement};
     use wasm_bindgen::JsCast;
+    use web_sys::{Document, HtmlElement};
 
     thread_local! {
         static DRAG_IMAGE: RefCell<Option<HtmlElement>> = RefCell::new(None);
@@ -452,7 +457,9 @@ pub(crate) fn mobile_tab_gestures(
                 let y = t.client_y();
                 if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
                     if let Some(elem) = doc.element_from_point(x as f32, y as f32) {
-                        if let Ok(Some(_)) = elem.closest(".portfolio-controls-bar, .pf-nav-controls, .pf-nav-tabs-scroll") {
+                        if let Ok(Some(_)) = elem.closest(
+                            ".portfolio-controls-bar, .pf-nav-controls, .pf-nav-tabs-scroll",
+                        ) {
                             ui_store.update(|s| s.open_nav_tab(kind.as_str(), id, &name));
                         }
                     }
