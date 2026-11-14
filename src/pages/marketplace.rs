@@ -1,4 +1,7 @@
-use crate::pages::portfolios::{collect_red_listings, RedBrowseItem, RedEntityKind};
+use crate::pages::portfolios::{
+    collect_red_listings, save_red_listing, ListingComment, MarketplaceListing, RedBrowseItem,
+    RedEntityKind,
+};
 use crate::stores::{use_app_store, use_organization_store, AppStore, OrganizationStore};
 use crate::types::TabType;
 use leptos::prelude::*;
@@ -43,6 +46,7 @@ fn owner_name(app: &AppStore, orgs: &OrganizationStore, owner_id: Uuid) -> Strin
 fn status_label(status: &str) -> &'static str {
     match status {
         "published" => "Listed",
+        "bidding" => "Bidding",
         "draft" => "Draft",
         "sold" => "Sold",
         _ => "Listed",
@@ -76,8 +80,21 @@ pub fn MarketplacePage() -> impl IntoView {
     let (kind_open, set_kind_open) = signal(false);
     let (status_open, set_status_open) = signal(false);
     let (sort_open, set_sort_open) = signal(false);
+    let (selected, set_selected) = signal(Option::<RedBrowseItem>::None);
+    let (comment_text, set_comment_text) = signal(String::new());
 
     let items = Memo::new(move |_| collect_red_listings(&app_store.get()));
+
+    // The open item view re-resolves against the live items memo so
+    // comment/status edits reflect immediately.
+    let detail_item = Memo::new(move |_| {
+        let sel = selected.get()?;
+        items
+            .get()
+            .into_iter()
+            .find(|i| i.entity_id == sel.entity_id && i.kind == sel.kind)
+            .or(Some(sel))
+    });
 
     let filtered = Memo::new(move |_| {
         let kf = kind_filter.get();
@@ -136,8 +153,245 @@ pub fn MarketplacePage() -> impl IntoView {
         v
     });
 
-    let open_portfolios = move |_| {
+    // Jump to the listing's entity inside Portfolios: prime the same
+    // pending-navigation state search results use (expand portfolio,
+    // reveal group, scroll into view, open asset detail), then switch tabs.
+    let open_in_portfolios = move |kind: RedEntityKind,
+                                   entity_id: Uuid,
+                                   portfolio_id: Uuid| {
+        // Expansion/selection state persists once applied, so it can be
+        // set while the tab is still hidden. The scroll target is consumed
+        // by already-mounted portfolio components, so it is applied after
+        // the tab switch has painted or scrollIntoView hits display:none.
+        let scroll_target = match kind {
+            RedEntityKind::Portfolio => {
+                app_store.update(|s| {
+                    s.touch_portfolio(entity_id);
+                    s.selected_portfolio_ids.insert(entity_id);
+                });
+                crate::stores::ScrollTarget::Portfolio(entity_id)
+            }
+            RedEntityKind::AssetGroup => {
+                app_store.update(|s| {
+                    s.touch_portfolio(portfolio_id);
+                    s.selected_portfolio_ids.insert(portfolio_id);
+                    s.selected_asset_group_id = Some(entity_id);
+                    s.pending_group_expand = Some(entity_id);
+                });
+                crate::stores::ScrollTarget::AssetGroup(entity_id)
+            }
+            RedEntityKind::Asset => {
+                let group_id = app_store.with(|s| {
+                    s.portfolios.iter().find_map(|p| {
+                        p.asset_groups
+                            .iter()
+                            .find(|g| g.assets.iter().any(|a| a.id == entity_id))
+                            .map(|g| g.id)
+                    })
+                });
+                app_store.update(|s| {
+                    s.touch_portfolio(portfolio_id);
+                    s.selected_portfolio_ids.insert(portfolio_id);
+                    s.selected_asset_id = Some(entity_id);
+                    s.pending_group_expand = group_id;
+                    s.pending_asset_detail = Some(entity_id);
+                });
+                crate::stores::ScrollTarget::Asset(entity_id)
+            }
+        };
         app_store.update(|s| s.expand_tab(TabType::Portfolios));
+        #[cfg(not(feature = "hydrate"))]
+        let _ = &scroll_target;
+        #[cfg(feature = "hydrate")]
+        {
+            leptos::task::spawn_local(async move {
+                gloo_timers::future::TimeoutFuture::new(120).await;
+                app_store.update(|s| s.pending_scroll_target = Some(scroll_target));
+            });
+        }
+    };
+
+    // Persist an edited listing back through the entity's red_listing slot.
+    let persist_item_listing = move |item: &RedBrowseItem, l: MarketplaceListing| {
+        save_red_listing(
+            app_store,
+            item.kind,
+            item.entity_id,
+            item.portfolio_id,
+            Some(l),
+        );
+    };
+
+    // Owner-only listing status changes (Listed / Bidding / Sold / Draft).
+    let set_listing_status = Callback::new(move |status: String| {
+        let Some(item) = detail_item.get_untracked() else {
+            return;
+        };
+        let mut l = item.listing.clone();
+        l.status = status;
+        l.saved_at = chrono::Utc::now().to_rfc3339();
+        persist_item_listing(&item, l);
+    });
+
+    let post_comment = Callback::new(move |_: ()| {
+        let text = comment_text.get().trim().to_string();
+        if text.is_empty() {
+            return;
+        }
+        let Some(item) = detail_item.get_untracked() else {
+            return;
+        };
+        let mut l = item.listing.clone();
+        l.comments.push(ListingComment {
+            author: app_store.get_untracked().current_user.name.clone(),
+            text,
+            at: chrono::Utc::now().to_rfc3339(),
+        });
+        set_comment_text.set(String::new());
+        persist_item_listing(&item, l);
+    });
+
+    // Full item view: listing info + status control + comments.
+    let detail_view = move |item: RedBrowseItem| -> AnyView {
+        let app = app_store.get();
+        let orgs = organization_store.get();
+        let owner = owner_name(&app, &orgs, item.owner_id);
+        let is_owner = item.owner_id == app.current_user.id;
+        let kind = item.kind;
+        let portfolio_name = item.portfolio_name.clone();
+        let listing = item.listing.clone();
+        let comments = listing.comments.clone();
+        let photos: Vec<String> = if !listing.photos.is_empty() {
+            listing.photos.clone()
+        } else {
+            item.image_url.iter().cloned().collect()
+        };
+        let status = listing.status.clone();
+        let saved = listing.saved_at.clone();
+        let nav_kind = item.kind;
+        let nav_entity = item.entity_id;
+        let nav_portfolio = item.portfolio_id;
+        view! {
+            <div class="listing-detail">
+                <div class="listing-detail-head">
+                    <button type="button" class="mp-head-btn"
+                        on:click=move |_| set_selected.set(None)>"← Back"</button>
+                    <span class="marketplace-kind-badge">{format!("{} {}", kind.icon(), kind.label())}</span>
+                    <span class={format!("listing-status-badge listing-status-{}", status)}>
+                        {status_label(&status)}
+                    </span>
+                    <button type="button" class="mp-head-btn"
+                        on:click=move |_| open_in_portfolios(nav_kind, nav_entity, nav_portfolio)>
+                        "View in Portfolios"
+                    </button>
+                </div>
+                <h2 class="listing-detail-title">{listing.title.clone()}</h2>
+                <div class="listing-detail-price">
+                    {if listing.price.is_empty() { "Price on request".to_string() } else { format!("${}", listing.price) }}
+                </div>
+                {if !listing.description.trim().is_empty() {
+                    view! { <p class="listing-detail-desc">{listing.description.clone()}</p> }.into_any()
+                } else { ().into_any() }}
+                {if photos.is_empty() { ().into_any() } else {
+                    view! {
+                        <div class="listing-detail-photos">
+                            {photos.iter().take(8).map(|u| view! {
+                                <img class="listing-detail-photo" src={u.clone()} alt="Listing photo" />
+                            }).collect::<Vec<_>>()}
+                        </div>
+                    }.into_any()
+                }}
+                <div class="mp-included">
+                    <span class="mp-included-label">"Listing details:"</span>
+                    <div class="mp-af-grid">
+                        <div class="mp-af-row"><span class="mp-af-label">"OWNER"</span><span class="mp-af-value">{owner}</span></div>
+                        <div class="mp-af-row"><span class="mp-af-label">"PORTFOLIO"</span><span class="mp-af-value">{portfolio_name}</span></div>
+                        {if listing.category.is_empty() { ().into_any() } else {
+                            let v = listing.category.clone();
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"TYPE & BUILD"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if listing.condition.is_empty() { ().into_any() } else {
+                            let v = listing.condition.clone();
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"CONDITION"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if listing.asset_condition.is_empty() { ().into_any() } else {
+                            let v = listing.asset_condition.clone();
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"ASSET CONDITION"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if listing.location.is_empty() { ().into_any() } else {
+                            let v = listing.location.clone();
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"ADDRESS"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if listing.sku.is_empty() { ().into_any() } else {
+                            let v = format!("SKU {}", listing.sku);
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"REF / SKU"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if saved.is_empty() { ().into_any() } else {
+                            let v = saved.get(..10).unwrap_or("").to_string();
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"SAVED"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if listing.docs.is_empty() && listing.doc_count == 0 { ().into_any() } else {
+                            let n = if !listing.docs.is_empty() { listing.docs.len() } else { listing.doc_count };
+                            let v = format!("{} doc{}", n, if n == 1 { "" } else { "s" });
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"DOCS"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if listing.tags.is_empty() { ().into_any() } else {
+                            let v = listing.tags.join(", ");
+                            view! { <div class="mp-af-row"><span class="mp-af-label">"TAGS"</span><span class="mp-af-value">{v}</span></div> }.into_any()
+                        }}
+                        {if is_owner {
+                            view! {
+                                <div class="mp-af-row">
+                                    <span class="mp-af-label">"LISTING STATUS"</span>
+                                    <select class="mp-af-input"
+                                        prop:value=status.clone()
+                                        on:change=move |ev| set_listing_status.run(event_target_value(&ev))>
+                                        <option value="published">"Listed"</option>
+                                        <option value="bidding">"Bidding"</option>
+                                        <option value="sold">"Sold"</option>
+                                        <option value="draft">"Draft"</option>
+                                    </select>
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
+                </div>
+                <div class="listing-comments">
+                    <div class="listing-comments-head">{format!("Comments ({})", comments.len())}</div>
+                    {if comments.is_empty() {
+                        view! { <p class="mp-hint">"No comments yet — start the conversation."</p> }.into_any()
+                    } else {
+                        view! {
+                            <div class="listing-comment-list">
+                                {comments.into_iter().map(|c| {
+                                    let at = c.at.chars().take(10).collect::<String>();
+                                    view! {
+                                        <div class="listing-comment">
+                                            <div class="listing-comment-meta">
+                                                <span class="listing-comment-author">{c.author}</span>
+                                                <span class="listing-comment-at">{at}</span>
+                                            </div>
+                                            <div class="listing-comment-text">{c.text}</div>
+                                        </div>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        }.into_any()
+                    }}
+                    <div class="listing-comment-form">
+                        <input class="mp-af-input" type="text" placeholder="Add a comment…"
+                            prop:value=move || comment_text.get()
+                            on:input=move |ev| set_comment_text.set(event_target_value(&ev))
+                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                if ev.key() == "Enter" { post_comment.run(()); }
+                            } />
+                        <button type="button" class="pf-small-btn"
+                            on:click=move |_| post_comment.run(())>"Post"</button>
+                    </div>
+                </div>
+            </div>
+        }
+        .into_any()
     };
 
     view! {
@@ -181,7 +435,7 @@ pub fn MarketplacePage() -> impl IntoView {
                     {move || if status_open.get() {
                         view! {
                             <div class="sort-dropdown" on:click=|ev| ev.stop_propagation()>
-                                {["All", "Listed", "Draft", "Sold"].iter().map(|s| {
+                                {["All", "Listed", "Bidding", "Sold", "Draft"].iter().map(|s| {
                                     let s = *s;
                                     view! {
                                         <button class="sort-dropdown-item"
@@ -230,6 +484,9 @@ pub fn MarketplacePage() -> impl IntoView {
             </div>
 
             {move || {
+                if let Some(item) = detail_item.get() {
+                    return detail_view(item);
+                }
                 let list = sorted.get();
                 if list.is_empty() {
                     return view! {
@@ -244,6 +501,7 @@ pub fn MarketplacePage() -> impl IntoView {
                             let app = app_store.get();
                             let orgs = organization_store.get();
                             let owner = owner_name(&app, &orgs, item.owner_id);
+                            let click_item = item.clone();
                             let kind = item.kind;
                             let title = item.listing.title.clone();
                             let price = item.listing.price.clone();
@@ -254,7 +512,7 @@ pub fn MarketplacePage() -> impl IntoView {
                             let img = item.image_url.clone();
                             let tags = item.listing.tags.clone();
                             view! {
-                                <button class="marketplace-card" on:click=open_portfolios>
+                                <button class="marketplace-card" on:click=move |_| set_selected.set(Some(click_item.clone()))>
                                     <div class="marketplace-card-media">
                                         {if let Some(u) = img {
                                             view! { <img class="marketplace-card-img" src={u} alt="" /> }.into_any()

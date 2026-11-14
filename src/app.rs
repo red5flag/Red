@@ -67,6 +67,114 @@ pub fn App() -> impl IntoView {
         leptos::task::spawn_local(async move {
             app_store.update(|s| s.credentials.merge_from_local_storage());
         });
+
+        // Once authenticated, restore persisted portfolios + channels so
+        // marketplace listings, sales profiles, and channel links survive
+        // reloads instead of falling back to seed data.
+        let (state_loaded, set_state_loaded) = signal(false);
+        Effect::new(move |_| {
+            if !app_store.with(|s| s.is_authenticated) || state_loaded.get() {
+                return;
+            }
+            leptos::task::spawn_local(async move {
+                // Empty result = nothing persisted yet → keep seed data.
+                if let Ok(portfolios) = crate::server::get_portfolios().await {
+                    if !portfolios.is_empty() {
+                        app_store.update(|s| s.portfolios = portfolios);
+                    }
+                }
+                // `None` = channels never saved → keep current list.
+                if let Ok(Some(channels)) = crate::server::get_channels().await {
+                    app_store.update(|s| s.channels = channels);
+                }
+                set_state_loaded.set(true);
+            });
+        });
+
+        // Keep the persisted channel list in sync once the initial
+        // server load has resolved (avoids overwriting stored channels
+        // with pre-load seed state).
+        let channels_memo = Memo::new(move |_| app_store.with(|s| s.channels.clone()));
+        Effect::new(move |_| {
+            let channels = channels_memo.get();
+            if !state_loaded.get() || !app_store.with(|s| s.is_authenticated) {
+                return;
+            }
+            leptos::task::spawn_local(async move {
+                let _ = crate::server::save_channels(channels).await;
+            });
+        });
+
+        // Portfolio autosave: every 8s while authenticated, persist
+        // portfolios whose serialized contents changed since the last
+        // tick and delete any removed from the store. Complements the
+        // explicit save_portfolio calls so every mutation path
+        // (create/edit/delete/drag) reaches the server.
+        {
+            use std::collections::{HashMap, HashSet};
+            use std::hash::{Hash, Hasher};
+            let known: RwSignal<HashMap<uuid::Uuid, u64>> = RwSignal::new(HashMap::new());
+            gloo_timers::callback::Interval::new(8000, move || {
+                if !state_loaded.get() || !app_store.with(|s| s.is_authenticated) {
+                    return;
+                }
+                // Fingerprint each portfolio by its serialized form —
+                // catches every mutation including metadata-only edits.
+                let fps: Vec<(uuid::Uuid, u64)> = app_store.with(|s| {
+                    s.portfolios
+                        .iter()
+                        .map(|p| {
+                            let mut h = std::collections::hash_map::DefaultHasher::new();
+                            serde_json::to_string(p).unwrap_or_default().hash(&mut h);
+                            (p.id, h.finish())
+                        })
+                        .collect()
+                });
+                let prev = known.get();
+                let mut next = prev.clone();
+                let mut current_ids: HashSet<uuid::Uuid> = HashSet::new();
+                let mut changed_ids: Vec<uuid::Uuid> = Vec::new();
+                for (id, fp) in &fps {
+                    current_ids.insert(*id);
+                    if next.get(id) != Some(fp) {
+                        changed_ids.push(*id);
+                        next.insert(*id, *fp);
+                    }
+                }
+                let deleted_ids: Vec<uuid::Uuid> = prev
+                    .keys()
+                    .filter(|id| !current_ids.contains(*id))
+                    .copied()
+                    .collect();
+                for id in &deleted_ids {
+                    next.remove(id);
+                }
+                known.set(next);
+                if changed_ids.is_empty() && deleted_ids.is_empty() {
+                    return;
+                }
+                let to_save: Vec<crate::models::Portfolio> = if changed_ids.is_empty() {
+                    Vec::new()
+                } else {
+                    app_store.with(|s| {
+                        s.portfolios
+                            .iter()
+                            .filter(|p| changed_ids.contains(&p.id))
+                            .cloned()
+                            .collect()
+                    })
+                };
+                leptos::task::spawn_local(async move {
+                    for id in deleted_ids {
+                        let _ = crate::server::delete_portfolio(id).await;
+                    }
+                    for p in to_save {
+                        let _ = crate::server::save_portfolio(p).await;
+                    }
+                });
+            })
+            .forget();
+        }
     }
 
     let is_authenticated = Memo::new(move |_| app_store.get().is_authenticated);

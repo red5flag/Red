@@ -4,6 +4,116 @@ use uuid::Uuid;
 
 use super::{csv_to_list, MarketplaceListing};
 
+/// Locate any entity's metadata object — assets included — for the
+/// shared `metadata["red_listing"]` slot.
+fn entity_metadata_mut<'a>(
+    s: &'a mut AppStore,
+    kind: RedEntityKind,
+    entity_id: Uuid,
+) -> Option<&'a mut serde_json::Value> {
+    match kind {
+        RedEntityKind::Portfolio => s
+            .portfolios
+            .iter_mut()
+            .find(|p| p.id == entity_id)
+            .map(|p| &mut p.metadata),
+        RedEntityKind::AssetGroup => s.portfolios.iter_mut().find_map(|p| {
+            p.asset_groups
+                .iter_mut()
+                .find(|g| g.id == entity_id)
+                .map(|g| &mut g.metadata)
+        }),
+        RedEntityKind::Asset => s.portfolios.iter_mut().find_map(|p| {
+            p.assets
+                .iter_mut()
+                .find(|a| a.id == entity_id)
+                .map(|a| &mut a.metadata)
+                .or_else(|| {
+                    p.asset_groups.iter_mut().find_map(|g| {
+                        g.assets
+                            .iter_mut()
+                            .find(|a| a.id == entity_id)
+                            .map(|a| &mut a.metadata)
+                    })
+                })
+        }),
+    }
+}
+
+fn entity_metadata<'a>(
+    s: &'a AppStore,
+    kind: RedEntityKind,
+    entity_id: Uuid,
+) -> Option<&'a serde_json::Value> {
+    match kind {
+        RedEntityKind::Portfolio => s
+            .portfolios
+            .iter()
+            .find(|p| p.id == entity_id)
+            .map(|p| &p.metadata),
+        RedEntityKind::AssetGroup => s.portfolios.iter().find_map(|p| {
+            p.asset_groups
+                .iter()
+                .find(|g| g.id == entity_id)
+                .map(|g| &g.metadata)
+        }),
+        RedEntityKind::Asset => s.portfolios.iter().find_map(|p| {
+            p.assets
+                .iter()
+                .find(|a| a.id == entity_id)
+                .map(|a| &a.metadata)
+                .or_else(|| {
+                    p.asset_groups.iter().find_map(|g| {
+                        g.assets
+                            .iter()
+                            .find(|a| a.id == entity_id)
+                            .map(|a| &a.metadata)
+                    })
+                })
+        }),
+    }
+}
+
+/// Persist a Red listing (or remove it with `None`) for any entity kind,
+/// then save the owning portfolio to the server. Shared by the listing
+/// panel and the marketplace item view (status/comments edits).
+pub(crate) fn save_red_listing(
+    app_store: RwSignal<AppStore>,
+    kind: RedEntityKind,
+    entity_id: Uuid,
+    portfolio_id: Uuid,
+    listing: Option<MarketplaceListing>,
+) {
+    app_store.update(|s| {
+        let Some(meta) = entity_metadata_mut(s, kind, entity_id) else {
+            return;
+        };
+        if !meta.is_object() {
+            *meta = serde_json::json!({});
+        }
+        if let Some(l) = listing {
+            if let Ok(v) = serde_json::to_value(&l) {
+                meta.as_object_mut()
+                    .unwrap()
+                    .insert("red_listing".to_string(), v);
+            }
+        } else if let Some(obj) = meta.as_object_mut() {
+            obj.remove("red_listing");
+        }
+    });
+    if let Some(p) = app_store
+        .get()
+        .portfolios
+        .iter()
+        .find(|p| p.id == portfolio_id)
+        .cloned()
+    {
+        leptos::task::spawn_local(async move {
+            let _ = crate::server::save_portfolio(p).await;
+        });
+    }
+}
+
 /// Which portfolio entity a Red Marketplace listing describes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RedEntityKind {
@@ -108,50 +218,6 @@ pub(crate) fn collect_red_listings(app: &AppStore) -> Vec<RedBrowseItem> {
         }
     }
     items
-}
-
-/// Locate the metadata object for a group/portfolio listing target.
-fn entity_metadata_mut<'a>(
-    s: &'a mut AppStore,
-    kind: RedEntityKind,
-    entity_id: Uuid,
-) -> Option<&'a mut serde_json::Value> {
-    match kind {
-        RedEntityKind::Portfolio => s
-            .portfolios
-            .iter_mut()
-            .find(|p| p.id == entity_id)
-            .map(|p| &mut p.metadata),
-        RedEntityKind::AssetGroup => s.portfolios.iter_mut().find_map(|p| {
-            p.asset_groups
-                .iter_mut()
-                .find(|g| g.id == entity_id)
-                .map(|g| &mut g.metadata)
-        }),
-        // Assets are listed through the marketplace card, not this panel.
-        RedEntityKind::Asset => None,
-    }
-}
-
-fn entity_metadata<'a>(
-    s: &'a AppStore,
-    kind: RedEntityKind,
-    entity_id: Uuid,
-) -> Option<&'a serde_json::Value> {
-    match kind {
-        RedEntityKind::Portfolio => s
-            .portfolios
-            .iter()
-            .find(|p| p.id == entity_id)
-            .map(|p| &p.metadata),
-        RedEntityKind::AssetGroup => s.portfolios.iter().find_map(|p| {
-            p.asset_groups
-                .iter()
-                .find(|g| g.id == entity_id)
-                .map(|g| &g.metadata)
-        }),
-        RedEntityKind::Asset => None,
-    }
 }
 
 /// Inline listing editor for asset groups and portfolios — the same
@@ -315,6 +381,7 @@ pub(crate) fn RedListingPanel(
                         <select class="mp-af-input" prop:value=move || status.get()
                             on:change=move |ev| set_status.set(event_target_value(&ev))>
                             <option value="published">"Listed"</option>
+                            <option value="bidding">"Bidding"</option>
                             <option value="draft">"Draft"</option>
                             <option value="sold">"Sold"</option>
                         </select>

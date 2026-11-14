@@ -1952,6 +1952,15 @@ fn load_sales_profile(s: &AppStore, asset_id: Uuid) -> SalesProfile {
         .unwrap_or_default()
 }
 
+/// One comment on a marketplace listing — stored inside the listing's
+/// own metadata so it persists with the draft/published record.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ListingComment {
+    pub author: String,
+    pub text: String,
+    pub at: String,
+}
+
 /// Listing contents bound to an asset + marketplace. Persisted inside
 /// `asset.metadata["marketplace_listings"][key]` so drafts survive reloads
 /// and published listings can be updated later.
@@ -1996,9 +2005,12 @@ pub(crate) struct MarketplaceListing {
     pub(crate) photo_count: usize,
     pub(crate) doc_count: usize,
     pub(crate) tags: Vec<String>,
-    /// "draft" | "published"
+    /// "draft" | "published" | "bidding" | "sold" | …
     pub(crate) status: String,
     pub(crate) saved_at: String,
+    /// Buyer/seller comments shown on the marketplace item view.
+    #[serde(default)]
+    pub(crate) comments: Vec<ListingComment>,
 }
 
 impl MarketplaceListing {
@@ -2096,6 +2108,7 @@ impl MarketplaceListing {
             status: "draft".to_string(),
             saved_at: String::new(),
             thread_id: None,
+            comments: Vec::new(),
         }
     }
 
@@ -2188,6 +2201,29 @@ fn save_marketplace_listing(
             .as_object_mut()
             .unwrap()
             .insert(mp_key.to_string(), v);
+    }
+}
+
+/// Persist the portfolio containing an asset so metadata edits
+/// (marketplace listings, sales profiles, …) reach the server store.
+/// `app_store.update` only mutates in-memory state — without this the
+/// listing would vanish on the next reload.
+fn persist_asset_portfolio(app_store: RwSignal<AppStore>, asset_id: Uuid) {
+    let p = app_store
+        .get()
+        .portfolios
+        .iter()
+        .find(|p| {
+            p.assets.iter().any(|a| a.id == asset_id)
+                || p.asset_groups
+                    .iter()
+                    .any(|g| g.assets.iter().any(|a| a.id == asset_id))
+        })
+        .cloned();
+    if let Some(p) = p {
+        leptos::task::spawn_local(async move {
+            let _ = crate::server::save_portfolio(p).await;
+        });
     }
 }
 
@@ -2572,6 +2608,9 @@ fn MarketplaceCard(
                 }
             }
         });
+        // Push the updated listing metadata (and any new channel link) to
+        // the server store so published listings survive reloads.
+        persist_asset_portfolio(app_store, asset_id);
         if status == "published" {
             set_published.set(true);
             // Open the listing's messenger thread with the listing embedded
@@ -2596,6 +2635,7 @@ fn MarketplaceCard(
                 l.thread_id = Some(Uuid::new_v4());
                 let saved = l.clone();
                 app_store.update(|s| save_marketplace_listing(s, asset_id, mp_key, &saved));
+                persist_asset_portfolio(app_store, asset_id);
             }
             let uid = app_store.get_untracked().current_user.id;
             let tid = ensure_marketplace_thread(messenger_store, uid, asset_id, mp_key, &l);

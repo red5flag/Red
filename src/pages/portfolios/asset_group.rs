@@ -926,6 +926,11 @@ pub(crate) fn AssetGroupItem(
                                         on:click=move |_| {
                                             set_confirm_group_remove.set(false);
                                             app_store.update(|s| { s.remove_asset_group(pid, gid); });
+                                            if let Some(p) = app_store.get().portfolios.iter().find(|p| p.id == pid).cloned() {
+                                                leptos::task::spawn_local(async move {
+                                                    let _ = crate::server::save_portfolio(p).await;
+                                                });
+                                            }
                                         }>
                                         "✔ Yes, Remove"
                                     </button>

@@ -275,6 +275,24 @@ impl DataStore {
         serde_json::from_slice(&v).ok()
     }
 
+    /// Persist the app channel list (plain JSON — channels carry no secrets
+    /// beyond what the in-memory store already holds).
+    pub fn save_channels(
+        &self,
+        channels: &[crate::models::Channel],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let value = serde_json::to_vec(channels)?;
+        self.db.insert(b"channels", value)?;
+        Ok(())
+    }
+
+    /// Load the persisted channel list. `None` means channels were never
+    /// saved, so callers can distinguish "no data" from "saved empty".
+    pub fn load_channels(&self) -> Option<Vec<crate::models::Channel>> {
+        let v = self.db.get(b"channels").ok().flatten()?;
+        serde_json::from_slice(&v).ok()
+    }
+
     /// Delete a message from DB and cache.
     pub fn delete_message(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
         let id_key = format!("msg:{}", id);

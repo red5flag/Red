@@ -20148,3 +20148,155 @@ select.mp-af-input {
 .red-listing-panel {
     min-width: 320px;
 }
+
+/* ── Marketplace item detail view ─────────────────────────────── */
+.listing-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 720px;
+}
+
+.listing-detail-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.listing-detail-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.listing-detail-price {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--highlight);
+}
+
+.listing-detail-desc {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+.listing-detail-photos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.listing-detail-photo {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    background: var(--accent-bg);
+}
+
+.listing-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    background: var(--secondary-bg);
+}
+
+.listing-status-published {
+    border-color: var(--highlight);
+    color: var(--highlight);
+}
+
+.listing-status-bidding {
+    border-color: #d4a017;
+    color: #d4a017;
+}
+
+.listing-status-sold {
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
+.listing-status-draft {
+    opacity: 0.7;
+}
+
+/* Comments */
+.listing-comments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+}
+
+.listing-comments-head {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.listing-comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.listing-comment {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+}
+
+.listing-comment-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.listing-comment-author {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--highlight);
+}
+
+.listing-comment-at {
+    font-size: 9px;
+    color: var(--text-secondary);
+}
+
+.listing-comment-text {
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.listing-comment-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.listing-comment-form .mp-af-input {
+    flex: 1;
+    min-width: 0;
+}

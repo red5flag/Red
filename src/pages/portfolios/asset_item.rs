@@ -2106,6 +2106,11 @@ pub(crate) fn AssetItem(
                                             set_confirm_asset_remove.set(false);
                                             if let Some(pid) = portfolio_id {
                                                 app_store.update(|s| { s.remove_asset(pid, asset_id); });
+                                                if let Some(p) = app_store.get().portfolios.iter().find(|p| p.id == pid).cloned() {
+                                                    leptos::task::spawn_local(async move {
+                                                        let _ = crate::server::save_portfolio(p).await;
+                                                    });
+                                                }
                                             }
                                         }>
                                         "✔ Yes, Remove"

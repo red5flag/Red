@@ -465,6 +465,9 @@ pub fn PortfoliosPage() -> impl IntoView {
             s.selected_portfolio_ids.remove(&id);
         });
         set_edit_portfolio_id.set(None);
+        leptos::task::spawn_local(async move {
+            let _ = crate::server::delete_portfolio(id).await;
+        });
     };
 
     let _on_open_edit = move |id: Uuid| {

@@ -8,7 +8,7 @@ struct NominatimResult {
     display_name: String,
 }
 
-#[server(OpenMapsAutocomplete, "/api")]
+#[server(OpenMapsAutocomplete, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn openmaps_autocomplete(query: String) -> Result<Vec<String>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -39,7 +39,7 @@ pub async fn openmaps_autocomplete(query: String) -> Result<Vec<String>, ServerF
     }
 }
 
-#[server(SavePortfolio, "/api")]
+#[server(SavePortfolio, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn save_portfolio(portfolio: Portfolio) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -52,9 +52,78 @@ pub async fn save_portfolio(portfolio: Portfolio) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+/// Delete a persisted portfolio from the server store.
+#[server(DeletePortfolio, "/api", input = leptos::server_fn::codec::Json)]
+pub async fn delete_portfolio(id: uuid::Uuid) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        crate::storage::portfolio_store()
+            .delete_portfolio(id)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Portfolio storage is only available on the server",
+        ))
+    }
+}
+
+/// Load every persisted portfolio (includes asset marketplace listings and
+/// sales profiles stored in entity metadata).
+#[server(GetPortfolios, "/api", input = leptos::server_fn::codec::Json)]
+pub async fn get_portfolios() -> Result<Vec<Portfolio>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        return Ok(crate::storage::portfolio_store().load_all_portfolios());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Portfolio storage is only available on the server",
+        ))
+    }
+}
+
+/// Persist the app channel list (marketplace/linking/booking channels).
+#[server(SaveChannels, "/api", input = leptos::server_fn::codec::Json)]
+pub async fn save_channels(
+    channels: Vec<crate::models::Channel>,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        crate::storage::portfolio_store()
+            .save_channels(&channels)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Channel storage is only available on the server",
+        ))
+    }
+}
+
+/// Load the persisted channel list. `None` means channels were never saved.
+#[server(GetChannels, "/api", input = leptos::server_fn::codec::Json)]
+pub async fn get_channels() -> Result<Option<Vec<crate::models::Channel>>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        return Ok(crate::storage::portfolio_store().load_channels());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Channel storage is only available on the server",
+        ))
+    }
+}
+
 /// Persist a messenger message: the server PQC-seals it (ML-KEM-1024 +
 /// ML-DSA-65 + ChaCha20-Poly1305) into the designated local store.
-#[server(SendSecureMessage, "/api")]
+#[server(SendSecureMessage, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn send_secure_message(message: crate::models::Message) -> Result<(), ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -72,7 +141,7 @@ pub async fn send_secure_message(message: crate::models::Message) -> Result<(), 
 }
 
 /// Load all messenger messages decrypted from the PQC-sealed store.
-#[server(GetSecureMessages, "/api")]
+#[server(GetSecureMessages, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn get_secure_messages() -> Result<Vec<crate::models::Message>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -88,7 +157,7 @@ pub async fn get_secure_messages() -> Result<Vec<crate::models::Message>, Server
 
 /// Persist the messenger directory (contacts incl. group ids + requests),
 /// PQC-sealed — keeps group threads matchable after restarts.
-#[server(SaveMessengerState, "/api")]
+#[server(SaveMessengerState, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn save_messenger_state(
     state: crate::models::MessengerState,
 ) -> Result<(), ServerFnError> {
@@ -108,7 +177,7 @@ pub async fn save_messenger_state(
 }
 
 /// Load the persisted messenger directory from the PQC-sealed store.
-#[server(GetMessengerState, "/api")]
+#[server(GetMessengerState, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn get_messenger_state() -> Result<Option<crate::models::MessengerState>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
@@ -122,7 +191,7 @@ pub async fn get_messenger_state() -> Result<Option<crate::models::MessengerStat
     }
 }
 
-#[server(ConvertImagesToPdf, "/api")]
+#[server(ConvertImagesToPdf, "/api", input = leptos::server_fn::codec::Json)]
 pub async fn convert_images_to_pdf(images: Vec<Vec<u8>>) -> Result<Vec<u8>, ServerFnError> {
     #[cfg(feature = "ssr")]
     {
