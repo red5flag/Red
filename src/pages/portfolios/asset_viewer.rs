@@ -126,13 +126,23 @@ pub(crate) fn AssetViewer(
         });
     });
 
-    // Auto-expand a group when notification navigation requests it
+    // Auto-expand a group when notification navigation requests it.
+    // Every mounted portfolio has an AssetViewer, so only the viewer that
+    // actually owns the group may consume the pending expand — otherwise
+    // the first viewer wins the race and the target group stays collapsed.
+    let portfolio_for_expand = portfolio.clone();
     Effect::new(move |_| {
         if let Some(gid) = app_store_inner.get().pending_group_expand {
-            set_expanded_groups.update(|set| {
-                set.insert(gid);
-            });
-            app_store_inner.update(|s| s.pending_group_expand = None);
+            if portfolio_for_expand
+                .asset_groups
+                .iter()
+                .any(|g| g.id == gid)
+            {
+                set_expanded_groups.update(|set| {
+                    set.insert(gid);
+                });
+                app_store_inner.update(|s| s.pending_group_expand = None);
+            }
         }
     });
 

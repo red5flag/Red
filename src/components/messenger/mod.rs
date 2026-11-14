@@ -513,6 +513,91 @@ pub fn MessageDrawer() -> impl IntoView {
         }
     });
 
+    // Rebuild marketplace-listing contacts: every non-draft listing that
+    // carries a messenger thread_id gets a sidebar contact, even when the
+    // contact was lost (messenger state is best-effort) or the listing
+    // lives on a group/portfolio where no thread was ever created.
+    Effect::new(move |_| {
+        let app = app_store.get();
+        let mut wanted: Vec<(Uuid, String, &'static str)> = Vec::new();
+        let mut scan_meta = |meta: &serde_json::Value, is_red: bool| {
+            let parse = |v: &serde_json::Value| -> Option<crate::pages::portfolios::MarketplaceListing> {
+                serde_json::from_value(v.clone()).ok()
+            };
+            if is_red {
+                if let Some(l) = meta.get("red_listing").and_then(parse) {
+                    if let Some(tid) = l.thread_id {
+                        if !l.status.eq_ignore_ascii_case("draft") {
+                            wanted.push((
+                                tid,
+                                format!("Red Marketplace · {}", l.title),
+                                "🏪",
+                            ));
+                        }
+                    }
+                }
+            } else if let Some(listings) = meta
+                .get("marketplace_listings")
+                .and_then(|v| v.as_object())
+            {
+                for (key, v) in listings {
+                    if let Some(l) = parse(v) {
+                        if let Some(tid) = l.thread_id {
+                            if !l.status.eq_ignore_ascii_case("draft") {
+                                wanted.push((
+                                    tid,
+                                    format!("{} · {}", marketplace_display_label(key), l.title),
+                                    match key.as_str() {
+                                        "EBay" => "🛒",
+                                        "Amazon" => "📦",
+                                        "Etsy" => "🎨",
+                                        _ => "🏷️",
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        for p in &app.portfolios {
+            scan_meta(&p.metadata, true);
+            scan_meta(&p.metadata, false);
+            for g in &p.asset_groups {
+                scan_meta(&g.metadata, true);
+                for a in &g.assets {
+                    scan_meta(&a.metadata, true);
+                    scan_meta(&a.metadata, false);
+                }
+            }
+            for a in &p.assets {
+                scan_meta(&a.metadata, true);
+                scan_meta(&a.metadata, false);
+            }
+        }
+        wanted.sort_by(|a, b| a.0.cmp(&b.0));
+        wanted.dedup_by(|a, b| a.0 == b.0);
+        if wanted.is_empty() {
+            return;
+        }
+        messenger_store.update(|ms| {
+            for (tid, name, icon) in wanted {
+                if !ms.messenger_contacts.iter().any(|c| c.id == tid) {
+                    ms.messenger_contacts.push(MessengerContact {
+                        id: tid,
+                        name,
+                        source: ContactSource::Marketplace,
+                        phone: None,
+                        email: None,
+                        icon: Some(icon.to_string()),
+                        members: Vec::new(),
+                        unread_count: 0,
+                    });
+                }
+            }
+        });
+    });
+
     let contacts = Memo::new(move |_| {
         let q = search.get().to_lowercase();
         let all = messenger_store.get().messenger_contacts.clone();
@@ -926,7 +1011,21 @@ pub fn MessageDrawer() -> impl IntoView {
             })
             .collect();
         with_last.sort_by(|a, b| b.1.cmp(&a.1));
-        with_last.into_iter().map(|(c, _)| c).collect()
+        let mut result: Vec<MessengerContact> =
+            with_last.into_iter().map(|(c, _)| c).collect();
+        // Marketplace listing threads stay visible even before the first
+        // message so a published listing never disappears from the sidebar.
+        let mut extra: Vec<MessengerContact> = all
+            .iter()
+            .filter(|c| {
+                c.source == ContactSource::Marketplace
+                    && !result.iter().any(|r| r.id == c.id)
+            })
+            .cloned()
+            .collect();
+        extra.sort_by(|a, b| a.name.cmp(&b.name));
+        result.extend(extra);
+        result
     });
 
     // Contact resolution deliberately excludes messages: the chat pane's

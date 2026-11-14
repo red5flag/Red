@@ -82,6 +82,9 @@ pub fn MarketplacePage() -> impl IntoView {
     let (sort_open, set_sort_open) = signal(false);
     let (selected, set_selected) = signal(Option::<RedBrowseItem>::None);
     let (comment_text, set_comment_text) = signal(String::new());
+    // Owner inline-editing: which listing field is being edited + its buffer.
+    let (edit_field, set_edit_field) = signal(Option::<String>::None);
+    let (edit_buf, set_edit_buf) = signal(String::new());
 
     let items = Memo::new(move |_| collect_red_listings(&app_store.get()));
 
@@ -222,6 +225,18 @@ pub fn MarketplacePage() -> impl IntoView {
         );
     };
 
+    // Commit an inline field edit: apply it to a clone of the open
+    // listing, then persist through the shared red_listing path.
+    let commit_edit = Callback::new(move |field: String| {
+        let value = edit_buf.get();
+        set_edit_field.set(None);
+        if let Some(item) = detail_item.get_untracked() {
+            let mut l = item.listing.clone();
+            apply_field_edit(&mut l, &field, value);
+            persist_item_listing(&item, l);
+        }
+    });
+
     // Owner-only listing status changes (Listed / Bidding / Sold / Draft).
     let set_listing_status = Callback::new(move |status: String| {
         let Some(item) = detail_item.get_untracked() else {
@@ -271,11 +286,74 @@ pub fn MarketplacePage() -> impl IntoView {
         let nav_kind = item.kind;
         let nav_entity = item.entity_id;
         let nav_portfolio = item.portfolio_id;
+
+        // One label/value row that owners can click to edit inline.
+        // `display` is what viewers see; `raw` is the editable buffer
+        // content (CSV for list fields). Non-owners get plain text.
+        // The field check lives inside a reactive closure so the row
+        // switches to its input the moment edit_field changes.
+        let field_row = move |label: &'static str,
+                              field: &'static str,
+                              display: String,
+                              raw: String|
+              -> AnyView {
+            view! {
+                <div class="mp-af-row">
+                    <span class="mp-af-label">{label}</span>
+                    {move || {
+                        if is_owner && edit_field.get() == Some(field.to_string()) {
+                            let f_blur = field.to_string();
+                            let f_enter = field.to_string();
+                            let f_esc = field.to_string();
+                            view! {
+                                <input class="mp-af-input" type="text"
+                                    prop:value=move || edit_buf.get()
+                                    on:input=move |ev| set_edit_buf.set(event_target_value(&ev))
+                                    on:blur=move |_| commit_edit.run(f_blur.clone())
+                                    on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                        if ev.key() == "Enter" {
+                                            commit_edit.run(f_enter.clone());
+                                        } else if ev.key() == "Escape" {
+                                            set_edit_field.set(None);
+                                        }
+                                    } />
+                            }
+                            .into_any()
+                        } else {
+                            let f_click = field.to_string();
+                            let disp = if display.is_empty() {
+                                "—".to_string()
+                            } else {
+                                display.clone()
+                            };
+                            if is_owner {
+                                let raw_click = raw.clone();
+                                view! {
+                                    <span class="mp-af-value mp-editable"
+                                        on:click=move |_| {
+                                            set_edit_buf.set(raw_click.clone());
+                                            set_edit_field.set(Some(f_click.clone()));
+                                        }>
+                                        {disp}
+                                    </span>
+                                }
+                                .into_any()
+                            } else {
+                                view! { <span class="mp-af-value">{disp}</span> }.into_any()
+                            }
+                        }
+                    }}
+                </div>
+            }
+            .into_any()
+        };
         view! {
             <div class="listing-detail">
                 <div class="listing-detail-head">
                     <button type="button" class="mp-head-btn"
-                        on:click=move |_| set_selected.set(None)>"← Back"</button>
+                        on:click=move |_| { set_selected.set(None); set_edit_field.set(None); }>
+                        "← Back"
+                    </button>
                     <span class="marketplace-kind-badge">{format!("{} {}", kind.icon(), kind.label())}</span>
                     <span class={format!("listing-status-badge listing-status-{}", status)}>
                         {status_label(&status)}
@@ -285,13 +363,93 @@ pub fn MarketplacePage() -> impl IntoView {
                         "View in Portfolios"
                     </button>
                 </div>
-                <h2 class="listing-detail-title">{listing.title.clone()}</h2>
-                <div class="listing-detail-price">
-                    {if listing.price.is_empty() { "Price on request".to_string() } else { format!("${}", listing.price) }}
-                </div>
-                {if !listing.description.trim().is_empty() {
-                    view! { <p class="listing-detail-desc">{listing.description.clone()}</p> }.into_any()
-                } else { ().into_any() }}
+                {move || {
+                    if is_owner && edit_field.get() == Some("title".to_string()) {
+                        view! {
+                            <input class="listing-detail-title listing-detail-title-input" type="text"
+                                prop:value=move || edit_buf.get()
+                                on:input=move |ev| set_edit_buf.set(event_target_value(&ev))
+                                on:blur=move |_| commit_edit.run("title".to_string())
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Enter" { commit_edit.run("title".to_string()); }
+                                    else if ev.key() == "Escape" { set_edit_field.set(None); }
+                                } />
+                        }.into_any()
+                    } else {
+                        let t = listing.title.clone();
+                        let t_click = t.clone();
+                        view! {
+                            <h2 class={if is_owner { "listing-detail-title mp-editable" } else { "listing-detail-title" }}
+                                on:click=move |_| {
+                                    if is_owner {
+                                        set_edit_buf.set(t_click.clone());
+                                        set_edit_field.set(Some("title".to_string()));
+                                    }
+                                }>
+                                {t}
+                            </h2>
+                        }.into_any()
+                    }
+                }}
+                {move || {
+                    if is_owner && edit_field.get() == Some("price".to_string()) {
+                        view! {
+                            <input class="listing-detail-price listing-detail-price-input" type="text"
+                                prop:value=move || edit_buf.get()
+                                on:input=move |ev| set_edit_buf.set(event_target_value(&ev))
+                                on:blur=move |_| commit_edit.run("price".to_string())
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Enter" { commit_edit.run("price".to_string()); }
+                                    else if ev.key() == "Escape" { set_edit_field.set(None); }
+                                } />
+                        }.into_any()
+                    } else {
+                        let p = listing.price.clone();
+                        view! {
+                            <div class={if is_owner { "listing-detail-price mp-editable" } else { "listing-detail-price" }}
+                                on:click=move |_| {
+                                    if is_owner {
+                                        set_edit_buf.set(p.clone());
+                                        set_edit_field.set(Some("price".to_string()));
+                                    }
+                                }>
+                                {if p.is_empty() { "Price on request".to_string() } else { format!("${}", p) }}
+                            </div>
+                        }.into_any()
+                    }
+                }}
+                {move || {
+                    if is_owner && edit_field.get() == Some("description".to_string()) {
+                        view! {
+                            <textarea class="listing-detail-desc listing-detail-desc-input" rows="3"
+                                prop:value=move || edit_buf.get()
+                                on:input=move |ev| set_edit_buf.set(event_target_value(&ev))
+                                on:blur=move |_| commit_edit.run("description".to_string())
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Enter" && !ev.shift_key() {
+                                        ev.prevent_default();
+                                        commit_edit.run("description".to_string());
+                                    } else if ev.key() == "Escape" {
+                                        set_edit_field.set(None);
+                                    }
+                                } />
+                        }.into_any()
+                    } else if !listing.description.trim().is_empty() || is_owner {
+                        let d = listing.description.clone();
+                        let d_click = d.clone();
+                        view! {
+                            <p class={if is_owner { "listing-detail-desc mp-editable" } else { "listing-detail-desc" }}
+                                on:click=move |_| {
+                                    if is_owner {
+                                        set_edit_buf.set(d_click.clone());
+                                        set_edit_field.set(Some("description".to_string()));
+                                    }
+                                }>
+                                {if d.trim().is_empty() { "Add a description…".to_string() } else { d }}
+                            </p>
+                        }.into_any()
+                    } else { ().into_any() }
+                }}
                 {if photos.is_empty() { ().into_any() } else {
                     view! {
                         <div class="listing-detail-photos">
@@ -306,39 +464,39 @@ pub fn MarketplacePage() -> impl IntoView {
                     <div class="mp-af-grid">
                         <div class="mp-af-row"><span class="mp-af-label">"OWNER"</span><span class="mp-af-value">{owner}</span></div>
                         <div class="mp-af-row"><span class="mp-af-label">"PORTFOLIO"</span><span class="mp-af-value">{portfolio_name}</span></div>
-                        {if listing.category.is_empty() { ().into_any() } else {
-                            let v = listing.category.clone();
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"TYPE & BUILD"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
-                        {if listing.condition.is_empty() { ().into_any() } else {
-                            let v = listing.condition.clone();
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"CONDITION"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
-                        {if listing.asset_condition.is_empty() { ().into_any() } else {
-                            let v = listing.asset_condition.clone();
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"ASSET CONDITION"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
-                        {if listing.location.is_empty() { ().into_any() } else {
-                            let v = listing.location.clone();
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"ADDRESS"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
-                        {if listing.sku.is_empty() { ().into_any() } else {
-                            let v = format!("SKU {}", listing.sku);
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"REF / SKU"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
+                        {if is_owner || !listing.category.is_empty() {
+                            field_row("TYPE & BUILD", "category", listing.category.clone(), listing.category.clone())
+                        } else { ().into_any() }}
+                        {if is_owner || !listing.condition.is_empty() {
+                            field_row("CONDITION", "condition", listing.condition.clone(), listing.condition.clone())
+                        } else { ().into_any() }}
+                        {if is_owner || !listing.asset_condition.is_empty() {
+                            field_row("ASSET CONDITION", "asset_condition", listing.asset_condition.clone(), listing.asset_condition.clone())
+                        } else { ().into_any() }}
+                        {if is_owner || !listing.location.is_empty() {
+                            field_row("ADDRESS", "location", listing.location.clone(), listing.location.clone())
+                        } else { ().into_any() }}
+                        {if is_owner || !listing.sku.is_empty() {
+                            let v = if listing.sku.is_empty() { String::new() } else { format!("SKU {}", listing.sku) };
+                            field_row("REF / SKU", "sku", v, listing.sku.clone())
+                        } else { ().into_any() }}
                         {if saved.is_empty() { ().into_any() } else {
                             let v = saved.get(..10).unwrap_or("").to_string();
                             view! { <div class="mp-af-row"><span class="mp-af-label">"SAVED"</span><span class="mp-af-value">{v}</span></div> }.into_any()
                         }}
-                        {if listing.docs.is_empty() && listing.doc_count == 0 { ().into_any() } else {
+                        {if is_owner || !listing.docs.is_empty() || listing.doc_count > 0 {
                             let n = if !listing.docs.is_empty() { listing.docs.len() } else { listing.doc_count };
-                            let v = format!("{} doc{}", n, if n == 1 { "" } else { "s" });
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"DOCS"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
-                        {if listing.tags.is_empty() { ().into_any() } else {
-                            let v = listing.tags.join(", ");
-                            view! { <div class="mp-af-row"><span class="mp-af-label">"TAGS"</span><span class="mp-af-value">{v}</span></div> }.into_any()
-                        }}
+                            let v = if listing.docs.is_empty() && n == 0 { String::new() } else { format!("{} doc{}", n, if n == 1 { "" } else { "s" }) };
+                            field_row("DOCS", "docs", v, listing.docs.join(", "))
+                        } else { ().into_any() }}
+                        {if is_owner || !listing.photos.is_empty() {
+                            let n = listing.photos.len();
+                            let v = if n == 0 { String::new() } else { format!("{} photo{}", n, if n == 1 { "" } else { "s" }) };
+                            field_row("PHOTOS", "photos", v, listing.photos.join(", "))
+                        } else { ().into_any() }}
+                        {if is_owner || !listing.tags.is_empty() {
+                            field_row("TAGS", "tags", listing.tags.join(", "), listing.tags.join(", "))
+                        } else { ().into_any() }}
                         {if is_owner {
                             view! {
                                 <div class="mp-af-row">
@@ -364,7 +522,13 @@ pub fn MarketplacePage() -> impl IntoView {
                         view! {
                             <div class="listing-comment-list">
                                 {comments.into_iter().map(|c| {
-                                    let at = c.at.chars().take(10).collect::<String>();
+                                    let at = chrono::DateTime::parse_from_rfc3339(&c.at)
+                                        .map(|d| {
+                                            d.with_timezone(&chrono::Local)
+                                                .format("%b %d · %H:%M")
+                                                .to_string()
+                                        })
+                                        .unwrap_or_else(|_| c.at.chars().take(16).collect());
                                     view! {
                                         <div class="listing-comment">
                                             <div class="listing-comment-meta">
@@ -512,7 +676,10 @@ pub fn MarketplacePage() -> impl IntoView {
                             let img = item.image_url.clone();
                             let tags = item.listing.tags.clone();
                             view! {
-                                <button class="marketplace-card" on:click=move |_| set_selected.set(Some(click_item.clone()))>
+                                <button class="marketplace-card" on:click=move |_| {
+                                    set_edit_field.set(None);
+                                    set_selected.set(Some(click_item.clone()));
+                                }>
                                     <div class="marketplace-card-media">
                                         {if let Some(u) = img {
                                             view! { <img class="marketplace-card-img" src={u} alt="" /> }.into_any()
@@ -554,4 +721,32 @@ pub fn MarketplacePage() -> impl IntoView {
             }}
         </div>
     }
+}
+
+/// Comma-separated list parsing shared by the CSV-edited listing fields.
+fn csv_list(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+/// Apply an inline-edited field value onto a listing clone. Unknown
+/// fields are ignored; `saved_at` is bumped on every successful edit.
+fn apply_field_edit(l: &mut MarketplaceListing, field: &str, value: String) {
+    match field {
+        "title" => l.title = value,
+        "description" => l.description = value,
+        "price" => l.price = value,
+        "category" => l.category = value,
+        "condition" => l.condition = value,
+        "asset_condition" => l.asset_condition = value,
+        "location" => l.location = value,
+        "sku" => l.sku = value,
+        "tags" => l.tags = csv_list(&value),
+        "docs" => l.docs = csv_list(&value),
+        "photos" => l.photos = csv_list(&value),
+        _ => return,
+    }
+    l.saved_at = chrono::Utc::now().to_rfc3339();
 }

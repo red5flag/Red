@@ -19718,35 +19718,37 @@ body:active .messenger-resizer {
 
 .messenger-sidebar.msb-compact .messenger-contact {
     flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
-    padding: 8px 4px;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 2px;
     border-bottom: none;
     border-right: none;
     background: var(--secondary-bg);
 }
 
 .messenger-sidebar.msb-compact .messenger-contact-avatar {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1 / 1;
-    min-width: 0;
-    font-size: 20px;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    font-size: 15px;
 }
 
 .messenger-sidebar.msb-compact .messenger-contact-info {
     align-items: center;
     width: 100%;
+    gap: 0;
 }
 
 .messenger-sidebar.msb-compact .messenger-contact-name {
-    font-size: 11px;
+    font-size: 10px;
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.15;
 }
 
 .messenger-sidebar.msb-compact .messenger-contact-sub {
-    display: none;
+    font-size: 8px;
+    text-align: center;
+    line-height: 1.1;
 }
 
 .messenger-sidebar.msb-compact .messenger-request {
@@ -20182,6 +20184,50 @@ select.mp-af-input {
     font-size: 12px;
     color: var(--text-primary);
     white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+/* Owner inline editing on the marketplace item view */
+.mp-editable {
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+}
+
+.mp-editable:hover {
+    border-bottom-color: var(--accent-color);
+}
+
+.listing-detail-title-input,
+.listing-detail-price-input {
+    font: inherit;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: var(--bg-secondary, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    padding: 2px 6px;
+    width: 100%;
+    max-width: 480px;
+    box-sizing: border-box;
+}
+
+.listing-detail-price-input {
+    color: var(--highlight);
+    font-size: 18px;
+}
+
+.listing-detail-desc-input {
+    font: inherit;
+    font-size: 12px;
+    color: var(--text-primary);
+    background: var(--bg-secondary, rgba(255, 255, 255, 0.04));
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    padding: 4px 6px;
+    width: 100%;
+    max-width: 640px;
+    box-sizing: border-box;
+    resize: vertical;
     line-height: 1.5;
 }
 
