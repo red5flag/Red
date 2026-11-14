@@ -35,7 +35,7 @@ leptos_meta = "0.8"
 cfg-if = "1.0"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element", "HtmlElement", "Event", "EventTarget", "MouseEvent", "TouchEvent", "Touch", "TouchList", "InputEvent", "KeyboardEvent", "DragEvent", "DataTransfer", "Storage", "Location", "History", "HtmlInputElement", "File", "FileList", "FileReader", "Blob", "HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Url", "HtmlVideoElement", "HtmlMediaElement", "Navigator", "MediaDevices", "MediaStream", "MediaStreamTrack", "MediaStreamConstraints"] }
+web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element", "HtmlElement", "Event", "EventTarget", "MouseEvent", "TouchEvent", "Touch", "TouchList", "InputEvent", "KeyboardEvent", "DragEvent", "DataTransfer", "NodeList", "DomRect", "Storage", "Location", "History", "HtmlInputElement", "File", "FileList", "FileReader", "Blob", "HtmlCanvasElement", "CanvasRenderingContext2d", "ImageData", "Url", "HtmlVideoElement", "HtmlMediaElement", "Navigator", "MediaDevices", "MediaStream", "MediaStreamTrack", "MediaStreamConstraints"] }
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 gloo-timers = { version = "0.3", features = ["futures"] }
@@ -56,6 +56,9 @@ rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
 getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 chacha20poly1305 = { version = "0.10", optional = true }
+# NIST PQC (FIPS 203 ML-KEM, FIPS 204 ML-DSA) — server-side message sealing
+ml-kem = { version = "0.3", features = ["getrandom"], optional = true }
+ml-dsa = { version = "0.1", optional = true }
 totp-rs = { version = "5.6", optional = true, features = ["gen_secret", "otpauth"] }
 
 # Async runtime
@@ -73,10 +76,10 @@ gloo-net = { version = "0.5", features = ["http"], optional = true }
 [features]
 default = []
 hydrate = ["leptos/hydrate", "gloo-net", "chacha20poly1305"]
-ssr = ["leptos/ssr", "leptos_axum", "leptos_router/ssr", "leptos_meta/ssr", "axum", "tower", "tower-http", "tokio-stream", "bcrypt", "jsonwebtoken", "meilisearch-sdk", "reqwest", "parking_lot", "dashmap", "sled", "zstd", "tracing-subscriber", "tokio", "tokio/rt-multi-thread", "tokio/net", "totp-rs", "printpdf", "chacha20poly1305"]
+ssr = ["leptos/ssr", "leptos_axum", "leptos_router/ssr", "leptos_meta/ssr", "axum", "tower", "tower-http", "tokio-stream", "bcrypt", "jsonwebtoken", "meilisearch-sdk", "reqwest", "parking_lot", "dashmap", "sled", "zstd", "tracing-subscriber", "tokio", "tokio/rt-multi-thread", "tokio/net", "totp-rs", "printpdf", "chacha20poly1305", "ml-kem", "ml-dsa"]
 csr = ["leptos/csr"]
 # tauri feature: enables native deps for use by src-tauri/ crate
-tauri = ["leptos/csr", "tokio", "tokio/rt-multi-thread", "sled", "zstd", "chacha20poly1305", "parking_lot", "dashmap", "tracing-subscriber", "reqwest", "bcrypt", "jsonwebtoken", "totp-rs", "printpdf"]
+tauri = ["leptos/csr", "tokio", "tokio/rt-multi-thread", "sled", "zstd", "chacha20poly1305", "parking_lot", "dashmap", "tracing-subscriber", "reqwest", "bcrypt", "jsonwebtoken", "totp-rs", "printpdf", "ml-kem", "ml-dsa"]
 
 [[bin]]
 name = "farley"

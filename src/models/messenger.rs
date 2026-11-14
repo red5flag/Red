@@ -69,6 +69,39 @@ impl Default for CalendarEventStatus {
     }
 }
 
+/// An embedded portfolio entity attached to a message. Resolved live against
+/// the app store at render time so cards always show current information.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MessageEmbed {
+    Portfolio(Uuid),
+    AssetGroup(Uuid),
+    Asset(Uuid),
+    Document(Uuid),
+    /// A marketplace listing thread reference: the asset plus the
+    /// marketplace key (e.g. "EBay") the listing was published to.
+    Listing {
+        asset_id: Uuid,
+        marketplace: String,
+    },
+}
+
+/// Delivery status for a message. `Pending` means the PQC seal + store
+/// round-trip has not completed yet; `Sent` means it was sealed and
+/// persisted successfully; `Failed` means the secure store rejected it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MessageStatus {
+    Pending,
+    Sent,
+    Failed,
+}
+
+impl Default for MessageStatus {
+    fn default() -> Self {
+        // Historical messages predate status tracking — treat as delivered.
+        MessageStatus::Sent
+    }
+}
+
 /// A single encrypted message in the secure messenger.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Message {
@@ -79,6 +112,10 @@ pub struct Message {
     pub encrypted: bool,
     pub timestamp: DateTime<Utc>,
     pub read: bool,
+    #[serde(default)]
+    pub embeds: Vec<MessageEmbed>,
+    #[serde(default)]
+    pub status: MessageStatus,
 }
 
 impl Message {
@@ -91,7 +128,14 @@ impl Message {
             encrypted: true,
             timestamp: Utc::now(),
             read: false,
+            embeds: Vec::new(),
+            status: MessageStatus::Pending,
         }
+    }
+
+    pub fn with_embeds(mut self, embeds: Vec<MessageEmbed>) -> Self {
+        self.embeds = embeds;
+        self
     }
 }
 
@@ -149,6 +193,8 @@ pub enum ContactSource {
     Recommended,
     Bot,
     Group,
+    /// A marketplace listing conversation (e.g. eBay buyer thread).
+    Marketplace,
 }
 
 /// Incoming request shown inside the messenger tabs (Friends, Groups, Requests).
@@ -185,6 +231,18 @@ impl MessengerRequest {
         self.message = Some(message.into());
         self
     }
+}
+
+/// Persisted messenger directory: contacts (incl. groups and their stable
+/// ids) plus pending requests. Stored PQC-sealed alongside messages so group
+/// threads survive reloads — without it, reseeded groups get fresh ids and
+/// stored messages can never be matched to them again.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct MessengerState {
+    #[serde(default)]
+    pub contacts: Vec<MessengerContact>,
+    #[serde(default)]
+    pub requests: Vec<MessengerRequest>,
 }
 
 /// Calendar/booking event.

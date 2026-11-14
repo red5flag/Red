@@ -1,12 +1,228 @@
 use crate::models::{
-    Booking, BookingSource, BookingStatus, Channel, ChannelType, ConnectionStatus, SyncDirection,
+    Asset, Booking, BookingSource, BookingStatus, Channel, ChannelType, ConditionStatus,
+    ConnectionStatus, ContactSource, Message, MessageEmbed, MessengerContact, SyncDirection,
 };
-use crate::stores::{use_app_store, use_calendar_store};
+#[cfg(feature = "hydrate")]
+use crate::models::{MessageStatus, MessengerState};
+#[cfg(feature = "hydrate")]
+use crate::server::{save_messenger_state, send_secure_message};
+use crate::stores::{use_app_store, use_calendar_store, use_messenger_store, AppStore, MessengerStore};
 use chrono::{Duration, NaiveDate, Utc};
 use leptos::prelude::*;
 use std::collections::HashSet;
+use std::sync::atomic::Ordering;
+use super::phantom_edit_scope;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
+
+/// Registry of marketplaces an asset can be crosslisted to (FLUF-style).
+/// Add a destination by appending one entry here (plus its `ChannelType`
+/// variant in `models/channel.rs`) — every UI surface reads from this table.
+#[derive(Clone)]
+struct MarketplaceDef {
+    /// Stable key — also the `ChannelType` variant name used for matching.
+    key: &'static str,
+    label: &'static str,
+    icon: &'static str,
+    channel_type: Option<ChannelType>,
+    /// Connect methods this marketplace supports: "google" | "manual" | "browser".
+    auth: &'static [&'static str],
+    hint: &'static str,
+}
+
+static MARKETPLACES: &[MarketplaceDef] = &[
+    MarketplaceDef {
+        key: "Red",
+        label: "Red Marketplace",
+        icon: "🏪",
+        // Internal marketplace — no external channel type or connect flow.
+        channel_type: None,
+        auth: &[],
+        hint: "List on the Red Marketplace — visible to your network in the Marketplace tab.",
+    },
+    MarketplaceDef {
+        key: "EBay",
+        label: "eBay",
+        icon: "🛒",
+        channel_type: Some(ChannelType::EBay),
+        auth: &["google", "facebook", "apple", "manual", "browser"],
+        hint: "List on eBay with auto-filled title, price, photos and details.",
+    },
+    MarketplaceDef {
+        key: "Amazon",
+        label: "Amazon",
+        icon: "📦",
+        channel_type: Some(ChannelType::Amazon),
+        auth: &["google", "browser"],
+        hint: "List on Amazon with auto-filled title, price, photos and details.",
+    },
+    MarketplaceDef {
+        key: "Etsy",
+        label: "Etsy",
+        icon: "🎨",
+        channel_type: Some(ChannelType::Etsy),
+        auth: &["google", "browser"],
+        hint: "List on Etsy with auto-filled title, price, photos and details.",
+    },
+    MarketplaceDef {
+        key: "Kogan",
+        label: "Kogan",
+        icon: "🏷️",
+        channel_type: Some(ChannelType::Kogan),
+        auth: &["google", "browser"],
+        hint: "List on Kogan with auto-filled title, price, photos and details.",
+    },
+];
+
+/// Simulated marketplace API handshake used to test connectivity without an
+/// account. Returns the endpoint label on success so the UI can show which
+/// API was exercised; real OAuth/token checks replace this once API
+/// credentials are configured.
+async fn marketplace_api_test(mp_key: &str, method: &str) -> Result<String, String> {
+    let endpoint = match mp_key {
+        "EBay" => "api.ebay.com/identity/v1/oauth2/token",
+        "Amazon" => "api.amazon.com/auth/o2/token",
+        "Etsy" => "api.etsy.com/v3/application/openapi-ping",
+        "Kogan" => "api.kogan.com/v2/marketplace/ping",
+        _ => "marketplace.api/ping",
+    };
+    gloo_timers::future::TimeoutFuture::new(800).await;
+    let _ = method;
+    Ok(format!("{} ✓", endpoint))
+}
+
+fn marketplace_def(key: &str) -> Option<&'static MarketplaceDef> {
+    MARKETPLACES.iter().find(|d| d.key == key)
+}
+
+/// Display label for a marketplace key ("EBay" → "eBay").
+pub(crate) fn marketplace_display_label(key: &str) -> &'static str {
+    marketplace_def(key).map(|d| d.label).unwrap_or(match key {
+        "EBay" => "eBay",
+        "Amazon" => "Amazon",
+        "Etsy" => "Etsy",
+        "Kogan" => "Kogan",
+        _ => "Marketplace",
+    })
+}
+
+/// Ensure a messenger contact + opening thread exist for a published
+/// listing. The opening message embeds the listing itself so the item is
+/// the reference at the start of the conversation. Persists the messenger
+/// directory and seed message immediately (the drawer may be closed).
+/// Returns the thread's contact id.
+fn ensure_marketplace_thread(
+    messenger_store: RwSignal<MessengerStore>,
+    current_user_id: Uuid,
+    asset_id: Uuid,
+    mp_key: &str,
+    listing: &MarketplaceListing,
+) -> Uuid {
+    let tid = listing.thread_id.unwrap_or_else(Uuid::new_v4);
+    let label = marketplace_display_label(mp_key);
+    let contact_name = format!("{} · {}", label, listing.title);
+    let embed = MessageEmbed::Listing {
+        asset_id,
+        marketplace: mp_key.to_string(),
+    };
+    let mut seed_msg: Option<Message> = None;
+    messenger_store.update(|ms| {
+        if let Some(c) = ms.messenger_contacts.iter_mut().find(|c| c.id == tid) {
+            c.name = contact_name.clone();
+        } else {
+            ms.messenger_contacts.push(MessengerContact {
+                id: tid,
+                name: contact_name.clone(),
+                source: ContactSource::Marketplace,
+                phone: None,
+                email: None,
+                icon: Some("🏷️".to_string()),
+                members: Vec::new(),
+                unread_count: 0,
+            });
+        }
+        let has_msgs = ms.messages.iter().any(|m| {
+            (m.sender_id == tid && m.recipient_id == current_user_id)
+                || (m.sender_id == current_user_id && m.recipient_id == tid)
+        });
+        if !has_msgs {
+            // receive_* also seals into the local store under ssr/tauri;
+            // hydrate persistence goes through send_secure_message below.
+            let msg = ms.receive_message_with_embeds(
+                tid,
+                current_user_id,
+                format!("Listing published — {}", listing.title),
+                vec![embed],
+            );
+            seed_msg = Some(msg);
+        }
+    });
+    #[cfg(feature = "hydrate")]
+    {
+        let state = MessengerState {
+            contacts: messenger_store.get_untracked().messenger_contacts.clone(),
+            requests: messenger_store.get_untracked().messenger_requests.clone(),
+        };
+        leptos::task::spawn_local(async move {
+            let _ = save_messenger_state(state).await;
+            if let Some(m) = seed_msg {
+                let mid = m.id;
+                if send_secure_message(m).await.is_ok() {
+                    messenger_store.update(|s| s.set_message_status(mid, MessageStatus::Sent));
+                }
+            }
+        });
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _ = seed_msg;
+    }
+    tid
+}
+
+fn marketplace_channel_type(key: &str) -> Option<ChannelType> {
+    // Red Marketplace is internal — it links via a generic channel type.
+    if key == "Red" {
+        return Some(ChannelType::Other("Red Marketplace".to_string()));
+    }
+    marketplace_def(key).and_then(|d| d.channel_type.clone())
+}
+
+/// Marketplace-appropriate condition label derived from the asset's
+/// `ConditionStatus` (New / Excellent … Unsafe).
+fn marketplace_condition(cs: &ConditionStatus) -> &'static str {
+    match cs {
+        ConditionStatus::New => "New",
+        ConditionStatus::Excellent | ConditionStatus::Good | ConditionStatus::Fair => "Used",
+        ConditionStatus::Poor | ConditionStatus::Damaged | ConditionStatus::Unsafe => "For parts",
+    }
+}
+
+/// Long display label for a marketplace connect-method key.
+fn mp_method_label(key: &str) -> &'static str {
+    match key {
+        "internal" => "Red Marketplace",
+        "google" => "Google sign-in",
+        "facebook" => "Facebook sign-in",
+        "apple" => "Apple sign-in",
+        "browser" => "Browser session",
+        "manual" => "Manual sign-in",
+        _ => "Connected",
+    }
+}
+
+/// Short label for badges/status lines.
+fn mp_method_short(key: &str) -> &'static str {
+    match key {
+        "internal" => "Red",
+        "google" => "Google",
+        "facebook" => "Facebook",
+        "apple" => "Apple",
+        "browser" => "Browser",
+        "manual" => "Manual",
+        _ => "",
+    }
+}
 
 #[component]
 pub(crate) fn AssetChannelsSection(
@@ -428,6 +644,12 @@ pub(crate) fn AssetLinkingControls(
             ChannelType::Expedia => "Expedia",
             ChannelType::Vrbo => "Vrbo",
             ChannelType::LinkedIn => "LinkedIn",
+            ChannelType::EBay => "eBay",
+            ChannelType::Gumtree => "Gumtree",
+            ChannelType::FacebookMarketplace => "Facebook Marketplace",
+            ChannelType::Amazon => "Amazon",
+            ChannelType::Etsy => "Etsy",
+            ChannelType::Kogan => "Kogan",
             ChannelType::Other(_) => "Other",
         }
     };
@@ -463,6 +685,14 @@ pub(crate) fn AssetLinkingControls(
             "Expedia" => channels.retain(|c| matches!(c.channel_type, ChannelType::Expedia)),
             "Vrbo" => channels.retain(|c| matches!(c.channel_type, ChannelType::Vrbo)),
             "LinkedIn" => channels.retain(|c| matches!(c.channel_type, ChannelType::LinkedIn)),
+            "EBay" => channels.retain(|c| matches!(c.channel_type, ChannelType::EBay)),
+            "Gumtree" => channels.retain(|c| matches!(c.channel_type, ChannelType::Gumtree)),
+            "FacebookMarketplace" => {
+                channels.retain(|c| matches!(c.channel_type, ChannelType::FacebookMarketplace))
+            }
+            "Amazon" => channels.retain(|c| matches!(c.channel_type, ChannelType::Amazon)),
+            "Etsy" => channels.retain(|c| matches!(c.channel_type, ChannelType::Etsy)),
+            "Kogan" => channels.retain(|c| matches!(c.channel_type, ChannelType::Kogan)),
             "Other" => channels.retain(|c| matches!(c.channel_type, ChannelType::Other(_))),
             _ => {}
         }
@@ -527,6 +757,12 @@ pub(crate) fn AssetLinkingControls(
             "Expedia" => ChannelType::Expedia,
             "Vrbo" => ChannelType::Vrbo,
             "LinkedIn" => ChannelType::LinkedIn,
+            "EBay" => ChannelType::EBay,
+            "Gumtree" => ChannelType::Gumtree,
+            "FacebookMarketplace" => ChannelType::FacebookMarketplace,
+            "Amazon" => ChannelType::Amazon,
+            "Etsy" => ChannelType::Etsy,
+            "Kogan" => ChannelType::Kogan,
             _ => ChannelType::Test,
         };
         let mut channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
@@ -648,6 +884,67 @@ pub(crate) fn AssetLinkingControls(
         });
     });
 
+    // True when the asset already has a channel of the given marketplace type.
+    let marketplace_linked = move |key: &str| -> bool {
+        let Some(ty) = marketplace_channel_type(key) else {
+            return false;
+        };
+        channels_for_asset
+            .get()
+            .iter()
+            .any(|c| c.channel_type == ty)
+    };
+
+    // One-click marketplace crosslisting: creates a channel of the marketplace
+    // type and links it to this asset, like picking destinations in FLUF.
+    let link_marketplace = Callback::new(move |key: &'static str| {
+        let Some(channel_type) = marketplace_channel_type(key) else {
+            return;
+        };
+        if channels_for_asset
+            .get_untracked()
+            .iter()
+            .any(|c| c.channel_type == channel_type)
+        {
+            return;
+        }
+        let label = marketplace_def(key).map(|d| d.label).unwrap_or(key);
+        let name = format!("{} — {}", label, asset_name_signal.get_untracked());
+        let mut channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
+        channel.channel_type = channel_type;
+        let cid = channel.id;
+        app_store.update(|s| {
+            s.add_channel(channel);
+            if let Some(pid) = portfolio_id {
+                if let Some(p) = s.get_portfolio_mut(pid) {
+                    if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                    } else {
+                        for g in p.asset_groups.iter_mut() {
+                            if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                                a.channel_ids.push(cid);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } else {
+                for p in s.portfolios.iter_mut() {
+                    if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                        break;
+                    }
+                    for g in p.asset_groups.iter_mut() {
+                        if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                            a.channel_ids.push(cid);
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    });
+
     let channel_stats = Memo::new(move |_| {
         let now = Utc::now();
         let window_end = now + Duration::days(365);
@@ -757,6 +1054,40 @@ pub(crate) fn AssetLinkingControls(
                 }.into_any()
             }}
 
+            {move || if can_link { view! {
+                <div class="ai-marketplace-bar">
+                    <span class="ai-marketplace-title">"Marketplaces"</span>
+                    <div class="ai-marketplace-buttons">
+                        {MARKETPLACES.iter().map(|def| {
+                            let key = def.key;
+                            let label = def.label;
+                            view! {
+                                <button type="button"
+                                    class="ai-marketplace-btn"
+                                    class:ai-marketplace-btn-linked={move || marketplace_linked(key)}
+                                    disabled={move || marketplace_linked(key)}
+                                    title={move || {
+                                        if marketplace_linked(key) {
+                                            format!("Already listed on {}", label)
+                                        } else {
+                                            format!("List {} on {}", asset_name_signal.get(), label)
+                                        }
+                                    }}
+                                    on:click=move |_| link_marketplace.run(key)>
+                                    {move || {
+                                        if marketplace_linked(key) {
+                                            format!("✓ {}", label)
+                                        } else {
+                                            format!("+ {} {}", def.icon, label)
+                                        }
+                                    }}
+                                </button>
+                            }
+                        }).collect::<Vec<_>>()}
+                    </div>
+                </div>
+            }.into_any() } else { ().into_any() }}
+
             {move || if show_add_form.get() && can_link { view! {
                 <div class="ai-channel-management-form" node_ref=form_ref on:click=move |ev| ev.stop_propagation()>
                     {move || add_error.get().map(|m| view! { <div class="ai-form-error">{m}</div> }.into_any()).unwrap_or_else(|| ().into_any())}
@@ -771,6 +1102,10 @@ pub(crate) fn AssetLinkingControls(
                             <option value="Expedia">"Expedia"</option>
                             <option value="Vrbo">"Vrbo"</option>
                             <option value="LinkedIn">"LinkedIn"</option>
+                            <option value="EBay">"eBay"</option>
+                            <option value="Amazon">"Amazon"</option>
+                            <option value="Etsy">"Etsy"</option>
+                            <option value="Kogan">"Kogan"</option>
                         </select>
                     </label>
                     <label>"Rate"
@@ -816,6 +1151,10 @@ pub(crate) fn AssetLinkingControls(
                                 <option value="Expedia">"Expedia"</option>
                                 <option value="Vrbo">"Vrbo"</option>
                                 <option value="LinkedIn">"LinkedIn"</option>
+                                <option value="EBay">"eBay"</option>
+                                <option value="Amazon">"Amazon"</option>
+                                <option value="Etsy">"Etsy"</option>
+                                <option value="Kogan">"Kogan"</option>
                                 <option value="Other">"Other"</option>
                             </select>
                             <select class="ai-channel-filter" prop:value={move || sort_by.get()}
@@ -1238,6 +1577,12 @@ pub(crate) fn AddChannelModal(
             "Expedia" => ChannelType::Expedia,
             "Vrbo" => ChannelType::Vrbo,
             "LinkedIn" => ChannelType::LinkedIn,
+            "EBay" => ChannelType::EBay,
+            "Gumtree" => ChannelType::Gumtree,
+            "FacebookMarketplace" => ChannelType::FacebookMarketplace,
+            "Amazon" => ChannelType::Amazon,
+            "Etsy" => ChannelType::Etsy,
+            "Kogan" => ChannelType::Kogan,
             _ => ChannelType::Test,
         };
         let mut channel = Channel::new_test_channel(name, Some(asset_id), portfolio_id);
@@ -1298,6 +1643,10 @@ pub(crate) fn AddChannelModal(
                                 <option value="Expedia">"Expedia"</option>
                                 <option value="Vrbo">"Vrbo"</option>
                                 <option value="LinkedIn">"LinkedIn"</option>
+                                <option value="EBay">"eBay"</option>
+                                <option value="Amazon">"Amazon"</option>
+                                <option value="Etsy">"Etsy"</option>
+                                <option value="Kogan">"Kogan"</option>
                             </select>
                         </label>
                         <label>"Nightly rate (optional)"
@@ -1514,6 +1863,1023 @@ pub(crate) fn ChannelManagementWindow(channel_id: Uuid, on_close: Callback<()>) 
                     </div>
                 </div>
             </div>
+        </div>
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace controls — account connection + auto-filled listing setup
+// (FLUF-style). Connections are stored locally per asset session; real
+// marketplace API integration is future work.
+// ---------------------------------------------------------------------------
+
+fn find_asset_in_store(s: &AppStore, asset_id: Uuid) -> Option<crate::models::Asset> {
+    for p in &s.portfolios {
+        if let Some(a) = p.assets.iter().find(|a| a.id == asset_id) {
+            return Some(a.clone());
+        }
+        for g in &p.asset_groups {
+            if let Some(a) = g.assets.iter().find(|a| a.id == asset_id) {
+                return Some(a.clone());
+            }
+        }
+    }
+    None
+}
+
+fn attach_channel_to_asset(
+    s: &mut AppStore,
+    asset_id: Uuid,
+    portfolio_id: Option<Uuid>,
+    channel: Channel,
+) {
+    let cid = channel.id;
+    s.add_channel(channel);
+    if let Some(pid) = portfolio_id {
+        if let Some(p) = s.get_portfolio_mut(pid) {
+            if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                a.channel_ids.push(cid);
+            } else {
+                for g in p.asset_groups.iter_mut() {
+                    if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                        a.channel_ids.push(cid);
+                        break;
+                    }
+                }
+            }
+        }
+    } else {
+        for p in s.portfolios.iter_mut() {
+            if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+                a.channel_ids.push(cid);
+                break;
+            }
+            for g in p.asset_groups.iter_mut() {
+                if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                    a.channel_ids.push(cid);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Shared "Sales" data point stored once on the asset
+/// (`metadata["sales"]`) — the overlapping listing criteria sent to every
+/// marketplace. Per-store details stay in `marketplace_listings[key]`.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct SalesProfile {
+    #[serde(default)]
+    pub price: String,
+    #[serde(default)]
+    pub condition: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Comma-separated list editing shared by tags / photo URLs / doc names.
+pub(crate) fn csv_to_list(buf: &str) -> Vec<String> {
+    buf.split(',')
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+fn load_sales_profile(s: &AppStore, asset_id: Uuid) -> SalesProfile {
+    find_asset_metadata(s, asset_id)
+        .and_then(|m| m.get("sales").cloned())
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default()
+}
+
+/// Listing contents bound to an asset + marketplace. Persisted inside
+/// `asset.metadata["marketplace_listings"][key]` so drafts survive reloads
+/// and published listings can be updated later.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct MarketplaceListing {
+    pub(crate) title: String,
+    pub(crate) description: String,
+    pub(crate) price: String,
+    pub(crate) condition: String,
+    pub(crate) location: String,
+    /// The asset's actual photo URLs — carried into the listing so the same
+    /// photos are used on the marketplace.
+    #[serde(default)]
+    pub(crate) photos: Vec<String>,
+    /// The asset's exact condition label (New / Excellent / …) — an
+    /// additional read-only criteria next to the marketplace `condition`.
+    #[serde(default)]
+    pub(crate) asset_condition: String,
+    /// Asset status badges formatted exactly like the asset row meta
+    /// ("Lifecycle: X, Availability: Y, Condition: Z, Commercial: W").
+    #[serde(default)]
+    pub(crate) asset_status: String,
+    /// eBay auction/bidding fields — only surfaced on the eBay card.
+    #[serde(default)]
+    pub(crate) auction_start: String,
+    #[serde(default)]
+    pub(crate) buy_it_now: String,
+    #[serde(default)]
+    pub(crate) bid_increment: String,
+    #[serde(default)]
+    pub(crate) auction_days: String,
+    /// Messenger thread id for this listing's conversation — created on
+    /// publish so buyer/seller messages thread with the listing embedded.
+    #[serde(default)]
+    pub(crate) thread_id: Option<Uuid>,
+    /// Context pulled from the asset — each field is an editable
+    /// per-listing override once the form is open.
+    pub(crate) category: String,
+    pub(crate) sku: String,
+    #[serde(default)]
+    pub(crate) docs: Vec<String>,
+    pub(crate) photo_count: usize,
+    pub(crate) doc_count: usize,
+    pub(crate) tags: Vec<String>,
+    /// "draft" | "published"
+    pub(crate) status: String,
+    pub(crate) saved_at: String,
+}
+
+impl MarketplaceListing {
+    /// Auto-fill every feasible field from the asset's contents and the
+    /// shared Sales profile (single data point sent to every store).
+    fn from_asset(a: &Asset, sales: &SalesProfile) -> Self {
+        // Shared sales price wins; otherwise fall back to asset values.
+        let price = if !sales.price.trim().is_empty() {
+            sales.price.trim().to_string()
+        } else if a.current_value > 0.0 {
+            format!("{:.2}", a.current_value)
+        } else if a.purchase_value > 0.0 {
+            format!("{:.2}", a.purchase_value)
+        } else {
+            String::new()
+        };
+        let category = match a.asset_subtype.as_deref().map(str::trim) {
+            Some(st) if !st.is_empty() => {
+                format!("{} — {}", a.asset_type.to_input_string(), st)
+            }
+            _ => a.asset_type.to_input_string(),
+        };
+        let sku = a
+            .reference_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .or_else(|| {
+                let c = a.code.trim();
+                (!c.is_empty()).then(|| c.to_string())
+            })
+            .unwrap_or_default();
+        let photos: Vec<String> = a.images.iter().take(12).cloned().collect();
+        let asset_condition = a.condition_status.as_str().to_string();
+        // Same status line the asset row shows: "Label: value, …"
+        let asset_status = a
+            .status_badges()
+            .iter()
+            .map(|(label, value)| format!("{}: {}", label, value))
+            .collect::<Vec<_>>()
+            .join(", ");
+        // When the asset has no description, compose one in the exact same
+        // label format the asset detail uses so listings stay interpretable.
+        let description = {
+            let d = a.description.clone().unwrap_or_default();
+            if d.trim().is_empty() {
+                let mut lines = vec![format!("Type: {}", category)];
+                if let Some(loc) = a.location.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    lines.push(format!("Address: {}", loc));
+                }
+                if a.current_value > 0.0 || a.purchase_value > 0.0 {
+                    let v = if a.current_value > 0.0 { a.current_value } else { a.purchase_value };
+                    lines.push(format!("Value: ${:.2}", v));
+                }
+                lines.push(format!("Condition: {}", asset_condition));
+                if !asset_status.is_empty() {
+                    lines.push(format!("Status: {}", asset_status));
+                }
+                lines.join("\n")
+            } else {
+                d
+            }
+        };
+        let condition = if !sales.condition.trim().is_empty() {
+            sales.condition.trim().to_string()
+        } else {
+            marketplace_condition(&a.condition_status).to_string()
+        };
+        let tags = if !sales.tags.is_empty() {
+            sales.tags.clone()
+        } else {
+            a.tags.clone()
+        };
+        Self {
+            title: a.name.clone(),
+            description,
+            price: price.clone(),
+            condition,
+            location: a.location.clone().unwrap_or_default(),
+            photos,
+            asset_condition,
+            asset_status,
+            // eBay bidding defaults: start at the shared/asset price, 7 days.
+            auction_start: price.clone(),
+            buy_it_now: String::new(),
+            bid_increment: String::new(),
+            auction_days: "7".to_string(),
+            category,
+            sku,
+            docs: a.documents.iter().map(|d| d.name.clone()).collect(),
+            photo_count: a.images.len(),
+            doc_count: a.documents.len(),
+            tags,
+            status: "draft".to_string(),
+            saved_at: String::new(),
+            thread_id: None,
+        }
+    }
+
+    /// Price actually sent to the store: per-listing override if set,
+    /// otherwise the shared sales price.
+    fn effective_price<'a>(&'a self, sales: &'a SalesProfile) -> &'a str {
+        if !self.price.trim().is_empty() {
+            self.price.trim()
+        } else {
+            sales.price.trim()
+        }
+    }
+}
+
+fn find_asset_metadata(s: &AppStore, asset_id: Uuid) -> Option<serde_json::Value> {
+    for p in &s.portfolios {
+        if let Some(a) = p.assets.iter().find(|a| a.id == asset_id) {
+            return Some(a.metadata.clone());
+        }
+        for g in &p.asset_groups {
+            if let Some(a) = g.assets.iter().find(|a| a.id == asset_id) {
+                return Some(a.metadata.clone());
+            }
+        }
+    }
+    None
+}
+
+fn find_asset_mut(s: &mut AppStore, asset_id: Uuid) -> Option<&mut Asset> {
+    for p in s.portfolios.iter_mut() {
+        if let Some(a) = p.assets.iter_mut().find(|a| a.id == asset_id) {
+            return Some(a);
+        }
+        for g in p.asset_groups.iter_mut() {
+            if let Some(a) = g.assets.iter_mut().find(|a| a.id == asset_id) {
+                return Some(a);
+            }
+        }
+    }
+    None
+}
+
+fn load_marketplace_listing(
+    s: &AppStore,
+    asset_id: Uuid,
+    mp_key: &str,
+) -> Option<MarketplaceListing> {
+    let meta = find_asset_metadata(s, asset_id)?;
+    // The internal Red Marketplace stores its listing at the shared
+    // `metadata["red_listing"]` slot — the same location asset groups and
+    // portfolios use, so the Marketplace tab reads one shape everywhere.
+    let v = if mp_key == "Red" {
+        meta.get("red_listing")?.clone()
+    } else {
+        meta.get("marketplace_listings")?.get(mp_key)?.clone()
+    };
+    serde_json::from_value(v).ok()
+}
+
+fn save_marketplace_listing(
+    s: &mut AppStore,
+    asset_id: Uuid,
+    mp_key: &str,
+    listing: &MarketplaceListing,
+) {
+    let Some(a) = find_asset_mut(s, asset_id) else {
+        return;
+    };
+    if !a.metadata.is_object() {
+        a.metadata = serde_json::json!({});
+    }
+    if mp_key == "Red" {
+        if let Ok(v) = serde_json::to_value(listing) {
+            a.metadata
+                .as_object_mut()
+                .unwrap()
+                .insert("red_listing".to_string(), v);
+        }
+        return;
+    }
+    let root = a.metadata.as_object_mut().unwrap();
+    let listings = root
+        .entry("marketplace_listings".to_string())
+        .or_insert_with(|| serde_json::json!({}));
+    if !listings.is_object() {
+        *listings = serde_json::json!({});
+    }
+    if let Ok(v) = serde_json::to_value(listing) {
+        listings
+            .as_object_mut()
+            .unwrap()
+            .insert(mp_key.to_string(), v);
+    }
+}
+
+#[component]
+fn MarketplaceCard(
+    mp_key: &'static str,
+    mp_label: &'static str,
+    asset_id: Uuid,
+    asset_name: String,
+    portfolio_id: Option<Uuid>,
+    can_link: bool,
+) -> impl IntoView {
+    let app_store = use_app_store();
+    let messenger_store = use_messenger_store();
+    let (asset_name_sig, _) = signal(asset_name);
+    let def = marketplace_def(mp_key);
+    let mp_icon = def.map(|d| d.icon).unwrap_or("🏪");
+    let mp_hint = def.map(|d| d.hint).unwrap_or("");
+    let mp_auth: &'static [&'static str] = def.map(|d| d.auth).unwrap_or(&["manual", "browser"]);
+
+    // Connection state: (method key, account label) once connected.
+    // The internal Red Marketplace needs no connect flow — it starts
+    // "connected" so the listing tools are always available.
+    let (conn, set_conn) = signal(if mp_key == "Red" {
+        Some(("internal", "Red Marketplace".to_string()))
+    } else {
+        None
+    });
+    let (manual_open, set_manual_open) = signal(false);
+    let (manual_user, set_manual_user) = signal(String::new());
+    let (manual_pass, set_manual_pass) = signal(String::new());
+    let (auth_err, set_auth_err) = signal(Option::<String>::None);
+    // Single-button connect cascade: method currently being tried, whether
+    // the manual method picker is open, and a generation counter that
+    // cancels an in-flight cascade when the user picks manually.
+    let (connecting, set_connecting) = signal(Option::<&'static str>::None);
+    let (picker_open, set_picker_open) = signal(false);
+    let (cascade_gen, set_cascade_gen) = signal(0u32);
+
+    // Listing setup state — single struct mirroring the persisted draft.
+    let (listing_open, set_listing_open) = signal(false);
+    let (form, set_form) = signal(MarketplaceListing::default());
+    let (published, set_published) = signal(false);
+    let (form_err, set_form_err) = signal(Option::<String>::None);
+
+    // Inline editing: which asset-format row is being edited + its buffer.
+    // Fields: "title" | "price" | "condition" | "location" | "description".
+    let (edit_field, set_edit_field) = signal(Option::<&'static str>::None);
+    let (edit_buf, set_edit_buf) = signal(String::new());
+
+    // Commit the edit buffer into the form field and close the editor.
+    let commit_edit = move || {
+        if let Some(field) = edit_field.get_untracked() {
+            let buf = edit_buf.get_untracked();
+            set_form.update(|fm| match field {
+                "title" => fm.title = buf.clone(),
+                "price" => fm.price = buf.clone(),
+                "condition" => fm.condition = buf.clone(),
+                "location" => fm.location = buf.clone(),
+                "description" => fm.description = buf.clone(),
+                "tags" => fm.tags = csv_to_list(&buf),
+                "photos" => fm.photos = csv_to_list(&buf),
+                "docs" => fm.docs = csv_to_list(&buf),
+                "category" => fm.category = buf.clone(),
+                "sku" => fm.sku = buf.clone(),
+                "asset_condition" => fm.asset_condition = buf.clone(),
+                "asset_status" => fm.asset_status = buf.clone(),
+                "auction_start" => fm.auction_start = buf.clone(),
+                "buy_it_now" => fm.buy_it_now = buf.clone(),
+                "bid_increment" => fm.bid_increment = buf.clone(),
+                "auction_days" => fm.auction_days = buf.clone(),
+                _ => {}
+            });
+        }
+        set_edit_field.set(None);
+    };
+    let cancel_edit = move || set_edit_field.set(None);
+    let start_edit = move |field: &'static str| {
+        if edit_field.get_untracked() == Some(field) {
+            return;
+        }
+        // Switching rows commits whatever was being edited first.
+        commit_edit();
+        let current = match field {
+            "title" => form.get_untracked().title,
+            "price" => form.get_untracked().price,
+            "condition" => form.get_untracked().condition,
+            "location" => form.get_untracked().location,
+            "description" => form.get_untracked().description,
+            "tags" => form.get_untracked().tags.join(", "),
+            "photos" => form.get_untracked().photos.join(", "),
+            "docs" => form.get_untracked().docs.join(", "),
+            "category" => form.get_untracked().category,
+            "sku" => form.get_untracked().sku,
+            "asset_condition" => form.get_untracked().asset_condition,
+            "asset_status" => form.get_untracked().asset_status,
+            "auction_start" => form.get_untracked().auction_start,
+            "buy_it_now" => form.get_untracked().buy_it_now,
+            "bid_increment" => form.get_untracked().bid_increment,
+            "auction_days" => form.get_untracked().auction_days,
+            _ => String::new(),
+        };
+        set_edit_buf.set(current);
+        set_edit_field.set(Some(field));
+    };
+
+    // One asset-format row whose value becomes an inline input on
+    // double-click (Enter saves, Escape cancels, outside tap saves).
+    let af_text_row = move |label: &'static str,
+                            field: &'static str,
+                            value: String|
+     -> AnyView {
+        view! {
+            <div class="mp-af-row">
+                <span class="mp-af-label">{label}</span>
+                {move || {
+                    if edit_field.get() == Some(field) {
+                        view! {
+                            <input class="mp-af-input" type="text"
+                                prop:value=move || edit_buf.get()
+                                on:input=move |ev| set_edit_buf.set(event_target_value(&ev))
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    match ev.key().as_str() {
+                                        "Enter" => commit_edit(),
+                                        "Escape" => cancel_edit(),
+                                        _ => {}
+                                    }
+                                } />
+                        }.into_any()
+                    } else {
+                        let v = if value.is_empty() { "—".to_string() } else { value.clone() };
+                        view! {
+                            <span class="mp-af-value mp-af-editable" on:dblclick=move |_| start_edit(field)>{v}</span>
+                        }.into_any()
+                    }
+                }}
+            </div>
+        }
+        .into_any()
+    };
+
+    // Outside taps save+close the active row editor as a phantom click.
+    let mp_edit_token: &'static str =
+        Box::leak(format!("mp-edit-{}-{}", asset_id, mp_key).into_boxed_str());
+    {
+        let alive = phantom_edit_scope(
+            mp_edit_token.to_string(),
+            move || edit_field.get_untracked().is_some(),
+            move || commit_edit(),
+        );
+        on_cleanup(move || alive.store(false, Ordering::Relaxed));
+    }
+
+    // Focus the inline editor input as soon as a row enters edit mode.
+    Effect::new(move |_| {
+        if edit_field.get().is_some() {
+            #[cfg(target_arch = "wasm32")]
+            if let Some(el) = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.query_selector(".mp-af-input").ok().flatten())
+            {
+                if let Ok(h) = el.dyn_into::<web_sys::HtmlElement>() {
+                    let _ = h.focus();
+                }
+            }
+        }
+    });
+
+    // Last saved draft/published listing for this marketplace (reactive).
+    let listing_saved = Memo::new(move |_| {
+        load_marketplace_listing(&app_store.get(), asset_id, mp_key)
+    });
+
+    let already_linked = move || {
+        marketplace_channel_type(mp_key)
+            .map(|ty| {
+                app_store
+                    .get()
+                    .channels_for_asset(asset_id)
+                    .iter()
+                    .any(|c| c.channel_type == ty)
+            })
+            .unwrap_or(false)
+    };
+
+    let do_connect = move |method: &'static str, account: String| {
+        set_auth_err.set(None);
+        set_conn.set(Some((method, account)));
+        set_manual_open.set(false);
+        set_picker_open.set(false);
+        set_connecting.set(None);
+        set_cascade_gen.update(|g| *g += 1);
+    };
+
+    // Every connect method runs a simulated marketplace API handshake first
+    // (no account needed) — success connects, failure surfaces the error.
+    let connect_via = {
+        let dc = do_connect.clone();
+        move |method: &'static str, account: String| {
+            set_auth_err.set(None);
+            set_connecting.set(Some(method));
+            let mp = mp_key;
+            leptos::task::spawn_local(async move {
+                match marketplace_api_test(mp, method).await {
+                    Ok(api) => dc(method, format!("{} · {}", account, api)),
+                    Err(e) => {
+                        set_auth_err.set(Some(e));
+                        set_connecting.set(None);
+                    }
+                }
+            });
+        }
+    };
+
+    // Google sign-in binds to the signed-in app account — the same identity
+    // eBay/Amazon/Etsy/Kogan will see, not a generic placeholder. StoredValue
+    // keeps the string Copy so the picker closures stay FnMut.
+    let google_account = StoredValue::new({
+        let u = app_store.get_untracked().current_user.clone();
+        if u.email.trim().is_empty() {
+            u.name.clone()
+        } else {
+            format!("{} <{}>", u.name, u.email)
+        }
+    });
+    let connect_google = {
+        let cv = connect_via;
+        move |_| cv("google", google_account.get_value())
+    };
+    let connect_facebook = {
+        let cv = connect_via;
+        move |_| cv("facebook", "Facebook account".to_string())
+    };
+    let connect_apple = {
+        let cv = connect_via;
+        move |_| cv("apple", "Apple ID".to_string())
+    };
+    let connect_browser = {
+        let cv = connect_via;
+        move |_| cv("browser", "Browser session".to_string())
+    };
+    let connect_manual = {
+        let dc = do_connect.clone();
+        move |_| {
+            let user = manual_user.get().trim().to_string();
+            if user.is_empty() || manual_pass.get().is_empty() {
+                set_auth_err.set(Some("Enter username and password".to_string()));
+                return;
+            }
+            dc("manual", user);
+        }
+    };
+
+    // Connect button opens the method picker — Google account selection or
+    // browser auto-detect — whichever the marketplace supports.
+    let connect_cascade = move |_| {
+        if conn.get().is_some() || connecting.get().is_some() {
+            return;
+        }
+        set_auth_err.set(None);
+        set_manual_open.set(false);
+        set_picker_open.update(|v| *v = !*v);
+    };
+
+    let pick_manual = {
+        let dc_gen = set_cascade_gen;
+        move |_| {
+            dc_gen.update(|g| *g += 1);
+            set_connecting.set(None);
+            set_picker_open.set(false);
+            set_manual_open.set(true);
+        }
+    };
+
+    // Press-and-hold (≈ mouse2/right-click hold) reveals the method picker.
+    // A generation counter invalidates the timer if the button is released
+    // early, so a stale timeout can't open the picker afterwards.
+    let (press_gen, set_press_gen) = signal(0u32);
+    let on_press_start = move |ev: leptos::ev::MouseEvent| {
+        if ev.button() != 0 {
+            return;
+        }
+        let g = press_gen.get_untracked() + 1;
+        set_press_gen.set(g);
+        let cb = wasm_bindgen::closure::Closure::once(move || {
+            if press_gen.get_untracked() == g {
+                set_cascade_gen.update(|v| *v += 1);
+                set_connecting.set(None);
+                set_picker_open.set(true);
+            }
+        });
+        if let Some(w) = web_sys::window() {
+            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(
+                cb.as_ref().unchecked_ref(),
+                450,
+            );
+        }
+        cb.forget();
+    };
+    let on_press_end = move |_| {
+        set_press_gen.update(|g| *g += 1);
+    };
+    let on_press_end_leave = on_press_end;
+    let on_connect_context = move |ev: leptos::ev::MouseEvent| {
+        ev.prevent_default();
+        set_press_gen.update(|g| *g += 1);
+        set_cascade_gen.update(|g| *g += 1);
+        set_connecting.set(None);
+        set_picker_open.update(|v| *v = !*v);
+    };
+
+    // Open the listing form: resume the saved draft if one exists, otherwise
+    // auto-fill every feasible field from the asset's current contents.
+    let open_listing = move |_| {
+        set_form_err.set(None);
+        let listing = load_marketplace_listing(&app_store.get_untracked(), asset_id, mp_key)
+            .or_else(|| {
+                let s = app_store.get_untracked();
+                let sales = load_sales_profile(&s, asset_id);
+                find_asset_in_store(&s, asset_id).map(|a| MarketplaceListing::from_asset(&a, &sales))
+            })
+            .unwrap_or_else(|| MarketplaceListing {
+                title: asset_name_sig.get_untracked(),
+                ..Default::default()
+            });
+        set_form.set(listing);
+        set_listing_open.set(true);
+    };
+
+    let save_listing = Callback::new(move |status: &'static str| {
+        commit_edit();
+        let mut l = form.get();
+        if l.title.trim().is_empty() {
+            set_form_err.set(Some("Title is required".to_string()));
+            return;
+        }
+        l.status = status.to_string();
+        l.saved_at = Utc::now().to_rfc3339();
+        // Published listings get a stable messenger thread id up front so
+        // buyer/seller messages always land in the same conversation.
+        if status == "published" && l.thread_id.is_none() {
+            l.thread_id = Some(Uuid::new_v4());
+        }
+        let was_linked = already_linked();
+        app_store.update(|s| {
+            save_marketplace_listing(s, asset_id, mp_key, &l);
+            if status == "published" && !was_linked {
+                if let Some(channel_type) = marketplace_channel_type(mp_key) {
+                    let mut channel = Channel::new_test_channel(
+                        format!("{} — {}", mp_label, asset_name_sig.get()),
+                        Some(asset_id),
+                        portfolio_id,
+                    );
+                    channel.channel_type = channel_type;
+                    // Bind the listing contents to the marketplace channel so
+                    // the connection carries the listing's key details —
+                    // including eBay bidding parameters when present.
+                    let sales = load_sales_profile(s, asset_id);
+                    let eff_price = l.effective_price(&sales);
+                    let mut payload = format!(
+                        "Listing: {} · ${} · {} · {} photo{}",
+                        l.title,
+                        if eff_price.is_empty() { "0.00".to_string() } else { eff_price.to_string() },
+                        l.condition,
+                        l.photos.len(),
+                        if l.photos.len() == 1 { "" } else { "s" }
+                    );
+                    if mp_key == "EBay"
+                        && (!l.auction_start.trim().is_empty()
+                            || !l.buy_it_now.trim().is_empty())
+                    {
+                        payload.push_str(&format!(
+                            " · Auction: start ${}, BIN ${}, +${}, {}d",
+                            l.auction_start,
+                            l.buy_it_now,
+                            l.bid_increment,
+                            l.auction_days
+                        ));
+                    }
+                    channel.last_sync_status = Some(payload);
+                    attach_channel_to_asset(s, asset_id, portfolio_id, channel);
+                }
+            }
+        });
+        if status == "published" {
+            set_published.set(true);
+            // Open the listing's messenger thread with the listing embedded
+            // as the conversation's reference message.
+            let uid = app_store.get_untracked().current_user.id;
+            ensure_marketplace_thread(messenger_store, uid, asset_id, mp_key, &l);
+        }
+        set_listing_open.set(false);
+    });
+
+    let publish = {
+        let sl = save_listing.clone();
+        move |_| sl.run("published")
+    };
+    let save_draft = move |_| save_listing.run("draft");
+
+    // Jump from the card into the listing's messenger thread. Lazily creates
+    // the thread for listings published before threads existed.
+    let open_listing_messages = move |_| {
+        if let Some(mut l) = listing_saved.get_untracked() {
+            if l.thread_id.is_none() {
+                l.thread_id = Some(Uuid::new_v4());
+                let saved = l.clone();
+                app_store.update(|s| save_marketplace_listing(s, asset_id, mp_key, &saved));
+            }
+            let uid = app_store.get_untracked().current_user.id;
+            let tid = ensure_marketplace_thread(messenger_store, uid, asset_id, mp_key, &l);
+            messenger_store.update(|ms| {
+                ms.set_message_drawer(true);
+                ms.set_selected_chat(Some(tid));
+            });
+        }
+    };
+
+    // Listing setup is available before AND after connecting — the draft is
+    // bound to this marketplace key either way. Shared by both card states.
+    let listing_section = move || -> AnyView {
+        view! {
+            {move || if published.get() {
+                view! { <p class="mp-published">"✓ Listing published to "{mp_label}</p> }.into_any()
+            } else if listing_open.get() {
+                view! {
+                    <div class="mp-listing-form" attr:data-pf-edit-scope=mp_edit_token>
+                        <p class="mp-hint">"Listing setup — auto-filled from asset. Double-click a field to edit:"</p>
+                        {move || {
+                            let f = form.get();
+                            view! {
+                                <div class="mp-included">
+                                    <span class="mp-included-label">"Included from asset — same format:"</span>
+                                    <div class="mp-af-grid">
+                                        {af_text_row("TITLE", "title", f.title.clone())}
+                                        {af_text_row("DESCRIPTION", "description", f.description.clone())}
+                                        {af_text_row("TYPE & BUILD", "category", f.category.clone())}
+                                        {af_text_row("ADDRESS", "location", f.location.clone())}
+                                        {af_text_row("PRICE", "price", {
+                                            if f.price.is_empty() { String::new() } else { format!("${}", f.price) }
+                                        })}
+                                        <div class="mp-af-row">
+                                            <span class="mp-af-label">"CONDITION"</span>
+                                            {move || {
+                                                if edit_field.get() == Some("condition") {
+                                                    view! {
+                                                        <select class="mp-af-input"
+                                                            prop:value=move || edit_buf.get()
+                                                            on:change=move |ev| {
+                                                                set_edit_buf.set(event_target_value(&ev));
+                                                                commit_edit();
+                                                            }
+                                                            on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                                                if ev.key() == "Escape" { cancel_edit(); }
+                                                            }>
+                                                            <option value="New">"New"</option>
+                                                            <option value="Used">"Used"</option>
+                                                            <option value="For parts">"For parts"</option>
+                                                            <option value="Refurbished">"Refurbished"</option>
+                                                        </select>
+                                                    }.into_any()
+                                                } else {
+                                                    let v = if f.condition.is_empty() { "—".to_string() } else { f.condition.clone() };
+                                                    view! {
+                                                        <span class="mp-af-value mp-af-editable" on:dblclick=move |_| start_edit("condition")>{v}</span>
+                                                    }.into_any()
+                                                }
+                                            }}
+                                        </div>
+                                        {af_text_row("ASSET CONDITION", "asset_condition", f.asset_condition.clone())}
+                                        {af_text_row("STATUS", "asset_status", f.asset_status.clone())}
+                                        {af_text_row("REF / SKU", "sku", {
+                                            if f.sku.is_empty() { String::new() } else { format!("SKU {}", f.sku) }
+                                        })}
+                                        {af_text_row("PHOTOS", "photos", {
+                                            let n = if !f.photos.is_empty() { f.photos.len() } else { f.photo_count };
+                                            if n == 0 { String::new() } else {
+                                                format!("{} photo{}", n, if n == 1 { "" } else { "s" })
+                                            }
+                                        })}
+                                        {af_text_row("DOCS", "docs", {
+                                            let n = if !f.docs.is_empty() { f.docs.len() } else { f.doc_count };
+                                            if n == 0 { String::new() } else {
+                                                format!("{} doc{}", n, if n == 1 { "" } else { "s" })
+                                            }
+                                        })}
+                                        {af_text_row("TAGS", "tags", f.tags.join(", "))}
+                                        {if mp_key != "EBay" { ().into_any() } else {
+                                            view! {
+                                                <div class="mp-af-section">"EBAY BIDDING"</div>
+                                                {af_text_row("START BID", "auction_start", f.auction_start.clone())}
+                                                {af_text_row("BUY IT NOW", "buy_it_now", f.buy_it_now.clone())}
+                                                {af_text_row("BID INCREMENT", "bid_increment", f.bid_increment.clone())}
+                                                {af_text_row("DAYS", "auction_days", f.auction_days.clone())}
+                                            }.into_any()
+                                        }}
+                                    </div>
+                                    {if f.photos.is_empty() { ().into_any() } else {
+                                        view! {
+                                            <div class="mp-af-photos">
+                                                {f.photos.iter().take(8).cloned().map(|u| view! {
+                                                    <img class="mp-af-photo" src={u} alt="Listing photo" />
+                                                }).collect::<Vec<_>>()}
+                                            </div>
+                                        }.into_any()
+                                    }}
+                                </div>
+                            }
+                        }}
+                        {move || form_err.get().map(|e| view! { <p class="mp-error">{e}</p> })}
+                        <div class="mp-form-actions">
+                            <button type="button" class="pf-small-btn" on:click=move |_| set_listing_open.set(false)>"Cancel"</button>
+                            <button type="button" class="pf-small-btn" on:click=save_draft>"Save draft"</button>
+                            <button type="button" class="login-btn sell" on:click=publish>"Publish listing"</button>
+                        </div>
+                    </div>
+                }.into_any()
+            } else {
+                view! {
+                    {move || if conn.get().is_some() && mp_key != "Red" {
+                        view! {
+                            <div class="mp-connect-row">
+                                <button type="button" class="pf-small-btn mp-disconnect"
+                                    on:click=move |_| {
+                                        set_conn.set(None);
+                                        set_cascade_gen.update(|g| *g += 1);
+                                        set_connecting.set(None);
+                                        set_picker_open.set(false);
+                                    }>
+                                    "Disconnect"
+                                </button>
+                            </div>
+                        }.into_any()
+                    } else { ().into_any() }}
+                }.into_any()
+            }}
+            {move || listing_saved.get().map(|l| {
+                let status_label = if l.status == "published" { "Published" } else { "Draft saved" };
+                view! {
+                    <p class="mp-listing-status">
+                        {format!("{} · {}", status_label, l.saved_at)}
+                    </p>
+                }
+            })}
+        }
+        .into_any()
+    };
+
+    view! {
+        <div class="mp-card">
+            <div class="mp-card-head">
+                <span class="mp-card-icon">{mp_icon}</span>
+                <span class="mp-card-name">{mp_label}</span>
+                {move || if can_link && !published.get() && !listing_open.get() {
+                    view! {
+                        <button type="button" class="mp-head-btn" on:click=open_listing>
+                            {move || {
+                                if listing_saved.get().is_some() {
+                                    "Edit listing"
+                                } else if already_linked() {
+                                    "Update listing"
+                                } else {
+                                    "Set up listing"
+                                }
+                            }}
+                        </button>
+                    }.into_any()
+                } else { ().into_any() }}
+                {move || if listing_saved.get().map(|l| l.status == "published").unwrap_or(false) {
+                    view! {
+                        <button type="button" class="mp-head-btn" on:click=open_listing_messages>"Messages"</button>
+                    }.into_any()
+                } else { ().into_any() }}
+                {move || if !can_link { ().into_any() } else if conn.get().is_none() {
+                    view! {
+                        <button type="button" class="mp-head-btn mp-head-connect"
+                            class:mp-connecting=move || connecting.get().is_some()
+                            title="Click to connect — right-click or press-and-hold to choose a method"
+                            on:click=connect_cascade
+                            on:contextmenu=on_connect_context
+                            on:mousedown=on_press_start
+                            on:mouseup=on_press_end
+                            on:mouseleave=on_press_end_leave>
+                            {move || if connecting.get().is_some() {
+                                "Connecting…".to_string()
+                            } else {
+                                format!("Connect {}", mp_label)
+                            }}
+                        </button>
+                    }.into_any()
+                } else {
+                    view! { <span class="mp-badge mp-badge-on mp-badge-square">{format!("● Connected via {}", mp_method_short(conn.get().map(|(m, _)| m).unwrap_or("")))}</span> }.into_any()
+                }}
+            </div>
+            {move || if !can_link {
+                view! { <p class="mp-hint">"You don't have permission to manage marketplace listings."</p> }.into_any()
+            } else if conn.get().is_none() {
+                view! {
+                    <div class="mp-connect">
+                        <p class="mp-hint">"Connect your {mp_label} account:"</p>
+                        {if !mp_hint.is_empty() {
+                            view! { <p class="mp-hint mp-hint-sub">{mp_hint}</p> }.into_any()
+                        } else { ().into_any() }}
+                        {move || if let Some(m) = connecting.get() {
+                            view! { <p class="mp-hint mp-connecting">{format!("Connecting via {}…", mp_method_label(m))}</p> }.into_any()
+                        } else { ().into_any() }}
+                        {move || if picker_open.get() {
+                            view! {
+                                <div class="mp-method-picker">
+                                    <p class="mp-hint">"Connect {mp_label} — choose a method:"</p>
+                                    <div class="mp-method-bar">
+                                        <div class="mp-connect-row">
+                                            {mp_auth.iter().map(|m| match *m {
+                                                "google" => view! {
+                                                    <button type="button" class="pf-small-btn" on:click=connect_google>
+                                                        {format!("Google — {}", google_account.get_value())}
+                                                    </button>
+                                                }.into_any(),
+                                                "facebook" => view! {
+                                                    <button type="button" class="pf-small-btn" on:click=connect_facebook>"Connect with Facebook"</button>
+                                                }.into_any(),
+                                                "apple" => view! {
+                                                    <button type="button" class="pf-small-btn" on:click=connect_apple>"Sign in with Apple"</button>
+                                                }.into_any(),
+                                                "manual" => view! {
+                                                    <button type="button" class="pf-small-btn" on:click=pick_manual>"Email / username"</button>
+                                                }.into_any(),
+                                                "browser" => view! {
+                                                    <button type="button" class="pf-small-btn" on:click=connect_browser>"Auto-detect browser"</button>
+                                                }.into_any(),
+                                                _ => ().into_any(),
+                                            }).collect::<Vec<_>>()}
+                                        </div>
+                                        <button type="button" class="pf-small-btn mp-method-back" on:click=move |_| set_picker_open.set(false)>"Back"</button>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                        {move || manual_open.get().then(|| view! {
+                            <div class="mp-manual-form">
+                                <input class="login-input" type="text" placeholder="Username or email"
+                                    aria-label={format!("{} username", mp_label)}
+                                    prop:value=move || manual_user.get()
+                                    on:input=move |ev| set_manual_user.set(event_target_value(&ev)) />
+                                <input class="login-input" type="password" placeholder="Password"
+                                    aria-label={format!("{} password", mp_label)}
+                                    prop:value=move || manual_pass.get()
+                                    on:input=move |ev| set_manual_pass.set(event_target_value(&ev)) />
+                                <button type="button" class="login-btn" on:click=connect_manual>"Sign in"</button>
+                            </div>
+                        })}
+                        {move || auth_err.get().map(|e| view! { <p class="mp-error">{e}</p> })}
+                        {listing_section()}
+                    </div>
+                }.into_any()
+            } else {
+                view! {
+                    <div class="mp-connected">
+                        {move || conn.get().map(|(method, account)| view! {
+                            <p class="mp-account">"✓ "{mp_method_label(method)}" — "{account}</p>
+                        })}
+                        {listing_section()}
+                    </div>
+                }.into_any()
+            }}
+        </div>
+    }
+}
+
+#[component]
+pub(crate) fn AssetMarketplaceControls(
+    asset_id: Uuid,
+    asset_name: String,
+    portfolio_id: Option<Uuid>,
+    can_link: bool,
+) -> impl IntoView {
+    view! {
+        <div class="ai-marketplace-controls">
+            <For
+                each=move || MARKETPLACES.to_vec()
+                key=|d| d.key
+                children=move |def| view! {
+                    <MarketplaceCard
+                        mp_key=def.key
+                        mp_label=def.label
+                        asset_id={asset_id}
+                        asset_name={asset_name.clone()}
+                        portfolio_id={portfolio_id}
+                        can_link={can_link}
+                    />
+                }
+            />
         </div>
     }
 }

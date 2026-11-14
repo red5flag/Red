@@ -1,6 +1,7 @@
 use crate::pages::{
-    AddTeamMemberPage, AgentPage, CalendarPage, HistoryPage, NetworkingPage, OrganizationPage,
-    OverviewPage, PortfoliosPage, ReportingPage, SettingsPage, TransactionsPage,
+    AddTeamMemberPage, AgentPage, CalendarPage, HistoryPage, MarketplacePage, NetworkingPage,
+    OrganizationPage, OverviewPage, PortfoliosPage, ReportingPage, SettingsPage,
+    TransactionsPage,
 };
 use crate::stores::{
     create_action, use_app_store, use_notification_store, use_ui_store, use_undo_redo_store,
@@ -96,6 +97,7 @@ fn render_tab_page(tab_type: TabType) -> impl IntoView {
     match tab_type {
         TabType::Overview => view! { <OverviewPage /> }.into_any(),
         TabType::Portfolios => view! { <PortfoliosPage /> }.into_any(),
+        TabType::Marketplace => view! { <MarketplacePage /> }.into_any(),
         TabType::Networking => view! { <NetworkingPage /> }.into_any(),
         TabType::NetworkingAddMember => view! { <AddTeamMemberPage /> }.into_any(),
         TabType::Organization => view! { <OrganizationPage /> }.into_any(),
@@ -162,6 +164,10 @@ pub fn TabList() -> impl IntoView {
             TabListItem {
                 tab_type: TabType::Portfolios,
                 title: "Portfolios",
+            },
+            TabListItem {
+                tab_type: TabType::Marketplace,
+                title: "Marketplace",
             },
             TabListItem {
                 tab_type: TabType::Networking,

@@ -30,7 +30,10 @@ pub fn Navbar() -> impl IntoView {
         let current_user_id = app_store.get().current_user.id;
         messenger_store.get().unread_message_count(current_user_id)
     };
-    let is_message_drawer_open = move || messenger_store.get().message_drawer_open;
+    // Memoized so drawer components mount once and stay mounted — a plain
+    // closure would re-run on every store update and recreate the drawer.
+    let is_message_drawer_open =
+        Memo::new(move |_| messenger_store.get().message_drawer_open);
 
     // Dropdown state: (client_x, client_y, list of actions, is_redo)
     let (dropdown, set_dropdown) = signal::<Option<(i32, i32, Vec<Action>, bool)>>(None);
@@ -267,8 +270,9 @@ pub fn Navbar() -> impl IntoView {
         click_feedback(6);
     };
 
-    let is_tabs_drawer_open = move || ui_store.get().tabs_drawer_open;
-    let is_notifications_drawer_open = move || notification_store.get().drawer_open;
+    let is_tabs_drawer_open = Memo::new(move |_| ui_store.get().tabs_drawer_open);
+    let is_notifications_drawer_open =
+        Memo::new(move |_| notification_store.get().drawer_open);
     let notification_count = move || {
         let app = app_store.get();
         let org = organization_store.get();
@@ -413,7 +417,7 @@ pub fn Navbar() -> impl IntoView {
         </nav>
 
         // Tabs drawer (left-side panel from ☰ button)
-        {move || if is_tabs_drawer_open() {
+        {move || if is_tabs_drawer_open.get() {
             view! {
                 <div class="tabs-drawer-overlay" on:click=move |_| ui_store.update(|ui| ui.close_tabs_drawer())>
                     <div class="tabs-drawer" on:click=|ev| ev.stop_propagation()>
@@ -426,12 +430,12 @@ pub fn Navbar() -> impl IntoView {
         } else { ().into_any() }}
 
         // Message drawer overlay
-        {move || if is_message_drawer_open() {
+        {move || if is_message_drawer_open.get() {
             view! { <MessageDrawer /> }.into_any()
         } else { ().into_any() }}
 
         // Notifications drawer (right-side panel)
-        {move || if is_notifications_drawer_open() {
+        {move || if is_notifications_drawer_open.get() {
             let on_close_notif = {
                 let set_show_sort_menu = set_show_sort_menu.clone();
                 let set_show_filter_menu = set_show_filter_menu.clone();

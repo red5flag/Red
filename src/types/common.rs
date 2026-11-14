@@ -360,6 +360,8 @@ pub enum OverviewSortMode {
 // Sort modes for lists
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum SortMode {
+    /// Manual ordering — portfolios keep the position the user dragged them to.
+    Relevance,
     #[default]
     Recent,
     Oldest,
@@ -699,6 +701,7 @@ pub fn default_presets() -> Vec<SettingsPreset> {
 pub enum TabType {
     Overview,
     Portfolios,
+    Marketplace,
     Networking,
     NetworkingAddMember,
     Organization,
@@ -715,6 +718,7 @@ impl TabType {
         match self {
             TabType::Overview => "Overview",
             TabType::Portfolios => "Portfolios",
+            TabType::Marketplace => "Marketplace",
             TabType::Networking => "Networking",
             TabType::NetworkingAddMember => "Add Team",
             TabType::Organization => "Organization",
@@ -731,6 +735,7 @@ impl TabType {
         match s {
             "Overview" => Some(TabType::Overview),
             "Portfolios" => Some(TabType::Portfolios),
+            "Marketplace" => Some(TabType::Marketplace),
             "Networking" => Some(TabType::Networking),
             "Add Team" => Some(TabType::NetworkingAddMember),
             "Organization" => Some(TabType::Organization),

@@ -52,6 +52,76 @@ pub async fn save_portfolio(portfolio: Portfolio) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+/// Persist a messenger message: the server PQC-seals it (ML-KEM-1024 +
+/// ML-DSA-65 + ChaCha20-Poly1305) into the designated local store.
+#[server(SendSecureMessage, "/api")]
+pub async fn send_secure_message(message: crate::models::Message) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        crate::storage::message_store()
+            .save_message(&message)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Secure message storage is only available on the server",
+        ))
+    }
+}
+
+/// Load all messenger messages decrypted from the PQC-sealed store.
+#[server(GetSecureMessages, "/api")]
+pub async fn get_secure_messages() -> Result<Vec<crate::models::Message>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        return Ok(crate::storage::message_store().load_all_messages());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Secure message storage is only available on the server",
+        ))
+    }
+}
+
+/// Persist the messenger directory (contacts incl. group ids + requests),
+/// PQC-sealed — keeps group threads matchable after restarts.
+#[server(SaveMessengerState, "/api")]
+pub async fn save_messenger_state(
+    state: crate::models::MessengerState,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        crate::storage::message_store()
+            .save_messenger_state(&state)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Secure message storage is only available on the server",
+        ))
+    }
+}
+
+/// Load the persisted messenger directory from the PQC-sealed store.
+#[server(GetMessengerState, "/api")]
+pub async fn get_messenger_state() -> Result<Option<crate::models::MessengerState>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        return Ok(crate::storage::message_store().load_messenger_state());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Secure message storage is only available on the server",
+        ))
+    }
+}
+
 #[server(ConvertImagesToPdf, "/api")]
 pub async fn convert_images_to_pdf(images: Vec<Vec<u8>>) -> Result<Vec<u8>, ServerFnError> {
     #[cfg(feature = "ssr")]

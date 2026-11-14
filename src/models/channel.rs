@@ -10,6 +10,12 @@ pub enum ChannelType {
     Expedia,
     Vrbo,
     LinkedIn,
+    EBay,
+    Gumtree,
+    FacebookMarketplace,
+    Amazon,
+    Etsy,
+    Kogan,
     Other(String),
 }
 

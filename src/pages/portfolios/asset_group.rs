@@ -1,13 +1,14 @@
-use crate::models::{Asset, AssetGroup, Channel, Perm};
+use crate::models::{Asset, AssetGroup, Channel, Perm, Portfolio};
 use crate::stores::{use_app_store, use_organization_store, use_ui_store};
-use crate::types::{AssetType, ViewMode};
+use crate::types::{AssetType, Currency, ViewMode};
 use leptos::prelude::*;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, mobile_tab_gestures, name_click_handlers, read_image_as_data_url,
-    set_drag_tab_data, single_sentence, AssetItem, AssetTarget, DocEntry, DocSlider, NavTabKind,
+    detect_file_type, mobile_tab_gestures, name_click_handlers, pf_drop_target,
+    phantom_edit_scope, read_image_as_data_url, set_drag_tab_data, single_sentence, AssetItem,
+    AssetTarget, DocEntry, DocSlider, NavTabKind, RedEntityKind, RedListingPanel,
     UserAssignmentPanel,
 };
 
@@ -57,7 +58,8 @@ pub(crate) fn AssetGroupItem(
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
 
-    let (is_editing, set_is_editing) = signal(false);
+    let (is_editing_name, set_is_editing_name) = signal(false);
+    let (is_editing_desc, set_is_editing_desc) = signal(false);
     let (show_doc_slider, set_show_doc_slider) = signal(false);
     let (group_context_menu, set_group_context_menu) = signal(Option::<(i32, i32)>::None);
     let (show_group_add_role, set_show_group_add_role) = signal(false);
@@ -72,20 +74,36 @@ pub(crate) fn AssetGroupItem(
     let (edit_name, set_edit_name) = signal(group.name.clone());
     let (edit_desc, set_edit_desc) = signal(group.description.clone().unwrap_or_default());
 
+    // Snapshots used to re-sync the edit buffers when an editor opens, so a
+    // cancelled edit doesn't leave stale text behind.
+    let sync_name = group.name.clone();
+    let sync_desc = group.description.clone().unwrap_or_default();
+    let begin_text_edit = {
+        let sync_name = sync_name.clone();
+        let sync_desc = sync_desc.clone();
+        move |which: u8| {
+            if !can_edit_here.get() {
+                return;
+            }
+            set_edit_name.set(sync_name.clone());
+            set_edit_desc.set(sync_desc.clone());
+            set_is_editing_name.set(which == 0);
+            set_is_editing_desc.set(which == 1);
+        }
+    };
+
     let (name_click, name_dblclick) = name_click_handlers(
         move || on_toggle.run(gid),
-        move || {
-            if can_edit_here.get() {
-                set_is_editing.set(true);
-            }
+        {
+            let begin = begin_text_edit.clone();
+            move || begin(0)
         },
     );
     let (desc_click, desc_dblclick) = name_click_handlers(
         move || on_toggle.run(gid),
-        move || {
-            if can_edit_here.get() {
-                set_is_editing.set(true);
-            }
+        {
+            let begin = begin_text_edit.clone();
+            move || begin(1)
         },
     );
 
@@ -129,6 +147,12 @@ pub(crate) fn AssetGroupItem(
     let g_name_for_slider = StoredValue::new(g_name.clone());
     let g_desc = single_sentence(&group.description.clone().unwrap_or_default());
     let g_name_for_confirm = group.name.clone();
+    // Values for the Red Marketplace listing panel (StoredValue keeps the
+    // render closure Copy-safe).
+    let red_name = StoredValue::new(g_name.clone());
+    let red_desc = StoredValue::new(group.description.clone());
+    let red_value = group.total_value;
+    let red_img = StoredValue::new(group_image_url.clone());
     let dropdown_entries = Memo::new(move |_| {
         app_store
             .get()
@@ -220,7 +244,7 @@ pub(crate) fn AssetGroupItem(
         }
     });
 
-    let save_group_edit = move |_| {
+    let save_group_edit = move || {
         let n = edit_name.get();
         let d = edit_desc.get();
         if n.trim().is_empty() {
@@ -239,8 +263,46 @@ pub(crate) fn AssetGroupItem(
                 }
             }
         });
-        set_is_editing.set(false);
+        set_is_editing_name.set(false);
+        set_is_editing_desc.set(false);
     };
+
+    // Phantom-click dismissal for the inline name/description editors: a
+    // press outside the editor's data-pf-edit-scope element is consumed
+    // (never reaches the element underneath), saves, and closes the editor.
+    let scope_token: &'static str = Box::leak(format!("ag-{}", gid).into_boxed_str());
+    {
+        let save_for_dismiss = save_group_edit.clone();
+        let alive = phantom_edit_scope(
+            scope_token.to_string(),
+            move || {
+                is_editing_name.get_untracked() || is_editing_desc.get_untracked()
+            },
+            move || {
+                save_for_dismiss();
+                set_is_editing_name.set(false);
+                set_is_editing_desc.set(false);
+            },
+        );
+        on_cleanup(move || alive.store(false, std::sync::atomic::Ordering::Relaxed));
+    }
+
+    let group_name_input_ref = NodeRef::<leptos::html::Input>::new();
+    let group_desc_input_ref = NodeRef::<leptos::html::Input>::new();
+    Effect::new(move |_| {
+        if is_editing_name.get() {
+            if let Some(el) = group_name_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
+    Effect::new(move |_| {
+        if is_editing_desc.get() {
+            if let Some(el) = group_desc_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
 
     let add_group_doc = move |n: String| {
         if n.trim().is_empty() {
@@ -271,6 +333,53 @@ pub(crate) fn AssetGroupItem(
         (tint_index as f64 * 0.1).min(0.9)
     );
 
+    // Drop target: assets move into this group; group+group creates a
+    // portfolio; portfolio→group moves group into it; org→group assigns org
+    let (drop_hover, set_drop_hover) = signal(false);
+    let g_name_for_drop = g_name.clone();
+    let (d_over, d_leave, d_drop) = pf_drop_target(
+        set_drop_hover,
+        |k| matches!(
+            k,
+            NavTabKind::Asset
+                | NavTabKind::AssetGroup
+                | NavTabKind::Portfolio
+                | NavTabKind::Organization
+        ),
+        move |tab, _rel_y| {
+            match tab.kind {
+                NavTabKind::Asset => {
+                    app_store.update(|s| {
+                        s.move_asset_to_group(tab.id, pid, gid);
+                    });
+                }
+                NavTabKind::AssetGroup if tab.id != gid => {
+                    let short = |s: &str| -> String { s.chars().take(24).collect() };
+                    let pname = format!("{} & {}", short(&tab.name), short(&g_name_for_drop));
+                    let owner_id = app_store.get_untracked().current_user.id;
+                    let mut p = Portfolio::new(pname, owner_id, Currency::USD);
+                    let new_pid = p.id;
+                    app_store.update(|s| {
+                        s.portfolios.push(p);
+                        s.move_group_to_portfolio(tab.id, new_pid);
+                        s.move_group_to_portfolio(gid, new_pid);
+                    });
+                }
+                NavTabKind::Portfolio if tab.id != pid => {
+                    app_store.update(|s| {
+                        s.move_group_to_portfolio(gid, tab.id);
+                    });
+                }
+                NavTabKind::Organization => {
+                    app_store.update(|s| {
+                        s.set_asset_group_organization(gid, Some(tab.id));
+                    });
+                }
+                _ => {}
+            }
+        },
+    );
+
     let (touch_start, touch_move, touch_end) = mobile_tab_gestures(
         NavTabKind::AssetGroup,
         gid,
@@ -284,8 +393,11 @@ pub(crate) fn AssetGroupItem(
     );
 
     view! {
-        <div class="asset-group" id={format!("asset-group-{}", gid)} class:expanded={move || expanded.get()} style={group_tint_style.clone()}
+        <div class="asset-group" id={format!("asset-group-{}", gid)} class:expanded={move || expanded.get()} class:drop-hover={move || drop_hover.get()} style={group_tint_style.clone()}
             draggable="true"
+            on:dragover=d_over
+            on:dragleave=d_leave
+            on:drop=d_drop
             on:dragstart=move |ev: leptos::ev::DragEvent| {
                 set_drag_tab_data(&ev, &NavTabKind::AssetGroup, gid, &g_name);
             }
@@ -317,13 +429,13 @@ pub(crate) fn AssetGroupItem(
                 }}
                 on:click=move |ev: leptos::ev::MouseEvent| {
                     ev.stop_propagation();
-                    if !is_editing.get() { on_toggle.run(gid); }
+                    if !(is_editing_name.get() || is_editing_desc.get()) { on_toggle.run(gid); }
                 }
                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                     if ev.key() == "Enter" || ev.key() == " " {
                         ev.prevent_default();
                         ev.stop_propagation();
-                        if !is_editing.get() { on_toggle.run(gid); }
+                        if !(is_editing_name.get() || is_editing_desc.get()) { on_toggle.run(gid); }
                     }
                 }
             >
@@ -377,48 +489,78 @@ pub(crate) fn AssetGroupItem(
                     {let g_name_header = g_name.clone();
                     let g_desc_header = g_desc.clone();
                     let group_channel_ids = group.channel_ids.clone();
-                    move || if is_editing.get() && can_edit_here.get() {
-                        view! {
-                            <div class="asset-group-edit-form">
-                                <input class="pf-edit-input" placeholder="Group name"
-                                    aria-label="Group name"
-                                    prop:value=move || edit_name.get()
-                                    on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                    on:blur=save_group_edit />
-                                <input class="pf-edit-input" placeholder="Description"
-                                    aria-label="Description"
-                                    prop:value=move || edit_desc.get()
-                                    on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
-                                    on:blur=save_group_edit />
-                                <UserAssignmentPanel assigned={assigned_users.clone()} users={org_users()} on_toggle={toggle_group_assignment} />
-                            </div>
-                        }.into_any()
-                    } else {
-                        let channel_count = group_channel_ids.len();
-                        let has_channels = channel_count > 0;
-                        view! {
-                            <div>
-                                <div class="asset-group-name" on:click={name_click.clone()} on:dblclick={name_dblclick.clone()}>{g_name_header.clone()}</div>
-                                {if !g_desc_header.is_empty() {
-                                    view! { <div class="asset-group-desc" on:click={desc_click.clone()} on:dblclick={desc_dblclick.clone()}>{g_desc_header.clone()}</div> }.into_any()
-                                } else { ().into_any() }}
-                                <div class="asset-group-count">{
-                                    if asset_count == 0 && has_channels {
-                                        format!("{} channels", channel_count)
-                                    } else {
-                                        format!("{} assets", asset_count)
-                                    }
-                                }</div>
-                            </div>
-                            {if has_channels && asset_count > 0 {
+                    let channel_count = group_channel_ids.len();
+                    let has_channels = channel_count > 0;
+                    view! {
+                        <div>
+                            {let g_name_slot = g_name_header.clone();
+                            let nc = name_click.clone();
+                            let nd = name_dblclick.clone();
+                            move || if can_edit_here.get() && is_editing_name.get() {
                                 view! {
-                                    <div class="asset-group-channel-icon" title={format!("{} channel(s)", channel_count)}>
-                                        "📡" {channel_count}
-                                    </div>
+                                    <input class="pf-edit-input pf-edit-name-md" placeholder="Group name"
+                                        aria-label="Group name"
+                                        attr:data-pf-edit-scope=scope_token
+                                        node_ref=group_name_input_ref
+                                        prop:value=move || edit_name.get()
+                                        on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                                        on:keydown=move |ev| {
+                                            if ev.key() == "Enter" { save_group_edit(); }
+                                            else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); }
+                                        }
+                                    />
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <div class="asset-group-name" on:click={nc.clone()} on:dblclick={nd.clone()}>{g_name_slot.clone()}</div>
+                                }.into_any()
+                            }}
+                            {let g_desc_slot = g_desc_header.clone();
+                            let dc = desc_click.clone();
+                            let dd = desc_dblclick.clone();
+                            move || if can_edit_here.get() && is_editing_desc.get() {
+                                view! {
+                                    <input class="pf-edit-input pf-edit-desc" placeholder="Description"
+                                        aria-label="Description"
+                                        attr:data-pf-edit-scope=scope_token
+                                        node_ref=group_desc_input_ref
+                                        prop:value=move || edit_desc.get()
+                                        on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
+                                        on:keydown=move |ev| {
+                                            if ev.key() == "Enter" { save_group_edit(); }
+                                            else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); }
+                                        }
+                                    />
+                                }.into_any()
+                            } else if !g_desc_slot.is_empty() {
+                                view! {
+                                    <div class="asset-group-desc" on:click={dc.clone()} on:dblclick={dd.clone()}>{g_desc_slot.clone()}</div>
                                 }.into_any()
                             } else { ().into_any() }}
-                        }.into_any()
-                    }}
+                            <div class="asset-group-count">{
+                                if asset_count == 0 && has_channels {
+                                    format!("{} channels", channel_count)
+                                } else {
+                                    format!("{} assets", asset_count)
+                                }
+                            }</div>
+                        </div>
+                        {if has_channels && asset_count > 0 {
+                            view! {
+                                <div class="asset-group-channel-icon" title={format!("{} channel(s)", channel_count)}>
+                                    "📡" {channel_count}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                        {move || if ui_store.get().is_assignment_panel_open(gid) && can_edit_here.get() {
+                            let users = org_users();
+                            let assigned = assigned_users.clone();
+                            view! {
+                                <UserAssignmentPanel assigned={assigned} users={users} on_toggle={toggle_group_assignment} />
+                            }.into_any()
+                        } else { ().into_any() }}
+                    }.into_any()
+                }
                 </div>
                 // Document icon for asset group — toggles inline slider under the parent
                 <div class="pf-list-actions" on:click=|ev| ev.stop_propagation()>
@@ -451,6 +593,22 @@ pub(crate) fn AssetGroupItem(
                             on_add={Some(Callback::new(move |n: String| add_group_doc(n)))}
                             portfolio_id={Some(pid)}
                             group_id={Some(gid)}
+                        />
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
+            {move || if ui_store.get().is_red_listing_panel_open(gid) && can_edit_here.get() {
+                view! {
+                    <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
+                        <RedListingPanel
+                            kind={RedEntityKind::AssetGroup}
+                            entity_id={gid}
+                            entity_name={red_name.get_value()}
+                            entity_desc={red_desc.get_value()}
+                            entity_value={red_value}
+                            image_url={red_img.get_value()}
+                            can_edit={can_edit_here}
                         />
                     </div>
                 }.into_any()
@@ -529,8 +687,8 @@ pub(crate) fn AssetGroupItem(
                         <div class={class_str}>
                             {assets_to_show.into_iter().enumerate().map({
                                 let view_mode = view_mode.clone();
-                                move |(idx, asset)| view! {
-                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={Some(gid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={idx + 1} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
+                                move |(ai, asset)| view! {
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={Some(gid)} view_mode={view_mode.clone()} on_select={on_select_asset} can_edit={can_edit_here} can_edit_documents={can_edit_documents_here} tint_index={tint_index + 1 + ai} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
                                 }
                             }).collect::<Vec<_>>()}
                         </div>
@@ -593,6 +751,18 @@ pub(crate) fn AssetGroupItem(
                                     set_show_group_add_role.set(true);
                                 }
                             >"🎭 Add Role"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    ui_store.update(|s| s.toggle_red_listing_panel(gid));
+                                }
+                            >"🛒 List on Red Marketplace"</button>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_group_context_menu.set(None);
+                                    ui_store.update(|s| s.toggle_assignment_panel(gid));
+                                }
+                            >"👥 Assign Users"</button>
                             <button class="context-menu-item"
                                 on:click=move |_| {
                                     set_group_context_menu.set(None);

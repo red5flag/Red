@@ -13,12 +13,13 @@ use uuid::Uuid;
 const DB_PATH: &str = "./data/farley";
 
 /// Global singleton: local sled DB + DashMap write-through cache for portfolios
-/// and encrypted, compressed messages.
+/// and PQC-sealed messages.
 pub struct DataStore {
     db: sled::Db,
     portfolio_cache: DashMap<Uuid, Portfolio>,
     message_cache: DashMap<Uuid, Message>,
     credential_cache: DashMap<String, CredentialStore>,
+    pqc: crate::utils::pqc::PqcKeys,
 }
 
 static STORE: OnceLock<Arc<DataStore>> = OnceLock::new();
@@ -40,11 +41,14 @@ impl DataStore {
         std::fs::create_dir_all(DB_PATH)?;
         let db = sled::open(DB_PATH)?;
 
+        let pqc = Self::load_or_create_pqc_keys(&db)?;
+
         let store = Self {
             db,
             portfolio_cache: DashMap::new(),
             message_cache: DashMap::new(),
             credential_cache: DashMap::new(),
+            pqc,
         };
 
         store.warm_portfolio_cache()?;
@@ -66,13 +70,42 @@ impl DataStore {
         Ok(())
     }
 
+    /// Load the server PQC keypair from the store, generating + persisting a
+    /// fresh ML-KEM-1024 / ML-DSA-65 set on first run.
+    fn load_or_create_pqc_keys(
+        db: &sled::Db,
+    ) -> Result<crate::utils::pqc::PqcKeys, Box<dyn std::error::Error>> {
+        use crate::utils::pqc::{PqcKeyfile, PqcKeys};
+        const KEY: &[u8] = b"pqc:server-keys";
+        if let Some(v) = db.get(KEY)? {
+            if let Ok(kf) = serde_json::from_slice::<PqcKeyfile>(&v) {
+                if let Ok(keys) = PqcKeys::from_keyfile(&kf) {
+                    return Ok(keys);
+                }
+            }
+        }
+        let keys = PqcKeys::generate()?;
+        let bytes = serde_json::to_vec(&keys.to_keyfile())?;
+        db.insert(KEY, bytes)?;
+        Ok(keys)
+    }
+
+    /// Decode a stored message value: PQC-open first, fall back to legacy
+    /// plaintext JSON so pre-encryption messages remain readable.
+    fn decode_message(&self, v: &[u8]) -> Option<Message> {
+        if let Ok(plain) = self.pqc.open(v) {
+            return serde_json::from_slice(&plain).ok();
+        }
+        serde_json::from_slice(v).ok()
+    }
+
     fn warm_message_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
         for item in self.db.iter() {
             let (k, v) = item?;
             // Message keys are prefixed with "msg:".
             if let Some(id_str) = k.strip_prefix(b"msg:") {
                 if let Ok(id) = Uuid::parse_str(std::str::from_utf8(id_str).unwrap_or("")) {
-                    if let Ok(m) = serde_json::from_slice::<Message>(&v) {
+                    if let Some(m) = self.decode_message(&v) {
                         self.message_cache.insert(id, m);
                     }
                 }
@@ -186,11 +219,13 @@ impl DataStore {
 
     // Messages
 
-    /// Persist a single message to the local DB (plain text for development).
+    /// Persist a single message to the local DB, PQC-sealed
+    /// (ML-KEM-1024 + ML-DSA-65 + ChaCha20-Poly1305).
     pub fn save_message(&self, message: &Message) -> Result<(), Box<dyn std::error::Error>> {
         let id_key = format!("msg:{}", message.id);
-        let value = serde_json::to_vec(message)?;
-        self.db.insert(id_key.as_bytes(), value)?;
+        let plain = serde_json::to_vec(message)?;
+        let sealed = self.pqc.seal(&plain)?;
+        self.db.insert(id_key.as_bytes(), sealed)?;
         self.message_cache.insert(message.id, message.clone());
         Ok(())
     }
@@ -205,7 +240,7 @@ impl DataStore {
             .get(id_key.as_bytes())
             .ok()
             .flatten()
-            .and_then(|v| serde_json::from_slice::<Message>(&v).ok())
+            .and_then(|v| self.decode_message(&v))
             .inspect(|m| {
                 self.message_cache.insert(m.id, m.clone());
             })
@@ -217,6 +252,27 @@ impl DataStore {
             .iter()
             .map(|e| e.value().clone())
             .collect()
+    }
+
+    /// Persist the messenger directory (contacts + requests), PQC-sealed
+    /// under a dedicated key so group ids stay stable across restarts.
+    pub fn save_messenger_state(
+        &self,
+        state: &crate::models::MessengerState,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let plain = serde_json::to_vec(state)?;
+        let sealed = self.pqc.seal(&plain)?;
+        self.db.insert(b"msg:state", sealed)?;
+        Ok(())
+    }
+
+    /// Load the persisted messenger directory, if any.
+    pub fn load_messenger_state(&self) -> Option<crate::models::MessengerState> {
+        let v = self.db.get(b"msg:state").ok().flatten()?;
+        if let Ok(plain) = self.pqc.open(&v) {
+            return serde_json::from_slice(&plain).ok();
+        }
+        serde_json::from_slice(&v).ok()
     }
 
     /// Delete a message from DB and cache.

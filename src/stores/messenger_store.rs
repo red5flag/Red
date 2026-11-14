@@ -1,4 +1,6 @@
-use crate::models::{ContactSource, Message, MessengerContact, MessengerRequest};
+use crate::models::{
+    ContactSource, Message, MessageEmbed, MessageStatus, MessengerContact, MessengerRequest,
+};
 use leptos::prelude::*;
 use uuid::Uuid;
 
@@ -67,7 +69,17 @@ impl MessengerStore {
         recipient_id: Uuid,
         content: String,
     ) -> Message {
-        let message = Message::new(sender_id, recipient_id, content);
+        self.send_message_with_embeds(sender_id, recipient_id, content, Vec::new())
+    }
+
+    pub fn send_message_with_embeds(
+        &mut self,
+        sender_id: Uuid,
+        recipient_id: Uuid,
+        content: String,
+        embeds: Vec<MessageEmbed>,
+    ) -> Message {
+        let message = Message::new(sender_id, recipient_id, content).with_embeds(embeds);
         #[cfg(any(feature = "ssr", feature = "tauri"))]
         {
             let store = crate::storage::message_store();
@@ -78,14 +90,46 @@ impl MessengerStore {
         message
     }
 
-    pub fn receive_message(&mut self, sender_id: Uuid, recipient_id: Uuid, content: String) {
-        let message = Message::new(sender_id, recipient_id, content);
+    pub fn receive_message(&mut self, sender_id: Uuid, recipient_id: Uuid, content: String) -> Message {
+        self.receive_message_with_embeds(sender_id, recipient_id, content, Vec::new())
+    }
+
+    pub fn receive_message_with_embeds(
+        &mut self,
+        sender_id: Uuid,
+        recipient_id: Uuid,
+        content: String,
+        embeds: Vec<MessageEmbed>,
+    ) -> Message {
+        let message = Message::new(sender_id, recipient_id, content).with_embeds(embeds);
         #[cfg(any(feature = "ssr", feature = "tauri"))]
         {
             let store = crate::storage::message_store();
             let _ = store.save_message(&message);
         }
-        self.messages.push(message);
+        self.messages.push(message.clone());
+        message
+    }
+
+    /// Update the delivery status of a stored message (Pending → Sent/Failed).
+    pub fn set_message_status(&mut self, id: Uuid, status: MessageStatus) {
+        if let Some(m) = self.messages.iter_mut().find(|m| m.id == id) {
+            m.status = status;
+        }
+    }
+
+    /// Merge messages fetched from the secure server store: upsert by id and
+    /// keep chronological order. Local Pending messages not yet on the server
+    /// are preserved.
+    pub fn merge_messages(&mut self, incoming: Vec<Message>) {
+        for m in incoming {
+            if let Some(existing) = self.messages.iter_mut().find(|e| e.id == m.id) {
+                *existing = m;
+            } else {
+                self.messages.push(m);
+            }
+        }
+        self.messages.sort_by_key(|m| m.timestamp);
     }
 
     pub fn mark_messages_read(&mut self, recipient_id: Uuid, sender_id: Uuid) {

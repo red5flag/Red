@@ -1,4 +1,4 @@
-use crate::models::{Asset, Document};
+use crate::models::{Asset, AssetGroup, Document};
 use crate::stores::{use_app_store, use_organization_store, use_transaction_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
@@ -10,9 +10,10 @@ use uuid::Uuid;
 
 use super::{
     clamp_context_menu, detect_file_type, document_icon, download_document, mobile_tab_gestures,
-    name_click_handlers, read_images_as_data_urls, set_drag_tab_data, shorthand_name,
-    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls, DocModal,
-    NavTabKind, UserAssignmentPanel,
+    name_click_handlers, pf_drop_target, phantom_edit_scope, read_images_as_data_urls,
+    set_drag_tab_data, shorthand_name, single_sentence, AddChannelModal, AssetBookingControls,
+    AssetChannelsSection, AssetLinkingControls, AssetMarketplaceControls, DocModal, NavTabKind,
+    SalesProfile, UserAssignmentPanel,
 };
 
 pub(crate) fn asset_placeholder_url(asset_type: &AssetType, name: &str) -> String {
@@ -83,12 +84,18 @@ pub(crate) fn AssetItem(
     };
     let asset_for_highlight = asset.clone();
     let (expanded_detail, set_expanded_detail) = signal(false);
+    // Which asset control panel is open: "linking", "booking", or none.
+    // Only one panel can be open at a time (accordion behaviour).
+    let (open_asset_panel, set_open_asset_panel) = signal(Option::<&'static str>::None);
     let (collapsed, set_collapsed) = signal(collapsible);
-    let (editing, set_editing) = signal(false);
+    let (editing_name, set_editing_name) = signal(false);
+    let (editing_desc, set_editing_desc) = signal(false);
     let (asset_context_menu, set_asset_context_menu) = signal(Option::<(i32, i32)>::None);
     let (dragged_idx, set_dragged_idx) = signal(None::<usize>);
     let (drag_over_idx, set_drag_over_idx) = signal(None::<usize>);
     let item_ref = NodeRef::<leptos::html::Div>::new();
+    let name_input_ref = NodeRef::<leptos::html::Input>::new();
+    let desc_input_ref = NodeRef::<leptos::html::Input>::new();
 
     // When the parent marks this asset as highlighted, open it in the view:
     // expand the list item and scroll it into view, or select it in grid view.
@@ -133,8 +140,12 @@ pub(crate) fn AssetItem(
                                     // generic field results.
                                     match detail_type.as_str() {
                                         "Channel" => Some(format!("asset-{}-channels", asset_id)),
-                                        "Booking" => Some(format!("asset-{}-bookings", asset_id)),
+                                        "Booking" => {
+                                            set_open_asset_panel.set(Some("booking"));
+                                            Some(format!("asset-{}-bookings", asset_id))
+                                        }
                                         "Link" | "Linking" => {
+                                            set_open_asset_panel.set(Some("linking"));
                                             Some(format!("asset-{}-links", asset_id))
                                         }
                                         _ => Some(format!("asset-{}", asset_id)),
@@ -191,6 +202,17 @@ pub(crate) fn AssetItem(
     let (edit_name, set_edit_name) = signal(asset.name.clone());
     let (edit_desc, set_edit_desc) = signal(asset.description.clone().unwrap_or_default());
     let (edit_loc, set_edit_loc) = signal(asset.location.clone().unwrap_or_default());
+    // Shared "Sales" data point — one set of listing criteria pushed to
+    // every marketplace; per-store details live in the channel sections.
+    let sales_init: SalesProfile = asset
+        .metadata
+        .get("sales")
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    let (edit_sales_price, set_edit_sales_price) = signal(sales_init.price);
+    let (edit_sales_condition, set_edit_sales_condition) = signal(sales_init.condition);
+    let (edit_sales_tags, set_edit_sales_tags) = signal(sales_init.tags.join(", "));
     let (edit_asset_type, set_edit_asset_type) = signal(asset.asset_type.clone());
     let (edit_asset_subtype, set_edit_asset_subtype) =
         signal(asset.asset_subtype.clone().unwrap_or_default());
@@ -205,6 +227,40 @@ pub(crate) fn AssetItem(
     let (editing_org, set_editing_org) = signal(false);
     let (address_suggestions, set_address_suggestions) = signal(Vec::<String>::new());
 
+    // Phantom-click dismissal for the inline cell editors + detail panel:
+    // a press outside the editor's data-pf-edit-scope element is consumed
+    // (never reaches the element underneath) and closes the editor.
+    // Tokens are leaked once per component so they can be shared as
+    // &'static str across the nested view closures (~50 bytes each).
+    let cell_scope_token: &'static str =
+        Box::leak(format!("ai-cell-{}", asset_id).into_boxed_str());
+    let detail_scope_token: &'static str =
+        Box::leak(format!("ai-detail-{}", asset_id).into_boxed_str());
+    {
+        let alive = phantom_edit_scope(
+            detail_scope_token.to_string(),
+            move || expanded_detail.get_untracked(),
+            move || set_expanded_detail.set(false),
+        );
+        on_cleanup(move || alive.store(false, std::sync::atomic::Ordering::Relaxed));
+    }
+
+    // Focus the inline header editors as soon as they mount.
+    Effect::new(move |_| {
+        if editing_name.get() {
+            if let Some(el) = name_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
+    Effect::new(move |_| {
+        if editing_desc.get() {
+            if let Some(el) = desc_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
+
     // Local state for the inline document dropdown below the asset slider.
     #[derive(Clone)]
     enum DocModalTarget {
@@ -213,6 +269,7 @@ pub(crate) fn AssetItem(
     }
     let doc_modal_version = Arc::new(AtomicU64::new(0));
     let (doc_modal_state, set_doc_modal_state) = signal(Option::<(u64, DocModalTarget)>::None);
+    let (doc_action_menu, set_doc_action_menu) = signal(Option::<(i32, i32)>::None);
     let open_doc_modal = Callback::new({
         let version = doc_modal_version.clone();
         let set_state = set_doc_modal_state;
@@ -236,16 +293,49 @@ pub(crate) fn AssetItem(
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
 
+    // Snapshots used to re-sync the edit buffers when an editor opens, so a
+    // cancelled edit doesn't leave stale text behind.
+    let sync_name = asset.name.clone();
+    let sync_desc = asset.description.clone().unwrap_or_default();
+    let sync_loc = asset.location.clone().unwrap_or_default();
+
+    let begin_text_edit = {
+        let sync_name = sync_name.clone();
+        let sync_desc = sync_desc.clone();
+        let sync_loc = sync_loc.clone();
+        move |which: u8| {
+            if !can_edit_here.get() {
+                return;
+            }
+            set_editing_type_build.set(false);
+            set_editing_address.set(false);
+            set_editing_org.set(false);
+            set_editing_name.set(false);
+            set_editing_desc.set(false);
+            set_edit_name.set(sync_name.clone());
+            set_edit_desc.set(sync_desc.clone());
+            set_edit_loc.set(sync_loc.clone());
+            if which == 0 {
+                set_editing_name.set(true);
+            } else {
+                set_editing_desc.set(true);
+            }
+            set_collapsed.set(false);
+        }
+    };
+
     let (name_click, name_dblclick) = name_click_handlers(
         move || set_collapsed.update(|v| *v = !*v),
-        move || {
-            if can_edit_here.get() {
-                set_editing_type_build.set(false);
-                set_editing_address.set(false);
-                set_editing_org.set(false);
-                set_editing.set(true);
-                set_collapsed.set(false);
-            }
+        {
+            let begin = begin_text_edit.clone();
+            move || begin(0)
+        },
+    );
+    let (desc_click, desc_dblclick) = name_click_handlers(
+        move || set_collapsed.update(|v| *v = !*v),
+        {
+            let begin = begin_text_edit.clone();
+            move || begin(1)
         },
     );
     let user_id = app_store.get().current_user.id;
@@ -687,6 +777,16 @@ pub(crate) fn AssetItem(
         let n = edit_name.get();
         let d = edit_desc.get();
         let l = edit_loc.get();
+        let sales = SalesProfile {
+            price: edit_sales_price.get(),
+            condition: edit_sales_condition.get(),
+            tags: edit_sales_tags
+                .get()
+                .split(',')
+                .map(|t| t.trim().to_string())
+                .filter(|t| !t.is_empty())
+                .collect(),
+        };
         if n.trim().is_empty() {
             return;
         }
@@ -710,14 +810,52 @@ pub(crate) fn AssetItem(
                         } else {
                             Some(l.clone())
                         };
+                        // Persist the shared Sales data point alongside the
+                        // asset — marketplaces read this single record.
+                        if let Ok(v) = serde_json::to_value(&sales) {
+                            if !a.metadata.is_object() {
+                                a.metadata = serde_json::json!({});
+                            }
+                            if let Some(obj) = a.metadata.as_object_mut() {
+                                obj.insert("sales".to_string(), v);
+                            }
+                        }
                         return;
                     }
                 }
             }
         });
         persist_portfolio();
-        set_editing.set(false);
+        set_editing_name.set(false);
+        set_editing_desc.set(false);
     };
+
+    // Phantom-click dismissal for the inline cell editors + detail panel:
+    // a press outside the editor's data-pf-edit-scope element is consumed
+    // (never reaches the element underneath), saves any open text edits,
+    // and closes the editor.
+    {
+        let save_for_dismiss = save_edit.clone();
+        let alive = phantom_edit_scope(
+            cell_scope_token.to_string(),
+            move || {
+                editing_name.get_untracked()
+                    || editing_desc.get_untracked()
+                    || editing_type_build.get_untracked()
+                    || editing_address.get_untracked()
+                    || editing_org.get_untracked()
+            },
+            move || {
+                save_for_dismiss();
+                set_editing_name.set(false);
+                set_editing_desc.set(false);
+                set_editing_type_build.set(false);
+                set_editing_address.set(false);
+                set_editing_org.set(false);
+            },
+        );
+        on_cleanup(move || alive.store(false, std::sync::atomic::Ordering::Relaxed));
+    }
 
     let add_doc = move |n: String| {
         if n.trim().is_empty() {
@@ -845,12 +983,75 @@ pub(crate) fn AssetItem(
         move || set_asset_context_menu.set(None),
     );
 
+    // Drop target (both grid and list modes):
+    // asset→asset creates a new group with both; portfolio→asset moves the
+    // asset into that portfolio; group→asset moves the asset into that group;
+    // org→asset assigns the asset to that org.
+    let (drop_hover, set_drop_hover) = signal(false);
+    let a_name_for_group = a_name.clone();
+    let (d_over, d_leave, d_drop) = pf_drop_target(
+        set_drop_hover,
+        |k| matches!(
+            k,
+            NavTabKind::Asset
+                | NavTabKind::Portfolio
+                | NavTabKind::AssetGroup
+                | NavTabKind::Organization
+        ),
+        move |tab, _rel_y| match tab.kind {
+            NavTabKind::Asset if tab.id != asset_id => {
+                if let Some(tp) = portfolio_id {
+                    let short = |s: &str| -> String { s.chars().take(24).collect() };
+                    let gname = format!("{} & {}", short(&tab.name), short(&a_name_for_group));
+                    let mut g = AssetGroup::new(gname);
+                    let gid = g.id;
+                    app_store.update(|s| {
+                        if let Some(p) = s.get_portfolio_mut(tp) {
+                            p.asset_groups.push(g);
+                        }
+                    });
+                    app_store.update(|s| {
+                        s.move_asset_to_group(tab.id, tp, gid);
+                        s.move_asset_to_group(asset_id, tp, gid);
+                    });
+                }
+            }
+            NavTabKind::Portfolio => {
+                app_store.update(|s| {
+                    s.move_asset_to_portfolio(asset_id, tab.id);
+                });
+            }
+            NavTabKind::AssetGroup => {
+                app_store.update(|s| {
+                    let gp = s
+                        .portfolios
+                        .iter()
+                        .find(|p| p.asset_groups.iter().any(|g| g.id == tab.id))
+                        .map(|p| p.id);
+                    if let Some(gp) = gp {
+                        s.move_asset_to_group(asset_id, gp, tab.id);
+                    }
+                });
+            }
+            NavTabKind::Organization => {
+                app_store.update(|s| {
+                    s.set_asset_organization(asset_id, Some(tab.id));
+                });
+            }
+            _ => {}
+        },
+    );
+
     if view_mode == ViewMode::Grid {
         let asset_for_click = asset.clone();
         let short_name = shorthand_name(&a_name);
         let a_name_grid_drag = a_name.clone();
         view! {
             <div class="asset-grid-card" node_ref=item_ref style={tint_style.clone()} aria-label={format!("Asset {}. Type {}. In {}", a_name, a_type_grid, pname)} on:click=move |_| on_select.run(asset_for_click.clone())
+                class:drop-hover={move || drop_hover.get()}
+                on:dragover=d_over
+                on:dragleave=d_leave
+                on:drop=d_drop
                 on:touchstart=touch_start
                 on:touchmove=touch_move
                 on:touchend=touch_end
@@ -870,6 +1071,7 @@ pub(crate) fn AssetItem(
         let a_name_header = a_name.clone();
         let a_type_header = a_type_grid.clone();
         let a_val_header = a_current_val;
+        let a_desc_header = single_sentence(&sync_desc);
         let (asset_name_signal, _set_asset_name) = signal(a_name.clone());
         let a_name_list_drag = a_name.clone();
         let a_name_list_aria = a_name.clone();
@@ -880,9 +1082,13 @@ pub(crate) fn AssetItem(
             class:ai-item-expanded={move || expanded_detail.get()}
             class:ai-item-collapsible={collapsible}
             class:ai-item-collapsed={move || collapsed.get()}
+            class:drop-hover={move || drop_hover.get()}
             style={tint_style.clone()}
             aria-label=move || { let addr = a_addr.get(); format!("Asset {}. Type {}. In {}. {}", a_name_list_aria, a_type_grid, pname, if addr.is_empty() { "No address set" } else { addr.as_str() }) }
             draggable="true"
+            on:dragover=d_over
+            on:dragleave=d_leave
+            on:drop=d_drop
             on:dragstart=move |ev: leptos::ev::DragEvent| {
                 set_drag_tab_data(&ev, &NavTabKind::Asset, asset_id, &a_name_list_drag);
             }
@@ -906,17 +1112,60 @@ pub(crate) fn AssetItem(
                         aria-expanded={move || !collapsed.get()}
                         aria-controls={content_id_for_header.clone()}
                         aria-label={format!("Asset {}. Type {}. {}", a_name_header, a_type_header, if collapsed.get() { "Collapsed" } else { "Expanded" })}
-                        on:click=move |_| if !editing.get() { set_collapsed.update(|v| *v = !*v) }
+                        on:click=move |_| if !(editing_name.get() || editing_desc.get()) { set_collapsed.update(|v| *v = !*v) }
                         on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                             if ev.key() == "Enter" || ev.key() == " " {
                                 ev.prevent_default();
-                                if !editing.get() { set_collapsed.update(|v| *v = !*v); }
+                                if !(editing_name.get() || editing_desc.get()) { set_collapsed.update(|v| *v = !*v); }
                             }
                         }
                     >
                         <img class="ai-list-image" src={image_url} alt={a_name_header.clone()} />
                         <div class="ai-collapsible-summary">
-                            <div class="ai-collapsible-name" on:click={name_click.clone()} on:dblclick={name_dblclick.clone()}>{a_name_header.clone()}</div>
+                            {let a_name_slot = a_name_header.clone();
+                            let nc = name_click.clone();
+                            let nd = name_dblclick.clone();
+                            move || if can_edit_here.get() && editing_name.get() {
+                                view! {
+                                    <input class="pf-edit-input pf-edit-name-md" placeholder="Asset name"
+                                        aria-label="Asset name"
+                                        attr:data-pf-edit-scope=cell_scope_token
+                                        node_ref=name_input_ref
+                                        prop:value=move || edit_name.get()
+                                        on:input=move |ev| set_edit_name.set(event_target_value(&ev))
+                                        on:keydown=move |ev| {
+                                            if ev.key() == "Enter" { save_edit(); }
+                                            else if ev.key() == "Escape" { set_editing_name.set(false); set_editing_desc.set(false); }
+                                        }
+                                    />
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <div class="ai-collapsible-name" on:click={nc.clone()} on:dblclick={nd.clone()}>{a_name_slot.clone()}</div>
+                                }.into_any()
+                            }}
+                            {let a_desc_slot = a_desc_header.clone();
+                            let dc = desc_click.clone();
+                            let dd = desc_dblclick.clone();
+                            move || if can_edit_here.get() && editing_desc.get() {
+                                view! {
+                                    <input class="pf-edit-input pf-edit-desc" placeholder="Description"
+                                        aria-label="Description"
+                                        attr:data-pf-edit-scope=cell_scope_token
+                                        node_ref=desc_input_ref
+                                        prop:value=move || edit_desc.get()
+                                        on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
+                                        on:keydown=move |ev| {
+                                            if ev.key() == "Enter" { save_edit(); }
+                                            else if ev.key() == "Escape" { set_editing_name.set(false); set_editing_desc.set(false); }
+                                        }
+                                    />
+                                }.into_any()
+                            } else if !a_desc_slot.is_empty() {
+                                view! {
+                                    <div class="ai-collapsible-desc" on:click={dc.clone()} on:dblclick={dd.clone()}>{a_desc_slot.clone()}</div>
+                                }.into_any()
+                            } else { ().into_any() }}
                             <div class="ai-collapsible-meta">{format!("{} · ${:.2} · {}", a_type_header, a_val_header, a_status_label)}</div>
                             {let channel_count = asset.channel_ids.len();
                             let channel_ids = asset.channel_ids.clone();
@@ -936,27 +1185,6 @@ pub(crate) fn AssetItem(
             } else { ().into_any() }}
             <div class="ai-list-card" id={content_id.clone()}>
                 <div class="ai-list-body">
-                    {move || if can_edit_here.get() && editing.get() {
-                        view! {
-                            <div class="ai-edit-stack">
-                                <input class="pf-edit-input" placeholder="Asset name"
-                                    aria-label="Asset name"
-                                    prop:value=move || edit_name.get()
-                                    on:input=move |ev| set_edit_name.set(event_target_value(&ev))
-                                    on:blur=move |_| save_edit() />
-                                <input class="pf-edit-input" placeholder="Description"
-                                    aria-label="Description"
-                                    prop:value=move || edit_desc.get()
-                                    on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
-                                    on:blur=move |_| save_edit() />
-                                <input class="pf-edit-input" placeholder="Location / Address"
-                                    aria-label="Location / Address"
-                                    prop:value=move || edit_loc.get()
-                                    on:input=move |ev| set_edit_loc.set(event_target_value(&ev))
-                                    on:blur=move |_| save_edit() />
-                            </div>
-                        }.into_any()
-                    } else { ().into_any() }}
                     // Image slider with upload outline
                     <div class="ai-image-slider" class:ai-perm-hidden={move || !can_view_images()} on:click=|ev| ev.stop_propagation()>
                         {{
@@ -1032,13 +1260,17 @@ pub(crate) fn AssetItem(
                     </div>
                     // Horizontal document slider with + Document card
                     <div class="ai-doc-slider" class:ai-perm-hidden={move || !can_view_documents()} on:click=|ev| ev.stop_propagation()>
-                        // + Document card (always first)
-                        <div class="ai-doc-slider-item ai-doc-add-card" class:ai-perm-hidden={move || !can_upload_documents()}
-                            aria-label={format!("Add document to {}", a_name)}
-                            on:click=move |_| open_doc_modal.run(DocModalTarget::Add)>
-                            <div class="ai-doc-slider-thumb">"➕"</div>
-                            <div class="ai-doc-slider-name">"+ Document"</div>
-                            <div class="ai-doc-slider-type">"ADD"</div>
+                        // Search/Add card (always first) — opens a small option menu
+                        <div class="ai-doc-slider-item ai-doc-add-card"
+                            aria-label={format!("Search or add documents for {}", a_name)}
+                            on:click=move |ev: leptos::ev::MouseEvent| {
+                                ev.stop_propagation();
+                                let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                                set_doc_action_menu.set(Some((x, y)));
+                            }>
+                            <div class="ai-doc-slider-thumb">"+"</div>
+                            <div class="ai-doc-slider-name">"Docs"</div>
+                            <div class="ai-doc-slider-type">""</div>
                         </div>
                         <For
                             each=move || asset_docs_reactive.get()
@@ -1168,6 +1400,25 @@ pub(crate) fn AssetItem(
                             }
                         />
                     </div>
+                    // Document search/add option menu from the first slider tile
+                    {move || doc_action_menu.get().map(|(x, y)| view! {
+                        <div class="context-menu-overlay" on:click=move |_| set_doc_action_menu.set(None)>
+                            <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                                <button class="context-menu-item"
+                                    on:click=move |_| {
+                                        set_doc_action_menu.set(None);
+                                        ui_store.update(|s| s.open_search());
+                                    }
+                                >"🔍 Search documents"</button>
+                                <button class="context-menu-item" class:ai-perm-hidden={move || !can_upload_documents()}
+                                    on:click=move |_| {
+                                        set_doc_action_menu.set(None);
+                                        open_doc_modal.run(DocModalTarget::Add);
+                                    }
+                                >"📄 Add document"</button>
+                            </div>
+                        </div>
+                    }.into_any())}
                     // Inline document dropdown — appears under the document slider
                     <div class="ai-doc-dropdown">
                         <For
@@ -1213,14 +1464,14 @@ pub(crate) fn AssetItem(
                     </div>
                     // Detail grid inline (always visible)
                     <div class="pf-detail-grid pf-detail-grid-inline" class:ai-perm-hidden={move || !can_view_general_info()}>
-                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_address.set(false); set_editing_org.set(false); set_editing_type_build.set(true); } }>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_name.set(false); set_editing_desc.set(false); set_editing_address.set(false); set_editing_org.set(false); set_editing_type_build.set(true); } }>
                             <span class="pf-detail-label">"TYPE & BUILD"</span>
                             {let type_grid = a_type_grid.clone();
                             let subtype_grid = a_subtype_grid.clone();
                             move || if can_edit_here.get() && editing_type_build.get() {
                                 view! {
-                                    <div style="display:flex;flex-direction:column;gap:4px;">
-                                        <input class="pf-edit-input" type="text" list={type_datalist_id.clone()}
+                                    <div style="display:flex;flex-direction:column;gap:4px;" attr:data-pf-edit-scope=cell_scope_token>
+                                        <input class="pf-edit-input pf-edit-detail" type="text" list={type_datalist_id.clone()}
                                             placeholder="Type"
                                             prop:value=move || edit_asset_type.get().to_input_string()
                                             on:input=move |ev| {
@@ -1241,7 +1492,7 @@ pub(crate) fn AssetItem(
                                         <datalist id={type_datalist_id.clone()}>
                                             {AssetType::all_labels().into_iter().map(|l| view! { <option value={l.to_string()}>{l.to_string()}</option> }).collect::<Vec<_>>()}
                                         </datalist>
-                                        <input class="pf-edit-input" type="text" list={subtype_datalist_id.clone()}
+                                        <input class="pf-edit-input pf-edit-detail" type="text" list={subtype_datalist_id.clone()}
                                             placeholder="Build"
                                             prop:value=move || edit_asset_subtype.get()
                                             on:input=move |ev| set_edit_asset_subtype.set(event_target_value(&ev))
@@ -1268,12 +1519,12 @@ pub(crate) fn AssetItem(
                                 view! { <span class="pf-detail-value">{format!("{} / {}", type_grid, subtype_grid)}</span> }.into_any()
                             }}
                         </div>
-                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_type_build.set(false); set_editing_org.set(false); set_editing_address.set(true); } }>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_name.set(false); set_editing_desc.set(false); set_editing_type_build.set(false); set_editing_org.set(false); set_editing_address.set(true); } }>
                             <span class="pf-detail-label">"ADDRESS"</span>
                             {move || if can_edit_here.get() && editing_address.get() {
                                 view! {
-                                    <div style="display:flex;flex-direction:column;gap:4px;">
-                                        <input class="pf-edit-input" type="text" list={addr_datalist_id.clone()}
+                                    <div style="display:flex;flex-direction:column;gap:4px;" attr:data-pf-edit-scope=cell_scope_token>
+                                        <input class="pf-edit-input pf-edit-detail" type="text" list={addr_datalist_id.clone()}
                                             prop:value=move || edit_loc.get()
                                             on:input={
                                                 let address_gen = address_gen.clone();
@@ -1312,11 +1563,12 @@ pub(crate) fn AssetItem(
                                 view! { <span class="pf-detail-value">{move || a_addr_grid.get()}</span> }.into_any()
                             }}
                         </div>
-                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing.set(false); set_editing_type_build.set(false); set_editing_address.set(false); set_editing_org.set(true); } }>
+                        <div class="pf-detail-cell" on:dblclick=move |_| { if can_edit_here.get() { set_editing_name.set(false); set_editing_desc.set(false); set_editing_type_build.set(false); set_editing_address.set(false); set_editing_org.set(true); } }>
                             <span class="pf-detail-label">"ORGANIZATION"</span>
                             {move || if can_edit_here.get() && editing_org.get() {
                                 view! {
-                                    <select class="pf-edit-input"
+                                    <select class="pf-edit-input pf-edit-detail"
+                                        attr:data-pf-edit-scope=cell_scope_token
                                         prop:value=move || edit_org_id.get()
                                         on:change=move |ev| { set_edit_org_id.set(event_target_value(&ev)); save_org(); }
                                         on:focusout=move |_| set_editing_org.set(false)>
@@ -1344,7 +1596,33 @@ pub(crate) fn AssetItem(
                         </div>
                     </div>
                     <div class="ai-asset-sections" class:ai-perm-hidden={move || !(can_view_linking() || can_view_booking())}>
-                        {move || if can_view_linking() { view! {
+                        <div class="ai-section-toggles">
+                            {move || if can_view_linking() { view! {
+                                <button type="button" class="ai-section-toggle"
+                                    class:ai-section-toggle-open={move || open_asset_panel.get() == Some("linking")}
+                                    aria-expanded={move || (open_asset_panel.get() == Some("linking")).to_string()}
+                                    on:click=move |_| set_open_asset_panel.update(|v| *v = if *v == Some("linking") { None } else { Some("linking") })>
+                                    {move || if open_asset_panel.get() == Some("linking") { "🔗 Linking ▲" } else { "🔗 Linking ▼" }}
+                                </button>
+                            }.into_any() } else { ().into_any() }}
+                            {move || if can_view_booking() { view! {
+                                <button type="button" class="ai-section-toggle"
+                                    class:ai-section-toggle-open={move || open_asset_panel.get() == Some("booking")}
+                                    aria-expanded={move || (open_asset_panel.get() == Some("booking")).to_string()}
+                                    on:click=move |_| set_open_asset_panel.update(|v| *v = if *v == Some("booking") { None } else { Some("booking") })>
+                                    {move || if open_asset_panel.get() == Some("booking") { "📅 Booking ▲" } else { "📅 Booking ▼" }}
+                                </button>
+                            }.into_any() } else { ().into_any() }}
+                            {move || if can_view_linking() { view! {
+                                <button type="button" class="ai-section-toggle"
+                                    class:ai-section-toggle-open={move || open_asset_panel.get() == Some("marketplace")}
+                                    aria-expanded={move || (open_asset_panel.get() == Some("marketplace")).to_string()}
+                                    on:click=move |_| set_open_asset_panel.update(|v| *v = if *v == Some("marketplace") { None } else { Some("marketplace") })>
+                                    {move || if open_asset_panel.get() == Some("marketplace") { "🛒 Marketplace ▲" } else { "🛒 Marketplace ▼" }}
+                                </button>
+                            }.into_any() } else { ().into_any() }}
+                        </div>
+                        {move || if open_asset_panel.get() == Some("linking") && can_view_linking() { view! {
                             <div class="ai-asset-section" id={format!("asset-{}-links", asset_id)}>
                                 <AssetLinkingControls
                                     asset_id={asset_id}
@@ -1354,13 +1632,23 @@ pub(crate) fn AssetItem(
                                 />
                             </div>
                         }.into_any() } else { ().into_any() }}
-                        {move || if can_view_booking() { view! {
+                        {move || if open_asset_panel.get() == Some("booking") && can_view_booking() { view! {
                             <div class="ai-asset-section" id={format!("asset-{}-bookings", asset_id)}>
                                 <AssetBookingControls
                                     asset_id={asset_id}
                                     asset_name={asset_name_signal.get()}
                                     portfolio_id={portfolio_id}
                                     can_book={can_book()}
+                                />
+                            </div>
+                        }.into_any() } else { ().into_any() }}
+                        {move || if open_asset_panel.get() == Some("marketplace") && can_view_linking() { view! {
+                            <div class="ai-asset-section ai-asset-section-flush" id={format!("asset-{}-marketplace", asset_id)}>
+                                <AssetMarketplaceControls
+                                    asset_id={asset_id}
+                                    asset_name={asset_name_signal.get()}
+                                    portfolio_id={portfolio_id}
+                                    can_link={can_link()}
                                 />
                             </div>
                         }.into_any() } else { ().into_any() }}
@@ -1832,21 +2120,38 @@ pub(crate) fn AssetItem(
             {move || {
                 if expanded_detail.get() && can_edit_here.get() {
                     view! {
-                        <div class="ai-detail-panel" on:click=|ev| ev.stop_propagation()>
+                        <div class="ai-detail-panel" attr:data-pf-edit-scope=detail_scope_token on:click=|ev| ev.stop_propagation()>
                             <div class="ai-edit-tab">
                                 <div class="asset-edit-form">
                                     <label class="ai-edit-label">"Name"</label>
-                                    <input class="pf-edit-input" placeholder="Name"
+                                    <input class="pf-edit-input pf-edit-name-lg" placeholder="Name"
                                         prop:value={move || edit_name.get()}
                                         on:input=move |ev| set_edit_name.set(event_target_value(&ev)) />
                                     <label class="ai-edit-label">"Description"</label>
-                                    <input class="pf-edit-input" placeholder="Description"
+                                    <input class="pf-edit-input pf-edit-desc" placeholder="Description"
                                         prop:value={move || edit_desc.get()}
                                         on:input=move |ev| set_edit_desc.set(event_target_value(&ev)) />
                                     <label class="ai-edit-label">"Location / Address"</label>
-                                    <input class="pf-edit-input" placeholder="Location / Address"
+                                    <input class="pf-edit-input pf-edit-addr" placeholder="Location / Address"
                                         prop:value={move || edit_loc.get()}
                                         on:input=move |ev| set_edit_loc.set(event_target_value(&ev)) />
+                                    <label class="ai-edit-label">"Sales — shared listing info"</label>
+                                    <div class="asset-edit-sales">
+                                        <input class="pf-edit-input" placeholder="Price"
+                                            prop:value={move || edit_sales_price.get()}
+                                            on:input=move |ev| set_edit_sales_price.set(event_target_value(&ev)) />
+                                        <select class="pf-edit-input" prop:value={move || edit_sales_condition.get()}
+                                            on:change=move |ev| set_edit_sales_condition.set(event_target_value(&ev))>
+                                            <option value="">"Condition…"</option>
+                                            <option value="New">"New"</option>
+                                            <option value="Used">"Used"</option>
+                                            <option value="For parts">"For parts"</option>
+                                            <option value="Refurbished">"Refurbished"</option>
+                                        </select>
+                                        <input class="pf-edit-input" placeholder="Tags (comma separated)"
+                                            prop:value={move || edit_sales_tags.get()}
+                                            on:input=move |ev| set_edit_sales_tags.set(event_target_value(&ev)) />
+                                    </div>
                                     <div class="asset-edit-actions">
                                         <button class="pf-edit-save" on:click=move |_| save_edit()>"✔ Save"</button>
                                         <button class="pf-edit-cancel" on:click=move |_| { set_expanded_detail.set(false); }>"✕ Cancel"</button>

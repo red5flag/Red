@@ -1417,7 +1417,7 @@ html, body {
     font-size: 24px;
 }
 
-.pf-accordion .pf-accordion-header .asset-group-icon {
+.pf-accordion .asset-group-header .asset-group-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1425,7 +1425,7 @@ html, body {
     height: clamp(36px, 6vh, 52px);
     margin-left: 8px;
 }
-.pf-accordion .pf-accordion-header .asset-group-icon .pf-org-color-tag {
+.pf-accordion .asset-group-header .asset-group-icon .pf-org-color-tag {
     width: 100%;
     height: 100%;
     border-radius: 4px;
@@ -1444,7 +1444,7 @@ html, body {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 4px;
+    border-radius: 0;
     background: var(--primary-bg);
 }
 
@@ -1926,6 +1926,25 @@ html, body {
     flex: none;
     padding: 4px 6px;
     font-size: 11px;
+}
+
+/* Grid-view asset group icons: same bounded box as list view so images
+   don't overflow the card; centered thumb on collapsed cards, inline on expanded rows */
+.asset-viewer .grid-view .asset-group:not(.expanded) .asset-group-header .asset-group-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(36px, 6vh, 52px);
+    height: clamp(36px, 6vh, 52px);
+    margin: 0 auto 6px;
+}
+.asset-viewer .grid-view .asset-group.expanded .asset-group-header .asset-group-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(36px, 6vh, 52px);
+    height: clamp(36px, 6vh, 52px);
+    margin-left: 8px;
 }
 
 .asset-icon {
@@ -2457,36 +2476,54 @@ html, body {
     border-left: none;
     box-sizing: border-box;
 }
-.pf-accordion .pf-accordion-header:not(.editing) .pf-list-actions .pf-action-btn.pf-doc-action-btn {
-    position: absolute;
-    top: 0;
-    right: -16px;
-    bottom: 0;
-    left: auto;
-    width: auto;
-    min-width: 0;
-    height: 100%;
-    aspect-ratio: 1 / 1;
-}
-
 /* Asset group document action: square and flush with the right-side tab */
-.pf-accordion .asset-group-header:not(.editing) .pf-list-actions {
+.pf-accordion .asset-group-header:not(.pf-accordion-header):not(.editing) .pf-list-actions {
     position: relative;
     align-self: stretch;
     width: calc(var(--bar-h) - 16px);
     border-left: none;
     box-sizing: border-box;
 }
-.pf-accordion .asset-group-header:not(.editing) .pf-list-actions .pf-action-btn.pf-doc-action-btn {
+
+/* Document action: fixed-size square, vertically centred and flush right,
+   identical at every hierarchy level regardless of header height */
+.pf-accordion .pf-accordion-header:not(.editing) .pf-list-actions .pf-action-btn.pf-doc-action-btn,
+.pf-accordion .asset-group-header:not(.pf-accordion-header):not(.editing) .pf-list-actions .pf-action-btn.pf-doc-action-btn {
     position: absolute;
-    top: 0;
+    top: 50%;
     right: -16px;
-    bottom: 0;
+    bottom: auto;
     left: auto;
-    width: auto;
+    width: var(--bar-h);
     min-width: 0;
-    height: 100%;
+    height: var(--bar-h);
     aspect-ratio: 1 / 1;
+    transform: translateY(-50%);
+}
+
+/* Doc buttons are perfect squares at every hierarchy level: width and height
+   both var(--bar-h), never stretched by the row, with their content stack
+   filling the full button height. */
+.pf-action-btn.pf-doc-action-btn {
+    width: var(--bar-h);
+    min-width: var(--bar-h);
+    height: var(--bar-h);
+    aspect-ratio: 1 / 1;
+    align-self: center;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+}
+.pf-action-btn.pf-doc-action-btn .pf-action-stack {
+    width: 100%;
+    height: 100%;
+}
+.pf-action-btn.pf-doc-action-btn .pf-action-icon {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .grid-view .asset-group.expanded > .asset-group-header {
     min-height: var(--bar-h);
@@ -2594,11 +2631,12 @@ html, body {
 .asset-grid-image {
     width: 100%;
     aspect-ratio: 1 / 1;
-    object-fit: contain;
-    padding: 8px;
+    object-fit: cover;
+    padding: 0;
     box-sizing: border-box;
     border-bottom: 1px solid var(--border-color);
     background: var(--primary-bg);
+    display: block;
 }
 
 .asset-grid-name {
@@ -9059,20 +9097,19 @@ html, body {
     grid-auto-rows: minmax(0, auto);
     gap: 0;
     margin-top: 0;
-    padding-bottom: 0;
+    padding: 1px 0 0 1px;
     flex-shrink: 0;
     align-items: stretch;
-    border-right: 1px solid var(--border-color);
-    border-bottom: 1px solid var(--border-color);
 }
 
 .overview-square {
     min-height: clamp(88px, 14.4vh, 144px);
     max-height: clamp(120px, 22vh, 220px);
     background: var(--secondary-bg);
-    border: none;
-    border-top: 1px solid var(--border-color);
-    border-left: 1px solid var(--border-color);
+    border: 1px solid var(--border-color);
+    margin-top: -1px;
+    margin-left: -1px;
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -9088,6 +9125,7 @@ html, body {
 .overview-square:hover {
     border-color: var(--highlight);
     background: var(--accent-bg);
+    z-index: 1;
 }
 
 .overview-square.clickable {
@@ -9658,6 +9696,32 @@ html, body {
     border-radius: 3px;
 }
 .pf-edit-input.pf-edit-name { font-weight: 700; min-width: 160px; }
+
+/* Inline-edit variants: match the exact typography of the display text
+   they replace so editing doesn't shift size or feel like a new window */
+.pf-edit-input.pf-edit-detail {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 2px 4px;
+    min-width: 0;
+    width: 100%;
+}
+.pf-edit-input.pf-edit-name-lg {
+    font-size: clamp(16px, 2.5vh, 20px);
+    font-weight: 700;
+}
+.pf-edit-input.pf-edit-name-md {
+    font-size: 14px;
+    font-weight: 600;
+}
+.pf-edit-input.pf-edit-desc {
+    font-size: clamp(11px, 1.6vh, 13px);
+    color: var(--text-secondary);
+}
+.pf-edit-input.pf-edit-addr {
+    font-size: clamp(13px, 2vh, 15px);
+    color: var(--text-secondary);
+}
 .pf-edit-save, .pf-edit-cancel {
     padding: 4px 12px;
     border: none;
@@ -9870,7 +9934,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px 12px calc(var(--bar-h) + 12px);
+    padding: 12px 16px 12px var(--bar-h);
     cursor: pointer;
     min-height: var(--bar-h);
     background: var(--accent-bg);
@@ -9884,8 +9948,11 @@ html, body {
 
 .ai-collapsible-header .ai-list-image {
     width: clamp(36px, 6vh, 52px);
-    height: auto;
+    height: clamp(36px, 6vh, 52px);
     aspect-ratio: 1;
+    margin-left: 8px;
+    align-self: center;
+    border-radius: 4px;
 }
 
 .ai-pin-btn {
@@ -9939,6 +10006,19 @@ html, body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.ai-collapsible-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-collapsible-summary .pf-edit-input {
+    width: 100%;
+    min-width: 0;
 }
 
 .ai-collapsible-meta {
@@ -10067,6 +10147,12 @@ html, body {
     flex: 1;
     display: flex;
     align-items: center;
+}
+
+/* Doc tiles stretch to the full height of their slider row so they
+   touch the top and bottom edges instead of floating centred */
+.ai-list-body > .ai-doc-slider {
+    align-items: stretch;
 }
 
 .ai-list-body > .pf-detail-grid-inline {
@@ -10302,12 +10388,16 @@ html, body {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    padding: 4px;
+    padding: 0;
     background: var(--primary-bg);
     border: none;
     border-right: 1px solid var(--border-color);
     text-align: center;
     position: relative;
+}
+
+.ai-image-slider-item.ai-image-add-card {
+    padding: 8px;
 }
 
 .ai-image-add-card {
@@ -10333,13 +10423,15 @@ html, body {
 }
 
 .ai-image-slider-img {
-    width: 60px;
-    height: 60px;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
     object-fit: cover;
-    border: 1px solid var(--border-color);
-    border-radius: 3px;
+    border: none;
+    border-radius: 0;
     background: var(--secondary-bg);
     pointer-events: none;
+    display: block;
 }
 
 .ai-image-slider-item.ai-image-dragging {
@@ -10791,21 +10883,320 @@ html, body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     align-items: start;
-    gap: 12px;
-    padding: 4px 0;
+    gap: 0;
+    padding: 0;
+    /* pull up 1px so the toggle bar's top border shares the row above's
+       bottom border — single ceiling line, no gap */
+    margin-top: -1px;
 }
 
 .ai-asset-section {
+    grid-column: 1 / -1;
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    /* floor line is owned by .ai-list-card's border-bottom — no double line */
+    border-bottom: none;
+    border-radius: 0;
     padding: 8px 12px;
     background: var(--primary-bg);
+}
+
+/* Marketplace panel: cards run edge-to-edge inside the section */
+.ai-asset-section-flush {
+    padding: 0;
+}
+
+.ai-asset-section-flush .ai-marketplace-controls {
+    gap: 0;
+    padding: 0;
+}
+
+.ai-asset-section-flush .mp-card {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    border-radius: 0;
+}
+
+.ai-asset-section-flush .mp-card:first-child {
+    border-top: none;
 }
 
 .ai-asset-section .ai-channel-management {
     border: none;
     padding: 0;
     background: transparent;
+}
+
+/* ── Asset section toggles (booking / linking controls) ── */
+.ai-section-toggles {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    /* top/left/right borders form the block's ceiling + walls; the open
+       panel's top border is the interior divider, card line is the floor */
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 0;
+}
+
+.ai-section-toggle {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    border-radius: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ai-section-toggle:last-child {
+    border-right: none;
+}
+
+.ai-section-toggle:hover {
+    background: var(--accent-bg);
+}
+
+.ai-section-toggle-open {
+    background: var(--accent-bg);
+}
+
+/* ── Marketplace crosslisting bar (FLUF-style) ── */
+.ai-marketplace-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 0;
+}
+
+.ai-marketplace-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--highlight);
+}
+
+.ai-marketplace-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ai-marketplace-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ai-marketplace-btn:hover:not(:disabled) {
+    border-color: var(--highlight);
+}
+
+.ai-marketplace-btn:disabled {
+    cursor: default;
+    opacity: 0.75;
+}
+
+/* Marketplace controls panel (account connect + listing setup) */
+.ai-marketplace-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+}
+
+.mp-card {
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    padding: 8px 10px;
+    background: var(--secondary-bg);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mp-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mp-card-icon {
+    font-size: 16px;
+}
+
+.mp-card-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.mp-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 8px;
+}
+
+.mp-badge-on {
+    color: var(--success, #3fb950);
+    border: 1px solid var(--success, #3fb950);
+}
+
+.mp-badge-off {
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.mp-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.mp-connect-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.mp-method-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+}
+
+.mp-connect-btn.mp-connecting {
+    cursor: wait;
+    opacity: 0.75;
+}
+
+.mp-connecting {
+    color: var(--highlight);
+    font-style: italic;
+}
+
+.mp-manual-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.mp-connected {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mp-account {
+    margin: 0;
+    font-size: 11px;
+    color: var(--success, #3fb950);
+}
+
+.mp-published {
+    margin: 0;
+    font-size: 11px;
+    color: var(--success, #3fb950);
+    font-weight: 600;
+}
+
+.mp-listing-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.mp-form-row {
+    display: flex;
+    gap: 8px;
+}
+
+.mp-form-row > .channel-management-field {
+    flex: 1;
+}
+
+.mp-desc {
+    resize: vertical;
+    font-family: inherit;
+}
+
+.mp-form-actions {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+}
+
+.mp-error {
+    margin: 0;
+    font-size: 11px;
+    color: var(--danger, #f85149);
+}
+
+.mp-disconnect {
+    opacity: 0.8;
+}
+
+.mp-hint-sub {
+    opacity: 0.75;
+    font-size: 11px;
+}
+
+.mp-included {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    font-size: 11px;
+}
+
+.mp-included-label {
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-right: 2px;
+}
+
+.mp-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 8px;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.mp-listing-status {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.ai-marketplace-btn-linked {
+    background: var(--accent-bg);
+    border-color: var(--highlight);
 }
 
 .ai-controls-row > .ai-channel-management {
@@ -13915,7 +14306,8 @@ html, body {
     top: var(--navbar-height);
     left: 0;
     right: 0;
-    bottom: 0;
+    /* stop at the footer's top edge — the composer must stay visible above it */
+    bottom: var(--footer-height);
     background: rgba(0, 0, 0, 0.6);
     z-index: 998;
     display: flex;
@@ -16115,27 +16507,20 @@ html, body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.6);
     z-index: 999;
     display: flex;
-    justify-content: flex-end;
+    justify-content: center;
+    align-items: center;
 }
 
 .notif-drawer {
-    width: min(380px, 90vw);
-    height: calc(100vh - var(--navbar-height));
+    width: 100%;
+    height: 100%;
     background: var(--primary-bg);
-    border-left: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.25);
-    animation: notif-drawer-slide-in 0.2s ease-out;
     overflow: hidden;
-}
-
-@keyframes notif-drawer-slide-in {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
 }
 
 .notif-drawer-header {
@@ -16151,7 +16536,8 @@ html, body {
     justify-content: flex-end;
     padding: 0;
     align-items: stretch;
-    min-height: 42px;
+    height: var(--bar-h);
+    min-height: var(--bar-h);
 }
 
 .notif-drawer-title {
@@ -16187,6 +16573,11 @@ html, body {
 .notif-drawer-actions > * {
     flex: 1 1 0;
     min-width: 0;
+    border-right: 1px solid var(--border-color);
+}
+
+.notif-drawer-actions > *:last-child {
+    border-right: none;
 }
 
 .notif-drawer-mode-btn {
@@ -16197,7 +16588,7 @@ html, body {
     height: 100%;
     padding: 0;
     background: var(--accent-bg);
-    border: 1px solid var(--border-color);
+    border: none;
     border-radius: 0;
     color: var(--text-secondary);
     font-size: clamp(12px, 1.5vh, 18px);
@@ -16274,7 +16665,7 @@ html, body {
 .notif-drawer-body {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: 0;
 }
 
 .notif-empty {
@@ -18820,42 +19211,56 @@ html, body {
     border: 1px solid var(--border-color);
 }
 
-/* List view: 1px separators and no doubled line or gap between groups/direct assets */
-.asset-viewer #av-groups-content > .asset-list,
-.asset-viewer #av-direct-content > .asset-list {
+/* ── Unified list grid ─────────────────────────────────────────────────
+   Containers own no borders. Every visible row owns exactly one bottom
+   border, so separators repeat identically at every depth and
+   collapsed/expanded states can neither double nor drop a line. */
+.asset-viewer .asset-list .asset-group,
+.asset-viewer .asset-list .ai-item,
+.pf-accordion .asset-group,
+.pf-accordion .asset-group.pf-portfolio,
+.pf-accordion > .asset-group,
+.pf-accordion .pf-org-group,
+.pf-accordion > .pf-org-group,
+.pf-accordion .pf-org-group.expanded,
+.pf-accordion > .pf-org-group.expanded {
+    border: none;
+}
+
+/* Rows: the single bottom border that forms each separator line */
+.pf-accordion .pf-accordion-header,
+.pf-accordion .asset-group-header,
+.asset-viewer .asset-list .asset-group-header,
+.asset-viewer .asset-list .ai-collapsible-header,
+.asset-viewer .asset-list .ai-list-card,
+.asset-viewer .asset-section-title,
+.asset-viewer .pf-doc-slider-panel,
+.pf-accordion .pf-doc-slider-panel,
+.asset-viewer .add-form,
+.pf-accordion .add-form {
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Lists stay flush: no gaps, no top border (the row above owns the line) */
+.asset-viewer .asset-list {
     gap: 0;
-    border-top: 1px solid var(--border-color);
-}
-
-.asset-viewer #av-groups-content + #av-direct-content > .asset-list {
     border-top: none;
-}
-
-.asset-viewer #av-groups-content > .asset-list > .asset-group,
-.asset-viewer #av-direct-content > .asset-list .ai-item .asset-group {
-    border: 1px solid var(--border-color);
-    border-top: none;
-    margin-bottom: 0;
-}
-
-.asset-viewer .asset-list .asset-group.expanded {
     border-bottom: none;
 }
 
-/* Small red gap when an expanded asset group meets the direct assets below it */
-.asset-viewer #av-groups-content:has(.asset-group.expanded) + #av-direct-content > .asset-list {
-    border-top: 3px solid var(--primary);
-}
-
-.asset-viewer .asset-group-header,
-.asset-viewer .ai-collapsible-header {
-    border-bottom: 1px solid var(--border-color);
+.asset-viewer .asset-list > .asset-group + .asset-group,
+.asset-viewer .asset-list > .ai-item + .ai-item,
+.asset-viewer .asset-list > .asset-group + .ai-item,
+.asset-viewer .asset-list > .ai-item + .asset-group {
+    margin-top: 0;
 }
 
 .asset-viewer .ai-collapsible-arrow {
     border-right: 1px solid var(--border-color);
 }
 
+/* Show-more buttons sit between rows: solid line above (from the previous
+   row's border), dashed outline on the remaining sides */
 .asset-viewer #av-groups-content .pf-show-more-btn,
 .asset-viewer #av-direct-content .pf-show-more-btn {
     margin: 0;
@@ -18908,4 +19313,838 @@ html, body {
 .pf-accordion .asset-group.pf-portfolio > .asset-group-content > .asset-viewer > #av-direct-content:first-child > .asset-list,
 .pf-accordion .asset-group.pf-portfolio > .asset-group-content > .asset-viewer > #av-groups-content:first-child > .asset-list {
     border-top: none;
+}
+
+/* Drag-over highlight for hierarchy drop targets */
+.drop-hover {
+    box-shadow: inset 0 0 0 2px var(--highlight);
+}
+
+/* Add-type dropdown: anchored under the Add button, options fill it
+   edge-to-edge as three equal segments */
+.add-type-dropdown {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+.add-type-menu {
+    position: absolute;
+    /* cover the Add button's own box — the three types appear inside the
+       ADD area itself rather than as a floating dropdown below it */
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 2600;
+    display: flex;
+    flex-direction: row;
+    padding: 0;
+    gap: 0;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.add-type-item {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--primary-bg);
+    border: none;
+    border-left: 1px solid var(--border-color);
+    border-radius: 0;
+    cursor: pointer;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.add-type-item:first-child {
+    border-left: none;
+}
+
+.add-type-item:hover {
+    background: var(--accent-bg);
+    color: var(--highlight);
+}
+
+/* Dropdown panels in Portfolios: dotted bottom edge instead of a solid line */
+.add-type-menu,
+.pf-doc-dropdown,
+.context-menu,
+.pf-nav-add-dropdown,
+.pf-context-add-dropdown,
+.nav-dropdown-menu {
+    border-bottom: 1px dotted var(--border-color);
+}
+
+/* ── Messenger embedded content ─────────────────────────── */
+.messenger-embeds {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.messenger-message:has(.messenger-embeds) {
+    max-width: 92%;
+}
+
+.messenger-embed-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--highlight);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.messenger-embed-card:hover {
+    border-color: var(--highlight);
+}
+
+.messenger-embed-missing {
+    border-left-color: var(--text-secondary);
+    opacity: 0.7;
+    cursor: default;
+}
+
+.messenger-embed-icon {
+    font-size: 20px;
+    line-height: 1.2;
+    flex-shrink: 0;
+}
+
+.messenger-embed-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.messenger-embed-kind {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--highlight);
+}
+
+.messenger-embed-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.messenger-embed-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.messenger-pending-embeds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 16px 0;
+    flex-shrink: 0;
+}
+
+.messenger-embed-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--highlight);
+    font-size: 12px;
+    color: var(--text-primary);
+    max-width: 260px;
+}
+
+.messenger-embed-chip-icon {
+    flex-shrink: 0;
+}
+
+.messenger-embed-chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.messenger-embed-chip-x {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+}
+
+.messenger-embed-chip-x:hover {
+    color: var(--text-primary);
+}
+
+.messenger-attach-wrap {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+}
+
+.messenger-attach-btn {
+    width: 48px;
+    height: 48px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-right: none;
+    color: var(--text-primary);
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.messenger-attach-btn:hover {
+    background: var(--accent-bg);
+}
+
+.messenger-attach-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    width: 340px;
+    max-width: 90vw;
+    background: var(--primary-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.messenger-attach-search {
+    width: 100%;
+    height: 40px;
+    box-sizing: border-box;
+    background: var(--secondary-bg);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0 12px;
+    font-size: 13px;
+    outline: none;
+    flex-shrink: 0;
+}
+
+.messenger-attach-list {
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.messenger-attach-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.messenger-attach-item:last-child {
+    border-bottom: none;
+}
+
+.messenger-attach-item:hover {
+    background: var(--accent-bg);
+}
+
+.messenger-attach-item.selected {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.messenger-attach-item.selected .messenger-attach-sub {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.messenger-attach-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.messenger-attach-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.messenger-attach-label {
+    font-size: 13px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.messenger-attach-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Messenger sidebar resize / collapse ──────────────── */
+.messenger-body {
+    position: relative;
+}
+
+.messenger-sidebar.msb-hidden,
+.messenger-chat.msb-hidden,
+.messenger-resizer.msb-hidden {
+    display: none;
+}
+
+.messenger-resizer {
+    flex-shrink: 0;
+    width: 7px;
+    cursor: col-resize;
+    background: linear-gradient(
+        to right,
+        transparent 3px,
+        var(--border-color) 3px,
+        var(--border-color) 4px,
+        transparent 4px
+    );
+    position: relative;
+    z-index: 6;
+}
+
+.messenger-resizer:hover,
+body:active .messenger-resizer {
+    background: linear-gradient(
+        to right,
+        transparent 3px,
+        var(--highlight) 3px,
+        var(--highlight) 4px,
+        transparent 4px
+    );
+}
+
+.messenger-restore-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    width: 22px;
+    height: 56px;
+    padding: 0;
+    background: var(--accent-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.messenger-restore-arrow:hover {
+    background: var(--highlight);
+    color: #fff;
+}
+
+.messenger-restore-left {
+    left: 0;
+    border-left: none;
+}
+
+.messenger-restore-right {
+    right: 0;
+    border-right: none;
+}
+
+.messenger-msg-status {
+    margin-left: 6px;
+    font-size: 10px;
+}
+
+/* Messenger compact "square" sidebar view */
+.messenger-square-toggle {
+    flex: 0 0 44px;
+    font-size: 16px;
+}
+
+.messenger-sidebar.msb-compact .messenger-sidebar-search {
+    display: none;
+}
+
+.messenger-sidebar.msb-compact .messenger-sidebar-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border-color);
+    align-content: start;
+}
+
+.messenger-sidebar.msb-compact .messenger-contact {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 8px 4px;
+    border-bottom: none;
+    border-right: none;
+    background: var(--secondary-bg);
+}
+
+.messenger-sidebar.msb-compact .messenger-contact-avatar {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    min-width: 0;
+    font-size: 20px;
+}
+
+.messenger-sidebar.msb-compact .messenger-contact-info {
+    align-items: center;
+    width: 100%;
+}
+
+.messenger-sidebar.msb-compact .messenger-contact-name {
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.messenger-sidebar.msb-compact .messenger-contact-sub {
+    display: none;
+}
+
+.messenger-sidebar.msb-compact .messenger-request {
+    grid-column: 1 / -1;
+    background: var(--secondary-bg);
+    padding: 8px 10px;
+}
+
+/* Marketplace listing — asset-format included block */
+.mp-included {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.mp-af-grid {
+    display: flex;
+    flex-direction: column;
+    margin-top: 4px;
+}
+
+.mp-af-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    border-bottom: 1px dotted var(--border-color);
+}
+
+.mp-af-row:last-child {
+    border-bottom: none;
+}
+
+.mp-af-label {
+    flex: 0 0 76px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.mp-af-value {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mp-af-tags {
+    white-space: normal;
+}
+
+.mp-af-section {
+    margin-top: 6px;
+    padding-top: 5px;
+    border-top: 1px dotted var(--border-color);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.asset-edit-sales {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mp-af-photos {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.mp-af-photo {
+    width: 56px;
+    height: 56px;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+    background: var(--primary-bg);
+    display: block;
+}
+
+/* Marketplace listing — inline-editable asset-format rows */
+.mp-af-editable {
+    cursor: text;
+    border-bottom: 1px dashed transparent;
+    align-self: center;
+}
+
+.mp-af-editable:hover {
+    border-bottom-color: var(--highlight);
+}
+
+.mp-af-input {
+    flex: 1;
+    min-width: 0;
+    height: 20px;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--primary-bg);
+    border: 1px solid var(--highlight);
+    padding: 0 4px;
+}
+
+select.mp-af-input {
+    height: 22px;
+}
+
+.mp-connect {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Marketplace card actions mirror the parent .ai-section-toggle bars:
+   full-width horizontal segments, square corners, separator borders */
+.mp-connect-row {
+    flex-wrap: nowrap;
+}
+
+.mp-connect-row > .pf-small-btn,
+.mp-connect-row > .login-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--secondary-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    border-radius: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mp-connect-row > .pf-small-btn:last-child,
+.mp-connect-row > .login-btn:last-child {
+    border-right: none;
+}
+
+/* Method picker — bordered bar matching the Linking/Booking/Marketplace
+   section toggles: square corners, full-width segments, separator edges */
+.mp-method-bar {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 0;
+}
+
+.mp-method-bar .mp-connect-row {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.mp-method-bar > .pf-small-btn {
+    display: block;
+    width: 100%;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    text-align: left;
+}
+
+.mp-method-bar .mp-connect-row > .pf-small-btn:hover {
+    background: var(--accent-bg);
+}
+
+.mp-method-bar > .pf-small-btn:hover {
+    background: var(--accent-bg);
+}
+
+/* Marketplace card head — square action buttons beside the status badge */
+.mp-head-btn {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.mp-head-btn:hover {
+    border-color: var(--highlight);
+    color: var(--highlight);
+}
+
+.mp-head-connect.mp-connecting {
+    cursor: wait;
+    opacity: 0.75;
+}
+
+.mp-badge-square {
+    border-radius: 0;
+    flex-shrink: 0;
+}
+
+/* ===== Red Marketplace browse page ===== */
+.marketplace-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    padding-top: calc(var(--controls-h) + 16px);
+    height: 100%;
+    overflow-y: auto;
+}
+
+.marketplace-controls {
+    position: fixed;
+    top: var(--navbar-height);
+    left: 0;
+    right: 0;
+    z-index: 150;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    height: var(--controls-h);
+    background: var(--accent-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.marketplace-controls .sort-dropdown-wrap {
+    flex: 1 1 0;
+    min-width: 0;
+    border-right: 1px solid var(--border-color);
+}
+
+.marketplace-controls .sort-dropdown-wrap:last-child {
+    border-right: none;
+}
+
+.marketplace-controls .sort-btn {
+    flex: 1 1 0;
+    width: 100%;
+    min-width: 0;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    padding: 0 10px;
+    font-size: clamp(12px, 1.8vh, 14px);
+}
+
+.marketplace-controls .sort-dropdown {
+    width: max-content;
+    min-width: 100%;
+    left: 0;
+    right: auto;
+}
+
+.marketplace-controls .sort-dropdown-item {
+    justify-content: flex-start;
+    height: auto;
+    min-height: var(--controls-h);
+    padding: 4px 12px;
+    font-size: clamp(11px, 1.6vh, 13px);
+    white-space: nowrap;
+}
+
+.marketplace-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 8px;
+}
+
+.marketplace-card {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-primary);
+    overflow: hidden;
+    transition: border-color 0.1s;
+}
+
+.marketplace-card:hover {
+    border-color: var(--highlight);
+}
+
+.marketplace-card-media {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--accent-bg);
+    overflow: hidden;
+}
+
+.marketplace-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.marketplace-card-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+}
+
+.marketplace-kind-badge {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 2px 6px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+}
+
+.marketplace-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 8px;
+}
+
+.marketplace-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.marketplace-card-price {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--highlight);
+}
+
+.marketplace-card-meta {
+    font-size: 9px;
+    color: var(--text-secondary);
+}
+
+.marketplace-card-sub {
+    font-size: 9px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.marketplace-card-tags {
+    font-size: 9px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.marketplace-card-date {
+    font-size: 8px;
+    color: var(--text-secondary);
+}
+
+.marketplace-empty {
+    padding: 24px;
+    text-align: center;
+}
+
+/* Red listing panel inside the doc-slider-style drop-down */
+.red-listing-panel {
+    min-width: 320px;
 }

@@ -54,6 +54,12 @@ pub(crate) fn channels_view() -> impl IntoView {
                                         ChannelType::Expedia => "Expedia",
                                         ChannelType::Vrbo => "Vrbo",
                                         ChannelType::LinkedIn => "LinkedIn",
+                                        ChannelType::EBay => "eBay",
+                                        ChannelType::Gumtree => "Gumtree",
+                                        ChannelType::FacebookMarketplace => "Facebook Marketplace",
+                                        ChannelType::Amazon => "Amazon",
+                                        ChannelType::Etsy => "Etsy",
+                                        ChannelType::Kogan => "Kogan",
                                         ChannelType::Other(_) => "Other",
                                     };
                                     let status = format!("{:?}", c.connection_status);

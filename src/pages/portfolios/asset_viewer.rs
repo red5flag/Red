@@ -95,6 +95,9 @@ pub(crate) fn AssetViewer(
     new_asset_value: ReadSignal<String>,
     set_new_asset_value: WriteSignal<String>,
     on_add_asset: Callback<AssetTarget, Option<Uuid>>,
+    /// Tint level of this viewer's first child (portfolio level + 1); each
+    /// successive sibling adds another 10% — cumulative per-child tint.
+    #[prop(default = 0)] child_depth: usize,
 ) -> impl IntoView {
     let pid = portfolio.id;
     let portfolio_name_groups = portfolio.name.clone();
@@ -357,7 +360,7 @@ pub(crate) fn AssetViewer(
                         let group_class = move || if view_mode_groups_content.get() == ViewMode::Grid { "grid-view".to_string() } else { "asset-list".to_string() };
                         view! {
                             <div class={group_class}>
-                                {groups_to_show.into_iter().enumerate().map(move |(idx, group)| {
+                                {groups_to_show.into_iter().enumerate().map(move |(gi, group)| {
                                     let gid = group.id;
                                     let pid2 = pid;
                                     let is_expanded = Memo::new(move |_| expanded_groups.get().contains(&gid));
@@ -383,7 +386,7 @@ pub(crate) fn AssetViewer(
                                             on_add_asset={on_add_asset}
                                             on_select_asset={on_select_asset}
                                             portfolio_name={portfolio_name.clone()}
-                                            tint_index={idx + 1}
+                                            tint_index={child_depth + gi}
                                             visible_counts={visible_counts}
                                             set_visible_counts={set_visible_counts}
                                         />
@@ -534,8 +537,8 @@ pub(crate) fn AssetViewer(
                         };
                         view! {
                             <div class={direct_class}>
-                                {direct_to_show.into_iter().enumerate().map(move |(idx, asset)| view! {
-                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_direct_content.get()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={idx + 1} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
+                                {direct_to_show.into_iter().enumerate().map(move |(ai, asset)| view! {
+                                    <AssetItem asset={asset} portfolio_name={portfolio_name.clone()} portfolio_id={Some(pid)} group_id={None} view_mode={view_mode_direct_content.get()} on_select={on_select_asset} can_edit={can_edit} can_edit_documents={can_edit_documents} tint_index={child_depth + ai} collapsible=true highlight={Some(Signal::derive(move || new_asset_id.get()))} />
                                 }).collect::<Vec<_>>()}
                             </div>
                             {if direct_remaining > 0 {

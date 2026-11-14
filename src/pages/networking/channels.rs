@@ -113,6 +113,12 @@ pub(crate) fn render_channels() -> impl IntoView {
                                         ChannelType::Expedia => "Expedia",
                                         ChannelType::Vrbo => "Vrbo",
                                         ChannelType::LinkedIn => "LinkedIn",
+                                        ChannelType::EBay => "eBay",
+                                        ChannelType::Gumtree => "Gumtree",
+                                        ChannelType::FacebookMarketplace => "Facebook Marketplace",
+                                        ChannelType::Amazon => "Amazon",
+                                        ChannelType::Etsy => "Etsy",
+                                        ChannelType::Kogan => "Kogan",
                                         ChannelType::Other(_) => "Other",
                                     };
                                     let linked = ch.linked_asset_id.map(|_| "Linked to asset").unwrap_or("Unlinked");

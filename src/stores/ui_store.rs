@@ -50,6 +50,10 @@ pub struct UiStore {
     pub active_modal: Option<ModalType>,
     // Open document modals (by entity id) - persisted across re-renders
     pub open_doc_modals: HashSet<Uuid>,
+    // Open user-assignment panels (by entity id: portfolio or asset group)
+    pub open_assignment_panels: HashSet<Uuid>,
+    // Open Red Marketplace listing panels (by entity id: portfolio or group)
+    pub open_red_listing_panels: HashSet<Uuid>,
     // Loading state
     pub is_loading: bool,
     // Portfolio layout
@@ -136,6 +140,8 @@ impl Default for UiStore {
             tabs_drawer_open: false,
             active_modal: None,
             open_doc_modals: HashSet::new(),
+            open_assignment_panels: HashSet::new(),
+            open_red_listing_panels: HashSet::new(),
             is_loading: false,
             portfolio_view_mode: ViewMode::List,
             portfolio_grid_columns: 2,
@@ -145,7 +151,7 @@ impl Default for UiStore {
             show_top_add_group: false,
             show_top_add_asset: false,
             show_add_modal: false,
-            portfolio_sort_mode: SortMode::ByOrganization,
+            portfolio_sort_mode: SortMode::Relevance,
             sort_ascending: true,
             reporting_sort_mode: ReportSortMode::Recent,
             reporting_sort_ascending: false,
@@ -250,6 +256,36 @@ impl UiStore {
         }
     }
 
+    // User-assignment panel state (persisted across re-renders)
+    pub fn is_assignment_panel_open(&self, id: Uuid) -> bool {
+        self.open_assignment_panels.contains(&id)
+    }
+
+    pub fn toggle_assignment_panel(&mut self, id: Uuid) {
+        if self.open_assignment_panels.contains(&id) {
+            self.open_assignment_panels.remove(&id);
+        } else {
+            self.open_assignment_panels.insert(id);
+        }
+    }
+
+    // Red Marketplace listing panel state (persisted across re-renders)
+    pub fn is_red_listing_panel_open(&self, id: Uuid) -> bool {
+        self.open_red_listing_panels.contains(&id)
+    }
+
+    pub fn toggle_red_listing_panel(&mut self, id: Uuid) {
+        if self.open_red_listing_panels.contains(&id) {
+            self.open_red_listing_panels.remove(&id);
+        } else {
+            self.open_red_listing_panels.insert(id);
+        }
+    }
+
+    pub fn close_red_listing_panel(&mut self, id: Uuid) {
+        self.open_red_listing_panels.remove(&id);
+    }
+
     // Display preferences
     pub fn set_theme(&mut self, theme: Theme) {
         self.theme = theme;
@@ -345,6 +381,7 @@ impl UiStore {
     pub fn reversed_sort_mode(&self) -> SortMode {
         use crate::types::SortMode;
         match self.portfolio_sort_mode {
+            SortMode::Relevance => SortMode::Relevance,
             SortMode::Recent => SortMode::Oldest,
             SortMode::Oldest => SortMode::Recent,
             SortMode::HighestValue => SortMode::LowestValue,

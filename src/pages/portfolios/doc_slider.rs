@@ -31,6 +31,7 @@ pub fn DocSlider(
 ) -> impl IntoView {
     let (modal_target, set_modal_target) = signal(Option::<ModalTarget>::None);
     let (doc_ctx, set_doc_ctx) = signal(Option::<(i32, i32, DocEntry)>::None);
+    let (action_menu, set_action_menu) = signal(Option::<(i32, i32)>::None);
     let ui_store = use_ui_store();
     let app_store = use_app_store();
 
@@ -69,19 +70,19 @@ pub fn DocSlider(
     view! {
         <div class="pf-doc-slider" on:click=|ev| ev.stop_propagation()>
             <div class="ai-doc-slider">
-                {move || if can_edit_documents.get() {
-                    view! {
-                        <div
-                            class="ai-doc-slider-item ai-doc-add-card"
-                            aria-label={format!("Add document to {}", entity_name)}
-                            on:click=move |_| open_add()
-                        >
-                            <div class="ai-doc-slider-thumb">"➕"</div>
-                            <div class="ai-doc-slider-name">"+ Document"</div>
-                            <div class="ai-doc-slider-type">"ADD"</div>
-                        </div>
-                    }.into_any()
-                } else { ().into_any() }}
+                <div
+                    class="ai-doc-slider-item ai-doc-add-card"
+                    aria-label={format!("Search or add documents for {}", entity_name)}
+                    on:click=move |ev: leptos::ev::MouseEvent| {
+                        ev.stop_propagation();
+                        let (x, y) = clamp_context_menu(ev.client_x(), ev.client_y());
+                        set_action_menu.set(Some((x, y)));
+                    }
+                >
+                    <div class="ai-doc-slider-thumb">"+"</div>
+                    <div class="ai-doc-slider-name">"Docs"</div>
+                    <div class="ai-doc-slider-type">""</div>
+                </div>
                 <For
                     each=move || entries.get()
                     key=|entry| entry.doc.id
@@ -128,6 +129,29 @@ pub fn DocSlider(
                         }
                     }
                 />
+
+                {move || action_menu.get().map(|(x, y)| view! {
+                    <div class="context-menu-overlay" on:click=move |_| set_action_menu.set(None)>
+                        <div class="context-menu" style={format!("left: {}px; top: {}px;", x, y)}>
+                            <button class="context-menu-item"
+                                on:click=move |_| {
+                                    set_action_menu.set(None);
+                                    ui_store.update(|s| s.open_search());
+                                }
+                            >"🔍 Search documents"</button>
+                            {move || if can_edit_documents.get() {
+                                view! {
+                                    <button class="context-menu-item"
+                                        on:click=move |_| {
+                                            set_action_menu.set(None);
+                                            open_add();
+                                        }
+                                    >"📄 Add document"</button>
+                                }.into_any()
+                            } else { ().into_any() }}
+                        </div>
+                    </div>
+                }.into_any())}
 
                 {move || doc_ctx.get().map(|(x, y, entry)| {
                     let entry_for_download = entry.doc.clone();

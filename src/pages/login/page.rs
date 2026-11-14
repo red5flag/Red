@@ -173,6 +173,9 @@ pub fn LoginPage() -> impl IntoView {
 
     let (login_pressed, set_login_pressed) = signal(false);
     let on_login = move || {
+        if login_pressed.get() {
+            return;
+        }
         set_login_pressed.set(true);
         let u = username.get();
         let p = password.get();
@@ -186,71 +189,74 @@ pub fn LoginPage() -> impl IntoView {
             save_last_username(u.clone());
         }
 
-        let password_matches = app_store.get().check_password(&u, &p);
+        spawn_local(async move {
+            // Minimum visible loading state before auth resolves
+            #[cfg(feature = "hydrate")]
+            gloo_timers::future::TimeoutFuture::new(500).await;
 
-        if password_matches {
-            let mut org = organization_store.get_untracked();
-            let mut notif = notification_store.get_untracked();
-            let mut result: Option<Result<(String, String), String>> = None;
-            app_store.update(|store| {
-                result = Some(store.login_with_credentials(&u, &p, &mut notif, &mut org));
-            });
+            let password_matches = app_store.get().check_password(&u, &p);
 
-            if let Some(Ok((name, role_str))) = result {
-                set_error.set(String::new());
-                organization_store.set(org);
-                notif.add_notification(
-                    format!("Welcome, {}!", name),
-                    crate::stores::NotificationType::Success,
-                );
-                notification_store.set(notif);
-                let user_id = app_store.get().current_user.id;
-                let org_id = app_store.get().current_user.organization_id;
-                undo_store.update(|undo| {
-                    undo.record_action(create_action(
-                        ActionType::Login,
-                        "Auth",
-                        &format!("User '{}' logged in", name),
-                        user_id,
-                        &name,
-                        &role_str,
-                        org_id,
-                        None,
-                    ));
+            if password_matches {
+                let mut org = organization_store.get_untracked();
+                let mut notif = notification_store.get_untracked();
+                let mut result: Option<Result<(String, String), String>> = None;
+                app_store.update(|store| {
+                    result = Some(store.login_with_credentials(&u, &p, &mut notif, &mut org));
                 });
-                app_store.update(|s| {
-                    s.save_password_to_credentials(&u, &p);
-                });
-                let (_, login_cloud) = app_store.get().credentials.get_storage_options(&u);
-                if login_cloud {
-                    sync_credentials_to_cloud(u.clone());
-                }
-                return;
-            } else if let Some(Err(e)) = result {
-                if !e.to_lowercase().contains("not validated") {
-                    set_error.set(e);
-                    set_login_pressed.set(false);
+
+                if let Some(Ok((name, role_str))) = result {
+                    set_error.set(String::new());
+                    organization_store.set(org);
+                    notif.add_notification(
+                        format!("Welcome, {}!", name),
+                        crate::stores::NotificationType::Success,
+                    );
+                    notification_store.set(notif);
+                    let user_id = app_store.get().current_user.id;
+                    let org_id = app_store.get().current_user.organization_id;
+                    undo_store.update(|undo| {
+                        undo.record_action(create_action(
+                            ActionType::Login,
+                            "Auth",
+                            &format!("User '{}' logged in", name),
+                            user_id,
+                            &name,
+                            &role_str,
+                            org_id,
+                            None,
+                        ));
+                    });
+                    app_store.update(|s| {
+                        s.save_password_to_credentials(&u, &p);
+                    });
+                    let (_, login_cloud) = app_store.get().credentials.get_storage_options(&u);
+                    if login_cloud {
+                        sync_credentials_to_cloud(u.clone());
+                    }
                     return;
+                } else if let Some(Err(e)) = result {
+                    if !e.to_lowercase().contains("not validated") {
+                        set_error.set(e);
+                        set_login_pressed.set(false);
+                        return;
+                    }
                 }
             }
-        }
 
-        let u_clone = u.clone();
-        let p_clone = p.clone();
-        let _app_store_clone = app_store;
-        let set_error_clone = set_error;
-        let set_login_pressed_clone = set_login_pressed;
-        let set_fa_mode_clone = set_fa_mode;
-        let set_fa_message_clone = set_fa_message;
-        let set_pending_username_clone = set_pending_username;
-        let set_pending_password_clone = set_pending_password;
-        let set_fa_code_clone = set_fa_code;
-        let _remember_password_clone = remember_password;
-        spawn_local(async move {
+            let u_clone = u.clone();
+            let p_clone = p.clone();
             let req = LoginRequest {
                 username: u_clone.clone(),
                 password: p_clone.clone(),
             };
+            let set_error_clone = set_error;
+            let set_login_pressed_clone = set_login_pressed;
+            let set_fa_mode_clone = set_fa_mode;
+            let set_fa_message_clone = set_fa_message;
+            let set_pending_username_clone = set_pending_username;
+            let set_pending_password_clone = set_pending_password;
+            let set_fa_code_clone = set_fa_code;
+            let _remember_password_clone = remember_password;
             cfg_if! {
                 if #[cfg(feature = "hydrate")] {
                     let resp = gloo_net::http::Request::post("/api/login")
@@ -306,8 +312,8 @@ pub fn LoginPage() -> impl IntoView {
                         }
                     }
                 } else {
-                    let _ = (req, _app_store_clone, set_error_clone, set_login_pressed_clone, set_fa_mode_clone, set_fa_message_clone,
-                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone);
+                    let _ = (req, set_error_clone, set_login_pressed_clone, set_fa_mode_clone, set_fa_message_clone,
+                        set_pending_username_clone, set_pending_password_clone, set_fa_code_clone, _remember_password_clone);
                 }
             }
         });
@@ -503,7 +509,7 @@ pub fn LoginPage() -> impl IntoView {
         });
     };
 
-    let (changelog_open, set_changelog_open) = signal(true);
+    let (changelog_open, set_changelog_open) = signal(false);
     let initial_commits = commits::RECENT_COMMITS
         .iter()
         .map(|(sha, msg)| (sha.to_string(), msg.to_string()))

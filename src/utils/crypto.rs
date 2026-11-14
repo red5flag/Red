@@ -19,7 +19,7 @@ pub fn derive_key(password_hash: &str) -> Vec<u8> {
 }
 
 /// Format a variable-length key into a fixed 32-byte ChaCha20-Poly1305 key.
-fn format_key(key: &[u8]) -> [u8; 32] {
+pub(crate) fn format_key(key: &[u8]) -> [u8; 32] {
     let mut out = [0u8; 32];
     for (i, byte) in key.iter().cycle().take(64).enumerate() {
         out[i % 32] ^= *byte;

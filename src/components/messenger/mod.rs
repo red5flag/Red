@@ -1,11 +1,235 @@
 use crate::models::{
-    ContactSource, MessengerContact, MessengerRequest, MessengerRequestKind, ServiceTask,
-    ServiceTaskStatus, ServiceTaskType,
+    Asset, ContactSource, Document, Message, MessageEmbed, MessageStatus, MessengerContact,
+    MessengerRequest, MessengerRequestKind, Portfolio, ServiceTask, ServiceTaskStatus,
+    ServiceTaskType,
 };
-use crate::stores::{use_app_store, use_messenger_store, use_organization_store};
+use crate::pages::portfolios::{marketplace_display_label, phantom_edit_scope, DocModal};
+use crate::server::{
+    get_messenger_state, get_secure_messages, save_messenger_state, send_secure_message,
+};
+use crate::stores::{use_app_store, use_messenger_store, use_organization_store, AppStore};
+use crate::types::{Currency, TabType};
 use chrono::{Duration, Utc};
 use leptos::prelude::*;
 use uuid::Uuid;
+
+/// Display info resolved live from the app store for an embedded entity.
+struct EmbedInfo {
+    icon: &'static str,
+    kind: &'static str,
+    title: String,
+    sub: String,
+}
+
+/// Item in the composer attach picker.
+#[derive(Clone, PartialEq)]
+struct AttachItem {
+    embed: MessageEmbed,
+    icon: &'static str,
+    label: String,
+    sub: String,
+}
+
+fn embed_key(embed: &MessageEmbed) -> String {
+    match embed {
+        MessageEmbed::Portfolio(id) => format!("p-{}", id),
+        MessageEmbed::AssetGroup(id) => format!("g-{}", id),
+        MessageEmbed::Asset(id) => format!("a-{}", id),
+        MessageEmbed::Document(id) => format!("d-{}", id),
+        MessageEmbed::Listing { asset_id, marketplace } => {
+            format!("l-{}-{}", asset_id, marketplace)
+        }
+    }
+}
+
+fn portfolio_stats(p: &Portfolio) -> String {
+    let assets = p.assets.len()
+        + p.asset_groups
+            .iter()
+            .map(|g| g.assets.len())
+            .sum::<usize>();
+    let groups = p.asset_groups.len();
+    format!(
+        "{} assets · {} groups · {:.2} {}",
+        assets, groups, p.total_value, p.currency
+    )
+}
+
+fn group_stats(g: &crate::models::AssetGroup, p: &Portfolio) -> String {
+    format!(
+        "{} · {} assets · {:.2} {}",
+        p.name,
+        g.assets.len(),
+        g.total_value,
+        p.currency
+    )
+}
+
+fn asset_sub(a: &Asset, portfolio_name: &str, currency: &Currency) -> String {
+    let mut s = format!("{:?} · {:.2} {}", a.asset_type, a.current_value, currency);
+    if let Some(loc) = a.location.as_deref().filter(|l| !l.is_empty()) {
+        s.push_str(&format!(" · {}", loc));
+    }
+    format!("{} · {}", portfolio_name, s)
+}
+
+fn doc_sub(owner: &str, d: &Document) -> String {
+    format!(
+        "{} · {} · {}",
+        owner,
+        d.file_type,
+        d.uploaded_at.format("%Y-%m-%d")
+    )
+}
+
+/// Find a document and the id of the entity that owns it (portfolio, group, or asset).
+fn find_document(app: &AppStore, doc_id: Uuid) -> Option<(Uuid, Document)> {
+    for p in &app.portfolios {
+        if let Some(d) = p.documents.iter().find(|d| d.id == doc_id) {
+            return Some((p.id, d.clone()));
+        }
+        for g in &p.asset_groups {
+            if let Some(d) = g.documents.iter().find(|d| d.id == doc_id) {
+                return Some((g.id, d.clone()));
+            }
+            for a in &g.assets {
+                if let Some(d) = a.documents.iter().find(|d| d.id == doc_id) {
+                    return Some((a.id, d.clone()));
+                }
+            }
+        }
+        for a in &p.assets {
+            if let Some(d) = a.documents.iter().find(|d| d.id == doc_id) {
+                return Some((a.id, d.clone()));
+            }
+        }
+    }
+    None
+}
+
+/// Display name for an owning entity id (portfolio / group / asset).
+fn entity_name(app: &AppStore, id: Uuid) -> Option<String> {
+    for p in &app.portfolios {
+        if p.id == id {
+            return Some(p.name.clone());
+        }
+        for g in &p.asset_groups {
+            if g.id == id {
+                return Some(format!("{} / {}", p.name, g.name));
+            }
+            for a in &g.assets {
+                if a.id == id {
+                    return Some(a.name.clone());
+                }
+            }
+        }
+        for a in &p.assets {
+            if a.id == id {
+                return Some(a.name.clone());
+            }
+        }
+    }
+    None
+}
+
+fn resolve_embed(app: &AppStore, embed: &MessageEmbed) -> Option<EmbedInfo> {
+    match embed {
+        MessageEmbed::Portfolio(id) => app
+            .portfolios
+            .iter()
+            .find(|p| p.id == *id)
+            .map(|p| EmbedInfo {
+                icon: "📁",
+                kind: "Portfolio",
+                title: p.name.clone(),
+                sub: portfolio_stats(p),
+            }),
+        MessageEmbed::AssetGroup(id) => app.portfolios.iter().find_map(|p| {
+            p.asset_groups
+                .iter()
+                .find(|g| g.id == *id)
+                .map(|g| EmbedInfo {
+                    icon: "📂",
+                    kind: "Asset Group",
+                    title: g.name.clone(),
+                    sub: group_stats(g, p),
+                })
+        }),
+        MessageEmbed::Asset(id) => app.portfolios.iter().find_map(|p| {
+            p.assets
+                .iter()
+                .find(|a| a.id == *id)
+                .map(|a| EmbedInfo {
+                    icon: "📦",
+                    kind: "Asset",
+                    title: a.name.clone(),
+                    sub: asset_sub(a, &p.name, &p.currency),
+                })
+                .or_else(|| {
+                    p.asset_groups.iter().find_map(|g| {
+                        g.assets.iter().find(|a| a.id == *id).map(|a| EmbedInfo {
+                            icon: "📦",
+                            kind: "Asset",
+                            title: a.name.clone(),
+                            sub: asset_sub(a, &p.name, &p.currency),
+                        })
+                    })
+                })
+        }),
+        MessageEmbed::Document(id) => find_document(app, *id).map(|(entity_id, d)| {
+            let owner = entity_name(app, entity_id).unwrap_or_else(|| "Unknown".to_string());
+            EmbedInfo {
+                icon: "📄",
+                kind: "Document",
+                title: d.name.clone(),
+                sub: doc_sub(&owner, &d),
+            }
+        }),
+        MessageEmbed::Listing { asset_id, marketplace } => {
+            let asset = app
+                .portfolios
+                .iter()
+                .flat_map(|p| {
+                    p.assets
+                        .iter()
+                        .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                })
+                .find(|a| a.id == *asset_id)?;
+            // Red Marketplace listings live at metadata["red_listing"];
+            // external marketplaces under marketplace_listings[key].
+            let listing = if marketplace == "Red" {
+                asset.metadata.get("red_listing")?
+            } else {
+                asset
+                    .metadata
+                    .get("marketplace_listings")
+                    .and_then(|v| v.get(marketplace))?
+            };
+            let title = listing
+                .get("title")
+                .and_then(|v| v.as_str())
+                .filter(|t| !t.is_empty())
+                .unwrap_or(&asset.name)
+                .to_string();
+            let price = listing
+                .get("price")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let status = listing
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("draft");
+            let kind = marketplace_display_label(marketplace);
+            let price_str = if price.is_empty() { "0.00".to_string() } else { price.to_string() };
+            Some(EmbedInfo {
+                icon: "🏷️",
+                kind,
+                title,
+                sub: format!("{} listing · ${} · {}", kind, price_str, status),
+            })
+        }
+    }
+}
 
 #[component]
 pub fn MessageDrawer() -> impl IntoView {
@@ -14,6 +238,122 @@ pub fn MessageDrawer() -> impl IntoView {
     let organization_store = use_organization_store();
     let (draft, set_draft) = signal(String::new());
     let (search, set_search) = signal(String::new());
+    // Embedded content (portfolios, groups, assets, documents)
+    let (pending_embeds, set_pending_embeds) = signal(Vec::<MessageEmbed>::new());
+    let (show_attach, set_show_attach) = signal(false);
+    let (attach_search, set_attach_search) = signal(String::new());
+    let (doc_view, set_doc_view) = signal(Option::<(Uuid, Document)>::None);
+
+    // Sidebar resize / collapse state: width in px, plus which side is hidden
+    let (sidebar_w, set_sidebar_w) = signal(280.0_f64);
+    // Compact "square" view: contacts render as a grid of square tiles.
+    let (sidebar_compact, set_sidebar_compact) = signal(false);
+    let (left_collapsed, set_left_collapsed) = signal(false);
+    let (right_collapsed, set_right_collapsed) = signal(false);
+    // Some((start_x, start_width, body_width)) while a resize drag is active
+    let (resize_drag, set_resize_drag) = signal(Option::<(f64, f64, f64)>::None);
+
+    let install_resize_listeners = move || {
+        thread_local! {
+            static RESIZE_INSTALLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+        }
+        RESIZE_INSTALLED.with(|installed| {
+            if installed.replace(true) {
+                return;
+            }
+            #[cfg(target_arch = "wasm32")]
+            if let Some(w) = web_sys::window() {
+                use wasm_bindgen::JsCast;
+                let mv = wasm_bindgen::closure::Closure::wrap(Box::new(
+                    move |ev: web_sys::MouseEvent| {
+                        // Self-heal: if the button was released outside the
+                        // window the mouseup never arrived — stop resizing
+                        // instead of collapsing panels on every mousemove.
+                        if ev.buttons() & 1 == 0 {
+                            set_resize_drag.set(None);
+                            return;
+                        }
+                        let Some((start_x, start_w, body_w)) = resize_drag.get_untracked()
+                        else {
+                            return;
+                        };
+                        let w = start_w + (ev.client_x() as f64 - start_x);
+                        if w < 60.0 {
+                            set_left_collapsed.set(true);
+                            set_right_collapsed.set(false);
+                        } else if w > body_w - 60.0 {
+                            set_right_collapsed.set(true);
+                            set_left_collapsed.set(false);
+                        } else if w < 190.0 {
+                            // Snap zone: compact square ("box") view
+                            set_left_collapsed.set(false);
+                            set_right_collapsed.set(false);
+                            set_sidebar_compact.set(true);
+                        } else {
+                            set_left_collapsed.set(false);
+                            set_right_collapsed.set(false);
+                            set_sidebar_compact.set(false);
+                            set_sidebar_w.set(w);
+                        }
+                    },
+                ) as Box<dyn FnMut(web_sys::MouseEvent)>);
+                let _ = w.add_event_listener_with_callback(
+                    "mousemove",
+                    mv.as_ref().unchecked_ref(),
+                );
+                mv.forget();
+
+                let up = wasm_bindgen::closure::Closure::wrap(Box::new(
+                    move |_: web_sys::MouseEvent| {
+                        set_resize_drag.set(None);
+                        if let Some(d) =
+                            web_sys::window().and_then(|win| win.document())
+                        {
+                            if let Some(b) = d.body() {
+                                let _ = b.style().set_property("cursor", "");
+                                let _ = b.style().set_property("user-select", "");
+                            }
+                        }
+                    },
+                ) as Box<dyn FnMut(web_sys::MouseEvent)>);
+                let _ = w.add_event_listener_with_callback(
+                    "mouseup",
+                    up.as_ref().unchecked_ref(),
+                );
+                up.forget();
+            }
+        });
+    };
+
+    let on_resizer_down = move |ev: leptos::ev::MouseEvent| {
+        #[cfg(target_arch = "wasm32")]
+        {
+            ev.prevent_default();
+            ev.stop_propagation();
+            let body_w = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.document_element())
+                .map(|e| e.client_width() as f64)
+                .unwrap_or(1280.0);
+            // In box view the displayed width is the fixed compact size, so
+            // the drag must measure from that — not the last name-view width.
+            let start_w = if sidebar_compact.get() { 150.0 } else { sidebar_w.get() };
+            set_resize_drag.set(Some((ev.client_x() as f64, start_w, body_w)));
+            if let Some(d) = web_sys::window().and_then(|win| win.document()) {
+                if let Some(b) = d.body() {
+                    let _ = b.style().set_property("cursor", "col-resize");
+                    let _ = b.style().set_property("user-select", "none");
+                }
+            }
+            install_resize_listeners();
+        }
+    };
+
+    let restore_panels = move |_| {
+        set_sidebar_w.set(280.0);
+        set_left_collapsed.set(false);
+        set_right_collapsed.set(false);
+    };
 
     let _selected_contact = move || messenger_store.get().selected_chat_id;
     let set_selected_contact =
@@ -185,21 +525,121 @@ pub fn MessageDrawer() -> impl IntoView {
         }
     });
 
+    // Pull the PQC-sealed message store + messenger directory from the
+    // server each time the drawer opens. Restoring contacts is what keeps
+    // group ids stable so stored group messages still thread correctly.
+    #[cfg(feature = "hydrate")]
+    Effect::new(move |_| {
+        leptos::task::spawn_local(async move {
+            if let Ok(msgs) = get_secure_messages().await {
+                messenger_store.update(|s| s.merge_messages(msgs));
+            }
+            if let Ok(Some(state)) = get_messenger_state().await {
+                messenger_store.update(|s| {
+                    // Merge rather than replace: contacts/requests created
+                    // locally while the drawer was closed (e.g. marketplace
+                    // listing threads) must survive the server restore.
+                    let local_contacts = std::mem::take(&mut s.messenger_contacts);
+                    let mut contacts = state.contacts;
+                    for c in local_contacts {
+                        if !contacts.iter().any(|m| m.id == c.id) {
+                            contacts.push(c);
+                        }
+                    }
+                    s.messenger_contacts = contacts;
+                    let local_requests = std::mem::take(&mut s.messenger_requests);
+                    let mut requests = state.requests;
+                    for r in local_requests {
+                        if !requests.iter().any(|m| m.id == r.id) {
+                            requests.push(r);
+                        }
+                    }
+                    s.messenger_requests = requests;
+                });
+            }
+        });
+    });
+
+    // Persist the messenger directory whenever contacts or requests actually
+    // change (Memo compare keeps this from firing on unrelated store updates).
+    #[cfg(feature = "hydrate")]
+    {
+        let contacts_memo = Memo::new(move |_| messenger_store.get().messenger_contacts.clone());
+        let requests_memo = Memo::new(move |_| messenger_store.get().messenger_requests.clone());
+        Effect::new(move |_| {
+            let state = crate::models::MessengerState {
+                contacts: contacts_memo.get(),
+                requests: requests_memo.get(),
+            };
+            leptos::task::spawn_local(async move {
+                let _ = save_messenger_state(state).await;
+            });
+        });
+    }
+
+    // Persist a message through the secure server path: the server PQC-seals
+    // it into the designated store. Status stays Pending until the round-trip
+    // confirms — a message that never reaches Sent means sealing failed.
+    let persist_message = move |msg: Message| {
+        let mid = msg.id;
+        #[cfg(feature = "hydrate")]
+        leptos::task::spawn_local(async move {
+            let res = send_secure_message(msg).await;
+            messenger_store.update(|s| {
+                s.set_message_status(
+                    mid,
+                    if res.is_ok() {
+                        MessageStatus::Sent
+                    } else {
+                        MessageStatus::Failed
+                    },
+                );
+            });
+        });
+        #[cfg(not(feature = "hydrate"))]
+        {
+            let _ = msg;
+            messenger_store.update(|s| s.set_message_status(mid, MessageStatus::Sent));
+        }
+    };
+
     let send_message = move |recipient_id: Uuid| {
         let text = draft.get();
+        let embeds = pending_embeds.get();
         let current_user_id = app_store.get().current_user.id;
-        if text.trim().is_empty() {
+        if text.trim().is_empty() && embeds.is_empty() {
             return;
         }
+        let mut sent_slot = None;
         messenger_store.update(|s| {
-            s.send_message(current_user_id, recipient_id, text.clone());
+            sent_slot = Some(s.send_message_with_embeds(
+                current_user_id,
+                recipient_id,
+                text.clone(),
+                embeds.clone(),
+            ));
         });
+        if let Some(sent_msg) = sent_slot {
+            persist_message(sent_msg);
+        }
         // Echo from bot for testing
         if recipient_id == Uuid::nil() {
             let reply = format!("Bot received: {}", text);
-            messenger_store.update(|s| s.receive_message(Uuid::nil(), current_user_id, reply));
+            let mut reply_slot = None;
+            messenger_store.update(|s| {
+                reply_slot = Some(s.receive_message_with_embeds(
+                    Uuid::nil(),
+                    current_user_id,
+                    reply,
+                    Vec::new(),
+                ));
+            });
+            if let Some(reply_msg) = reply_slot {
+                persist_message(reply_msg);
+            }
         }
         set_draft.set(String::new());
+        set_pending_embeds.set(Vec::new());
     };
 
     let (left_tab, set_left_tab) = signal("recent");
@@ -215,11 +655,235 @@ pub fn MessageDrawer() -> impl IntoView {
     let (edit_group_name, set_edit_group_name) = signal(String::new());
     let (edit_group_icon, set_edit_group_icon) = signal(String::new());
 
+    // Phantom outside-tap dismissal for the attach picker (same pattern as inline editors)
+    let attach_scope_alive = phantom_edit_scope(
+        "messenger-attach".to_string(),
+        move || show_attach.get(),
+        move || set_show_attach.set(false),
+    );
+    on_cleanup(move || {
+        attach_scope_alive.store(false, std::sync::atomic::Ordering::Relaxed);
+    });
+
+    let attach_items: Memo<Vec<AttachItem>> = Memo::new(move |_| {
+        let q = attach_search.get().trim().to_lowercase();
+        let app = app_store.get();
+        let mut items: Vec<AttachItem> = Vec::new();
+        let mut push = |embed: MessageEmbed, icon: &'static str, label: String, sub: String| {
+            if q.is_empty()
+                || label.to_lowercase().contains(&q)
+                || sub.to_lowercase().contains(&q)
+            {
+                items.push(AttachItem {
+                    embed,
+                    icon,
+                    label,
+                    sub,
+                });
+            }
+        };
+        for p in &app.portfolios {
+            push(
+                MessageEmbed::Portfolio(p.id),
+                "📁",
+                p.name.clone(),
+                portfolio_stats(p),
+            );
+            for g in &p.asset_groups {
+                push(
+                    MessageEmbed::AssetGroup(g.id),
+                    "📂",
+                    g.name.clone(),
+                    group_stats(g, p),
+                );
+                for a in &g.assets {
+                    push(
+                        MessageEmbed::Asset(a.id),
+                        "📦",
+                        a.name.clone(),
+                        asset_sub(a, &p.name, &p.currency),
+                    );
+                }
+                for d in &g.documents {
+                    push(
+                        MessageEmbed::Document(d.id),
+                        "📄",
+                        d.name.clone(),
+                        doc_sub(&format!("{} / {}", p.name, g.name), d),
+                    );
+                }
+            }
+            for a in &p.assets {
+                push(
+                    MessageEmbed::Asset(a.id),
+                    "📦",
+                    a.name.clone(),
+                    asset_sub(a, &p.name, &p.currency),
+                );
+            }
+            for d in &p.documents {
+                push(
+                    MessageEmbed::Document(d.id),
+                    "📄",
+                    d.name.clone(),
+                    doc_sub(&p.name, d),
+                );
+            }
+        }
+        // Marketplace listings — each saved listing is attachable so a
+        // conversation can reference the exact posting.
+        for p in &app.portfolios {
+            for a in p
+                .assets
+                .iter()
+                .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+            {
+                if let Some(listings) = a
+                    .metadata
+                    .get("marketplace_listings")
+                    .and_then(|v| v.as_object())
+                {
+                for (key, l) in listings {
+                    let title = l
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .filter(|t| !t.is_empty())
+                        .unwrap_or(&a.name)
+                        .to_string();
+                    let price = l
+                        .get("price")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let status = l
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("draft");
+                    let kind = marketplace_display_label(key);
+                    let price_str =
+                        if price.is_empty() { "0.00".to_string() } else { price.to_string() };
+                    push(
+                        MessageEmbed::Listing {
+                            asset_id: a.id,
+                            marketplace: key.clone(),
+                        },
+                        "🏷️",
+                        title,
+                        format!("{} listing · ${} · {}", kind, price_str, status),
+                    );
+                }
+                }
+                // Internal Red Marketplace listing (separate metadata slot).
+                if let Some(l) = a.metadata.get("red_listing") {
+                    let title = l
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .filter(|t| !t.is_empty())
+                        .unwrap_or(&a.name)
+                        .to_string();
+                    let price = l
+                        .get("price")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let status = l
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("draft");
+                    let price_str =
+                        if price.is_empty() { "0.00".to_string() } else { price.to_string() };
+                    push(
+                        MessageEmbed::Listing {
+                            asset_id: a.id,
+                            marketplace: "Red".to_string(),
+                        },
+                        "🏪",
+                        title,
+                        format!("Red Marketplace listing · ${} · {}", price_str, status),
+                    );
+                }
+            }
+        }
+        items
+    });
+
+    let toggle_embed = move |embed: MessageEmbed| {
+        set_pending_embeds.update(|v| {
+            if let Some(pos) = v.iter().position(|e| *e == embed) {
+                v.remove(pos);
+            } else {
+                v.push(embed);
+            }
+        });
+    };
+
+    let open_portfolios_tab = move || {
+        app_store.update(|s| s.expand_tab(TabType::Portfolios));
+        messenger_store.update(|s| s.set_message_drawer(false));
+    };
+
+    let render_embed_card = move |embed: MessageEmbed| {
+        view! {
+            {move || {
+                let app = app_store.get();
+                match resolve_embed(&app, &embed) {
+                    Some(info) => {
+                        let kind = info.kind;
+                        let title = info.title.clone();
+                        let sub = info.sub.clone();
+                        let icon = info.icon;
+                        let card_embed = embed.clone();
+                        let open_docs = open_portfolios_tab;
+                        view! {
+                            <button
+                                class="messenger-embed-card"
+                                title={format!("Open {}", kind)}
+                                on:click=move |_| {
+                                    match &card_embed {
+                                        MessageEmbed::Document(doc_id) => {
+                                            if let Some((entity_id, doc)) =
+                                                find_document(&app_store.get(), *doc_id)
+                                            {
+                                                set_doc_view.set(Some((entity_id, doc)));
+                                            }
+                                        }
+                                        _ => open_docs(),
+                                    }
+                                }
+                            >
+                                <span class="messenger-embed-icon">{icon}</span>
+                                <span class="messenger-embed-body">
+                                    <span class="messenger-embed-kind">{kind}</span>
+                                    <span class="messenger-embed-title">{title}</span>
+                                    <span class="messenger-embed-sub">{sub}</span>
+                                </span>
+                            </button>
+                        }
+                        .into_any()
+                    }
+                    None => view! {
+                        <div class="messenger-embed-card messenger-embed-missing">
+                            <span class="messenger-embed-icon">{"❓"}</span>
+                            <span class="messenger-embed-body">
+                                <span class="messenger-embed-kind">"Unavailable"</span>
+                                <span class="messenger-embed-title">"This item is no longer available"</span>
+                            </span>
+                        </div>
+                    }
+                    .into_any(),
+                }
+            }}
+        }
+        .into_any()
+    };
+
     let friend_contacts: Memo<Vec<MessengerContact>> = Memo::new(move |_| {
         contacts
             .get()
             .into_iter()
-            .filter(|c| c.source != ContactSource::Recommended && c.source != ContactSource::Group)
+            .filter(|c| {
+                c.source != ContactSource::Recommended
+                    && c.source != ContactSource::Group
+                    && c.source != ContactSource::Marketplace
+            })
             .collect::<Vec<_>>()
     });
     let group_contacts: Memo<Vec<MessengerContact>> = Memo::new(move |_| {
@@ -265,15 +929,26 @@ pub fn MessageDrawer() -> impl IntoView {
         with_last.into_iter().map(|(c, _)| c).collect()
     });
 
-    let active_thread = Memo::new(move |_| {
+    // Contact resolution deliberately excludes messages: the chat pane's
+    // mount gate must not re-run on every send/receive, or the whole chat
+    // DOM would be recreated (the "view resets" bug). Message updates flow
+    // through `thread_messages` → the keyed <For>, which diffs granularly.
+    let active_contact = Memo::new(move |_| {
         let all = contacts.get();
         let cid = messenger_store.get().selected_chat_id?;
-        let contact = all.iter().find(|c| c.id == cid).cloned()?;
+        all.iter().find(|c| c.id == cid).cloned()
+    });
+
+    let thread_messages = Memo::new(move |_| {
+        let Some(contact) = active_contact.get() else {
+            return Vec::new();
+        };
+        let cid = contact.id;
         let current_user_id = app_store.get().current_user.id;
         let q = chat_search.get().to_lowercase();
         let messages = messenger_store.get().messages.clone();
         let is_group = contact.source == ContactSource::Group;
-        let thread: Vec<_> = messages
+        messages
             .iter()
             .filter(|m| {
                 let in_thread = if is_group {
@@ -285,8 +960,7 @@ pub fn MessageDrawer() -> impl IntoView {
                 in_thread && (q.is_empty() || m.content.to_lowercase().contains(&q))
             })
             .cloned()
-            .collect();
-        Some((contact, thread))
+            .collect::<Vec<_>>()
     });
 
     let friend_requests: Memo<Vec<MessengerRequest>> = Memo::new(move |_| {
@@ -574,6 +1248,21 @@ pub fn MessageDrawer() -> impl IntoView {
                         "Requests"
                     </button>
                     <button
+                        class="messenger-tab messenger-square-toggle"
+                        class:active={move || sidebar_compact.get()}
+                        title="Square box view — drag the divider right for names"
+                        on:click=move |_| {
+                            if left_collapsed.get() {
+                                // Open straight into the box view
+                                set_left_collapsed.set(false);
+                                set_sidebar_compact.set(true);
+                            } else {
+                                set_sidebar_compact.update(|v| *v = !*v);
+                            }
+                        }>
+                        "▦"
+                    </button>
+                    <button
                         class="messenger-new-group-btn"
                         on:click=move |_| {
                             set_new_group_name.set("New Group".to_string());
@@ -586,7 +1275,26 @@ pub fn MessageDrawer() -> impl IntoView {
                     </button>
                 </div>
                 <div class="messenger-body">
-                    <div class="messenger-sidebar">
+                    <div
+                        class="messenger-sidebar"
+                        class:msb-hidden={move || left_collapsed.get()}
+                        class:msb-compact={move || sidebar_compact.get() && !right_collapsed.get()}
+                        style={move || {
+                            if right_collapsed.get() {
+                                "flex:1 1 auto;width:auto;min-width:0;max-width:none;"
+                                    .to_string()
+                            } else if sidebar_compact.get() {
+                                "width:150px;min-width:150px;max-width:150px;"
+                                    .to_string()
+                            } else {
+                                let w = sidebar_w.get();
+                                format!(
+                                    "width:{}px;min-width:{}px;max-width:{}px;",
+                                    w, w, w
+                                )
+                            }
+                        }}
+                    >
                         <div class="messenger-sidebar-search">
                             <input
                                 class="messenger-search-input"
@@ -621,6 +1329,7 @@ pub fn MessageDrawer() -> impl IntoView {
                                             c.phone.clone().or(c.email.clone()).unwrap_or_else(|| match c.source {
                                                 ContactSource::Bot => "PQC-secured test bot".to_string(),
                                                 ContactSource::Recommended => "Request".to_string(),
+                                                ContactSource::Marketplace => "Marketplace listing".to_string(),
                                                 _ => "Friend".to_string(),
                                             })
                                         };
@@ -640,9 +1349,20 @@ pub fn MessageDrawer() -> impl IntoView {
                         />
                     </div>
                 </div>
-                <div class="messenger-chat">
+                <div
+                    class="messenger-resizer"
+                    class:msb-hidden={move || left_collapsed.get() || right_collapsed.get()}
+                    on:mousedown=move |ev| {
+                        on_resizer_down(ev);
+                    }
+                    title="Drag to resize — push to an edge to hide"
+                ></div>
+                <div
+                    class="messenger-chat"
+                    class:msb-hidden={move || right_collapsed.get()}
+                >
                     {move || {
-                        if let Some((contact, thread)) = active_thread.get() {
+                        if let Some(contact) = active_contact.get() {
                             let contact_name = contact.name.clone();
                             let contact_icon = contact.icon.clone().unwrap_or_default();
                             let contact_is_group = contact.source == ContactSource::Group;
@@ -726,10 +1446,11 @@ pub fn MessageDrawer() -> impl IntoView {
                                 } else { ().into_any() }}
                                 <div class="messenger-messages">
                                     <For
-                                        each=move || thread.clone()
+                                        each=move || thread_messages.get()
                                         key=|m| m.id
                                         children=move |m| {
                                             let text = m.content.clone();
+                                            let embeds = m.embeds.clone();
                                             let ts = format!("{:?}", m.timestamp.format("%H:%M"));
                                             let is_me = m.sender_id == current_user_id;
                                             let sender = if contact_is_group {
@@ -738,19 +1459,134 @@ pub fn MessageDrawer() -> impl IntoView {
                                                 }
                                             } else { String::new() };
                                             let cls = if is_me { "messenger-message messenger-message-me" } else { "messenger-message" };
+                                            let (status_icon, status_text) = match m.status {
+                                                MessageStatus::Pending => ("⏳", "Pending — PQC seal in progress"),
+                                                MessageStatus::Sent => ("✓", "Sent — PQC sealed & stored"),
+                                                MessageStatus::Failed => ("⚠", "Failed — secure store rejected"),
+                                            };
                                             view! {
                                                 <div class={cls}>
                                                     {if contact_is_group {
                                                         view! { <div class="messenger-message-sender">{sender.clone()}</div> }.into_any()
                                                     } else { ().into_any() }}
-                                                    <div class="messenger-message-text">{text}</div>
-                                                    <div class="messenger-message-meta">{ts}</div>
+                                                    {if !text.is_empty() {
+                                                        view! { <div class="messenger-message-text">{text}</div> }.into_any()
+                                                    } else { ().into_any() }}
+                                                    {if !embeds.is_empty() {
+                                                        view! {
+                                                            <div class="messenger-embeds">
+                                                                <For
+                                                                    each=move || embeds.clone()
+                                                                    key=|e| embed_key(e)
+                                                                    children=move |e| render_embed_card(e)
+                                                                />
+                                                            </div>
+                                                        }.into_any()
+                                                    } else { ().into_any() }}
+                                                    <div class="messenger-message-meta">
+                                                        {ts}
+                                                        <span class="messenger-msg-status" title={status_text}>{status_icon}</span>
+                                                    </div>
                                                 </div>
                                             }
                                         }
                                     />
                                 </div>
+                                {move || {
+                                    let pending = pending_embeds.get();
+                                    if pending.is_empty() {
+                                        ().into_any()
+                                    } else {
+                                        view! {
+                                            <div class="messenger-pending-embeds">
+                                                <For
+                                                    each=move || pending.clone()
+                                                    key=|e| embed_key(e)
+                                                    children=move |e| {
+                                                        let app = app_store.get();
+                                                        let (icon, title) = resolve_embed(&app, &e)
+                                                            .map(|i| (i.icon.to_string(), i.title))
+                                                            .unwrap_or_else(|| ("❓".to_string(), "Unavailable".to_string()));
+                                                        let rm = e.clone();
+                                                        view! {
+                                                            <span class="messenger-embed-chip">
+                                                                <span class="messenger-embed-chip-icon">{icon}</span>
+                                                                <span class="messenger-embed-chip-label">{title}</span>
+                                                                <button
+                                                                    class="messenger-embed-chip-x"
+                                                                    title="Remove"
+                                                                    on:click=move |_| {
+                                                                        set_pending_embeds.update(|v| {
+                                                                            v.retain(|x| x != &rm);
+                                                                        });
+                                                                    }
+                                                                >
+                                                                    "×"
+                                                                </button>
+                                                            </span>
+                                                        }
+                                                    }
+                                                />
+                                            </div>
+                                        }
+                                        .into_any()
+                                    }
+                                }}
                                 <div class="messenger-composer">
+                                    <div
+                                        class="messenger-attach-wrap"
+                                        attr:data-pf-edit-scope="messenger-attach"
+                                    >
+                                        <button
+                                            class="messenger-attach-btn"
+                                            title="Attach portfolio, asset, or document"
+                                            on:click=move |_| set_show_attach.update(|v| *v = !*v)
+                                        >
+                                            "📎"
+                                        </button>
+                                        {move || if show_attach.get() {
+                                            view! {
+                                                <div class="messenger-attach-menu">
+                                                    <input
+                                                        class="messenger-attach-search"
+                                                        type="text"
+                                                        placeholder="Search portfolios, assets, docs…"
+                                                        prop:value={move || attach_search.get()}
+                                                        on:input=move |ev| set_attach_search.set(event_target_value(&ev))
+                                                    />
+                                                    <div class="messenger-attach-list">
+                                                        <For
+                                                            each=move || attach_items.get()
+                                                            key=|i| embed_key(&i.embed)
+                                                            children=move |item| {
+                                                                let e = item.embed.clone();
+                                                                let e_sel = e.clone();
+                                                                let e_click = e.clone();
+                                                                let e_mark = e.clone();
+                                                                view! {
+                                                                    <button
+                                                                        class="messenger-attach-item"
+                                                                        class:selected={move || pending_embeds.get().contains(&e_sel)}
+                                                                        on:click=move |_| toggle_embed(e_click.clone())
+                                                                    >
+                                                                        <span class="messenger-attach-icon">{item.icon}</span>
+                                                                        <span class="messenger-attach-text">
+                                                                            <span class="messenger-attach-label">{item.label}</span>
+                                                                            <span class="messenger-attach-sub">{item.sub}</span>
+                                                                        </span>
+                                                                        {move || if pending_embeds.get().contains(&e_mark) { "✓".into_any() } else { ().into_any() }}
+                                                                    </button>
+                                                                }
+                                                            }
+                                                        />
+                                                    </div>
+                                                </div>
+                                            }
+                                            .into_any()
+                                        } else {
+                                            ().into_any()
+                                        }}
+                                    </div>
                                     <input
                                         class="messenger-composer-input"
                                         type="text"
@@ -775,6 +1611,33 @@ pub fn MessageDrawer() -> impl IntoView {
                         }
                     }}
                 </div>
+                {move || {
+                    if left_collapsed.get() {
+                        view! {
+                            <button
+                                class="messenger-restore-arrow messenger-restore-left"
+                                on:click=restore_panels
+                                title="Show conversations"
+                            >
+                                "▶"
+                            </button>
+                        }
+                        .into_any()
+                    } else if right_collapsed.get() {
+                        view! {
+                            <button
+                                class="messenger-restore-arrow messenger-restore-right"
+                                on:click=restore_panels
+                                title="Show chat"
+                            >
+                                "◀"
+                            </button>
+                        }
+                        .into_any()
+                    } else {
+                        ().into_any()
+                    }
+                }}
             </div>
             {move || if show_new_group.get() {
                     view! {
@@ -838,6 +1701,20 @@ pub fn MessageDrawer() -> impl IntoView {
                         </div>
                     }.into_any()
                 } else { ().into_any() }}
+            {move || doc_view.get().map(|(entity_id, doc)| {
+                let title = doc.name.clone();
+                view! {
+                    <DocModal
+                        entity_id={entity_id}
+                        title={title}
+                        on_close=move || set_doc_view.set(None)
+                        can_edit={false}
+                        on_add={None::<leptos::prelude::Callback<String>>}
+                        initial_doc={Some(doc)}
+                    />
+                }
+                .into_any()
+            })}
             </div>
         </div>
     }

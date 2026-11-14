@@ -1,12 +1,13 @@
 use crate::models::Perm;
-use crate::stores::{use_app_store, use_notification_store, use_organization_store};
+use crate::stores::{use_app_store, use_notification_store, use_organization_store, use_ui_store};
 use crate::types::{AssetType, ViewMode};
 use leptos::prelude::*;
 use uuid::Uuid;
 
 use super::{
-    detect_file_type, mobile_tab_gestures, name_click_handlers, read_image_as_data_url,
-    set_drag_tab_data, single_sentence, AssetTarget, AssetViewer, DocEntry, DocSlider, NavTabKind,
+    detect_file_type, mobile_tab_gestures, name_click_handlers, pf_drop_target,
+    phantom_edit_scope, read_image_as_data_url, set_drag_tab_data, single_sentence, AssetTarget,
+    AssetViewer, DocEntry, DocSlider, NavTabKind, RedEntityKind, RedListingPanel,
     UserAssignmentPanel,
 };
 
@@ -36,22 +37,19 @@ pub(crate) fn PortfolioListItem(
     set_new_asset_value: WriteSignal<String>,
     on_add_asset: Callback<AssetTarget, Option<Uuid>>,
     #[prop(into)] view_mode: Signal<ViewMode>,
+    #[prop(default = 0)] tint_index: usize,
 ) -> impl IntoView {
     let app_store = use_app_store();
     let notification_store = use_notification_store();
+    let ui_store = use_ui_store();
+    let pf_tint_style = format!(
+        "background: rgba(255,255,255,{});",
+        (tint_index as f64 * 0.1).min(0.9)
+    );
     let (is_editing_name, set_is_editing_name) = signal(false);
     let (is_editing_desc, set_is_editing_desc) = signal(false);
     let (edit_name, set_edit_name) = signal(portfolio.name.clone());
     let (edit_desc, set_edit_desc) = signal(portfolio.description.clone().unwrap_or_default());
-    let (edit_image_url, set_edit_image_url) = signal(portfolio.image_url.clone());
-    let (edit_emoji, set_edit_emoji) = signal(portfolio.emoji.clone().unwrap_or_default());
-    let (is_editing_org, set_is_editing_org) = signal(false);
-    let (edit_org_id, set_edit_org_id) = signal(
-        portfolio
-            .organization_id
-            .map(|id| id.to_string())
-            .unwrap_or_default(),
-    );
     let pid = portfolio.id;
     let name = portfolio.name.clone();
     let name_for_aria = name.clone();
@@ -61,6 +59,12 @@ pub(crate) fn PortfolioListItem(
     let desc = single_sentence(&portfolio.description.clone().unwrap_or_default());
     let asset_count = portfolio.get_all_assets().len();
     let portfolio_image_url = portfolio.image_url.clone();
+    // Values for the Red Marketplace listing panel (StoredValue keeps the
+    // render closure Copy-safe).
+    let red_name = StoredValue::new(name.clone());
+    let red_desc = StoredValue::new(portfolio.description.clone());
+    let red_value = portfolio.total_value;
+    let red_img = StoredValue::new(portfolio_image_url.clone());
     let portfolio_emoji = portfolio.emoji.clone().unwrap_or_else(|| "🏢".to_string());
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
@@ -80,34 +84,42 @@ pub(crate) fn PortfolioListItem(
     if !can_view_portfolio {
         return ().into_any();
     }
-    let available_orgs = Memo::new(move |_| {
-        organization_store
-            .get()
-            .organizations
-            .iter()
-            .filter(|o| o.members.contains(&current_user_id) || o.owner_id == current_user_id)
-            .cloned()
-            .collect::<Vec<_>>()
-    });
+    // Snapshots used to re-sync the edit buffers when an editor opens, so a
+    // cancelled edit doesn't leave stale text behind.
+    let sync_name = portfolio.name.clone();
+    let sync_desc = portfolio.description.clone().unwrap_or_default();
+    let begin_text_edit = {
+        let sync_name = sync_name.clone();
+        let sync_desc = sync_desc.clone();
+        move |which: u8| {
+            if !can_edit_here.get() {
+                return;
+            }
+            set_edit_name.set(sync_name.clone());
+            set_edit_desc.set(sync_desc.clone());
+            set_is_editing_name.set(which == 0);
+            set_is_editing_desc.set(which == 1);
+        }
+    };
 
     let (name_click, name_dblclick) = name_click_handlers(
         move || on_toggle.run(()),
-        move || {
-            if can_edit_here.get() {
-                set_is_editing_name.set(true);
-            }
+        {
+            let begin = begin_text_edit.clone();
+            move || begin(0)
         },
     );
     let (desc_click, desc_dblclick) = name_click_handlers(
         move || on_toggle.run(()),
-        move || {
-            if can_edit_here.get() {
-                set_is_editing_desc.set(true);
-            }
+        {
+            let begin = begin_text_edit.clone();
+            move || begin(1)
         },
     );
 
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
+    let pf_name_input_ref = NodeRef::<leptos::html::Input>::new();
+    let pf_desc_input_ref = NodeRef::<leptos::html::Input>::new();
 
     let do_save = move || {
         let n = edit_name.get();
@@ -115,14 +127,6 @@ pub(crate) fn PortfolioListItem(
         if n.trim().is_empty() {
             return;
         }
-        let img = edit_image_url.get();
-        let emoji = edit_emoji.get().trim().to_string();
-        let org_id_str = edit_org_id.get();
-        let org_id = if org_id_str.trim().is_empty() {
-            None
-        } else {
-            Uuid::parse_str(&org_id_str).ok()
-        };
         app_store.update(|s| {
             if let Some(p) = s.get_portfolio_mut(pid) {
                 p.name = n.clone();
@@ -131,17 +135,44 @@ pub(crate) fn PortfolioListItem(
                 } else {
                     Some(d.clone())
                 };
-                p.image_url = img;
-                p.emoji = if emoji.is_empty() { None } else { Some(emoji) };
-                p.organization_id = org_id;
                 p.updated_at = chrono::Utc::now();
             }
         });
         set_is_editing_name.set(false);
         set_is_editing_desc.set(false);
-        set_is_editing_org.set(false);
     };
     let save_edit_now = move || do_save();
+
+    // Phantom-click dismissal: a press outside the editing inputs is
+    // consumed and saves+closes the inline editor.
+    let scope_token: &'static str =
+        Box::leak(format!("pl-{}", pid).into_boxed_str());
+    {
+        let alive = phantom_edit_scope(
+            scope_token.to_string(),
+            move || {
+                is_editing_name.get_untracked() || is_editing_desc.get_untracked()
+            },
+            move || save_edit_now(),
+        );
+        on_cleanup(move || alive.store(false, std::sync::atomic::Ordering::Relaxed));
+    }
+
+    // Focus the inline header editors as soon as they mount.
+    Effect::new(move |_| {
+        if is_editing_name.get() {
+            if let Some(el) = pf_name_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
+    Effect::new(move |_| {
+        if is_editing_desc.get() {
+            if let Some(el) = pf_desc_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
 
     // Deep-link scrolling from search / notifications.
     Effect::new(move |_| {
@@ -286,6 +317,76 @@ pub(crate) fn PortfolioListItem(
         });
     });
 
+    // Drop target: assets/groups move in; portfolio+portfolio reorders the
+    // dragged portfolio to the target's slot (Relevance position); org→portfolio
+    // assigns the portfolio to that org
+    let (drop_hover, set_drop_hover) = signal(false);
+    let (d_over, d_leave, d_drop) = pf_drop_target(
+        set_drop_hover,
+        |k| matches!(
+            k,
+            NavTabKind::Asset
+                | NavTabKind::AssetGroup
+                | NavTabKind::Portfolio
+                | NavTabKind::Organization
+        ),
+        move |tab, rel_y| match tab.kind {
+            NavTabKind::Asset => {
+                app_store.update(|s| {
+                    s.move_asset_to_portfolio(tab.id, pid);
+                });
+            }
+            NavTabKind::AssetGroup => {
+                app_store.update(|s| {
+                    s.move_group_to_portfolio(tab.id, pid);
+                });
+            }
+            NavTabKind::Portfolio if tab.id != pid => {
+                // Reorder in the currently displayed order: the dragged
+                // portfolio takes the slot just above (top half) or below
+                // (bottom half) the drop target, then positions are
+                // rewritten densely and persisted.
+                let all = app_store.get_untracked().portfolios.clone();
+                let old_positions: std::collections::HashMap<Uuid, f64> = all
+                    .iter()
+                    .map(|p| (p.id, p.position))
+                    .collect();
+                let ui = ui_store.get_untracked();
+                let ordered = super::sort_portfolios_for_ui(all, &ui);
+                let mut ids: Vec<Uuid> = ordered.iter().map(|p| p.id).collect();
+                ids.retain(|id| *id != tab.id);
+                if let Some(tidx) = ids.iter().position(|id| *id == pid) {
+                    let insert_at = if rel_y < 0.5 { tidx } else { tidx + 1 };
+                    ids.insert(insert_at, tab.id);
+                    app_store.update(|s| s.reorder_portfolios(&ids));
+                    let changed: Vec<crate::models::Portfolio> = app_store
+                        .get_untracked()
+                        .portfolios
+                        .iter()
+                        .filter(|p| {
+                            old_positions
+                                .get(&p.id)
+                                .map(|op| (*op - p.position).abs() > f64::EPSILON)
+                                .unwrap_or(false)
+                        })
+                        .cloned()
+                        .collect();
+                    for p in changed {
+                        leptos::task::spawn_local(async move {
+                            let _ = crate::server::save_portfolio(p).await;
+                        });
+                    }
+                }
+            }
+            NavTabKind::Organization => {
+                app_store.update(|s| {
+                    s.set_portfolio_organization(pid, Some(tab.id));
+                });
+            }
+            _ => {}
+        },
+    );
+
     let on_context_touch = on_context.clone();
     let on_context_close_touch = on_context_close.clone();
     let (touch_start, touch_move, touch_end) = mobile_tab_gestures(
@@ -298,6 +399,11 @@ pub(crate) fn PortfolioListItem(
 
     view! {
         <div class="asset-group pf-portfolio" id={format!("portfolio-{}", pid)} class:expanded={expanded}
+            style={pf_tint_style}
+            class:drop-hover={move || drop_hover.get()}
+            on:dragover=d_over
+            on:dragleave=d_leave
+            on:drop=d_drop
             on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                 ev.prevent_default();
                 ev.stop_propagation();
@@ -313,7 +419,7 @@ pub(crate) fn PortfolioListItem(
         >
             // Header row — same structure as asset-group-header
             <div class="asset-group-header pf-accordion-header"
-                class:editing={move || is_editing_name.get() || is_editing_desc.get() || is_editing_org.get()}
+                class:editing={move || is_editing_name.get() || is_editing_desc.get()}
                 role="button"
                 tabindex="0"
                 aria-expanded={move || expanded.get()}
@@ -328,7 +434,7 @@ pub(crate) fn PortfolioListItem(
                 )}
                 on:click=move |ev: leptos::ev::MouseEvent| {
                     ev.stop_propagation();
-                    if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
+                    if !is_editing_name.get() && !is_editing_desc.get() {
                         on_toggle.run(());
                     }
                 }
@@ -336,7 +442,7 @@ pub(crate) fn PortfolioListItem(
                     if ev.key() == "Enter" || ev.key() == " " {
                         ev.prevent_default();
                         ev.stop_propagation();
-                        if !is_editing_name.get() && !is_editing_desc.get() && !is_editing_org.get() {
+                        if !is_editing_name.get() && !is_editing_desc.get() {
                             on_toggle.run(());
                         }
                     }
@@ -394,12 +500,15 @@ pub(crate) fn PortfolioListItem(
                         // Name
                         if is_editing_name.get() && can_edit_here.get() {
                             parts.push(view! {
-                                <input class="pf-edit-input" placeholder="Portfolio name"
+                                <input class="pf-edit-input pf-edit-name-md" placeholder="Portfolio name"
+                                    aria-label="Portfolio name"
+                                    attr:data-pf-edit-scope=scope_token
+                                    node_ref=pf_name_input_ref
                                     prop:value=move || edit_name.get()
                                     on:input=move |ev| set_edit_name.set(event_target_value(&ev))
                                     on:keydown=move |ev| {
                                         if ev.key() == "Enter" { save_edit_now(); }
-                                        else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); set_is_editing_org.set(false); }
+                                        else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); }
                                     }
                                 />
                             }.into_any());
@@ -414,12 +523,15 @@ pub(crate) fn PortfolioListItem(
                         // Description
                         if is_editing_desc.get() && can_edit_here.get() {
                             parts.push(view! {
-                                <input class="pf-edit-input" placeholder="Description"
+                                <input class="pf-edit-input pf-edit-desc" placeholder="Description"
+                                    aria-label="Description"
+                                    attr:data-pf-edit-scope=scope_token
+                                    node_ref=pf_desc_input_ref
                                     prop:value=move || edit_desc.get()
                                     on:input=move |ev| set_edit_desc.set(event_target_value(&ev))
                                     on:keydown=move |ev| {
                                         if ev.key() == "Enter" { save_edit_now(); }
-                                        else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); set_is_editing_org.set(false); }
+                                        else if ev.key() == "Escape" { set_is_editing_name.set(false); set_is_editing_desc.set(false); }
                                     }
                                 />
                             }.into_any());
@@ -429,60 +541,6 @@ pub(crate) fn PortfolioListItem(
                                     on:click={desc_click.clone()}
                                     on:dblclick={desc_dblclick.clone()}
                                 >{desc_header.clone()}</div>
-                            }.into_any());
-                        }
-                        // Image + emoji + organization editor
-                        if (is_editing_name.get() || is_editing_desc.get() || is_editing_org.get()) && can_edit_here.get() {
-                            parts.push(view! {
-                                <input
-                                    class="pf-edit-input"
-                                    type="file"
-                                    accept="image/*"
-                                    aria-label="Portfolio image"
-                                    on:change=move |ev| {
-                                        read_image_as_data_url(&ev, move |url| {
-                                            set_edit_image_url.set(Some(url));
-                                        });
-                                    }
-                                />
-                                <select
-                                    class="pf-edit-input"
-                                    aria-label="Portfolio emoji"
-                                    prop:value={move || edit_emoji.get()}
-                                    on:change=move |ev| set_edit_emoji.set(event_target_value(&ev))
-                                >
-                                    <option value="">"Default 🏢"</option>
-                                    <option value="🏢">"🏢 Office"</option>
-                                    <option value="🏠">"🏠 Property"</option>
-                                    <option value="🚗">"🚗 Vehicle"</option>
-                                    <option value="💼">"💼 Business"</option>
-                                    <option value="💰">"💰 Finance"</option>
-                                    <option value="📈">"📈 Growth"</option>
-                                    <option value="🏭">"🏭 Industrial"</option>
-                                    <option value="🌐">"🌐 Global"</option>
-                                    <option value="🎨">"🎨 Creative"</option>
-                                    <option value="🔬">"🔬 Research"</option>
-                                    <option value="⚡">"⚡ Energy"</option>
-                                </select>
-                                <select
-                                    class="pf-edit-input"
-                                    aria-label="Organization"
-                                    prop:value={move || edit_org_id.get()}
-                                    on:change=move |ev| set_edit_org_id.set(event_target_value(&ev))
-                                >
-                                    <option value="">"(None)"</option>
-                                    {move || available_orgs.get().into_iter().map(|o| view! {
-                                        <option value={o.id.to_string()} selected=move || edit_org_id.get() == o.id.to_string()>{o.name.clone()}</option>
-                                    }).collect::<Vec<_>>()}
-                                </select>
-                                <div style="display:flex;gap:6px;margin-top:4px;">
-                                    <button class="login-btn" on:click=move |_| save_edit_now()>"Save"</button>
-                                    <button class="view-btn" on:click=move |_| {
-                                        set_is_editing_name.set(false);
-                                        set_is_editing_desc.set(false);
-                                        set_is_editing_org.set(false);
-                                    }>"Cancel"</button>
-                                </div>
                             }.into_any());
                         }
                         // Asset count — double-click to expand
@@ -515,6 +573,25 @@ pub(crate) fn PortfolioListItem(
                 </div>
             </div>
 
+            {move || if view_mode.get() == ViewMode::List
+                && ui_store.get().is_red_listing_panel_open(pid)
+                && can_edit_here.get()
+            {
+                view! {
+                    <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
+                        <RedListingPanel
+                            kind={RedEntityKind::Portfolio}
+                            entity_id={pid}
+                            entity_name={red_name.get_value()}
+                            entity_desc={red_desc.get_value()}
+                            entity_value={red_value}
+                            image_url={red_img.get_value()}
+                            can_edit={can_edit_here}
+                        />
+                    </div>
+                }.into_any()
+            } else { ().into_any() }}
+
             {move || if view_mode.get() == ViewMode::List && show_doc_slider.get() {
                 view! {
                     <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
@@ -531,7 +608,7 @@ pub(crate) fn PortfolioListItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if view_mode.get() == ViewMode::List && is_editing_name.get() && can_edit_here.get() {
+            {move || if view_mode.get() == ViewMode::List && ui_store.get().is_assignment_panel_open(pid) && can_edit_here.get() {
                 let users = org_users();
                 let assigned = assigned_users.clone();
                 view! {
@@ -563,6 +640,7 @@ pub(crate) fn PortfolioListItem(
                     new_asset_value={new_asset_value}
                     set_new_asset_value={set_new_asset_value}
                     on_add_asset={on_add_asset}
+                    child_depth={tint_index + 1}
                     />
                     </div>
                 }.into_any()

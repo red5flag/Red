@@ -101,9 +101,11 @@ impl CredentialStore {
         Self::default()
     }
 
-    /// Initialize an empty credential store (no default users).
+    /// Pre-seed with default Red/Red credential (validated)
     pub fn with_defaults() -> Self {
-        Self::new()
+        let mut store = Self::new();
+        store.add_user("Red", "Red", "Red", "red@farley.app", true, true, false, None);
+        store
     }
 
     /// Load credentials from localStorage (hydrate only), plain text for development

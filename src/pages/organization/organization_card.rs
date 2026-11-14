@@ -227,10 +227,10 @@ pub(crate) fn OrganizationCard(
                     {move || if is_editing {
                         view! {
                             <div class="asset-group-edit-form">
-                                <input class="pf-edit-input" placeholder="Organization name"
+                                <input class="pf-edit-input pf-edit-name-md" placeholder="Organization name"
                                     prop:value=move || edit_name.get()
                                     on:input=move |ev| set_edit_name.set(event_target_value(&ev)) />
-                                <input class="pf-edit-input" placeholder="Description"
+                                <input class="pf-edit-input pf-edit-desc" placeholder="Description"
                                     prop:value=move || edit_desc.get()
                                     on:input=move |ev| set_edit_desc.set(event_target_value(&ev)) />
                                 <div class="org-color-row">

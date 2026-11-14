@@ -261,6 +261,7 @@ impl SearchResultItem {
                 matches!(self, SearchResultItem::User(_))
             }
             TabType::Overview
+            | TabType::Marketplace
             | TabType::Reporting
             | TabType::Calendar
             | TabType::Transactions
@@ -934,6 +935,9 @@ impl SearchStore {
             }
             TabType::Organization => {
                 // Prioritize organizations and members
+            }
+            TabType::Marketplace => {
+                // Prioritize listed items
             }
             TabType::Reporting => {
                 // Prioritize documents, payslips, hours, deeds

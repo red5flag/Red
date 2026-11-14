@@ -39,6 +39,13 @@ pub struct Portfolio {
     pub emoji: Option<String>,
     #[serde(default)]
     pub secondary_organization_ids: Vec<Uuid>,
+    /// Manual ordering key used by SortMode::Relevance — lower sorts first.
+    #[serde(default)]
+    pub position: f64,
+    /// Free-form entity metadata — hosts the Red Marketplace listing
+    /// (`metadata["red_listing"]`) when this portfolio is listed for sale.
+    #[serde(default)]
+    pub metadata: serde_json::Value,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,6 +94,8 @@ impl Portfolio {
             image_url: None,
             emoji: None,
             secondary_organization_ids: Vec::new(),
+            position: 0.0,
+            metadata: serde_json::Value::Null,
         }
     }
 
@@ -178,6 +187,10 @@ pub struct AssetGroup {
     pub channel_ids: Vec<Uuid>,
     pub image_url: Option<String>,
     pub emoji: Option<String>,
+    /// Free-form entity metadata — hosts the Red Marketplace listing
+    /// (`metadata["red_listing"]`) when this group is listed for sale.
+    #[serde(default)]
+    pub metadata: serde_json::Value,
 }
 
 impl AssetGroup {
@@ -211,6 +224,7 @@ impl AssetGroup {
             channel_ids: Vec::new(),
             image_url: None,
             emoji: None,
+            metadata: serde_json::Value::Null,
         }
     }
 

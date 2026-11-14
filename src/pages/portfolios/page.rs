@@ -12,8 +12,9 @@ use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 use super::{
-    asset_placeholder_url, clamp_context_menu, detect_file_type, mobile_tab_gestures,
-    name_click_handlers, nav_tab_from_drag_event, read_image_as_data_url, set_drag_tab_data,
+    asset_placeholder_url, clear_pf_drag_kind, clamp_context_menu, detect_file_type,
+    mobile_tab_gestures, name_click_handlers, nav_tab_from_drag_event, pf_drop_target,
+    phantom_edit_scope, read_image_as_data_url, set_drag_tab_data, sort_portfolios_for_ui,
     AddPortfolioModal, AssetTarget, DocEntry, DocSlider, NavTab, NavTabKind, PortfolioListItem,
 };
 
@@ -83,42 +84,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     let sorted_portfolios = Memo::new_with_compare(
         move |_| {
             let ui = ui_store.get();
-            let sort = if ui.sort_ascending {
-                ui.reversed_sort_mode()
-            } else {
-                ui.portfolio_sort_mode.clone()
-            };
-            let mut items: Vec<_> = filtered_portfolios.get().into_iter().collect();
-            items.sort_by(|a, b| match sort {
-                SortMode::Recent => b.created_at.cmp(&a.created_at),
-                SortMode::Oldest => a.created_at.cmp(&b.created_at),
-                SortMode::HighestValue => b
-                    .total_value
-                    .partial_cmp(&a.total_value)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                SortMode::LowestValue => a
-                    .total_value
-                    .partial_cmp(&b.total_value)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                SortMode::HighestProfit => b
-                    .profit_loss
-                    .partial_cmp(&a.profit_loss)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                SortMode::LowestProfit => a
-                    .profit_loss
-                    .partial_cmp(&b.profit_loss)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                SortMode::HighestRevenue => b
-                    .revenue
-                    .partial_cmp(&a.revenue)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                SortMode::LowestRevenue => a
-                    .revenue
-                    .partial_cmp(&b.revenue)
-                    .unwrap_or(std::cmp::Ordering::Equal),
-                SortMode::ByOrganization => b.organization_id.cmp(&a.organization_id),
-            });
-            items
+            sort_portfolios_for_ui(filtered_portfolios.get(), &ui)
         },
         pf_list_changed,
     );
@@ -430,6 +396,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Modal signal for editing portfolio assets
     let (edit_portfolio_id, set_edit_portfolio_id) = signal(Option::<Uuid>::None);
     let (context_menu, set_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
+    let (add_type_menu, set_add_type_menu) = signal(Option::<(i32, i32)>::None);
     let (_org_context_menu, set_org_context_menu) = signal(Option::<(Uuid, i32, i32)>::None);
     let (pf_image_upload_target, set_pf_image_upload_target) = signal(Option::<Uuid>::None);
     let pf_image_input_ref = NodeRef::<leptos::html::Input>::new();
@@ -601,7 +568,7 @@ pub fn PortfoliosPage() -> impl IntoView {
             .find(|p| ids.contains(&p.id))
     };
 
-    let render_portfolio = move |portfolio: Portfolio| -> AnyView {
+    let render_portfolio = move |(tint_idx, portfolio): (usize, Portfolio)| -> AnyView {
         let portfolio_id = portfolio.id;
         let org_id = portfolio.organization_id;
         let is_expanded = Memo::new(move |_| selected_ids().contains(&portfolio_id));
@@ -610,6 +577,7 @@ pub fn PortfoliosPage() -> impl IntoView {
         view! {
             <PortfolioListItem
                 portfolio={portfolio}
+                tint_index={tint_idx}
                 can_edit={can}
                 can_edit_documents={can_docs}
                 expanded={is_expanded}
@@ -643,7 +611,9 @@ pub fn PortfoliosPage() -> impl IntoView {
     };
 
     view! {
-        <div class="home-screen home-screen-pf">
+        <div class="home-screen home-screen-pf"
+            on:dragend=move |_| clear_pf_drag_kind()
+        >
             // Portfolio controls bar (attached below navbar)
             <div class="portfolio-controls-bar"
                 on:dragover=move |ev: leptos::ev::DragEvent| {
@@ -686,6 +656,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                     aria-label="Sort portfolios"
                     prop:value={move || {
                         match ui_store.get().portfolio_sort_mode {
+                            SortMode::Relevance => "sort_relevance",
                             SortMode::Recent => "sort_recent",
                             SortMode::Oldest => "sort_oldest",
                             SortMode::HighestValue => "sort_highest_value",
@@ -700,6 +671,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                     on:change=move |ev| {
                         let v = event_target_value(&ev);
                         let mode = match v.as_str() {
+                            "sort_relevance" => SortMode::Relevance,
                             "sort_oldest" => SortMode::Oldest,
                             "sort_highest_value" => SortMode::HighestValue,
                             "sort_lowest_value" => SortMode::LowestValue,
@@ -708,11 +680,12 @@ pub fn PortfoliosPage() -> impl IntoView {
                             "sort_highest_revenue" => SortMode::HighestRevenue,
                             "sort_lowest_revenue" => SortMode::LowestRevenue,
                             "sort_by_organization" => SortMode::ByOrganization,
-                            _ => SortMode::Recent,
+                            _ => SortMode::Relevance,
                         };
                         ui_store.update(|s| s.portfolio_sort_mode = mode);
                     }
                 >
+                    <option value="sort_relevance">"Sort: Relevance"</option>
                     <option value="sort_recent">"Sort: Recent"</option>
                     <option value="sort_oldest">"Sort: Oldest"</option>
                     <option value="sort_highest_value">"Sort: High Val"</option>
@@ -1036,7 +1009,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                         <For
                             each=move || sorted_portfolios.get()
                             key=|portfolio| portfolio.id
-                            children=render_portfolio
+                            children=move |p| render_portfolio((0, p))
                         />
                     }.into_any()
                 } else {
@@ -1047,6 +1020,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                             children=move |group: PortfolioGroup| {
                                 let PortfolioGroup { organization, portfolios, .. } = group;
                                 if let Some(org) = organization {
+                                    let indexed_portfolios: Vec<(usize, Portfolio)> =
+                                        portfolios.iter().cloned().enumerate().collect();
                                     let org_id = org.id;
                                     let org_name = org.name.clone();
                                     let org_name_for_info = org_name.clone();
@@ -1145,6 +1120,24 @@ pub fn PortfoliosPage() -> impl IntoView {
                                         set_is_editing_org_name.set(false);
                                         set_is_editing_org_desc.set(false);
                                     };
+                                    // Phantom-click dismissal for the org name/desc
+                                    // inline editors.
+                                    let org_scope_token: &'static str =
+                                        Box::leak(format!("org-{}", org_id).into_boxed_str());
+                                    {
+                                        let save = save_org_edit;
+                                        let alive = phantom_edit_scope(
+                                            org_scope_token.to_string(),
+                                            move || {
+                                                is_editing_org_name.get_untracked()
+                                                    || is_editing_org_desc.get_untracked()
+                                            },
+                                            move || save(),
+                                        );
+                                        on_cleanup(move || {
+                                            alive.store(false, std::sync::atomic::Ordering::Relaxed)
+                                        });
+                                    }
                                     let toggle_org = move || {
                                         set_expanded_orgs.update(|s| {
                                             if s.contains(&org_id) {
@@ -1172,9 +1165,32 @@ pub fn PortfoliosPage() -> impl IntoView {
                                         move |_x, _y| {},
                                         move || {},
                                     );
+                                    // Drop target: portfolios/groups/assets into this org
+                                    let (org_drop_hover, set_org_drop_hover) = signal(false);
+                                    let (org_d_over, org_d_leave, org_d_drop) = pf_drop_target(
+                                        set_org_drop_hover,
+                                        |k| matches!(k, NavTabKind::Portfolio | NavTabKind::AssetGroup | NavTabKind::Asset),
+                                        move |tab, _rel_y| match tab.kind {
+                                            NavTabKind::Portfolio => {
+                                                app_store.update(|s| s.set_portfolio_organization(tab.id, Some(org_id)));
+                                            }
+                                            NavTabKind::AssetGroup => {
+                                                app_store.update(|s| s.set_asset_group_organization(tab.id, Some(org_id)));
+                                            }
+                                            NavTabKind::Asset => {
+                                                app_store.update(|s| s.set_asset_organization(tab.id, Some(org_id)));
+                                            }
+                                            _ => {}
+                                        },
+                                    );
                                     view! {
                                         <div class="pf-org-group" id={format!("org-group-{}", org_id)} class:expanded={move || is_expanded()}
+                                            class:drop-hover={move || org_drop_hover.get()}
                                             draggable="true"
+                                            on:dragover=org_d_over
+                                            on:dragleave=org_d_leave
+                                            on:drop=org_d_drop
+                                            on:dragend=move |_| clear_pf_drag_kind()
                                             on:dragstart=move |ev: leptos::ev::DragEvent| {
                                                 set_drag_tab_data(&ev, &NavTabKind::Organization, org_id, &org_name);
                                             }
@@ -1237,7 +1253,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                         let mut parts: Vec<leptos::prelude::AnyView> = Vec::new();
                                                         if is_editing_org_name.get() && can_edit_org() {
                                                             parts.push(view! {
-                                                                <input class="pf-edit-input" placeholder="Organization name"
+                                                                <input class="pf-edit-input pf-edit-name-md" placeholder="Organization name"
+                                                                    attr:data-pf-edit-scope=org_scope_token
                                                                     prop:value=move || edit_org_name.get()
                                                                     on:input=move |ev| set_edit_org_name.set(event_target_value(&ev))
                                                                     on:blur=move |_| save_org_edit()
@@ -1254,7 +1271,8 @@ pub fn PortfoliosPage() -> impl IntoView {
                                                         }
                                                         if is_editing_org_desc.get() && can_edit_org() {
                                                             parts.push(view! {
-                                                                <input class="pf-edit-input" placeholder="Description"
+                                                                <input class="pf-edit-input pf-edit-desc" placeholder="Description"
+                                                                    attr:data-pf-edit-scope=org_scope_token
                                                                     prop:value=move || edit_org_desc.get()
                                                                     on:input=move |ev| set_edit_org_desc.set(event_target_value(&ev))
                                                                     on:blur=move |_| save_org_edit()
@@ -1312,15 +1330,15 @@ pub fn PortfoliosPage() -> impl IntoView {
 
                                             <div class="pf-org-group-content" class:hidden={move || !is_expanded()}>
                                                 <For
-                                                    each=move || portfolios.clone()
-                                                    key=|p| p.id
-                                                    children=render_portfolio
+                                                    each=move || indexed_portfolios.clone()
+                                                    key=|item| item.1.id
+                                                    children=move |(idx, p)| render_portfolio((idx + 1, p))
                                                 />
                                             </div>
                                         </div>
                                     }.into_any()
                                 } else if let Some(p) = portfolios.into_iter().next() {
-                                    render_portfolio(p)
+                                    render_portfolio((0, p))
                                 } else {
                                     ().into_any()
                                 }
@@ -1328,20 +1346,44 @@ pub fn PortfoliosPage() -> impl IntoView {
                         />
                     }.into_any()
                 }}
-                    <button
-                        class="pf-empty-outline org-empty-outline"
-                        type="button"
-                        aria-label="Add a new portfolio"
-                        on:click=move |_| ui_store.update(|s| s.show_add_portfolio = !s.show_add_portfolio)
-                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
-                            ev.prevent_default();
-                            ev.stop_propagation();
-                            ui_store.update(|s| s.show_add_portfolio = true);
-                        }
-                    >
-                        <span class="org-empty-outline-icon">"+"</span>
-                        <span class="org-empty-outline-text">"Add Portfolio"</span>
-                    </button>
+                    <div class="add-type-dropdown">
+                        <button
+                            class="pf-empty-outline org-empty-outline"
+                            type="button"
+                            aria-label="Add a new item"
+                            aria-expanded={move || add_type_menu.get().is_some().to_string()}
+                            on:click=move |ev: leptos::ev::MouseEvent| {
+                                ev.stop_propagation();
+                                set_add_type_menu.update(|v| *v = if v.is_some() { None } else { Some((0, 0)) });
+                            }
+                        >
+                            <span class="org-empty-outline-icon">"+"</span>
+                            <span class="org-empty-outline-text">"Add ▾"</span>
+                        </button>
+                        {move || add_type_menu.get().map(|_| view! {
+                            <div class="context-menu-overlay" on:click=move |_| set_add_type_menu.set(None)></div>
+                            <div class="add-type-menu" role="menu">
+                                <button class="add-type-item" role="menuitem"
+                                    on:click=move |_| {
+                                        set_add_type_menu.set(None);
+                                        ui_store.update(|s| s.show_add_portfolio = true);
+                                    }
+                                >"📁 Portfolio"</button>
+                                <button class="add-type-item" role="menuitem"
+                                    on:click=move |_| {
+                                        set_add_type_menu.set(None);
+                                        ui_store.update(|s| s.show_top_add_group = true);
+                                    }
+                                >"📂 Asset Group"</button>
+                                <button class="add-type-item" role="menuitem"
+                                    on:click=move |_| {
+                                        set_add_type_menu.set(None);
+                                        ui_store.update(|s| s.show_top_add_asset = true);
+                                    }
+                                >"📦 Asset"</button>
+                            </div>
+                        }.into_any())}
+                    </div>
                     {move || ui_store.get().show_add_portfolio.then(|| view! {
                         <AddPortfolioModal />
                     })}
@@ -1354,6 +1396,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                 let pid_role = pid;
                 let pid_org = pid;
                 let pid_remove = pid;
+                let pid_assign = pid;
                 let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
                 let pf_name = app_store.get().portfolios.iter().find(|p| p.id == pid).map(|p| p.name.clone()).unwrap_or_default();
                 let open_name = pf_name.clone();
@@ -1449,6 +1492,15 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 class="context-menu-item"
                                 on:click=move |_| {
                                     set_context_menu.set(None);
+                                    ui_store.update(|s| s.toggle_assignment_panel(pid_assign));
+                                }
+                            >
+                                "👥 Assign Users"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
                                     app_store.with(|s| {
                                         if let Some(p) = s.get_portfolio(pid_org) {
                                             set_pf_org_parent_id.set(p.organization_id.map(|id| id.to_string()).unwrap_or_default());
@@ -1459,6 +1511,15 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 }
                             >
                                 "🏢 Add to Organization"
+                            </button>
+                            <button
+                                class="context-menu-item"
+                                on:click=move |_| {
+                                    set_context_menu.set(None);
+                                    ui_store.update(|s| s.toggle_red_listing_panel(pid_org));
+                                }
+                            >
+                                "🛒 List on Red Marketplace"
                             </button>
                             <button
                                 class="context-menu-item"

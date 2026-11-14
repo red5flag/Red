@@ -842,6 +842,12 @@ pub fn OverviewPage() -> impl IntoView {
                     crate::models::ChannelType::Expedia => "Expedia",
                     crate::models::ChannelType::Vrbo => "Vrbo",
                     crate::models::ChannelType::LinkedIn => "LinkedIn",
+                    crate::models::ChannelType::EBay => "eBay",
+                    crate::models::ChannelType::Gumtree => "Gumtree",
+                    crate::models::ChannelType::FacebookMarketplace => "Facebook Marketplace",
+                    crate::models::ChannelType::Amazon => "Amazon",
+                    crate::models::ChannelType::Etsy => "Etsy",
+                    crate::models::ChannelType::Kogan => "Kogan",
                     crate::models::ChannelType::Test => "Test",
                     crate::models::ChannelType::Other(s) => s.as_str(),
                 };

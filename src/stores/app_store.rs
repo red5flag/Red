@@ -374,6 +374,16 @@ impl AppStore {
         PortfolioStore::set_portfolio_organization(&mut self.portfolios, portfolio_id, org_id);
     }
 
+    /// Rewrite every portfolio's `position` to match `ordered_ids` (Relevance
+    /// sort key). Ids not present keep their existing position.
+    pub fn reorder_portfolios(&mut self, ordered_ids: &[Uuid]) {
+        for (idx, pid) in ordered_ids.iter().enumerate() {
+            if let Some(p) = self.portfolios.iter_mut().find(|p| p.id == *pid) {
+                p.position = idx as f64;
+            }
+        }
+    }
+
     pub fn add_portfolio_secondary_org(&mut self, portfolio_id: Uuid, org_id: Uuid) {
         PortfolioStore::add_portfolio_secondary_org(&mut self.portfolios, portfolio_id, org_id);
     }
@@ -1324,6 +1334,7 @@ impl AppStore {
                     "Portfolios".to_string()
                 }
                 TabType::Networking => "Networking".to_string(),
+                TabType::Marketplace => "Marketplace".to_string(),
                 TabType::NetworkingAddMember => "Add Team".to_string(),
                 TabType::Organization => "Organization".to_string(),
                 TabType::Reporting => "Reporting".to_string(),

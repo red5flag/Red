@@ -323,6 +323,18 @@ pub(crate) fn nav_tab_drag_payload(kind: &NavTabKind, id: Uuid, name: &str) -> S
     .to_string()
 }
 
+/// Temporary diagnostics for drag-and-drop debugging (remove later).
+#[cfg(target_arch = "wasm32")]
+fn pf_console_log(msg: &str) {
+    web_sys::console::log_1(&wasm_bindgen::JsValue::from(msg));
+}
+#[cfg(not(target_arch = "wasm32"))]
+fn pf_console_log(_msg: &str) {}
+
+thread_local! {
+    static PF_OVER_LOGS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
 /// Attach nav tab drag data to a DragEvent.
 pub(crate) fn set_drag_tab_data(
     ev: &leptos::ev::DragEvent,
@@ -330,13 +342,19 @@ pub(crate) fn set_drag_tab_data(
     id: Uuid,
     name: &str,
 ) {
+    pf_console_log(&format!("PF dragstart: {} {}", kind.as_str(), id));
+    PF_OVER_LOGS.with(|c| c.set(0));
     if let Some(dt) = ev.data_transfer() {
         let payload = nav_tab_drag_payload(kind, id, name);
         let _ = dt.set_data("text/plain", &payload);
-        let _ = dt.set_effect_allowed("copy");
+        let _ = dt.set_effect_allowed("all");
+        set_pf_drag_kind(*kind);
+        pf_console_log("PF dragstart: dataTransfer OK");
         #[cfg(target_arch = "wasm32")]
         set_tab_drag_image(ev, kind);
         leptos::logging::log!("set_drag_tab_data: {} {}", kind.as_str(), payload);
+    } else {
+        pf_console_log("PF dragstart: dataTransfer is NONE!");
     }
 }
 
@@ -347,7 +365,8 @@ fn set_tab_drag_image(ev: &leptos::ev::DragEvent, kind: &NavTabKind) {
     use web_sys::{Document, HtmlElement};
 
     thread_local! {
-        static DRAG_IMAGE: RefCell<Option<HtmlElement>> = RefCell::new(None);
+        static ROW_DRAG_IMAGE: RefCell<Option<HtmlElement>> = RefCell::new(None);
+        static ICON_DRAG_IMAGE: RefCell<Option<HtmlElement>> = RefCell::new(None);
     }
 
     let dt = match ev.unchecked_ref::<web_sys::DragEvent>().data_transfer() {
@@ -355,32 +374,100 @@ fn set_tab_drag_image(ev: &leptos::ev::DragEvent, kind: &NavTabKind) {
         None => return,
     };
 
-    let img = DRAG_IMAGE.with(|cell| -> Option<HtmlElement> {
-        let mut cell = cell.borrow_mut();
-        if let Some(el) = cell.as_ref() {
-            el.set_inner_html(&format!("<span>{}</span>", kind.icon()));
-            return Some(el.clone());
-        }
+    let doc: Document = leptos::prelude::document();
+    let wev = ev.unchecked_ref::<web_sys::DragEvent>();
 
-        let doc: Document = leptos::prelude::document();
-        let el: HtmlElement = doc
-            .create_element("div")
-            .ok()?
-            .dyn_into::<HtmlElement>()
-            .ok()?;
-        el.set_class_name("pf-nav-tab-drag-image");
-        el.style().set_css_text(
-            "position:fixed;left:-1000px;top:-1000px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:var(--secondary-bg);border:2px solid var(--border-color);border-radius:0;color:var(--text-primary);font-size:24px;pointer-events:none;z-index:-1;"
+    // Clone the entire dragged row so the drag ghost shows the full tab —
+    // header, summary and any expanded children — not just a bare icon.
+    let row_img = (|| -> Option<HtmlElement> {
+        let src = wev.target()?.dyn_into::<HtmlElement>().ok()?;
+        let clone = src.clone_node_with_deep(true).ok()?.dyn_into::<HtmlElement>().ok()?;
+        let w = src.offset_width();
+        let h = src.offset_height();
+        if w > 0 {
+            clone.style().set_property("width", &format!("{}px", w)).ok()?;
+        }
+        if h > 0 {
+            clone.style().set_property("height", &format!("{}px", h)).ok()?;
+        }
+        clone.style().set_css_text(
+            "position:fixed;left:-10000px;top:-10000px;margin:0;pointer-events:none;z-index:-1;overflow:visible;",
         );
-        el.set_inner_html(&format!("<span>{}</span>", kind.icon()));
-        doc.body().and_then(|b| b.append_child(el.as_ref()).ok());
-        let cloned = el.clone();
-        *cell = Some(el);
-        Some(cloned)
+        // Strip ids so the offscreen clone can't collide with the live row.
+        if let Ok(list) = clone.query_selector_all("[id]") {
+            for i in 0..list.length() {
+                if let Some(el) = list
+                    .item(i)
+                    .and_then(|n| n.dyn_into::<web_sys::Element>().ok())
+                {
+                    let _ = el.remove_attribute("id");
+                }
+            }
+        }
+        doc.body()?.append_child(clone.as_ref()).ok()?;
+        Some(clone)
+    })();
+
+    let (img, gx, gy, is_row_clone) = if let Some(clone) = row_img {
+        // Grab point = cursor offset inside the source row, clamped to bounds.
+        let rect = wev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .map(|el| el.get_bounding_client_rect());
+        let (gx, gy) = rect
+            .map(|r| {
+                (
+                    (wev.client_x() as f64 - r.left()).round().max(0.0) as i32,
+                    (wev.client_y() as f64 - r.top()).round().max(0.0) as i32,
+                )
+            })
+            .unwrap_or((24, 24));
+        (Some(clone), gx, gy, true)
+    } else {
+        // Fallback: bare icon tile if the row couldn't be cloned.
+        let icon = ICON_DRAG_IMAGE.with(|cell| -> Option<HtmlElement> {
+            let mut cell = cell.borrow_mut();
+            if let Some(el) = cell.as_ref() {
+                el.set_inner_html(&format!("<span>{}</span>", kind.icon()));
+                return Some(el.clone());
+            }
+
+            let el: HtmlElement = doc
+                .create_element("div")
+                .ok()?
+                .dyn_into::<HtmlElement>()
+                .ok()?;
+            el.set_class_name("pf-nav-tab-drag-image");
+            el.style().set_css_text(
+                "position:fixed;left:-1000px;top:-1000px;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:var(--secondary-bg);border:2px solid var(--border-color);border-radius:0;color:var(--text-primary);font-size:24px;pointer-events:none;z-index:-1;"
+            );
+            el.set_inner_html(&format!("<span>{}</span>", kind.icon()));
+            doc.body().and_then(|b| b.append_child(el.as_ref()).ok());
+            let cloned = el.clone();
+            *cell = Some(el);
+            Some(cloned)
+        });
+        (icon, 24, 24, false)
+    };
+
+    // Keep only the latest row-clone ghost; drop the previous one. The icon
+    // fallback element is persistent and intentionally left in place.
+    ROW_DRAG_IMAGE.with(|cell| {
+        let mut cell = cell.borrow_mut();
+        if let Some(prev) = cell.take() {
+            if let Some(p) = prev.parent_node() {
+                let _ = p.remove_child(prev.as_ref());
+            }
+        }
+        if is_row_clone {
+            if let Some(img) = &img {
+                *cell = Some(img.clone());
+            }
+        }
     });
 
     if let Some(img) = img {
-        let _ = dt.set_drag_image(img.as_ref(), 24, 24);
+        let _ = dt.set_drag_image(img.as_ref(), gx, gy);
     }
 }
 
@@ -559,12 +646,15 @@ mod doc_modal;
 mod doc_slider;
 mod page;
 mod portfolio_list;
+mod red_listing;
 
 pub(crate) use add_portfolio_modal::AddPortfolioModal;
 pub(crate) use asset_channels::{
-    AddChannelModal, AssetBookingControls, AssetChannelsSection, AssetLinkingControls,
-    ChannelManagementWindow,
+    csv_to_list, marketplace_display_label, AddChannelModal, AssetBookingControls,
+    AssetChannelsSection, AssetLinkingControls, AssetMarketplaceControls, ChannelManagementWindow,
+    MarketplaceListing, SalesProfile,
 };
+pub(crate) use red_listing::{collect_red_listings, RedBrowseItem, RedEntityKind, RedListingPanel};
 pub(crate) use asset_editor::AssetDetailView;
 pub(crate) use asset_group::AssetGroupItem;
 pub(crate) use asset_item::{asset_placeholder_url, AssetItem};
@@ -575,3 +665,280 @@ pub(crate) use doc_slider::DocSlider;
 pub(crate) use portfolio_list::PortfolioListItem;
 
 pub use page::PortfoliosPage;
+
+// ---------------------------------------------------------------------------
+// Hierarchy drag-and-drop: track the dragged entity kind (dataTransfer payloads
+// aren't readable during dragover) and build drop-target handlers.
+// ---------------------------------------------------------------------------
+
+thread_local! {
+    static PF_DRAG_KIND: std::cell::RefCell<Option<NavTabKind>> = const { std::cell::RefCell::new(None) };
+    static PF_DROP_HOVERS: std::cell::RefCell<Vec<WriteSignal<bool>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+pub(crate) fn set_pf_drag_kind(kind: NavTabKind) {
+    PF_DRAG_KIND.with(|c| *c.borrow_mut() = Some(kind));
+}
+
+/// Clear the drag-kind tracker and every registered drop-target highlight.
+pub(crate) fn clear_pf_drag_kind() {
+    PF_DRAG_KIND.with(|c| *c.borrow_mut() = None);
+    PF_DROP_HOVERS.with(|c| {
+        for h in c.borrow().iter() {
+            h.set(false);
+        }
+    });
+}
+
+fn clear_pf_drop_hovers() {
+    PF_DROP_HOVERS.with(|c| {
+        for h in c.borrow().iter() {
+            h.set(false);
+        }
+    });
+}
+
+pub(crate) fn pf_drag_kind() -> Option<NavTabKind> {
+    PF_DRAG_KIND.with(|c| *c.borrow())
+}
+
+/// Build (dragover, dragleave, drop) handlers for a drop target.
+/// `accept_kind` decides which dragged entity kinds may be dropped here
+/// (checked during dragover for highlight + dragenter gating);
+/// `on_drop` receives the full NavTab plus the drop point as a fraction of
+/// the target's height (0.0 = top edge, 1.0 = bottom edge) so callers can
+/// distinguish "insert before" from "insert after".
+pub(crate) fn pf_drop_target(
+    set_hover: WriteSignal<bool>,
+    accept_kind: impl Fn(NavTabKind) -> bool + Clone + 'static,
+    on_drop: impl Fn(NavTab, f64) + 'static,
+) -> (
+    impl Fn(leptos::ev::DragEvent) + 'static,
+    impl Fn(leptos::ev::DragEvent) + 'static,
+    impl Fn(leptos::ev::DragEvent) + 'static,
+) {
+    let accept_kind_drop = accept_kind.clone();
+    #[cfg(target_arch = "wasm32")]
+    PF_DROP_HOVERS.with(|c| c.borrow_mut().push(set_hover));
+    let over = move |ev: leptos::ev::DragEvent| {
+        let kind_now = pf_drag_kind();
+        let ok = kind_now.map(|k| accept_kind(k)).unwrap_or(false);
+        if ok {
+            PF_OVER_LOGS.with(|c| {
+                if c.get() < 5 {
+                    c.set(c.get() + 1);
+                    pf_console_log(&format!(
+                        "PF over accept: kind={:?}",
+                        kind_now.map(|k| k.as_str())
+                    ));
+                }
+            });
+            ev.prevent_default();
+            if let Some(dt) = ev.data_transfer() {
+                let _ = dt.set_drop_effect("move");
+            }
+            // Only the innermost accepting target stays highlighted:
+            // dragover bubbles child→parent, so the first handler to accept
+            // clears every other highlight, then stops the event.
+            clear_pf_drop_hovers();
+            set_hover.set(true);
+            ev.stop_propagation();
+        } else {
+            set_hover.set(false);
+        }
+    };
+    let leave = move |_ev: leptos::ev::DragEvent| {
+        set_hover.set(false);
+    };
+    let drop = move |ev: leptos::ev::DragEvent| {
+        set_hover.set(false);
+        ev.stop_propagation();
+        pf_console_log("PF drop fired");
+        // Drop point as a fraction of the target's height for before/after
+        // decisions (e.g. reorder vs. nest).
+        let rel_y = {
+            #[cfg(target_arch = "wasm32")]
+            {
+                let wev = ev.unchecked_ref::<web_sys::DragEvent>();
+                wev.current_target()
+                    .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                    .map(|el| {
+                        let r = el.get_bounding_client_rect();
+                        let h = r.height();
+                        if h > 0.0 {
+                            ((wev.client_y() as f64 - r.top()) / h).clamp(0.0, 1.0)
+                        } else {
+                            0.5
+                        }
+                    })
+                    .unwrap_or(0.5)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                0.5
+            }
+        };
+        match nav_tab_from_drag_event(&ev) {
+            Some(tab) => {
+                pf_console_log(&format!("PF drop parsed: {} {}", tab.kind.as_str(), tab.id));
+                if accept_kind_drop(tab.kind) {
+                    on_drop(tab, rel_y);
+                } else {
+                    pf_console_log("PF drop: kind not accepted here");
+                }
+            }
+            None => pf_console_log("PF drop: payload parse FAILED"),
+        }
+        clear_pf_drag_kind();
+    };
+    (over, leave, drop)
+}
+
+/// Order portfolios exactly as the Portfolios page displays them for the
+/// active sort mode — shared by the page's sorted memo and by drag-reorder,
+/// which inserts the dragged portfolio relative to the target in this order.
+pub(crate) fn sort_portfolios_for_ui(
+    mut items: Vec<crate::models::Portfolio>,
+    ui: &crate::stores::ui_store::UiStore,
+) -> Vec<crate::models::Portfolio> {
+    use crate::types::SortMode;
+    let sort = if ui.sort_ascending {
+        ui.reversed_sort_mode()
+    } else {
+        ui.portfolio_sort_mode.clone()
+    };
+    items.sort_by(|a, b| match sort {
+        SortMode::Relevance => a
+            .position
+            .partial_cmp(&b.position)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(b.created_at.cmp(&a.created_at)),
+        SortMode::Recent => b.created_at.cmp(&a.created_at),
+        SortMode::Oldest => a.created_at.cmp(&b.created_at),
+        SortMode::HighestValue => b
+            .total_value
+            .partial_cmp(&a.total_value)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        SortMode::LowestValue => a
+            .total_value
+            .partial_cmp(&b.total_value)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        SortMode::HighestProfit => b
+            .profit_loss
+            .partial_cmp(&a.profit_loss)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        SortMode::LowestProfit => a
+            .profit_loss
+            .partial_cmp(&b.profit_loss)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        SortMode::HighestRevenue => b
+            .revenue
+            .partial_cmp(&a.revenue)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        SortMode::LowestRevenue => a
+            .revenue
+            .partial_cmp(&b.revenue)
+            .unwrap_or(std::cmp::Ordering::Equal),
+        SortMode::ByOrganization => b.organization_id.cmp(&a.organization_id),
+    });
+    items
+}
+
+// ---------------------------------------------------------------------------
+// Phantom-click dismissal for inline editors: a single capture-phase window
+// "click" listener consumes presses that land outside an editor's scope
+// element (marked with data-pf-edit-scope="{token}") and runs the editor's
+// dismiss callback — the press acts as a phantom tap and never activates
+// the element underneath, same behaviour as the Add-type overlay.
+// ---------------------------------------------------------------------------
+
+struct PfEditScope {
+    token: String,
+    alive: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    is_active: Box<dyn Fn() -> bool>,
+    dismiss: Box<dyn FnMut()>,
+}
+
+thread_local! {
+    static PF_EDIT_SCOPES: std::cell::RefCell<Vec<PfEditScope>> = const { std::cell::RefCell::new(Vec::new()) };
+    static PF_EDIT_LISTENER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Register an inline-editor scope. `token` must match the
+/// `data-pf-edit-scope` attribute on the editor's root element;
+/// `is_active` reports whether the editor is currently open;
+/// `dismiss` closes it (saves are normally already handled by the inputs'
+/// blur/change handlers before the click lands). Returns an
+/// `Arc<AtomicBool>` — set it false in `on_cleanup` when the component
+/// unmounts so the registry entry is purged.
+pub(crate) fn phantom_edit_scope(
+    token: String,
+    is_active: impl Fn() -> bool + 'static,
+    dismiss: impl FnMut() + 'static,
+) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    let alive = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    PF_EDIT_SCOPES.with(|v| {
+        v.borrow_mut().push(PfEditScope {
+            token,
+            alive: alive.clone(),
+            is_active: Box::new(is_active),
+            dismiss: Box::new(dismiss),
+        });
+    });
+    PF_EDIT_LISTENER.with(|installed| {
+        if installed.replace(true) {
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(w) = web_sys::window() {
+            let cb = wasm_bindgen::closure::Closure::wrap(Box::new(|ev: web_sys::Event| {
+                PF_EDIT_SCOPES.with(|scopes| {
+                    let target = ev.target();
+                    let mut hit = false;
+                    {
+                        let mut v = scopes.borrow_mut();
+                        v.retain(|s| s.alive.load(std::sync::atomic::Ordering::Relaxed));
+                        for s in v.iter_mut() {
+                            if !(s.is_active)() {
+                                continue;
+                            }
+                            let inside = target
+                                .as_ref()
+                                .and_then(|t| t.clone().dyn_into::<web_sys::Element>().ok())
+                                .and_then(|el| {
+                                    el.closest("[data-pf-edit-scope]")
+                                        .ok()
+                                        .flatten()
+                                        .and_then(|scope| {
+                                            scope
+                                                .get_attribute("data-pf-edit-scope")
+                                                .map(|t| t == s.token)
+                                        })
+                                })
+                                .unwrap_or(false);
+                            if !inside {
+                                hit = true;
+                                (s.dismiss)();
+                                // Keep the scope registered: `is_active` gates
+                                // it, so once the editor closes later clicks
+                                // pass through — and the next edit session is
+                                // still protected.
+                            }
+                        }
+                    }
+                    if hit {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                    }
+                });
+            }) as Box<dyn FnMut(web_sys::Event)>);
+            let _ = w.add_event_listener_with_callback_and_bool(
+                "click",
+                cb.as_ref().unchecked_ref(),
+                true,
+            );
+            cb.forget();
+        }
+    });
+    alive
+}
