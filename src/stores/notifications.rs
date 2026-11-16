@@ -17,6 +17,9 @@ pub struct Notification {
     pub linked_portfolio_id: Option<Uuid>,
     pub linked_group_id: Option<Uuid>,
     pub linked_asset_id: Option<Uuid>,
+    /// Entity id of a marketplace listing (asset/group/portfolio) this
+    /// notification points at — opens the listing detail on click.
+    pub linked_marketplace_entity: Option<Uuid>,
     /// Preview content shown when the notification is clicked (e.g. notes from document update).
     pub content_preview: Option<String>,
     /// Users tagged via @username in the notes — each gets a separate notification.
@@ -177,6 +180,7 @@ impl NotificationStore {
             linked_portfolio_id: None,
             linked_group_id: None,
             linked_asset_id: None,
+            linked_marketplace_entity: None,
             content_preview: None,
             tagged_user_ids: Vec::new(),
         });
@@ -184,6 +188,63 @@ impl NotificationStore {
         // Keep only last 50 notifications
         if self.notifications.len() > 50 {
             self.notifications.remove(0);
+        }
+    }
+
+    /// Notify the listing owner about marketplace activity — bids,
+    /// purchases, or interest messages. Clicking opens the listing in
+    /// the Marketplace tab via `linked_marketplace_entity`.
+    pub fn add_marketplace_event_notification(
+        &mut self,
+        entity_id: Uuid,
+        listing_title: &str,
+        actor_name: &str,
+        event_text: &str,
+    ) {
+        self.notifications.push(Notification {
+            id: Uuid::new_v4(),
+            message: format!(
+                "{} {} on \"{}\"",
+                actor_name, event_text, listing_title
+            ),
+            notification_type: NotificationType::Info,
+            timestamp: Utc::now(),
+            target_tab: Some(TabType::Marketplace),
+            from_user: Some(actor_name.to_string()),
+            linked_doc_id: None,
+            linked_portfolio_id: None,
+            linked_group_id: None,
+            linked_asset_id: None,
+            linked_marketplace_entity: Some(entity_id),
+            content_preview: Some(event_text.to_string()),
+            tagged_user_ids: Vec::new(),
+        });
+
+        // Keep only last 50 notifications
+        if self.notifications.len() > 50 {
+            self.notifications.remove(0);
+        }
+    }
+
+    /// Notify the listing owner that someone commented on their
+    /// marketplace listing. Clicking opens the listing in the
+    /// Marketplace tab via `linked_marketplace_entity`.
+    pub fn add_marketplace_comment_notification(
+        &mut self,
+        entity_id: Uuid,
+        listing_title: &str,
+        author_name: &str,
+        text_preview: &str,
+    ) {
+        let preview: String = text_preview.chars().take(80).collect();
+        self.add_marketplace_event_notification(
+            entity_id,
+            listing_title,
+            author_name,
+            &format!("commented: {}", preview),
+        );
+        if let Some(n) = self.notifications.last_mut() {
+            n.content_preview = Some(preview);
         }
     }
 
@@ -216,6 +277,7 @@ impl NotificationStore {
                 linked_portfolio_id: portfolio_id,
                 linked_group_id: group_id,
                 linked_asset_id: asset_id,
+                linked_marketplace_entity: None,
                 content_preview: None,
                 tagged_user_ids: Vec::new(),
             });
@@ -232,6 +294,7 @@ impl NotificationStore {
             linked_portfolio_id: portfolio_id,
             linked_group_id: group_id,
             linked_asset_id: asset_id,
+            linked_marketplace_entity: None,
             content_preview: None,
             tagged_user_ids: Vec::new(),
         });
@@ -309,6 +372,7 @@ impl NotificationStore {
             linked_portfolio_id: portfolio_id,
             linked_group_id: group_id,
             linked_asset_id: asset_id,
+            linked_marketplace_entity: None,
             content_preview: preview.clone(),
             tagged_user_ids: tagged_ids.clone(),
         });
@@ -330,6 +394,7 @@ impl NotificationStore {
                 linked_portfolio_id: portfolio_id,
                 linked_group_id: group_id,
                 linked_asset_id: asset_id,
+                linked_marketplace_entity: None,
                 content_preview: preview.clone(),
                 tagged_user_ids: vec![*uid],
             });

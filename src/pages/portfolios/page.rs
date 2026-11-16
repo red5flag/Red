@@ -41,7 +41,29 @@ fn pf_list_changed(old: Option<&Vec<Portfolio>>, new: Option<&Vec<Portfolio>>) -
     if old.len() != new.len() {
         return true;
     }
-    old.iter().zip(new.iter()).any(|(a, b)| a.id != b.id)
+    // Compare structure + cheap content signals, not just ids — pushing
+    // an asset/group/doc into an existing portfolio changes no ids, and
+    // without this the memo would keep serving the stale clone.
+    old.iter().zip(new.iter()).any(|(a, b)| {
+        a.id != b.id
+            || a.name != b.name
+            || a.position != b.position
+            || a.organization_id != b.organization_id
+            || a.assets.len() != b.assets.len()
+            || a.asset_groups.len() != b.asset_groups.len()
+            || a.documents.len() != b.documents.len()
+            || a.total_value.to_bits() != b.total_value.to_bits()
+            || a.purchase_value.to_bits() != b.purchase_value.to_bits()
+            || a.asset_groups
+                .iter()
+                .zip(b.asset_groups.iter())
+                .any(|(ga, gb)| {
+                    ga.id != gb.id
+                        || ga.name != gb.name
+                        || ga.assets.len() != gb.assets.len()
+                        || ga.documents.len() != gb.documents.len()
+                })
+    })
 }
 
 #[component]
@@ -54,43 +76,42 @@ pub fn PortfoliosPage() -> impl IntoView {
     // Read portfolios from AppStore and filter by current user visibility
     let filtered_portfolios = Memo::new_with_compare(
         move |_| {
-            let user = app_store.get().current_user.clone();
-            let can_view_all = user.can_view_all();
-            let user_id = user.id;
-            app_store
-                .get()
-                .portfolios
-                .iter()
-                .filter(|p| {
-                    p.organization_id.map_or(true, |oid| {
-                        organization_store
-                            .get()
-                            .can_view_org_content(oid, user_id, can_view_all)
-                    }) && (p.is_visible_to(user_id, can_view_all)
-                        || p.organization_id.map_or(can_view_all, |oid| {
-                            organization_store.get().user_has_perm_in_org(
-                                oid,
-                                user_id,
-                                &Perm::ViewPortfolios,
-                            )
-                        }))
+            app_store.with(|app| {
+                organization_store.with(|orgs| {
+                    let user = app.current_user.clone();
+                    let can_view_all = user.can_view_all();
+                    let user_id = user.id;
+                    app.portfolios
+                        .iter()
+                        .filter(|p| {
+                            p.organization_id.map_or(true, |oid| {
+                                orgs.can_view_org_content(oid, user_id, can_view_all)
+                            }) && (p.is_visible_to(user_id, can_view_all)
+                                || p.organization_id.map_or(can_view_all, |oid| {
+                                    orgs.user_has_perm_in_org(
+                                        oid,
+                                        user_id,
+                                        &Perm::ViewPortfolios,
+                                    )
+                                }))
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>()
                 })
-                .cloned()
-                .collect::<Vec<_>>()
+            })
         },
         pf_list_changed,
     );
 
     let sorted_portfolios = Memo::new_with_compare(
         move |_| {
-            let ui = ui_store.get();
-            sort_portfolios_for_ui(filtered_portfolios.get(), &ui)
+            ui_store.with(|ui| sort_portfolios_for_ui(filtered_portfolios.get(), ui))
         },
         pf_list_changed,
     );
 
-    let view_mode = Memo::new(move |_| ui_store.get().portfolio_view_mode.clone());
-    let selected_ids = move || app_store.get().selected_portfolio_ids;
+    let view_mode = Memo::new(move |_| ui_store.with(|s| s.portfolio_view_mode.clone()));
+    let selected_ids = move || app_store.with(|s| s.selected_portfolio_ids.clone());
     let (expanded_orgs, set_expanded_orgs) = signal(HashSet::<Uuid>::new());
 
     // Drag-and-drop navigation tabs on the portfolio controls bar.
@@ -239,7 +260,7 @@ pub fn PortfoliosPage() -> impl IntoView {
 
     // Consume pending "Open in new tab" requests from context menus / tap-hold.
     Effect::new(move |_| {
-        let pending = ui_store.get().pending_open_tab;
+        let pending = ui_store.with(|s| s.pending_open_tab.clone());
         if let Some(pending) = pending {
             ui_store.update(|s| s.pending_open_tab = None);
             if let Some(kind) = NavTabKind::from_str(&pending.kind) {
@@ -300,7 +321,7 @@ pub fn PortfoliosPage() -> impl IntoView {
     };
 
     let grouped_portfolios = Memo::new(move |_| {
-        let orgs = organization_store.get().organizations.clone();
+        let orgs = organization_store.with(|s| s.organizations.clone());
         let mut groups: Vec<PortfolioGroup> = Vec::new();
         let mut org_index: HashMap<Uuid, usize> = HashMap::new();
         for (idx, p) in sorted_portfolios.get().into_iter().enumerate() {
@@ -352,33 +373,39 @@ pub fn PortfoliosPage() -> impl IntoView {
     let edit_mode = use_tab_edit_mode();
     let _ = edit_mode;
     let can_edit = move |org_id: Option<Uuid>| {
-        let store = app_store.get();
-        let role = org_id
-            .map(|id| {
-                organization_store.get().current_user_role_in_org(
-                    id,
-                    store.current_user.id,
-                    store.current_user.role.clone(),
-                )
+        app_store.with(|store| {
+            organization_store.with(|orgs| {
+                let role = org_id
+                    .map(|id| {
+                        orgs.current_user_role_in_org(
+                            id,
+                            store.current_user.id,
+                            store.current_user.role.clone(),
+                        )
+                    })
+                    .unwrap_or_else(|| store.current_user.role.clone());
+                role == UserRole::Owner || role == UserRole::Manager
             })
-            .unwrap_or_else(|| store.current_user.role.clone());
-        role == UserRole::Owner || role == UserRole::Manager
+        })
     };
 
     let can_edit_documents = move |org_id: Option<Uuid>| {
-        let store = app_store.get();
-        let role = org_id
-            .map(|id| {
-                organization_store.get().current_user_role_in_org(
-                    id,
-                    store.current_user.id,
-                    store.current_user.role.clone(),
-                )
+        app_store.with(|store| {
+            organization_store.with(|orgs| {
+                let role = org_id
+                    .map(|id| {
+                        orgs.current_user_role_in_org(
+                            id,
+                            store.current_user.id,
+                            store.current_user.role.clone(),
+                        )
+                    })
+                    .unwrap_or_else(|| store.current_user.role.clone());
+                let mut user = store.current_user.clone();
+                user.role = role;
+                user.can_upload_documents()
             })
-            .unwrap_or_else(|| store.current_user.role.clone());
-        let mut user = store.current_user.clone();
-        user.role = role;
-        user.can_upload_documents()
+        })
     };
 
     // Form signals for add asset group
@@ -406,6 +433,13 @@ pub fn PortfoliosPage() -> impl IntoView {
     let (new_channel_name, set_new_channel_name) = signal(String::new());
     let (new_channel_rate, set_new_channel_rate) = signal(String::new());
 
+    // Portfolio add-form fields live at page level so switching between
+    // Portfolio / Asset Group / Asset keeps the last entered contents.
+    let new_pf_name = RwSignal::new(String::new());
+    let new_pf_desc = RwSignal::new(String::new());
+    let new_pf_img = RwSignal::new(Option::<String>::None);
+    let new_pf_org = RwSignal::new(String::new());
+
     // Context menu modal signals (Add Role, Add Organization)
     let (show_pf_add_role, set_show_pf_add_role) = signal(Option::<Uuid>::None);
     let (show_pf_add_org, set_show_pf_add_org) = signal(Option::<Uuid>::None);
@@ -418,7 +452,7 @@ pub fn PortfoliosPage() -> impl IntoView {
 
     // Consume pending navigation from notification clicks — expand portfolio and open doc modal
     Effect::new(move |_| {
-        if let Some(nav) = app_store.get().pending_nav_target {
+        if let Some(nav) = app_store.with(|s| s.pending_nav_target.clone()) {
             let pid = nav.portfolio_id;
             let doc_id = nav.doc_id;
             let gid = nav.group_id;
@@ -460,6 +494,11 @@ pub fn PortfoliosPage() -> impl IntoView {
     };
 
     let on_delete_portfolio = move |id: Uuid| {
+        // The built-in Unassigned portfolio can't be deleted — its
+        // assets would be lost. Move them out first.
+        if crate::stores::app_store::is_unassigned_portfolio(id) {
+            return;
+        }
         app_store.update(|s| {
             s.remove_portfolio(id);
             s.selected_portfolio_ids.remove(&id);
@@ -490,9 +529,14 @@ pub fn PortfoliosPage() -> impl IntoView {
                 p.recalculate_values();
             }
         });
-        set_new_group_name.set(String::new());
+        // Keep the entered name — the add form preserves its contents
+        // for quick repeat creation; the user edits it for the next item.
         set_show_add_group.set(None);
     });
+
+    // The built-in "Unassigned" portfolio holds assets created without
+    // a target; keep it present so it always renders as a drop target.
+    app_store.update(|s| s.ensure_unassigned_portfolio());
 
     let on_add_asset = Callback::new(move |target: AssetTarget| -> Option<Uuid> {
         let name = new_asset_name.get();
@@ -519,10 +563,23 @@ pub fn PortfoliosPage() -> impl IntoView {
                     p.recalculate_values();
                 }
             }
-            AssetTarget::None => {}
+            AssetTarget::None => {
+                // No portfolio/group chosen — park the asset in the
+                // built-in "Unassigned" portfolio so it can be dragged
+                // into place afterwards.
+                s.ensure_unassigned_portfolio();
+                if let Some(p) = s
+                    .portfolios
+                    .iter_mut()
+                    .find(|p| p.id == crate::stores::app_store::UNASSIGNED_PORTFOLIO_ID)
+                {
+                    p.assets.push(asset);
+                    p.recalculate_values();
+                }
+            }
         });
-        set_new_asset_name.set(String::new());
-        set_new_asset_value.set(String::new());
+        // Keep name/value/type/etc. — the add form preserves its last
+        // contents so creating a series of similar items is quick.
         set_show_add_asset.set(AssetTarget::default());
         Some(asset_id)
     });
@@ -534,33 +591,39 @@ pub fn PortfoliosPage() -> impl IntoView {
         }
         on_add_group.run(pid.unwrap());
         ui_store.update(|s| s.show_top_add_group = false);
-        set_top_add_group_pid.set(None);
+        // Keep the selected portfolio — contents persist for repeat adds.
     };
 
     let on_top_add_asset = move |_| {
         let pid = top_add_asset_pid.get();
-        if pid.is_none() {
-            return;
-        }
-        let pid = pid.unwrap();
-        let target = match top_add_asset_gid.get() {
-            Some(gid) => AssetTarget::Group(pid, gid),
-            None => AssetTarget::PortfolioDirect(pid),
+        // No portfolio selected → create the asset unassigned so it can
+        // be dragged into a portfolio/group afterwards.
+        let target = match (pid, top_add_asset_gid.get()) {
+            (Some(p), Some(g)) => AssetTarget::Group(p, g),
+            (Some(p), None) => AssetTarget::PortfolioDirect(p),
+            (None, _) => AssetTarget::None,
         };
         if let Some(asset_id) = on_add_asset.run(target) {
             let name = new_channel_name.get();
             if !name.trim().is_empty() {
                 let rate = new_channel_rate.get().parse::<f64>().ok();
-                let mut channel = Channel::new_test_channel(name, Some(asset_id), Some(pid));
+                let mut channel = Channel::new_test_channel(name, Some(asset_id), pid);
                 channel.nightly_rate_override = rate;
                 app_store.update(|s| s.add_channel(channel));
             }
         }
         ui_store.update(|s| s.show_top_add_asset = false);
-        set_top_add_asset_pid.set(None);
-        set_top_add_asset_gid.set(None);
-        set_new_channel_name.set(String::new());
-        set_new_channel_rate.set(String::new());
+        // Keep portfolio/group/channel selections — contents persist.
+    };
+
+    // Open exactly one top-level add form — the Portfolio / Asset Group /
+    // Asset forms share the same spot and replace one another.
+    let open_add_form = move |which: u8| {
+        ui_store.update(|s| {
+            s.show_add_portfolio = which == 0;
+            s.show_top_add_group = which == 1;
+            s.show_top_add_asset = which == 2;
+        });
     };
 
     let _selected_portfolio = move || {
@@ -834,153 +897,21 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     >
                                         "+ Add Group"
                                     </button>
-                                    <button
-                                        class="login-btn sell"
-                                        on:click=move |_| {
-                                            on_delete_portfolio(pid_delete);
-                                        }
-                                    >
-                                        "🗑 Delete Portfolio"
-                                    </button>
+                                    {(!crate::stores::app_store::is_unassigned_portfolio(pid_delete)).then(|| view! {
+                                        <button
+                                            class="login-btn sell"
+                                            on:click=move |_| {
+                                                on_delete_portfolio(pid_delete);
+                                            }
+                                        >
+                                            "🗑 Delete Portfolio"
+                                        </button>
+                                    })}
                                 </div>
                             </div>
                         </div>
                     </div>
                 }.into_any()
-            })}
-
-            // Top-level Add Group Form (toggled from navbar)
-            {move || ui_store.get().show_top_add_group.then(|| view! {
-                <div class="add-form">
-                    <select
-                        class="login-input"
-                        aria-label="Select portfolio"
-                        prop:value={move || top_add_group_pid.get().map(|id| id.to_string()).unwrap_or_default()}
-                        on:change=move |ev| {
-                            let v = event_target_value(&ev);
-                            if let Ok(uuid) = Uuid::parse_str(&v) {
-                                set_top_add_group_pid.set(Some(uuid));
-                            } else {
-                                set_top_add_group_pid.set(None);
-                            }
-                        }
-                    >
-                        <option value="">"Select portfolio"</option>
-                        <For
-                            each=move || filtered_portfolios.get()
-                            key=|portfolio| portfolio.id
-                            children=move |portfolio| view! {
-                                <option value={portfolio.id.to_string()}>{portfolio.name.clone()}</option>
-                            }
-                        />
-                    </select>
-                    <input
-                        class="login-input"
-                        type="text"
-                        placeholder="Group name"
-                        aria-label="Group name"
-                        on:input=move |ev| set_new_group_name.set(event_target_value(&ev))
-                    />
-                    <button class="login-btn" on:click=on_top_add_group>"Create Group"</button>
-                </div>
-            })}
-
-            // Top-level Add Asset Form (toggled from navbar)
-            {move || ui_store.get().show_top_add_asset.then(|| view! {
-                <div class="add-form">
-                    <select
-                        class="login-input"
-                        aria-label="Select portfolio"
-                        prop:value={move || top_add_asset_pid.get().map(|id| id.to_string()).unwrap_or_default()}
-                        on:change=move |ev| {
-                            let v = event_target_value(&ev);
-                            if let Ok(uuid) = Uuid::parse_str(&v) {
-                                set_top_add_asset_pid.set(Some(uuid));
-                                set_top_add_asset_gid.set(None);
-                            } else {
-                                set_top_add_asset_pid.set(None);
-                                set_top_add_asset_gid.set(None);
-                            }
-                        }
-                    >
-                        <option value="">"Select portfolio"</option>
-                        <For
-                            each=move || filtered_portfolios.get()
-                            key=|portfolio| portfolio.id
-                            children=move |portfolio| view! {
-                                <option value={portfolio.id.to_string()}>{portfolio.name.clone()}</option>
-                            }
-                        />
-                    </select>
-                    {move || {
-                        let pid = top_add_asset_pid.get();
-                        if pid.is_none() { return ().into_any(); }
-                        let pid = pid.unwrap();
-                        let groups = filtered_portfolios.get().into_iter().find(|p| p.id == pid).map(|p| p.asset_groups).unwrap_or_default();
-                        view! {
-                            <select
-                                class="login-input"
-                                aria-label="Select group"
-                                prop:value={move || top_add_asset_gid.get().map(|id| id.to_string()).unwrap_or_default()}
-                                on:change=move |ev| {
-                                    let v = event_target_value(&ev);
-                                    if v.is_empty() {
-                                        set_top_add_asset_gid.set(None);
-                                    } else if let Ok(uuid) = Uuid::parse_str(&v) {
-                                        set_top_add_asset_gid.set(Some(uuid));
-                                    }
-                                }
-                            >
-                                <option value="">"No group — add to portfolio"</option>
-                                <For
-                                    each=move || groups.clone()
-                                    key=|group| group.id
-                                    children=move |group| view! {
-                                        <option value={group.id.to_string()}>{group.name.clone()}</option>
-                                    }
-                                />
-                            </select>
-                        }.into_any()
-                    }}
-                    <input
-                        class="login-input"
-                        type="text"
-                        placeholder="Asset name"
-                        aria-label="Asset name"
-                        on:input=move |ev| set_new_asset_name.set(event_target_value(&ev))
-                    />
-                    <input
-                        class="login-input"
-                        type="text"
-                        placeholder="Value"
-                        aria-label="Value"
-                        on:input=move |ev| set_new_asset_value.set(event_target_value(&ev))
-                    />
-                    <input class="login-input" type="text" list="asset-type-options-top" placeholder="Asset type"
-                        aria-label="Asset type"
-                        prop:value={move || new_asset_type.get().to_input_string()}
-                        on:input=move |ev| set_new_asset_type.set(AssetType::from_input(&event_target_value(&ev))) />
-                    <datalist id="asset-type-options-top">
-                        <option value="RealEstate">"Real Estate"</option>
-                        <option value="Vehicle">"Vehicle"</option>
-                        <option value="Equipment">"Equipment"</option>
-                        <option value="Stock">"Stock"</option>
-                        <option value="Bond">"Bond"</option>
-                        <option value="Commodity">"Commodity"</option>
-                        <option value="Digital">"Digital"</option>
-                        <option value="IntellectualProperty">"Intellectual Property"</option>
-                        <option value="Channel">"Channel"</option>
-                    </datalist>
-                    <input class="login-input" type="text" placeholder="Channel name (optional)"
-                        aria-label="Channel name"
-                        prop:value={move || new_channel_name.get()}
-                        on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) />
-                    <input class="login-input" type="number" placeholder="Channel nightly rate (optional)"
-                        aria-label="Channel nightly rate"
-                        prop:value={move || new_channel_rate.get()}
-                        on:input=move |ev| set_new_channel_rate.set(event_target_value(&ev)) />
-                    <button class="login-btn" on:click=on_top_add_asset>"Create Asset"</button>
-                </div>
             })}
 
             // Portfolios List
@@ -1001,9 +932,15 @@ pub fn PortfoliosPage() -> impl IntoView {
                             <div class="empty-state-icon">"📊"</div>
                             <div class="empty-state-title">"No portfolios yet"</div>
                             <div class="empty-state-desc">"Create your first portfolio to get started"</div>
-                            <button class="login-btn" on:click=move |_| ui_store.update(|s| s.show_add_portfolio = !s.show_add_portfolio)>"Create Portfolio"</button>
+                            <button class="login-btn" on:click=move |_| ui_store.update(|s| {
+                                s.show_add_portfolio = !s.show_add_portfolio;
+                                if s.show_add_portfolio {
+                                    s.show_top_add_group = false;
+                                    s.show_top_add_asset = false;
+                                }
+                            })>"Create Portfolio"</button>
                             {move || ui_store.get().show_add_portfolio.then(|| view! {
-                                <AddPortfolioModal />
+                                <AddPortfolioModal name={new_pf_name} desc={new_pf_desc} image_url={new_pf_img} org_id={new_pf_org} />
                             })}
                         </div>
                     }.into_any()
@@ -1057,13 +994,13 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     });
                                     let org_can_edit_docs = move || can_edit_documents(Some(org_id));
                                     let org_can_edit_docs_signal = Signal::derive(move || org_can_edit_docs());
-                                    let current_user_id = app_store.get().current_user.id;
+                                    let current_user_id = app_store.with(|s| s.current_user.id);
                                     let org_can_view_docs = Memo::new(move |_| {
-                                        organization_store.get().user_has_perm_in_org(
+                                        organization_store.with(|s| s.user_has_perm_in_org(
                                             org_id,
                                             current_user_id,
                                             &Perm::ViewDocuments,
-                                        )
+                                        ))
                                     });
                                     let add_org_doc = {
                                         let app_store = app_store;
@@ -1369,39 +1306,177 @@ pub fn PortfoliosPage() -> impl IntoView {
                                 <button class="add-type-item" role="menuitem"
                                     on:click=move |_| {
                                         set_add_type_menu.set(None);
-                                        ui_store.update(|s| s.show_add_portfolio = true);
+                                        open_add_form(0);
                                     }
                                 >"📁 Portfolio"</button>
                                 <button class="add-type-item" role="menuitem"
                                     on:click=move |_| {
                                         set_add_type_menu.set(None);
-                                        ui_store.update(|s| s.show_top_add_group = true);
+                                        open_add_form(1);
                                     }
                                 >"📂 Asset Group"</button>
                                 <button class="add-type-item" role="menuitem"
                                     on:click=move |_| {
                                         set_add_type_menu.set(None);
-                                        ui_store.update(|s| s.show_top_add_asset = true);
+                                        open_add_form(2);
                                     }
                                 >"📦 Asset"</button>
                             </div>
                         }.into_any())}
                     </div>
                     {move || ui_store.get().show_add_portfolio.then(|| view! {
-                        <AddPortfolioModal />
+                        <AddPortfolioModal name={new_pf_name} desc={new_pf_desc} image_url={new_pf_img} org_id={new_pf_org} />
+                    })}
+                    {move || ui_store.get().show_top_add_group.then(|| view! {
+                        <div class="add-form">
+                            <select
+                                class="login-input"
+                                aria-label="Select portfolio for group"
+                                prop:value={move || top_add_group_pid.get().map(|id| id.to_string()).unwrap_or_default()}
+                                on:change=move |ev| {
+                                    let v = event_target_value(&ev);
+                                    if let Ok(uuid) = Uuid::parse_str(&v) {
+                                        set_top_add_group_pid.set(Some(uuid));
+                                    } else {
+                                        set_top_add_group_pid.set(None);
+                                    }
+                                }
+                            >
+                                <option value="">"Select portfolio"</option>
+                                <For
+                                    each=move || filtered_portfolios.get()
+                                    key=|portfolio| portfolio.id
+                                    children=move |portfolio| view! {
+                                        <option value={portfolio.id.to_string()}>{portfolio.name.clone()}</option>
+                                    }
+                                />
+                            </select>
+                            <input
+                                class="login-input"
+                                type="text"
+                                placeholder="Group name"
+                                aria-label="Group name"
+                                prop:value={move || new_group_name.get()}
+                                on:input=move |ev| set_new_group_name.set(event_target_value(&ev))
+                            />
+                            <button class="login-btn" on:click=on_top_add_group>"Create Group"</button>
+                        </div>
+                    })}
+                    {move || ui_store.get().show_top_add_asset.then(|| view! {
+                        <div class="add-form">
+                            <select
+                                class="login-input"
+                                aria-label="Select portfolio for asset"
+                                prop:value={move || top_add_asset_pid.get().map(|id| id.to_string()).unwrap_or_default()}
+                                on:change=move |ev| {
+                                    let v = event_target_value(&ev);
+                                    if let Ok(uuid) = Uuid::parse_str(&v) {
+                                        set_top_add_asset_pid.set(Some(uuid));
+                                        set_top_add_asset_gid.set(None);
+                                    } else {
+                                        set_top_add_asset_pid.set(None);
+                                        set_top_add_asset_gid.set(None);
+                                    }
+                                }
+                            >
+                                <option value="">"Unassigned — no portfolio"</option>
+                                <For
+                                    each=move || filtered_portfolios.get()
+                                    key=|portfolio| portfolio.id
+                                    children=move |portfolio| view! {
+                                        <option value={portfolio.id.to_string()}>{portfolio.name.clone()}</option>
+                                    }
+                                />
+                            </select>
+                            {move || {
+                                let pid = top_add_asset_pid.get();
+                                if pid.is_none() { return ().into_any(); }
+                                let pid = pid.unwrap();
+                                let groups = filtered_portfolios.get().into_iter().find(|p| p.id == pid).map(|p| p.asset_groups).unwrap_or_default();
+                                view! {
+                                    <select
+                                        class="login-input"
+                                        aria-label="Select group for asset"
+                                        prop:value={move || top_add_asset_gid.get().map(|id| id.to_string()).unwrap_or_default()}
+                                        on:change=move |ev| {
+                                            let v = event_target_value(&ev);
+                                            if v.is_empty() {
+                                                set_top_add_asset_gid.set(None);
+                                            } else if let Ok(uuid) = Uuid::parse_str(&v) {
+                                                set_top_add_asset_gid.set(Some(uuid));
+                                            }
+                                        }
+                                    >
+                                        <option value="">"No group — add to portfolio"</option>
+                                        <For
+                                            each=move || groups.clone()
+                                            key=|group| group.id
+                                            children=move |group| view! {
+                                                <option value={group.id.to_string()}>{group.name.clone()}</option>
+                                            }
+                                        />
+                                    </select>
+                                }.into_any()
+                            }}
+                            <input
+                                class="login-input"
+                                type="text"
+                                placeholder="Asset name"
+                                aria-label="Asset name"
+                                prop:value={move || new_asset_name.get()}
+                                on:input=move |ev| set_new_asset_name.set(event_target_value(&ev))
+                            />
+                            <input
+                                class="login-input"
+                                type="text"
+                                placeholder="Value"
+                                aria-label="Value"
+                                prop:value={move || new_asset_value.get()}
+                                on:input=move |ev| set_new_asset_value.set(event_target_value(&ev))
+                            />
+                            <input class="login-input" type="text" list="asset-type-options-top" placeholder="Asset type"
+                                aria-label="Asset type"
+                                prop:value={move || new_asset_type.get().to_input_string()}
+                                on:input=move |ev| set_new_asset_type.set(AssetType::from_input(&event_target_value(&ev))) />
+                            <datalist id="asset-type-options-top">
+                                <option value="RealEstate">"Real Estate"</option>
+                                <option value="Vehicle">"Vehicle"</option>
+                                <option value="Equipment">"Equipment"</option>
+                                <option value="Stock">"Stock"</option>
+                                <option value="Bond">"Bond"</option>
+                                <option value="Commodity">"Commodity"</option>
+                                <option value="Digital">"Digital"</option>
+                                <option value="IntellectualProperty">"Intellectual Property"</option>
+                                <option value="Channel">"Channel"</option>
+                            </datalist>
+                            <input class="login-input" type="text" placeholder="Channel name (optional)"
+                                aria-label="Channel name"
+                                prop:value={move || new_channel_name.get()}
+                                on:input=move |ev| set_new_channel_name.set(event_target_value(&ev)) />
+                            <input class="login-input" type="number" placeholder="Channel nightly rate (optional)"
+                                aria-label="Channel nightly rate"
+                                prop:value={move || new_channel_rate.get()}
+                                on:input=move |ev| set_new_channel_rate.set(event_target_value(&ev)) />
+                            <button class="login-btn" on:click=on_top_add_asset>"Create Asset"</button>
+                        </div>
                     })}
             </div>
 
             // Context menu for portfolio press-and-hold or whitespace
             {move || context_menu.get().map(|(pid, x, y)| {
-                let is_whitespace = app_store.get().portfolios.iter().find(|p| p.id == pid).is_none();
                 let pid_doc = pid;
                 let pid_role = pid;
                 let pid_org = pid;
                 let pid_remove = pid;
                 let pid_assign = pid;
-                let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
-                let pf_name = app_store.get().portfolios.iter().find(|p| p.id == pid).map(|p| p.name.clone()).unwrap_or_default();
+                let (is_whitespace, org_id, pf_name) = app_store.with(|s| {
+                    let p = s.portfolios.iter().find(|p| p.id == pid);
+                    (
+                        p.is_none(),
+                        p.and_then(|p| p.organization_id),
+                        p.map(|p| p.name.clone()).unwrap_or_default(),
+                    )
+                });
                 let open_name = pf_name.clone();
                 let can = can_edit(org_id);
                 let content = if is_whitespace {
@@ -1410,7 +1485,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                             class="context-menu-item"
                             on:click=move |_| {
                                 set_context_menu.set(None);
-                                ui_store.update(|s| s.show_add_portfolio = true);
+                                open_add_form(0);
                             }
                         >
                             "➕ Create Portfolio"
@@ -1419,7 +1494,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                             class="context-menu-item"
                             on:click=move |_| {
                                 set_context_menu.set(None);
-                                ui_store.update(|s| s.show_top_add_group = true);
+                                open_add_form(1);
                             }
                         >
                             "➕ Create Asset Group"
@@ -1428,7 +1503,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                             class="context-menu-item"
                             on:click=move |_| {
                                 set_context_menu.set(None);
-                                ui_store.update(|s| s.show_top_add_asset = true);
+                                open_add_form(2);
                             }
                         >
                             "➕ Create Asset"
@@ -1584,7 +1659,7 @@ pub fn PortfoliosPage() -> impl IntoView {
 
             // Add Role modal (portfolio context menu)
             {move || show_pf_add_role.get().map(|pid| {
-                let org_id = app_store.get().portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id);
+                let org_id = app_store.with(|s| s.portfolios.iter().find(|p| p.id == pid).and_then(|p| p.organization_id));
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_show_pf_add_role.set(None)>
                         <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
@@ -1638,17 +1713,17 @@ pub fn PortfoliosPage() -> impl IntoView {
                                     on:change=move |ev| set_pf_org_parent_id.set(event_target_value(&ev))
                                 >
                                     <option value="">"(None)"</option>
-                                    {move || organization_store.get().organizations.iter().map(|o| {
+                                    {move || organization_store.with(|s| s.organizations.iter().map(|o| {
                                         let id = o.id.to_string();
                                         view! { <option value={id.clone()}>{o.name.clone()}</option> }
-                                    }).collect::<Vec<_>>()}
+                                    }).collect::<Vec<_>>())}
                                 </select>
                                 <input class="login-input" type="text" placeholder="Or create a new organization"
                                     aria-label="New organization name"
                                     prop:value={move || pf_new_org_name.get()}
                                     on:input=move |ev| set_pf_new_org_name.set(event_target_value(&ev)) />
                                 <label class="list-item-title">"Secondary / tertiary organizations"</label>
-                                {move || organization_store.get().organizations.iter().map(|o| {
+                                {move || organization_store.with(|s| s.organizations.iter().map(|o| {
                                     let oid = o.id;
                                     let name = o.name.clone();
                                     view! {
@@ -1670,7 +1745,7 @@ pub fn PortfoliosPage() -> impl IntoView {
                                             {name}
                                         </label>
                                     }
-                                }).collect::<Vec<_>>()}
+                                }).collect::<Vec<_>>())}
                                 <button class="login-btn" on:click=move |_| {
                                     let mut name = pf_new_org_name.get();
                                     name = name.trim().to_string();
@@ -1703,10 +1778,10 @@ pub fn PortfoliosPage() -> impl IntoView {
 
             // Confirm portfolio removal
             {move || confirm_pf_remove.get().map(|pid| {
-                let pf_name = app_store.get().portfolios.iter()
+                let pf_name = app_store.with(|s| s.portfolios.iter()
                     .find(|p| p.id == pid)
                     .map(|p| p.name.clone())
-                    .unwrap_or_else(|| "this portfolio".to_string());
+                    .unwrap_or_else(|| "this portfolio".to_string()));
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_confirm_pf_remove.set(None)>
                         <div class="doc-modal confirm-modal" on:click=|ev| ev.stop_propagation()>

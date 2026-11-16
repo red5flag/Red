@@ -30,12 +30,14 @@ pub fn SearchFilters() -> impl IntoView {
     let ui_store = use_ui_store();
 
     let execute_search = move || {
-        let app_snapshot = app_store.get();
-        let org_snapshot = organization_store.get();
-        search_store.update(|store| {
-            store.is_loading = true;
-            store.perform_search(&app_snapshot, &org_snapshot);
-            store.is_loading = false;
+        app_store.with(|app| {
+            organization_store.with(|org| {
+                search_store.update(|store| {
+                    store.is_loading = true;
+                    store.perform_search(app, org);
+                    store.is_loading = false;
+                });
+            });
         });
     };
 
@@ -58,7 +60,7 @@ pub fn SearchFilters() -> impl IntoView {
 
     // Only re-run this effect when the search panel actually opens/closes,
     // not when unrelated ui_store fields (tabs drawer, messages, etc.) change.
-    let is_search_open = Memo::new(move |_| ui_store.get().is_search_open);
+    let is_search_open = Memo::new(move |_| ui_store.with(|s| s.is_search_open));
 
     // Run an initial search when the panel opens and sync the advanced filter
     // chips/inputs into SearchStore.filters whenever they change.
@@ -144,16 +146,18 @@ pub fn SearchFilters() -> impl IntoView {
                     class="sd-search-input"
                     placeholder="Search..."
                     node_ref=search_input_ref
-                    prop:value={move || search_store.get().query}
+                    prop:value={move || search_store.with(|s| s.query.clone())}
                     on:input=move |ev| {
                         let v = event_target_value(&ev);
-                        let app_snapshot = app_store.get();
-                        let org_snapshot = organization_store.get();
-                        search_store.update(|store| {
-                            store.set_query(v);
-                            store.is_loading = true;
-                            store.perform_search(&app_snapshot, &org_snapshot);
-                            store.is_loading = false;
+                        app_store.with(|app| {
+                            organization_store.with(|org| {
+                                search_store.update(|store| {
+                                    store.set_query(v);
+                                    store.is_loading = true;
+                                    store.perform_search(app, org);
+                                    store.is_loading = false;
+                                });
+                            });
                         });
                     }
                     on:keydown=move |ev: leptos::ev::KeyboardEvent| {
@@ -171,12 +175,13 @@ pub fn SearchFilters() -> impl IntoView {
             </div>
 
             {move || {
-                let store = search_store.get();
-                let suggestions: Vec<String> = if store.query.len() >= 2 {
-                    store.suggestions.clone()
-                } else {
-                    store.recent_searches.clone().into_iter().rev().collect()
-                };
+                let suggestions = search_store.with(|store| {
+                    if store.query.len() >= 2 {
+                        store.suggestions.clone()
+                    } else {
+                        store.recent_searches.clone().into_iter().rev().collect()
+                    }
+                });
                 if suggestions.is_empty() {
                     ().into_any()
                 } else {
@@ -314,10 +319,10 @@ pub fn SearchResults() -> impl IntoView {
     let search_store = use_search_store();
     let app_store = use_app_store();
     let ui_store = use_ui_store();
-    let is_loading = move || search_store.get().is_loading;
-    let has_results = move || search_store.get().results.total_count > 0;
-    let results_count = move || search_store.get().results.total_count;
-    let has_searched = move || search_store.get().has_searched;
+    let is_loading = move || search_store.with(|s| s.is_loading);
+    let has_results = move || search_store.with(|s| s.results.total_count > 0);
+    let results_count = move || search_store.with(|s| s.results.total_count);
+    let has_searched = move || search_store.with(|s| s.has_searched);
 
     fn result_icon(item: &SearchResultItem) -> &'static str {
         match item {
@@ -456,7 +461,7 @@ pub fn SearchResults() -> impl IntoView {
                         <span class="sd-result-count">{format!("{} results", results_count())}</span>
                         <div class="sd-results-list">
                             <For
-                                each=move || search_store.get().results.items.clone()
+                                each=move || search_store.with(|s| s.results.items.clone())
                                 key=|item| item.id()
                                 children=move |item| {
                                     let icon = result_icon(&item);

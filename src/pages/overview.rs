@@ -357,20 +357,20 @@ fn OverviewSection(
     view! {
         <div
             class="overview-square"
-            class:overview-square-wide={move || ui_store.get().is_overview_section_wide(id)}
+            class:overview-square-wide={move || ui_store.with(|s| s.is_overview_section_wide(id))}
             class:clickable={on_click.is_some()}
-            class:overview-section-dragging={move || ui_store.get().overview_dragging_id.as_deref() == Some(id)}
-            class:overview-section-drag-over={move || ui_store.get().overview_drag_over_id.as_deref() == Some(id)}
+            class:overview-section-dragging={move || ui_store.with(|s| s.overview_dragging_id.as_deref() == Some(id))}
+            class:overview-section-drag-over={move || ui_store.with(|s| s.overview_drag_over_id.as_deref() == Some(id))}
             data-section-id=id
             style:order={move || section_order.with(|m| m.get(id).copied().unwrap_or(0).to_string())}
-            draggable={move || if ui_store.get().overview_sort_mode == OverviewSortMode::Selected { "true" } else { "false" }}
+            draggable={move || if ui_store.with(|s| s.overview_sort_mode == OverviewSortMode::Selected) { "true" } else { "false" }}
             on:click={move |_: leptos::ev::MouseEvent| { if let Some(cb) = on_click.as_ref() { cb(); } }}
             on:dragstart={move |_: leptos::ev::DragEvent| {
-                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                if ui_store.with(|s| s.overview_sort_mode != OverviewSortMode::Selected) { return; }
                 ui_store.update(|s| s.set_overview_dragging_id(Some(id.to_string())));
             }}
             on:dragover={move |ev: leptos::ev::DragEvent| {
-                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                if ui_store.with(|s| s.overview_sort_mode != OverviewSortMode::Selected) { return; }
                 ev.prevent_default();
                 ui_store.update(|s| s.set_overview_drag_over_id(Some(id.to_string())));
             }}
@@ -388,7 +388,7 @@ fn OverviewSection(
             }}
             on:dragend={move |_| { ui_store.update(|s| s.clear_overview_drag()); }}
             on:touchstart={move |ev: leptos::ev::TouchEvent| {
-                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                if ui_store.with(|s| s.overview_sort_mode != OverviewSortMode::Selected) { return; }
                 if let Some(t) = ev.touches().get(0) {
                     let start_id = id.to_string();
                     let x = t.client_x();
@@ -403,7 +403,7 @@ fn OverviewSection(
                 }
             }}
             on:touchmove={move |ev: leptos::ev::TouchEvent| {
-                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                if ui_store.with(|s| s.overview_sort_mode != OverviewSortMode::Selected) { return; }
                 let mut cancel = false;
                 if let (Some(t), Some((ax, ay))) = (ev.touches().get(0), ui_store.get().overview_touch_anchor) {
                     let dx = (t.client_x() - ax).abs();
@@ -428,7 +428,7 @@ fn OverviewSection(
                 }
             }}
             on:touchend={move |ev: leptos::ev::TouchEvent| {
-                if ui_store.get().overview_sort_mode != OverviewSortMode::Selected { return; }
+                if ui_store.with(|s| s.overview_sort_mode != OverviewSortMode::Selected) { return; }
                 let was_dragging = ui_store.get().overview_dragging_id.is_some();
                 if was_dragging { ev.prevent_default(); }
                 let from = ui_store.get().overview_dragging_id.clone();
@@ -454,57 +454,56 @@ pub fn OverviewPage() -> impl IntoView {
     let transaction_store = use_transaction_store();
     let ui_store = use_ui_store();
 
-    let current_user_id = app_store.get().current_user.id;
-    let can_view_all = app_store.get().current_user.can_view_all();
+    let current_user_id = app_store.with(|s| s.current_user.id);
+    let can_view_all = app_store.with(|s| s.current_user.can_view_all());
 
     let portfolio_visible = move |p: &crate::models::Portfolio| -> bool {
         p.is_visible_to(current_user_id, can_view_all)
             || p.organization_id.map_or(can_view_all, |oid| {
-                organization_store.get().user_has_perm_in_org(
-                    oid,
-                    current_user_id,
-                    &Perm::ViewPortfolios,
-                )
+                organization_store.with(|s| {
+                    s.user_has_perm_in_org(oid, current_user_id, &Perm::ViewPortfolios)
+                })
             })
     };
     let asset_visible = move |a: &crate::models::Asset| -> bool {
         a.is_visible_to(current_user_id, can_view_all)
             || a.organization_id.map_or(can_view_all, |oid| {
-                organization_store.get().user_has_perm_in_org(
-                    oid,
-                    current_user_id,
-                    &Perm::ViewAssets,
-                )
+                organization_store.with(|s| {
+                    s.user_has_perm_in_org(oid, current_user_id, &Perm::ViewAssets)
+                })
             })
     };
 
     let unread_message_count = move || {
-        let current_user_id = app_store.get().current_user.id;
-        messenger_store.get().unread_message_count(current_user_id)
+        let current_user_id = app_store.with(|s| s.current_user.id);
+        messenger_store.with(|s| s.unread_message_count(current_user_id))
     };
 
     let recent_messages = move || {
-        let mut messages = messenger_store.get().messages.clone();
-        messages.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        messages.into_iter().take(4).collect::<Vec<_>>()
+        messenger_store.with(|s| {
+            let mut messages = s.messages.clone();
+            messages.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            messages.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     let sender_name_for_message = move |msg: &crate::models::Message| {
-        let _app = app_store.get();
-        let org = organization_store.get();
-        let messenger = messenger_store.get();
-        messenger
-            .messenger_contacts
-            .iter()
-            .find(|c| c.id == msg.sender_id)
-            .map(|c| c.name.clone())
-            .or_else(|| {
-                org.organization_users
+        organization_store.with(|org| {
+            messenger_store.with(|messenger| {
+                messenger
+                    .messenger_contacts
                     .iter()
-                    .find(|u| u.id == msg.sender_id)
-                    .map(|u| u.name.clone())
+                    .find(|c| c.id == msg.sender_id)
+                    .map(|c| c.name.clone())
+                    .or_else(|| {
+                        org.organization_users
+                            .iter()
+                            .find(|u| u.id == msg.sender_id)
+                            .map(|u| u.name.clone())
+                    })
+                    .unwrap_or_else(|| "Unknown".to_string())
             })
-            .unwrap_or_else(|| "Unknown".to_string())
+        })
     };
 
     let on_open_messages: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
@@ -525,51 +524,61 @@ pub fn OverviewPage() -> impl IntoView {
 
     // Recent bookings = upcoming/recent calendar events
     let recent_bookings = move || {
-        let mut events: Vec<_> = calendar_store.get().calendar_events.clone();
-        events.sort_by(|a, b| b.start.cmp(&a.start));
-        events.into_iter().take(4).collect::<Vec<_>>()
+        calendar_store.with(|s| {
+            let mut events: Vec<_> = s.calendar_events.clone();
+            events.sort_by(|a, b| b.start.cmp(&a.start));
+            events.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     // Updated investments = recently updated portfolios
     let recent_investments = move || {
-        let mut portfolios: Vec<_> = app_store
-            .get()
-            .portfolios
-            .iter()
-            .filter(|p| portfolio_visible(*p))
-            .cloned()
-            .collect();
-        portfolios.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        portfolios.into_iter().take(4).collect::<Vec<_>>()
+        app_store.with(|s| {
+            let mut portfolios: Vec<_> = s
+                .portfolios
+                .iter()
+                .filter(|p| portfolio_visible(*p))
+                .cloned()
+                .collect();
+            portfolios.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            portfolios.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     // Recent contacts = most recently updated users
     let recent_contacts = move || {
-        let mut users: Vec<_> = organization_store.get().organization_users.clone();
-        users.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        users.into_iter().take(4).collect::<Vec<_>>()
+        organization_store.with(|s| {
+            let mut users: Vec<_> = s.organization_users.clone();
+            users.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+            users.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     // Recent transactions
     let recent_transactions = move || {
-        let mut txns: Vec<_> = transaction_store.get().transactions.clone();
-        txns.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-        txns.into_iter().take(4).collect::<Vec<_>>()
+        transaction_store.with(|s| {
+            let mut txns: Vec<_> = s.transactions.clone();
+            txns.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            txns.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     // Recent notifications
     let recent_notifications = move || {
-        let app = app_store.get();
-        let org = organization_store.get();
-        let mut notifs: Vec<_> = notification_store
-            .get()
-            .notifications
-            .iter()
-            .filter(|n| app.notification_is_visible(n, &org))
-            .cloned()
-            .collect();
-        notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-        notifs.into_iter().take(4).collect::<Vec<_>>()
+        app_store.with(|app| {
+            organization_store.with(|org| {
+                notification_store.with(|store| {
+                    let mut notifs: Vec<_> = store
+                        .notifications
+                        .iter()
+                        .filter(|n| app.notification_is_visible(n, org))
+                        .cloned()
+                        .collect();
+                    notifs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                    notifs.into_iter().take(4).collect::<Vec<_>>()
+                })
+            })
+        })
     };
 
     let notif_icon = |t: &crate::stores::NotificationType| match t {
@@ -601,11 +610,11 @@ pub fn OverviewPage() -> impl IntoView {
 
     let recent_activity = Memo::new(move |_| {
         let mut items: Vec<ActivityItem> = Vec::new();
-        let app = app_store.get();
-        let notifications = notification_store.get();
-        let txns = transaction_store.get();
-        let msgs = messenger_store.get();
-        let cal = calendar_store.get();
+        app_store.with(|app| {
+        notification_store.with(|notifications| {
+        transaction_store.with(|txns| {
+        messenger_store.with(|msgs| {
+        calendar_store.with(|cal| {
 
         for n in &notifications.notifications {
             let message = if n.message.len() > 40 {
@@ -673,11 +682,12 @@ pub fn OverviewPage() -> impl IntoView {
 
         items.sort_by(|a, b| b.time.cmp(&a.time));
         items.into_iter().take(6).collect::<Vec<_>>()
+        })})})})})
     });
 
     // Organization summary
     let org_summary = move || {
-        let orgs = organization_store.get();
+        organization_store.with(|orgs| {
         let total_orgs = orgs.organizations.len();
         let total_members = orgs.organization_users.len();
         let current_org = orgs
@@ -697,11 +707,12 @@ pub fn OverviewPage() -> impl IntoView {
             current_org_type,
             total_roles,
         )
+        })
     };
 
     // Portfolio stats
     let portfolio_stats = move || {
-        let store = app_store.get();
+        app_store.with(|store| {
         let portfolios: Vec<_> = store
             .portfolios
             .iter()
@@ -718,11 +729,12 @@ pub fn OverviewPage() -> impl IntoView {
             total_groups,
             total_docs,
         )
+        })
     };
 
     // Channel stats
     let channel_stats = move || {
-        let store = app_store.get();
+        app_store.with(|store| {
         let channels = &store.channels;
         let connected = channels
             .iter()
@@ -738,11 +750,12 @@ pub fn OverviewPage() -> impl IntoView {
             .count();
         let enabled = channels.iter().filter(|c| c.enabled).count();
         (channels.len(), connected, disconnected, errors, enabled)
+        })
     };
 
     // Service task stats
     let service_task_stats = move || {
-        let store = app_store.get();
+        app_store.with(|store| {
         let total = store.service_tasks.len();
         let pending = store
             .service_tasks
@@ -758,17 +771,17 @@ pub fn OverviewPage() -> impl IntoView {
             .filter(|t| t.status == crate::models::ServiceTaskStatus::Done)
             .count();
         (total, pending, completed)
+        })
     };
 
     // Bottom section data lists
     let organizations_list = move || {
-        let orgs = organization_store.get();
+        organization_store.with(|orgs| {
         orgs.organizations
             .iter()
-            .filter(|o| org_is_visible(*o, current_user_id, can_view_all, &orgs))
+            .filter(|o| org_is_visible(*o, current_user_id, can_view_all, orgs))
             .map(|o| {
-                let member_count = organization_store
-                    .get()
+                let member_count = orgs
                     .organization_users
                     .iter()
                     .filter(|u| u.organization_id == Some(o.id))
@@ -781,11 +794,12 @@ pub fn OverviewPage() -> impl IntoView {
                 )
             })
             .collect::<Vec<_>>()
+        })
     };
 
     let top_portfolios_by_value = move || {
-        let mut portfolios: Vec<_> = app_store
-            .get()
+        app_store.with(|s| {
+        let mut portfolios: Vec<_> = s
             .portfolios
             .iter()
             .filter(|p| portfolio_visible(*p))
@@ -800,10 +814,11 @@ pub fn OverviewPage() -> impl IntoView {
             .collect();
         portfolios.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         portfolios.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     let top_assets_by_value = move || {
-        let app = app_store.get();
+        app_store.with(|app| {
         let mut assets: Vec<_> = Vec::new();
         for p in &app.portfolios {
             if !portfolio_visible(p) {
@@ -823,12 +838,12 @@ pub fn OverviewPage() -> impl IntoView {
         }
         assets.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         assets.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     let channels_list = move || {
         app_store
-            .get()
-            .channels
+            .with(|s| s.channels.clone())
             .iter()
             .map(|c| {
                 let status_icon = match c.connection_status {
@@ -868,24 +883,25 @@ pub fn OverviewPage() -> impl IntoView {
 
     let upcoming_bookings = move || {
         let now = chrono::Utc::now();
-        let mut events: Vec<_> = calendar_store
-            .get()
-            .calendar_events
-            .iter()
-            .filter(|e| e.start >= now)
-            .cloned()
-            .collect();
-        events.sort_by(|a, b| a.start.cmp(&b.start));
-        events
-            .into_iter()
-            .take(4)
-            .map(|e| (e.title.clone(), e.start, e.all_day))
-            .collect::<Vec<_>>()
+        calendar_store.with(|s| {
+            let mut events: Vec<_> = s
+                .calendar_events
+                .iter()
+                .filter(|e| e.start >= now)
+                .cloned()
+                .collect();
+            events.sort_by(|a, b| a.start.cmp(&b.start));
+            events
+                .into_iter()
+                .take(4)
+                .map(|e| (e.title.clone(), e.start, e.all_day))
+                .collect::<Vec<_>>()
+        })
     };
 
     let top_transactions_by_amount = move || {
-        let mut txns: Vec<_> = transaction_store
-            .get()
+        transaction_store.with(|s| {
+        let mut txns: Vec<_> = s
             .transactions
             .iter()
             .map(|t| {
@@ -899,6 +915,7 @@ pub fn OverviewPage() -> impl IntoView {
             .collect();
         txns.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         txns.into_iter().take(4).collect::<Vec<_>>()
+        })
     };
 
     let on_open_organization: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
@@ -912,14 +929,14 @@ pub fn OverviewPage() -> impl IntoView {
     // Section ordering for Selected/Recent/Trending tabs
     let sorted_section_order = Memo::new(move |_| {
         use crate::stores::OVERVIEW_DEFAULT_ORDER;
-        let mode = ui_store.get().overview_sort_mode;
+        let mode = ui_store.with(|s| s.overview_sort_mode);
         let mut ids: Vec<String> = OVERVIEW_DEFAULT_ORDER
             .iter()
             .map(|&s| s.to_string())
             .collect();
         match mode {
             OverviewSortMode::Selected => {
-                let selected = ui_store.get().overview_selected_order;
+                let selected = ui_store.with(|s| s.overview_selected_order.clone());
                 if !selected.is_empty() {
                     let mut ordered = selected.clone();
                     for id in ids {
@@ -931,78 +948,48 @@ pub fn OverviewPage() -> impl IntoView {
                 }
             }
             OverviewSortMode::Recent => {
-                let app = app_store.get();
-                let org = organization_store.get();
-                let cal = calendar_store.get();
-                let messenger = messenger_store.get();
-                let notif = notification_store.get();
-                let txn = transaction_store.get();
+                app_store.with(|app| {
+                organization_store.with(|org| {
+                calendar_store.with(|cal| {
+                messenger_store.with(|messenger| {
+                notification_store.with(|notif| {
+                transaction_store.with(|txn| {
                 let now = Utc::now();
                 ids.sort_by(|a, b| {
                     let a_time = section_last_changed(
-                        a,
-                        &app,
-                        &org,
-                        &cal,
-                        &messenger,
-                        &notif,
-                        &txn,
-                        now,
-                        current_user_id,
-                        can_view_all,
+                        a, app, org, cal, messenger, notif, txn,
+                        now, current_user_id, can_view_all,
                     );
                     let b_time = section_last_changed(
-                        b,
-                        &app,
-                        &org,
-                        &cal,
-                        &messenger,
-                        &notif,
-                        &txn,
-                        now,
-                        current_user_id,
-                        can_view_all,
+                        b, app, org, cal, messenger, notif, txn,
+                        now, current_user_id, can_view_all,
                     );
                     b_time.cmp(&a_time)
                 });
+                })})})})})
+                });
             }
             OverviewSortMode::Trending => {
-                let app = app_store.get();
-                let org = organization_store.get();
-                let cal = calendar_store.get();
-                let messenger = messenger_store.get();
-                let notif = notification_store.get();
-                let txn = transaction_store.get();
+                app_store.with(|app| {
+                organization_store.with(|org| {
+                calendar_store.with(|cal| {
+                messenger_store.with(|messenger| {
+                notification_store.with(|notif| {
+                transaction_store.with(|txn| {
                 let now = Utc::now();
                 let window = Duration::hours(24);
                 ids.sort_by(|a, b| {
                     let a_count = section_change_count(
-                        a,
-                        &app,
-                        &org,
-                        &cal,
-                        &messenger,
-                        &notif,
-                        &txn,
-                        now,
-                        window,
-                        current_user_id,
-                        can_view_all,
+                        a, app, org, cal, messenger, notif, txn,
+                        now, window, current_user_id, can_view_all,
                     );
                     let b_count = section_change_count(
-                        b,
-                        &app,
-                        &org,
-                        &cal,
-                        &messenger,
-                        &notif,
-                        &txn,
-                        now,
-                        window,
-                        current_user_id,
-                        can_view_all,
+                        b, app, org, cal, messenger, notif, txn,
+                        now, window, current_user_id, can_view_all,
                     );
                     b_count.cmp(&a_count)
+                });
+                })})})})})
                 });
             }
         }
@@ -1022,19 +1009,19 @@ pub fn OverviewPage() -> impl IntoView {
             <div class="overview-controls-bar">
                 <button
                     class="overview-sort-tab"
-                    class:active={move || ui_store.get().overview_sort_mode == OverviewSortMode::Selected}
+                    class:active={move || ui_store.with(|s| s.overview_sort_mode == OverviewSortMode::Selected)}
                     on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Selected))
                     title="Selected order; drag and drop boxes"
                 >"Selected"</button>
                 <button
                     class="overview-sort-tab"
-                    class:active={move || ui_store.get().overview_sort_mode == OverviewSortMode::Recent}
+                    class:active={move || ui_store.with(|s| s.overview_sort_mode == OverviewSortMode::Recent)}
                     on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Recent))
                     title="Recently updated"
                 >"Recent"</button>
                 <button
                     class="overview-sort-tab"
-                    class:active={move || ui_store.get().overview_sort_mode == OverviewSortMode::Trending}
+                    class:active={move || ui_store.with(|s| s.overview_sort_mode == OverviewSortMode::Trending)}
                     on:click=move |_| ui_store.update(|s| s.set_overview_sort_mode(OverviewSortMode::Trending))
                     title="Most interaction recently"
                 >"Trending"</button>
@@ -1158,7 +1145,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📅"</span>
                         <span class="overview-square-label">"Recent Bookings"</span>
-                        <span class="overview-square-count">{move || calendar_store.get().calendar_events.len()}</span>
+                        <span class="overview-square-count">{move || calendar_store.with(|s| s.calendar_events.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1193,7 +1180,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📈"</span>
                         <span class="overview-square-label">"Updated Investments"</span>
-                        <span class="overview-square-count">{move || app_store.get().portfolios.len()}</span>
+                        <span class="overview-square-count">{move || app_store.with(|s| s.portfolios.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1229,7 +1216,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"💰"</span>
                         <span class="overview-square-label">"Recent Transactions"</span>
-                        <span class="overview-square-count">{move || transaction_store.get().transactions.len()}</span>
+                        <span class="overview-square-count">{move || transaction_store.with(|s| s.transactions.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1266,7 +1253,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"�"</span>
                         <span class="overview-square-label">"Recent Contacts"</span>
-                        <span class="overview-square-count">{move || organization_store.get().organization_users.len()}</span>
+                        <span class="overview-square-count">{move || organization_store.with(|s| s.organization_users.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1303,9 +1290,13 @@ pub fn OverviewPage() -> impl IntoView {
                         <span class="overview-square-icon">"🔔"</span>
                         <span class="overview-square-label">"Notifications"</span>
                         <span class="overview-square-count">{move || {
-                            let app = app_store.get();
-                            let org = organization_store.get();
-                            notification_store.get().notifications.iter().filter(|n| app.notification_is_visible(n, &org)).count()
+                            app_store.with(|app| {
+                                organization_store.with(|org| {
+                                    notification_store.with(|store| {
+                                        store.notifications.iter().filter(|n| app.notification_is_visible(n, org)).count()
+                                    })
+                                })
+                            })
                         }}</span>
                     </div>
                     <div class="overview-square-messages">
@@ -1343,16 +1334,19 @@ pub fn OverviewPage() -> impl IntoView {
                         <span class="overview-square-label">"Property Overview"</span>
                     </div>
                     {move || {
-                        let store = app_store.get();
-                        let portfolio = store.portfolios.iter().max_by_key(|p| p.updated_at);
-                        if let Some(p) = portfolio {
-                            let img = p.get_all_assets().into_iter().find(|a| !a.images.is_empty()).and_then(|a| a.images.first().cloned());
+                        let data = app_store.with(|store| {
+                            store.portfolios.iter().max_by_key(|p| p.updated_at).map(|p| {
+                                let img = p.get_all_assets().into_iter().find(|a| !a.images.is_empty()).and_then(|a| a.images.first().cloned());
+                                (p.name.clone(), p.description.clone().unwrap_or_default(), p.get_all_assets().len(), p.total_value, img)
+                            })
+                        });
+                        if let Some((pname, paddr, asset_count, pvalue, img)) = data {
                             view! {
                                 <div class="overview-property-overview">
                                     <div class="overview-property-text">
-                                        <div class="overview-property-title">{p.name.clone()}</div>
-                                        <div class="overview-property-address">{p.description.clone().unwrap_or_default()}</div>
-                                        <div class="overview-property-summary">{format!("{} assets · ${:.2}M", p.get_all_assets().len(), p.total_value / 1_000_000.0)}</div>
+                                        <div class="overview-property-title">{pname}</div>
+                                        <div class="overview-property-address">{paddr}</div>
+                                        <div class="overview-property-summary">{format!("{} assets · ${:.2}M", asset_count, pvalue / 1_000_000.0)}</div>
                                     </div>
                                     {match img {
                                         Some(url) => view! { <img class="overview-property-img" src={url} alt="Property" /> }.into_any(),
@@ -1407,7 +1401,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"🏢"</span>
                         <span class="overview-square-label">"Organizations"</span>
-                        <span class="overview-square-count">{move || organization_store.get().organizations.len()}</span>
+                        <span class="overview-square-count">{move || organization_store.with(|s| s.organizations.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1440,7 +1434,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📊"</span>
                         <span class="overview-square-label">"Top Portfolios"</span>
-                        <span class="overview-square-count">{move || app_store.get().portfolios.len()}</span>
+                        <span class="overview-square-count">{move || app_store.with(|s| s.portfolios.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1539,7 +1533,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"📅"</span>
                         <span class="overview-square-label">"Upcoming Bookings"</span>
-                        <span class="overview-square-count">{move || calendar_store.get().calendar_events.len()}</span>
+                        <span class="overview-square-count">{move || calendar_store.with(|s| s.calendar_events.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {
@@ -1572,7 +1566,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <div class="overview-square-header">
                         <span class="overview-square-icon">"💰"</span>
                         <span class="overview-square-label">"Top Transactions"</span>
-                        <span class="overview-square-count">{move || transaction_store.get().transactions.len()}</span>
+                        <span class="overview-square-count">{move || transaction_store.with(|s| s.transactions.len())}</span>
                     </div>
                     <div class="overview-square-messages">
                         {move || {

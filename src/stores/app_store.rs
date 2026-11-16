@@ -8,7 +8,7 @@ use crate::stores::seed_data::{
     seed_default_portfolio, seed_direct_portfolio, seed_groups_only_portfolio, seed_portfolio_2,
 };
 use crate::stores::OrganizationStore;
-use crate::types::{TabType, UserProfile, UserRole};
+use crate::types::{Currency, TabType, UserProfile, UserRole};
 use crate::utils::crypto;
 use chrono::{DateTime, Utc};
 use leptos::prelude::*;
@@ -16,6 +16,17 @@ use leptos::prelude::*;
 use serde::Serialize;
 use std::collections::HashSet;
 use uuid::Uuid;
+
+/// Fixed id of the built-in "Unassigned" portfolio. Assets created
+/// without a portfolio or asset group live here until they are dragged
+/// into place. The fixed id survives renames and makes the portfolio
+/// identifiable for guards (e.g. delete protection).
+pub const UNASSIGNED_PORTFOLIO_ID: Uuid =
+    Uuid::from_u128(0x554E41535349474E4544000000000001);
+
+pub fn is_unassigned_portfolio(id: Uuid) -> bool {
+    id == UNASSIGNED_PORTFOLIO_ID
+}
 
 // Main application state store
 #[derive(Clone, Debug)]
@@ -49,6 +60,9 @@ pub struct AppStore {
     pub pending_doc_view: Option<Uuid>,
     /// When set, the owner of this entity id should open its document slider.
     pub pending_doc_slider: Option<Uuid>,
+    /// When set, MarketplacePage should open the listing detail for this
+    /// entity id — used by marketplace notification click navigation.
+    pub pending_marketplace_entity: Option<Uuid>,
     // Pinned portfolios and assets for quick tab access
     pub pinned_portfolio_ids: Vec<Uuid>,
     pub pinned_asset_ids: Vec<Uuid>,
@@ -89,6 +103,40 @@ struct TabState {
 }
 
 impl AppStore {
+    /// Ensure the built-in "Unassigned" portfolio exists. Assets created
+    /// without a portfolio or group target live here until dragged into
+    /// a real portfolio or asset group. Idempotent — safe to call on
+    /// every login restore and page mount.
+    pub fn ensure_unassigned_portfolio(&mut self) {
+        if let Some(p) = self
+            .portfolios
+            .iter_mut()
+            .find(|p| p.id == UNASSIGNED_PORTFOLIO_ID)
+        {
+            // Repair the original -1.0 sentinel so it sorts last in
+            // Relevance order instead of pinning to the top. Once the
+            // user reorders portfolios it gets a normal dense position.
+            if p.position < 0.0 {
+                p.position = f64::MAX;
+            }
+            return;
+        }
+        let mut p = Portfolio::new(
+            "Unassigned".to_string(),
+            self.current_user.id,
+            Currency::USD,
+        );
+        p.id = UNASSIGNED_PORTFOLIO_ID;
+        // Sort last under Relevance so it sits with the portfolios at
+        // the bottom of the view rather than pinning to the top.
+        p.position = f64::MAX;
+        p.description = Some(
+            "Assets created without a portfolio or group live here until you drag them into place."
+                .to_string(),
+        );
+        self.portfolios.push(p);
+    }
+
     /// Persist the current tab state to localStorage (hydrate only).
     #[cfg(feature = "hydrate")]
     fn save_tab_state(&self) {
@@ -128,6 +176,7 @@ impl Default for AppStore {
             pending_asset_detail: None,
             pending_doc_view: None,
             pending_doc_slider: None,
+            pending_marketplace_entity: None,
             pinned_portfolio_ids: Vec::new(),
             pinned_asset_ids: Vec::new(),
             is_authenticated: false,
@@ -657,6 +706,12 @@ impl AppStore {
     /// and opens the doc modal for the asset/document that the notification originated from.
     pub fn navigate_to_notification(&mut self, n: &Notification) {
         let tab = n.target_tab.clone();
+        if let Some(entity_id) = n.linked_marketplace_entity {
+            // Marketplace listing notification — open the listing detail.
+            self.pending_marketplace_entity = Some(entity_id);
+            self.expand_tab(TabType::Marketplace);
+            return;
+        }
         if let Some(pid) = n.linked_portfolio_id.or_else(|| {
             // Try to find the portfolio that contains the linked doc
             n.linked_doc_id.and_then(|did| {
@@ -1024,6 +1079,7 @@ impl AppStore {
 
         // Set user profile
         self.is_authenticated = true;
+        self.current_user.id = persisted_user_id(username);
         self.current_user.username = username.to_string();
         self.current_user.name = display_name.clone();
         self.current_user.email = email.clone();
@@ -1072,6 +1128,7 @@ impl AppStore {
         let email = cred.email.clone();
 
         self.is_authenticated = true;
+        self.current_user.id = persisted_user_id(username);
         self.current_user.username = username.to_string();
         self.current_user.name = display_name.clone();
         self.current_user.email = email.clone();
@@ -1111,6 +1168,7 @@ impl AppStore {
         organization_store: &mut crate::stores::OrganizationStore,
     ) {
         self.is_authenticated = true;
+        self.current_user.id = persisted_user_id(&name);
         self.current_user.name = name;
         self.current_user.email = email;
         self.current_user.role = role;
@@ -1149,6 +1207,7 @@ impl AppStore {
         self.pending_asset_detail = None;
         self.pending_doc_view = None;
         self.pending_doc_slider = None;
+        self.pending_marketplace_entity = None;
         self.portfolios.clear();
         let _ = crypto::clear_cached("farley_home_cache");
     }
@@ -1286,6 +1345,7 @@ impl AppStore {
     ) {
         // Set user profile
         self.is_authenticated = true;
+        self.current_user.id = persisted_user_id(username);
         self.current_user.username = username.to_string();
         self.current_user.name = display_name.to_string();
         self.current_user.email = email.to_string();
@@ -1564,4 +1624,32 @@ pub fn provide_app_store() -> RwSignal<AppStore> {
 // Hook to use the app store
 pub fn use_app_store() -> RwSignal<AppStore> {
     expect_context::<RwSignal<AppStore>>()
+}
+
+/// Stable per-username user id, persisted in localStorage. Without this,
+/// `current_user.id` was a fresh `Uuid::new_v4()` on every page load, so
+/// every `owner_id`/member reference saved to the server went stale on
+/// reload (ownership checks, org membership, marketplace editing).
+#[cfg(feature = "hydrate")]
+fn persisted_user_id(username: &str) -> Uuid {
+    use web_sys::window;
+    let key = format!("farley_uid:{}", username.to_lowercase());
+    if let Some(w) = window() {
+        if let Ok(Some(storage)) = w.local_storage() {
+            if let Ok(Some(v)) = storage.get_item(&key) {
+                if let Ok(u) = Uuid::parse_str(&v) {
+                    return u;
+                }
+            }
+            let id = Uuid::new_v4();
+            let _ = storage.set_item(&key, &id.to_string());
+            return id;
+        }
+    }
+    Uuid::new_v4()
+}
+
+#[cfg(not(feature = "hydrate"))]
+fn persisted_user_id(_username: &str) -> Uuid {
+    Uuid::new_v4()
 }

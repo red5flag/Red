@@ -199,7 +199,7 @@ pub(crate) fn DataSettings(
                         <div class="list-item-desc">"Toggle on to access developer tools for testing notifications, creating test members, and other features."</div>
                     </div>
                     <div class="list-item-right">
-                        <input type="checkbox" prop:checked={move || app_store.get().developer_mode}
+                        <input type="checkbox" prop:checked={move || app_store.with(|s| s.developer_mode)}
                             on:change=move |ev| {
                                 let checked = event_target_checked(&ev);
                                 app_store.update(|s| s.developer_mode = checked);
@@ -208,7 +208,7 @@ pub(crate) fn DataSettings(
                     </div>
                 </div>
             </div>
-            {move || if app_store.get().developer_mode {
+            {move || if app_store.with(|s| s.developer_mode) {
                 view! {
                     <div class="dev-test-panel">
                         <div class="dev-test-section">

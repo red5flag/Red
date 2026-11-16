@@ -304,10 +304,10 @@ pub(crate) fn RoleContextMenu(
     view! {
         {move || context_menu.get().map(|(x, y, oid, rid)| {
             let (x, y) = clamp_context_menu(x, y);
-            let role = organization_store.get().organizations.iter()
+            let role = organization_store.with(|s| s.organizations.iter()
                 .find(|o| o.id == oid)
                 .and_then(|o| o.roles.iter().find(|r| r.id == rid))
-                .cloned();
+                .cloned());
             let role_for_edit = role.clone();
             let is_system = role.as_ref().map(|r| r.is_system).unwrap_or(false);
             view! {

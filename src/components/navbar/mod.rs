@@ -22,18 +22,18 @@ pub fn Navbar() -> impl IntoView {
     let undo_store = use_undo_redo_store();
 
     // Derived signals
-    let current_user_id = move || app_store.get().current_user.id;
-    let can_undo = move || undo_store.get().can_undo_by_user(current_user_id());
-    let can_redo = move || undo_store.get().can_redo_by_user(current_user_id());
-    let is_search_open = move || ui_store.get().is_search_open;
+    let current_user_id = move || app_store.with(|s| s.current_user.id);
+    let can_undo = move || undo_store.with(|s| s.can_undo_by_user(current_user_id()));
+    let can_redo = move || undo_store.with(|s| s.can_redo_by_user(current_user_id()));
+    let is_search_open = move || ui_store.with(|s| s.is_search_open);
     let message_count = move || {
-        let current_user_id = app_store.get().current_user.id;
-        messenger_store.get().unread_message_count(current_user_id)
+        let current_user_id = app_store.with(|s| s.current_user.id);
+        messenger_store.with(|s| s.unread_message_count(current_user_id))
     };
     // Memoized so drawer components mount once and stay mounted — a plain
     // closure would re-run on every store update and recreate the drawer.
     let is_message_drawer_open =
-        Memo::new(move |_| messenger_store.get().message_drawer_open);
+        Memo::new(move |_| messenger_store.with(|s| s.message_drawer_open));
 
     // Dropdown state: (client_x, client_y, list of actions, is_redo)
     let (dropdown, set_dropdown) = signal::<Option<(i32, i32, Vec<Action>, bool)>>(None);
@@ -67,13 +67,14 @@ pub fn Navbar() -> impl IntoView {
     fn user_info(
         app_store: &leptos::prelude::RwSignal<crate::stores::AppStore>,
     ) -> (uuid::Uuid, String, String, Option<uuid::Uuid>) {
-        let store = app_store.get();
-        (
-            store.current_user.id,
-            store.current_user.name.clone(),
-            format!("{:?}", store.current_user.role),
-            store.current_user.organization_id,
-        )
+        app_store.with(|store| {
+            (
+                store.current_user.id,
+                store.current_user.name.clone(),
+                format!("{:?}", store.current_user.role),
+                store.current_user.organization_id,
+            )
+        })
     }
 
     // Handlers
@@ -270,27 +271,30 @@ pub fn Navbar() -> impl IntoView {
         click_feedback(6);
     };
 
-    let is_tabs_drawer_open = Memo::new(move |_| ui_store.get().tabs_drawer_open);
+    let is_tabs_drawer_open = Memo::new(move |_| ui_store.with(|s| s.tabs_drawer_open));
     let is_notifications_drawer_open =
-        Memo::new(move |_| notification_store.get().drawer_open);
+        Memo::new(move |_| notification_store.with(|s| s.drawer_open));
     let notification_count = move || {
-        let app = app_store.get();
-        let org = organization_store.get();
-        let store = notification_store.get();
-        let filter = &store.drawer_filter;
-        store
-            .notifications
-            .iter()
-            .filter(|n| {
-                app.notification_is_visible(n, &org)
-                    && matches_filter(
-                        n,
-                        filter,
-                        &store.drawer_scoped_portfolio,
-                        &store.drawer_scoped_group,
-                    )
+        app_store.with(|app| {
+            organization_store.with(|org| {
+                notification_store.with(|store| {
+                    let filter = &store.drawer_filter;
+                    store
+                        .notifications
+                        .iter()
+                        .filter(|n| {
+                            app.notification_is_visible(n, org)
+                                && matches_filter(
+                                    n,
+                                    filter,
+                                    &store.drawer_scoped_portfolio,
+                                    &store.drawer_scoped_group,
+                                )
+                        })
+                        .count()
+                })
             })
-            .count()
+        })
     };
 
     /// Display label for the active sort mode.
@@ -458,7 +462,7 @@ pub fn Navbar() -> impl IntoView {
                                         on:click=move |_| set_show_filter_menu.update(|v| *v = !*v)
                                         title="Change notification filter"
                                     >
-                                        {move || format!("{} ▼", filter_label(&notification_store.get().drawer_filter))}
+                                        {move || notification_store.with(|s| format!("{} ▼", filter_label(&s.drawer_filter)))}
                                     </button>
                                     {move || if show_filter_menu.get() {
                                         let filter_menu_items = [
@@ -479,7 +483,7 @@ pub fn Navbar() -> impl IntoView {
                                                     view! {
                                                         <button
                                                             class="notif-sort-menu-item"
-                                                            class:active={move || notification_store.get().drawer_filter == filter}
+                                                            class:active={move || notification_store.with(|s| s.drawer_filter == filter)}
                                                             on:click=move |_| {
                                                                 notification_store.update(|s| {
                                                                     if matches!(filter_for_click, NotificationDrawerFilter::All) {
@@ -507,7 +511,7 @@ pub fn Navbar() -> impl IntoView {
                                         on:click=move |_| set_show_sort_menu.update(|v| *v = !*v)
                                         title="Change sort order"
                                     >
-                                        {move || format!("{} ▼", sort_label(&notification_store.get().drawer_sort))}
+                                        {move || notification_store.with(|s| format!("{} ▼", sort_label(&s.drawer_sort)))}
                                     </button>
                                     {move || if show_sort_menu.get() {
                                         let menu_items = [
@@ -524,7 +528,7 @@ pub fn Navbar() -> impl IntoView {
                                                     view! {
                                                         <button
                                                             class="notif-sort-menu-item"
-                                                            class:active={move || notification_store.get().drawer_sort == sort_for_active}
+                                                            class:active={move || notification_store.with(|s| s.drawer_sort == sort_for_active)}
                                                             on:click=move |_| {
                                                                 notification_store.update(|s| s.set_drawer_sort(sort_for_click.clone()));
                                                                 set_show_sort_menu.set(false);
@@ -554,15 +558,19 @@ pub fn Navbar() -> impl IntoView {
                             {move || if show_doc_reader.get() {
                                 document_reader_view(app_store, notification_store, move || set_show_doc_reader.set(false)).into_any()
                             } else {
-                                let app = app_store.get();
-                                let org = organization_store.get();
-                                let store = notification_store.get();
-                                let mut notifs: Vec<Notification> = store.notifications.iter()
-                                    .filter(|n| app.notification_is_visible(n, &org) && matches_filter(n, &store.drawer_filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
-                                    .cloned()
-                                    .collect();
-                                apply_sort(&mut notifs, &store.drawer_sort);
-                                if notifs.is_empty() {
+                                let notifs_sorted = app_store.with(|app| {
+                                    organization_store.with(|org| {
+                                        notification_store.with(|store| {
+                                            let mut notifs: Vec<Notification> = store.notifications.iter()
+                                                .filter(|n| app.notification_is_visible(n, org) && matches_filter(n, &store.drawer_filter, &store.drawer_scoped_portfolio, &store.drawer_scoped_group))
+                                                .cloned()
+                                                .collect();
+                                            apply_sort(&mut notifs, &store.drawer_sort);
+                                            notifs
+                                        })
+                                    })
+                                });
+                                if notifs_sorted.is_empty() {
                                     view! {
                                         <div class="notif-empty">
                                             <div class="notif-empty-icon">"🔕"</div>
@@ -570,7 +578,6 @@ pub fn Navbar() -> impl IntoView {
                                         </div>
                                     }.into_any()
                                 } else {
-                                    let notifs_sorted = notifs;
                                     view! {
                                         <For
                                             each=move || notifs_sorted.clone()
@@ -593,7 +600,7 @@ pub fn Navbar() -> impl IntoView {
                                                 let has_target = target.is_some();
                                                 let linked_doc = n.linked_doc_id;
                                                 let content_preview = n.content_preview.clone();
-                                                let has_linked_origin = n.linked_portfolio_id.is_some() || n.linked_doc_id.is_some();
+                                                let has_linked_origin = n.linked_portfolio_id.is_some() || n.linked_doc_id.is_some() || n.linked_marketplace_entity.is_some();
                                                 let on_notif_click = {
                                                     let app_store = app_store;
                                                     let notification_store = notification_store;
@@ -724,7 +731,7 @@ fn document_reader_view(
 ) -> impl IntoView {
     let on_done = std::sync::Arc::new(on_done);
     let doc_notifs = Memo::new(move |_| {
-        let store = notification_store.get();
+        notification_store.with(|store| {
         let mut grouped: std::collections::HashMap<Uuid, Vec<Notification>> =
             std::collections::HashMap::new();
         for n in store
@@ -745,8 +752,7 @@ fn document_reader_view(
             .filter_map(|(doc_id, notifs)| {
                 let latest = notifs.first()?.clone();
                 let doc_name = app_store
-                    .get()
-                    .find_document(doc_id)
+                    .with(|app| app.find_document(doc_id))
                     .map(|d| d.name)
                     .unwrap_or_else(|| "Document".to_string());
                 Some((doc_id, doc_name, latest, notifs.len()))
@@ -754,6 +760,7 @@ fn document_reader_view(
             .collect();
         result.sort_by(|a, b| b.2.timestamp.cmp(&a.2.timestamp));
         result
+        })
     });
 
     view! {

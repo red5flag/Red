@@ -13,11 +13,11 @@ pub(crate) fn AccountSettings() -> impl IntoView {
             </div>
             <div class="settings-list">
                 <div class="account-current-user">
-                    <div class="account-avatar">{move || app_store.get().current_user.icon.clone().unwrap_or_else(|| app_store.get().current_user.name.chars().next().unwrap_or('U').to_string())}</div>
+                    <div class="account-avatar">{move || app_store.with(|s| s.current_user.icon.clone().unwrap_or_else(|| s.current_user.name.chars().next().unwrap_or('U').to_string()))}</div>
                     <div class="account-user-info">
-                        <div class="account-user-name">{move || app_store.get().current_user.name.clone()}</div>
-                        <div class="account-user-email">{move || app_store.get().current_user.email.clone()}</div>
-                        <div class="account-user-role">{move || format!("{:?}", app_store.get().current_user.role)}</div>
+                        <div class="account-user-name">{move || app_store.with(|s| s.current_user.name.clone())}</div>
+                        <div class="account-user-email">{move || app_store.with(|s| s.current_user.email.clone())}</div>
+                        <div class="account-user-role">{move || app_store.with(|s| format!("{:?}", s.current_user.role))}</div>
                     </div>
                 </div>
                 <div class="account-icon-setting">
@@ -26,7 +26,7 @@ pub(crate) fn AccountSettings() -> impl IntoView {
                         type="text"
                         class="account-icon-input"
                         placeholder="Emoji or icon..."
-                        prop:value={move || app_store.get().current_user.icon.clone().unwrap_or_default()}
+                        prop:value={move || app_store.with(|s| s.current_user.icon.clone().unwrap_or_default())}
                         on:input=move |ev| {
                             let v = event_target_value(&ev);
                             app_store.update(|s| s.current_user.icon = if v.trim().is_empty() { None } else { Some(v) });
@@ -36,32 +36,34 @@ pub(crate) fn AccountSettings() -> impl IntoView {
                 <div class="account-details-grid">
                     <div class="account-detail-row">
                         <span class="account-detail-label">"Username"</span>
-                        <span class="account-detail-value">{move || app_store.get().current_user.name.clone()}</span>
+                        <span class="account-detail-value">{move || app_store.with(|s| s.current_user.name.clone())}</span>
                     </div>
                     <div class="account-detail-row">
                         <span class="account-detail-label">"Email"</span>
-                        <span class="account-detail-value">{move || app_store.get().current_user.email.clone()}</span>
+                        <span class="account-detail-value">{move || app_store.with(|s| s.current_user.email.clone())}</span>
                     </div>
                     <div class="account-detail-row">
                         <span class="account-detail-label">"Role"</span>
-                        <span class="account-detail-value">{move || format!("{:?}", app_store.get().current_user.role)}</span>
+                        <span class="account-detail-value">{move || app_store.with(|s| format!("{:?}", s.current_user.role))}</span>
                     </div>
                     <div class="account-detail-row">
                         <span class="account-detail-label">"Organization"</span>
                         <span class="account-detail-value">{move || {
-                            let org = organization_store.get();
-                            app_store.get().current_user.organization_id
-                                .and_then(|oid| org.organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone()))
-                                .unwrap_or_else(|| "None".to_string())
+                            let org_id = app_store.with(|s| s.current_user.organization_id);
+                            organization_store.with(|org| {
+                                org_id
+                                    .and_then(|oid| org.organizations.iter().find(|o| o.id == oid).map(|o| o.name.clone()))
+                                    .unwrap_or_else(|| "None".to_string())
+                            })
                         }}</span>
                     </div>
                     <div class="account-detail-row">
                         <span class="account-detail-label">"User ID"</span>
-                        <span class="account-detail-value">{move || app_store.get().current_user.id.to_string()[..8].to_string()}</span>
+                        <span class="account-detail-value">{move || app_store.with(|s| s.current_user.id.to_string()[..8].to_string())}</span>
                     </div>
                     <div class="account-detail-row">
                         <span class="account-detail-label">"Member since"</span>
-                        <span class="account-detail-value">{move || app_store.get().current_user.created_at.format("%b %d, %Y").to_string()}</span>
+                        <span class="account-detail-value">{move || app_store.with(|s| s.current_user.created_at.format("%b %d, %Y").to_string())}</span>
                     </div>
                 </div>
             </div>
@@ -70,8 +72,9 @@ pub(crate) fn AccountSettings() -> impl IntoView {
             </div>
             <div class="settings-list">
                 {move || {
-                    let creds = app_store.get().credentials.credentials.clone();
-                    let current_name = app_store.get().current_user.name.clone();
+                    let (creds, current_name) = app_store.with(|s| {
+                        (s.credentials.credentials.clone(), s.current_user.name.clone())
+                    });
                     if creds.is_empty() {
                         view! {
                             <div class="list-item">

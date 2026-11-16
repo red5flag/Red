@@ -121,6 +121,43 @@ pub async fn get_channels() -> Result<Option<Vec<crate::models::Channel>>, Serve
     }
 }
 
+/// Persist the organization store (organizations + org users) so org ids
+/// stay stable and portfolio→org grouping survives reloads.
+#[server(SaveOrganizations, "/api", input = leptos::server_fn::codec::Json)]
+pub async fn save_organizations(
+    store: crate::stores::OrganizationStore,
+) -> Result<(), ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        crate::storage::portfolio_store()
+            .save_organization_store(&store)
+            .map_err(|e| ServerFnError::new(e.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Organization storage is only available on the server",
+        ))
+    }
+}
+
+/// Load the persisted organization store. `None` means it was never saved.
+#[server(GetOrganizations, "/api", input = leptos::server_fn::codec::Json)]
+pub async fn get_organizations(
+) -> Result<Option<crate::stores::OrganizationStore>, ServerFnError> {
+    #[cfg(feature = "ssr")]
+    {
+        return Ok(crate::storage::portfolio_store().load_organization_store());
+    }
+    #[cfg(not(feature = "ssr"))]
+    {
+        Err(ServerFnError::new(
+            "Organization storage is only available on the server",
+        ))
+    }
+}
+
 /// Persist a messenger message: the server PQC-seals it (ML-KEM-1024 +
 /// ML-DSA-65 + ChaCha20-Poly1305) into the designated local store.
 #[server(SendSecureMessage, "/api", input = leptos::server_fn::codec::Json)]

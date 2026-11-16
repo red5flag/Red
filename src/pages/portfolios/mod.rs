@@ -652,7 +652,7 @@ pub(crate) use add_portfolio_modal::AddPortfolioModal;
 pub(crate) use asset_channels::{
     csv_to_list, marketplace_display_label, AddChannelModal, AssetBookingControls,
     AssetChannelsSection, AssetLinkingControls, AssetMarketplaceControls, ChannelManagementWindow,
-    ListingComment, MarketplaceListing, SalesProfile,
+    ListingBid, ListingComment, MarketplaceListing, SalesProfile,
 };
 pub(crate) use red_listing::{
     collect_red_listings, save_red_listing, RedBrowseItem, RedEntityKind, RedListingPanel,

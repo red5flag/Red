@@ -516,8 +516,7 @@ pub(crate) fn AssetViewer(
                                                 app_store_inner.update(|s| s.add_channel(channel));
                                             }
                                             set_new_asset_id.set(Some(asset_id));
-                                            set_new_channel_name.set(String::new());
-                                            set_new_channel_rate.set(String::new());
+                                            // Channel name/rate persist for repeat adds.
                                         }
                                     }>
                                         "Add Asset"

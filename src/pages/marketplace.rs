@@ -1,8 +1,16 @@
 use crate::pages::portfolios::{
-    collect_red_listings, save_red_listing, ListingComment, MarketplaceListing, RedBrowseItem,
-    RedEntityKind,
+    collect_red_listings, save_red_listing, ListingBid, ListingComment, MarketplaceListing,
+    RedBrowseItem, RedEntityKind,
 };
-use crate::stores::{use_app_store, use_organization_store, AppStore, OrganizationStore};
+use crate::models::{ContactSource, MessageEmbed, MessengerContact};
+#[cfg(feature = "hydrate")]
+use crate::models::MessengerState;
+#[cfg(feature = "hydrate")]
+use crate::server::{save_messenger_state, send_secure_message};
+use crate::stores::{
+    use_app_store, use_messenger_store, use_notification_store, use_organization_store, AppStore,
+    OrganizationStore,
+};
 use crate::types::TabType;
 use leptos::prelude::*;
 use uuid::Uuid;
@@ -74,6 +82,8 @@ fn kind_rank(kind: RedEntityKind) -> u8 {
 pub fn MarketplacePage() -> impl IntoView {
     let app_store = use_app_store();
     let organization_store = use_organization_store();
+    let notification_store = use_notification_store();
+    let messenger_store = use_messenger_store();
     let (kind_filter, set_kind_filter) = signal("All".to_string());
     let (sort_mode, set_sort_mode) = signal(MarketSort::Newest);
     let (status_filter, set_status_filter) = signal("All".to_string());
@@ -86,7 +96,7 @@ pub fn MarketplacePage() -> impl IntoView {
     let (edit_field, set_edit_field) = signal(Option::<String>::None);
     let (edit_buf, set_edit_buf) = signal(String::new());
 
-    let items = Memo::new(move |_| collect_red_listings(&app_store.get()));
+    let items = Memo::new(move |_| app_store.with(|s| collect_red_listings(s)));
 
     // The open item view re-resolves against the live items memo so
     // comment/status edits reflect immediately.
@@ -99,6 +109,20 @@ pub fn MarketplacePage() -> impl IntoView {
             .or(Some(sel))
     });
 
+    // Notification click navigation: open the listing detail for the
+    // pending entity once it resolves in the live items list.
+    Effect::new(move |_| {
+        let pending = app_store.with(|s| s.pending_marketplace_entity);
+        if let Some(entity_id) = pending {
+            app_store.update(|s| s.pending_marketplace_entity = None);
+            if let Some(item) = items.with(|v| {
+                v.iter().find(|i| i.entity_id == entity_id).cloned()
+            }) {
+                set_selected.set(Some(item));
+            }
+        }
+    });
+
     let filtered = Memo::new(move |_| {
         let kf = kind_filter.get();
         let sf = status_filter.get();
@@ -107,16 +131,16 @@ pub fn MarketplacePage() -> impl IntoView {
             .into_iter()
             .filter(|i| {
                 (kf == "All" || i.kind.label() == kf)
-                    && (sf == "All" || status_label(&i.listing.status) == sf)
+                    && (sf == "All" || status_label(i.listing.effective_status()) == sf)
             })
             .collect::<Vec<_>>()
     });
 
     let sorted = Memo::new(move |_| {
-        let app = app_store.get();
-        let orgs = organization_store.get();
+        app_store.with(|app| {
+            organization_store.with(|orgs| {
         let mut v = filtered.get();
-        let owner_of = |i: &RedBrowseItem| owner_name(&app, &orgs, i.owner_id);
+        let owner_of = |i: &RedBrowseItem| owner_name(app, orgs, i.owner_id);
         match sort_mode.get() {
             MarketSort::Newest => {
                 v.sort_by(|a, b| b.listing.saved_at.cmp(&a.listing.saved_at));
@@ -154,6 +178,8 @@ pub fn MarketplacePage() -> impl IntoView {
             }
         }
         v
+            })
+        })
     });
 
     // Jump to the listing's entity inside Portfolios: prime the same
@@ -256,32 +282,222 @@ pub fn MarketplacePage() -> impl IntoView {
         let Some(item) = detail_item.get_untracked() else {
             return;
         };
+        let (author, author_id) = app_store.with(|s| {
+            (s.current_user.name.clone(), s.current_user.id)
+        });
         let mut l = item.listing.clone();
         l.comments.push(ListingComment {
-            author: app_store.get_untracked().current_user.name.clone(),
-            text,
+            author: author.clone(),
+            text: text.clone(),
             at: chrono::Utc::now().to_rfc3339(),
         });
+        // Notify the listing owner — skipped for self-comments.
+        if item.owner_id != author_id {
+            notification_store.update(|ns| {
+                ns.add_marketplace_comment_notification(
+                    item.entity_id,
+                    &item.listing.title,
+                    &author,
+                    &text,
+                );
+            });
+        }
         set_comment_text.set(String::new());
         persist_item_listing(&item, l);
     });
 
+    // --- Bidding / buying / DM interest -------------------------------
+    let (bid_amount, set_bid_amount) = signal(String::new());
+    let (bid_err, set_bid_err) = signal(Option::<String>::None);
+
+    let place_bid = Callback::new(move |_: ()| {
+        let Some(item) = detail_item.get_untracked() else {
+            return;
+        };
+        let (author, author_id) =
+            app_store.with(|s| (s.current_user.name.clone(), s.current_user.id));
+        if item.owner_id == author_id {
+            set_bid_err.set(Some("You can't bid on your own listing".to_string()));
+            return;
+        }
+        let amount: f64 = bid_amount.get().trim().parse().unwrap_or(0.0);
+        let mut l = item.listing.clone();
+        if !matches!(l.effective_status(), "published" | "bidding") {
+            set_bid_err.set(Some("This listing isn't open for bids".to_string()));
+            return;
+        }
+        let min_next = l.min_next_bid();
+        if !l.place_bid(author.clone(), Some(author_id), amount) {
+            set_bid_err.set(Some(if min_next > 0.0 {
+                format!("Bid must be more than ${:.2}", min_next)
+            } else {
+                "Enter a valid bid amount".to_string()
+            }));
+            return;
+        }
+        set_bid_amount.set(String::new());
+        set_bid_err.set(None);
+        persist_item_listing(&item, l);
+        notification_store.update(|ns| {
+            ns.add_marketplace_event_notification(
+                item.entity_id,
+                &item.listing.title,
+                &author,
+                &format!("placed a bid of ${:.2}", amount),
+            );
+        });
+    });
+
+    let buy_now = Callback::new(move |_: ()| {
+        let Some(item) = detail_item.get_untracked() else {
+            return;
+        };
+        let (buyer, buyer_id) =
+            app_store.with(|s| (s.current_user.name.clone(), s.current_user.id));
+        if item.owner_id == buyer_id {
+            return;
+        }
+        let mut l = item.listing.clone();
+        if matches!(l.effective_status(), "sold" | "draft") {
+            return;
+        }
+        let listed = price_num(&l.price);
+        let sale = if listed > 0.0 {
+            listed
+        } else {
+            l.high_bid().map(|b| b.amount).unwrap_or(0.0)
+        };
+        l.buy_now(buyer.clone(), Some(buyer_id), sale);
+        l.comments.push(ListingComment {
+            author: "Marketplace".to_string(),
+            text: format!("Purchased by {} for ${:.2}", buyer, sale),
+            at: chrono::Utc::now().to_rfc3339(),
+        });
+        persist_item_listing(&item, l);
+        notification_store.update(|ns| {
+            ns.add_marketplace_event_notification(
+                item.entity_id,
+                &item.listing.title,
+                &buyer,
+                &format!("purchased this listing for ${:.2}", sale),
+            );
+        });
+    });
+
+    // "I'm interested" — opens (or creates) the listing's messenger
+    // thread and posts the interest message so the seller sees it.
+    let message_seller = Callback::new(move |_: ()| {
+        let Some(item) = detail_item.get_untracked() else {
+            return;
+        };
+        let (uid, uname) =
+            app_store.with(|s| (s.current_user.id, s.current_user.name.clone()));
+        if item.owner_id == uid {
+            return;
+        }
+        let mut l = item.listing.clone();
+        if l.thread_id.is_none() {
+            l.thread_id = Some(Uuid::new_v4());
+            let saved = l.clone();
+            persist_item_listing(&item, saved);
+        }
+        let tid = l.thread_id.unwrap_or_default();
+        let contact_name = format!("Red Marketplace · {}", l.title);
+        let embed = match item.kind {
+            RedEntityKind::Asset => MessageEmbed::Listing {
+                asset_id: item.entity_id,
+                marketplace: "Red".to_string(),
+            },
+            RedEntityKind::AssetGroup => MessageEmbed::AssetGroup(item.entity_id),
+            RedEntityKind::Portfolio => MessageEmbed::Portfolio(item.entity_id),
+        };
+        let content =
+            format!("I'm interested in \"{}\" — is it still available?", l.title);
+        let mut new_msgs = Vec::new();
+        messenger_store.update(|ms| {
+            if !ms.messenger_contacts.iter().any(|c| c.id == tid) {
+                ms.messenger_contacts.push(MessengerContact {
+                    id: tid,
+                    name: contact_name,
+                    source: ContactSource::Marketplace,
+                    phone: None,
+                    email: None,
+                    icon: Some("🏪".to_string()),
+                    members: Vec::new(),
+                    unread_count: 0,
+                });
+            }
+            let has_msgs = ms.messages.iter().any(|m| {
+                (m.sender_id == tid && m.recipient_id == uid)
+                    || (m.sender_id == uid && m.recipient_id == tid)
+            });
+            if !has_msgs {
+                new_msgs.push(ms.receive_message_with_embeds(
+                    tid,
+                    uid,
+                    format!("Listing published — {}", l.title),
+                    vec![embed.clone()],
+                ));
+            }
+            new_msgs.push(ms.send_message_with_embeds(uid, tid, content, vec![embed]));
+        });
+        #[cfg(feature = "hydrate")]
+        {
+            let state = MessengerState {
+                contacts: messenger_store.get_untracked().messenger_contacts.clone(),
+                requests: messenger_store.get_untracked().messenger_requests.clone(),
+            };
+            leptos::task::spawn_local(async move {
+                let _ = save_messenger_state(state).await;
+                for m in new_msgs {
+                    let mid = m.id;
+                    if send_secure_message(m).await.is_ok() {
+                        messenger_store.update(|s| s.set_message_status(mid, crate::models::MessageStatus::Sent));
+                    }
+                }
+            });
+        }
+        #[cfg(not(feature = "hydrate"))]
+        let _ = &new_msgs;
+        messenger_store.update(|ms| {
+            ms.set_message_drawer(true);
+            ms.set_selected_chat(Some(tid));
+        });
+        notification_store.update(|ns| {
+            ns.add_marketplace_event_notification(
+                item.entity_id,
+                &item.listing.title,
+                &uname,
+                "is interested in this listing",
+            );
+        });
+    });
+
     // Full item view: listing info + status control + comments.
     let detail_view = move |item: RedBrowseItem| -> AnyView {
-        let app = app_store.get();
-        let orgs = organization_store.get();
-        let owner = owner_name(&app, &orgs, item.owner_id);
-        let is_owner = item.owner_id == app.current_user.id;
+        let (owner, is_owner) = app_store.with(|app| {
+            organization_store.with(|orgs| {
+                (owner_name(app, orgs, item.owner_id), item.owner_id == app.current_user.id)
+            })
+        });
         let kind = item.kind;
+        let type_label = item.type_label.clone();
         let portfolio_name = item.portfolio_name.clone();
         let listing = item.listing.clone();
         let comments = listing.comments.clone();
+        let eff_status = listing.effective_status().to_string();
+        let bids = listing.bids.clone();
+        let high_bid = listing.high_bid().map(|b| b.amount);
+        let listing_price = listing.price.clone();
         let photos: Vec<String> = if !listing.photos.is_empty() {
             listing.photos.clone()
         } else {
             item.image_url.iter().cloned().collect()
         };
-        let status = listing.status.clone();
+        // Displayed status derives from actual bid activity; the stored
+        // `status` string only carries draft/sold intent.
+        let status = listing.effective_status().to_string();
+        let stored_status = listing.status.clone();
         let saved = listing.saved_at.clone();
         let nav_kind = item.kind;
         let nav_entity = item.entity_id;
@@ -354,7 +570,7 @@ pub fn MarketplacePage() -> impl IntoView {
                         on:click=move |_| { set_selected.set(None); set_edit_field.set(None); }>
                         "← Back"
                     </button>
-                    <span class="marketplace-kind-badge">{format!("{} {}", kind.icon(), kind.label())}</span>
+                    <span class="marketplace-kind-badge">{format!("{} {}", kind.icon(), type_label)}</span>
                     <span class={format!("listing-status-badge listing-status-{}", status)}>
                         {status_label(&status)}
                     </span>
@@ -502,10 +718,9 @@ pub fn MarketplacePage() -> impl IntoView {
                                 <div class="mp-af-row">
                                     <span class="mp-af-label">"LISTING STATUS"</span>
                                     <select class="mp-af-input"
-                                        prop:value=status.clone()
+                                        prop:value=stored_status.clone()
                                         on:change=move |ev| set_listing_status.run(event_target_value(&ev))>
                                         <option value="published">"Listed"</option>
-                                        <option value="bidding">"Bidding"</option>
                                         <option value="sold">"Sold"</option>
                                         <option value="draft">"Draft"</option>
                                     </select>
@@ -514,6 +729,100 @@ pub fn MarketplacePage() -> impl IntoView {
                         } else { ().into_any() }}
                     </div>
                 </div>
+                {move || {
+                    let eff = eff_status.clone();
+                    if eff == "draft" {
+                        return ().into_any();
+                    }
+                    let bids = bids.clone();
+                    let active: Vec<_> = bids.iter().filter(|b| b.state == "active").collect();
+                    let high = high_bid;
+                    let can_bid = !is_owner && matches!(eff.as_str(), "published" | "bidding");
+                    let can_buy = !is_owner
+                        && !matches!(eff.as_str(), "sold")
+                        && !listing_price.trim().is_empty();
+                    let can_msg = !is_owner && matches!(eff.as_str(), "published" | "bidding");
+                    view! {
+                        <div class="listing-market">
+                            <div class="listing-market-head">
+                                <span class="listing-market-title">"Bids &amp; purchase"</span>
+                                <span class="listing-market-meta">
+                                    {if active.is_empty() {
+                                        "No bids yet".to_string()
+                                    } else {
+                                        format!(
+                                            "{} active · high bid ${:.2}",
+                                            active.len(),
+                                            high.unwrap_or(0.0)
+                                        )
+                                    }}
+                                </span>
+                            </div>
+                            {if !bids.is_empty() {
+                                view! {
+                                    <div class="listing-bid-list">
+                                        {bids.iter().rev().take(10).map(|b| {
+                                            let is_active = b.state == "active";
+                                            view! {
+                                                <div class="listing-bid" class:listing-bid-active=is_active>
+                                                    <span class="listing-bid-amount">
+                                                        {format!("${:.2}", b.amount)}
+                                                    </span>
+                                                    <span class="listing-bid-who">{b.bidder.clone()}</span>
+                                                    <span class="listing-bid-state">{b.state.clone()}</span>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                }.into_any()
+                            } else { ().into_any() }}
+                            {if can_bid || can_buy || can_msg {
+                                view! {
+                                    <div class="listing-market-actions">
+                                        {if can_bid {
+                                            view! {
+                                                <div class="listing-bid-form">
+                                                    <input class="mp-af-input listing-bid-input" type="text"
+                                                        placeholder={if let Some(h) = high {
+                                                            format!("Bid more than ${:.2}", h)
+                                                        } else {
+                                                            "Your bid".to_string()
+                                                        }}
+                                                        prop:value=move || bid_amount.get()
+                                                        on:input=move |ev| set_bid_amount.set(event_target_value(&ev))
+                                                        on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                                            if ev.key() == "Enter" { place_bid.run(()); }
+                                                        } />
+                                                    <button type="button" class="pf-small-btn listing-buy-btn"
+                                                        on:click=move |_| place_bid.run(())>"Place bid"</button>
+                                                    {move || bid_err.get().map(|e| view! {
+                                                        <span class="mp-error">{e}</span>
+                                                    })}
+                                                </div>
+                                            }.into_any()
+                                        } else { ().into_any() }}
+                                        {if can_buy {
+                                            view! {
+                                                <button type="button" class="pf-small-btn listing-buy-btn listing-buy-now"
+                                                    on:click=move |_| buy_now.run(())>
+                                                    {format!("Buy now — ${}", listing_price)}
+                                                </button>
+                                            }.into_any()
+                                        } else { ().into_any() }}
+                                        {if can_msg {
+                                            view! {
+                                                <button type="button" class="pf-small-btn"
+                                                    on:click=move |_| message_seller.run(())>
+                                                    "I'm interested — message seller"
+                                                </button>
+                                            }.into_any()
+                                        } else { ().into_any() }}
+                                    </div>
+                                }.into_any()
+                            } else { ().into_any() }}
+                        </div>
+                    }.into_any()
+                }}
                 <div class="listing-comments">
                     <div class="listing-comments-head">{format!("Comments ({})", comments.len())}</div>
                     {if comments.is_empty() {
@@ -662,15 +971,16 @@ pub fn MarketplacePage() -> impl IntoView {
                 view! {
                     <div class="marketplace-grid">
                         {list.into_iter().map(|item| {
-                            let app = app_store.get();
-                            let orgs = organization_store.get();
-                            let owner = owner_name(&app, &orgs, item.owner_id);
+                            let owner = app_store.with(|app| {
+                                organization_store.with(|orgs| owner_name(app, orgs, item.owner_id))
+                            });
                             let click_item = item.clone();
                             let kind = item.kind;
+                            let type_label = item.type_label.clone();
                             let title = item.listing.title.clone();
                             let price = item.listing.price.clone();
                             let condition = item.listing.condition.clone();
-                            let status = status_label(&item.listing.status).to_string();
+                            let status = status_label(item.listing.effective_status()).to_string();
                             let portfolio_name = item.portfolio_name.clone();
                             let saved = item.listing.saved_at.clone();
                             let img = item.image_url.clone();
@@ -686,7 +996,7 @@ pub fn MarketplacePage() -> impl IntoView {
                                         } else {
                                             view! { <span class="marketplace-card-placeholder">{kind.icon()}</span> }.into_any()
                                         }}
-                                        <span class="marketplace-kind-badge">{format!("{} {}", kind.icon(), kind.label())}</span>
+                                        <span class="marketplace-kind-badge">{format!("{} {}", kind.icon(), type_label)}</span>
                                     </div>
                                     <div class="marketplace-card-body">
                                         <div class="marketplace-card-title">{title}</div>

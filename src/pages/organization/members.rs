@@ -45,7 +45,7 @@ pub(crate) fn MembersSection(
                             }>
                             "+ Member"
                         </button>
-                        {move || if app_store.get().developer_mode {
+                        {move || if app_store.with(|s| s.developer_mode) {
                             view! {
                                 <button class="add-btn-small"
                                     on:click=move |_| {

@@ -17,16 +17,16 @@ fn random_emoji() -> &'static str {
 }
 
 #[component]
-pub(crate) fn AddPortfolioModal() -> impl IntoView {
+pub(crate) fn AddPortfolioModal(
+    name: RwSignal<String>,
+    desc: RwSignal<String>,
+    image_url: RwSignal<Option<String>>,
+    org_id: RwSignal<String>,
+) -> impl IntoView {
     let app_store = use_app_store();
     let organization_store = use_organization_store();
     let notification_store = use_notification_store();
     let ui_store = use_ui_store();
-
-    let (name, set_name) = signal(String::new());
-    let (desc, set_desc) = signal(String::new());
-    let (image_url, set_image_url) = signal(Option::<String>::None);
-    let (org_id, set_org_id) = signal(String::new());
 
     let close = move |_| {
         ui_store.update(|s| s.show_add_portfolio = false);
@@ -73,32 +73,32 @@ pub(crate) fn AddPortfolioModal() -> impl IntoView {
                         type="text"
                         placeholder="Portfolio name"
                         prop:value={move || name.get()}
-                        on:input=move |ev| set_name.set(event_target_value(&ev)) />
+                        on:input=move |ev| name.set(event_target_value(&ev)) />
                     <label class="org-edit-label">"Subtitle / Description"</label>
                     <input
                         class="login-input apf-input"
                         type="text"
                         placeholder="Description (optional)"
                         prop:value={move || desc.get()}
-                        on:input=move |ev| set_desc.set(event_target_value(&ev)) />
+                        on:input=move |ev| desc.set(event_target_value(&ev)) />
                     <label class="org-edit-label">"Image (optional)"</label>
                     <input
                         class="login-input apf-input apf-file-input"
                         type="file"
                         accept="image/*"
-                        on:change=move |ev| read_image_as_data_url(&ev, move |url| set_image_url.set(Some(url))) />
+                        on:change=move |ev| read_image_as_data_url(&ev, move |url| image_url.set(Some(url))) />
                     <label class="org-edit-label">"Organization"</label>
                     <select
                         class="login-input apf-input"
                         prop:value={move || org_id.get()}
                         on:change=move |ev| {
                             let new_org = event_target_value(&ev);
-                            set_org_id.set(new_org.clone());
+                            org_id.set(new_org.clone());
                             if image_url.get().is_none() {
                                 if let Ok(oid) = Uuid::parse_str(&new_org) {
                                     if let Some(org) = organization_store.get().organizations.iter().find(|o| o.id == oid) {
                                         if org.image_url.is_some() {
-                                            set_image_url.set(org.image_url.clone());
+                                            image_url.set(org.image_url.clone());
                                         }
                                     }
                                 }

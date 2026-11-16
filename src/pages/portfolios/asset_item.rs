@@ -58,17 +58,18 @@ pub(crate) fn AssetItem(
     let default_asset_images = asset.images.clone();
     let asset_images = Memo::new(move |_| {
         app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
+            .with(|s| {
+                s.portfolios
                     .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
+                    .find(|a| a.id == asset_id)
+                    .map(|a| a.images.clone())
+                    .unwrap_or_else(|| default_asset_images.clone())
             })
-            .find(|a| a.id == asset_id)
-            .map(|a| a.images.clone())
-            .unwrap_or_else(|| default_asset_images.clone())
     });
     let asset_type_for_placeholder = asset.asset_type.clone();
     let asset_name_for_placeholder = asset.name.clone();
@@ -283,7 +284,7 @@ pub(crate) fn AssetItem(
     Effect::new({
         let open = open_doc_modal.clone();
         move |_| {
-            if ui_store.get().is_doc_modal_open(asset_id) {
+            if ui_store.with(|s| s.is_doc_modal_open(asset_id)) {
                 open.run(DocModalTarget::Add);
                 ui_store.update(|s| s.close_doc_modal(asset_id));
             }
@@ -355,24 +356,25 @@ pub(crate) fn AssetItem(
     // Reactive document list for this asset (read from store so it updates on add)
     let asset_docs_reactive = Memo::new(move |_| {
         app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
+            .with(|s| {
+                s.portfolios
                     .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
+                    .find(|a| a.id == asset_id)
+                    .map(|a| a.documents.clone())
+                    .unwrap_or_default()
             })
-            .find(|a| a.id == asset_id)
-            .map(|a| a.documents.clone())
-            .unwrap_or_default()
     });
 
     // Deep-link from search: open the requested document in the dropdown.
     Effect::new({
         let open = open_doc_modal.clone();
         move |_| {
-            if let Some(did) = app_store.get().pending_doc_view {
+            if let Some(did) = app_store.with(|s| s.pending_doc_view) {
                 if let Some(doc) = asset_docs_reactive
                     .get()
                     .iter()
@@ -391,17 +393,18 @@ pub(crate) fn AssetItem(
     let default_asset_images = asset.images.clone();
     let asset_images = Memo::new(move |_| {
         app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
+            .with(|s| {
+                s.portfolios
                     .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
+                    .find(|a| a.id == asset_id)
+                    .map(|a| a.images.clone())
+                    .unwrap_or_else(|| default_asset_images.clone())
             })
-            .find(|a| a.id == asset_id)
-            .map(|a| a.images.clone())
-            .unwrap_or_else(|| default_asset_images.clone())
     });
 
     let add_image = Callback::new(move |url: String| {
@@ -452,17 +455,18 @@ pub(crate) fn AssetItem(
     let a_name = asset.name.clone();
     let a_addr = Memo::new(move |_| {
         app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
+            .with(|s| {
+                s.portfolios
                     .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
+                    .find(|a| a.id == asset_id)
+                    .and_then(|a| a.location.clone())
+                    .unwrap_or_default()
             })
-            .find(|a| a.id == asset_id)
-            .and_then(|a| a.location.clone())
-            .unwrap_or_default()
     });
     let a_addr_grid = Memo::new(move |_| {
         let addr = a_addr.get();
@@ -480,36 +484,40 @@ pub(crate) fn AssetItem(
     let organization_store = use_organization_store();
 
     // Permission-based flags for linking and booking controls
-    let current_user_id = app_store.get().current_user.id;
+    let current_user_id = app_store.with(|s| s.current_user.id);
     let can_link = move || {
         if a_org_id.is_none() {
             return can_edit.get();
         }
         let oid = a_org_id.unwrap();
-        organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::EditDirectAssetLinking,
-        ) || organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::EditChannels,
-        )
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::EditDirectAssetLinking,
+            ) || s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::EditChannels,
+            )
+        })
     };
     let can_book = move || {
         if a_org_id.is_none() {
             return can_edit.get();
         }
         let oid = a_org_id.unwrap();
-        organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::CreateDirectAssetBookings,
-        ) || organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::CreateBookings,
-        )
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::CreateDirectAssetBookings,
+            ) || s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::CreateBookings,
+            )
+        })
     };
 
     let can_view_images = move || {
@@ -517,98 +525,108 @@ pub(crate) fn AssetItem(
             return true;
         }
         let oid = a_org_id.unwrap();
-        organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::ViewAssetImages,
-        )
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::ViewAssetImages,
+            )
+        })
     };
     let can_upload_images = move || {
         if a_org_id.is_none() {
             return can_edit.get();
         }
         let oid = a_org_id.unwrap();
-        organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::UploadAssetImages,
-        )
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::UploadAssetImages,
+            )
+        })
     };
     let can_view_documents = move || {
         if a_org_id.is_none() {
             return true;
         }
         let oid = a_org_id.unwrap();
-        let store = organization_store.get();
-        store.user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::ViewAssetDocuments,
-        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewDocuments)
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::ViewAssetDocuments,
+            ) || s.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewDocuments)
+        })
     };
     let can_upload_documents = move || {
         if a_org_id.is_none() {
             return can_edit_documents.get();
         }
         let oid = a_org_id.unwrap();
-        let store = organization_store.get();
-        store.user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::UploadAssetDocuments,
-        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::UploadDocuments)
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::UploadAssetDocuments,
+            ) || s.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::UploadDocuments)
+        })
     };
     let can_view_linking = move || {
         if a_org_id.is_none() {
             return can_link();
         }
         let oid = a_org_id.unwrap();
-        let store = organization_store.get();
-        store.user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::ViewDirectAssetLinking,
-        ) || store.user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::EditDirectAssetLinking,
-        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewChannels)
-            || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditChannels)
-            || can_link()
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::ViewDirectAssetLinking,
+            ) || s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::EditDirectAssetLinking,
+            ) || s.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewChannels)
+                || s.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::EditChannels)
+                || can_link()
+        })
     };
     let can_view_booking = move || {
         if a_org_id.is_none() {
             return can_book();
         }
         let oid = a_org_id.unwrap();
-        let store = organization_store.get();
-        store.user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::ViewDirectAssetBookings,
-        ) || store.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewBookings)
-            || store.user_has_perm_in_org(
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
                 oid,
                 current_user_id,
-                &crate::models::Perm::CreateDirectAssetBookings,
-            )
-            || store.user_has_perm_in_org(
-                oid,
-                current_user_id,
-                &crate::models::Perm::CreateBookings,
-            )
-            || can_book()
+                &crate::models::Perm::ViewDirectAssetBookings,
+            ) || s.user_has_perm_in_org(oid, current_user_id, &crate::models::Perm::ViewBookings)
+                || s.user_has_perm_in_org(
+                    oid,
+                    current_user_id,
+                    &crate::models::Perm::CreateDirectAssetBookings,
+                )
+                || s.user_has_perm_in_org(
+                    oid,
+                    current_user_id,
+                    &crate::models::Perm::CreateBookings,
+                )
+                || can_book()
+        })
     };
     let can_view_general_info = move || {
         if a_org_id.is_none() {
             return true;
         }
         let oid = a_org_id.unwrap();
-        organization_store.get().user_has_perm_in_org(
-            oid,
-            current_user_id,
-            &crate::models::Perm::ViewAssetGeneralInformation,
-        )
+        organization_store.with(|s| {
+            s.user_has_perm_in_org(
+                oid,
+                current_user_id,
+                &crate::models::Perm::ViewAssetGeneralInformation,
+            )
+        })
     };
     let can_view_content =
         move || can_view_images() || can_view_documents() || can_view_general_info();
@@ -617,22 +635,22 @@ pub(crate) fn AssetItem(
     }
 
     let a_org_name = move || {
-        organization_store
-            .get()
-            .organizations
-            .iter()
-            .find(|o| Some(o.id) == a_org_id)
-            .map(|o| o.name.clone())
-            .unwrap_or_else(|| "—".to_string())
+        organization_store.with(|s| {
+            s.organizations
+                .iter()
+                .find(|o| Some(o.id) == a_org_id)
+                .map(|o| o.name.clone())
+                .unwrap_or_else(|| "—".to_string())
+        })
     };
     let available_orgs = Memo::new(move |_| {
-        organization_store
-            .get()
-            .organizations
-            .iter()
-            .filter(|o| o.members.contains(&current_user_id) || o.owner_id == current_user_id)
-            .cloned()
-            .collect::<Vec<_>>()
+        organization_store.with(|s| {
+            s.organizations
+                .iter()
+                .filter(|o| o.members.contains(&current_user_id) || o.owner_id == current_user_id)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
     });
     let asset_name_for_confirm = asset.name.clone();
     let (_asset_name_signal, _set_asset_name) = signal(a_name.clone());
@@ -655,16 +673,17 @@ pub(crate) fn AssetItem(
     let a_uuid = asset.id;
     let child_asset_count = Memo::new(move |_| {
         app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
+            .with(|s| {
+                s.portfolios
                     .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
+                    .filter(|a| a.parent_asset_id == Some(asset_id))
+                    .count()
             })
-            .filter(|a| a.parent_asset_id == Some(asset_id))
-            .count()
     });
     let _a_pl = asset.profit_loss;
     let _a_pl_pct = asset.profit_loss_percent;
@@ -682,7 +701,7 @@ pub(crate) fn AssetItem(
     // Persist the owning portfolio to RocksDB after asset field changes.
     let persist_portfolio = move || {
         if let Some(pid) = portfolio_id {
-            let portfolio_clone = app_store.get().get_portfolio(pid).cloned();
+            let portfolio_clone = app_store.with(|s| s.get_portfolio(pid).cloned());
             if let Some(p) = portfolio_clone {
                 leptos::task::spawn_local(async move {
                     let _ = crate::server::save_portfolio(p).await;
@@ -861,7 +880,7 @@ pub(crate) fn AssetItem(
         if n.trim().is_empty() {
             return;
         }
-        let uploaded_by = app_store.get().current_user.id;
+        let uploaded_by = app_store.with(|s| s.current_user.id);
         let ft = detect_file_type(&n);
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
@@ -941,7 +960,7 @@ pub(crate) fn AssetItem(
             }
         });
         if let Some(pid) = portfolio_id_for_assign {
-            let portfolio_clone = app_store.get().get_portfolio(pid).cloned();
+            let portfolio_clone = app_store.with(|s| s.get_portfolio(pid).cloned());
             if let Some(p) = portfolio_clone {
                 leptos::task::spawn_local(async move {
                     let _ = crate::server::save_portfolio(p).await;
@@ -952,19 +971,20 @@ pub(crate) fn AssetItem(
 
     let get_asset_assigned_users = move || {
         app_store
-            .get()
-            .portfolios
-            .iter()
-            .flat_map(|p| {
-                p.assets
+            .with(|s| {
+                s.portfolios
                     .iter()
-                    .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    .flat_map(|p| {
+                        p.assets
+                            .iter()
+                            .chain(p.asset_groups.iter().flat_map(|g| g.assets.iter()))
+                    })
+                    .find(|a| a.id == asset_id)
+                    .map(|a| a.assigned_workers.clone())
+                    .unwrap_or_default()
             })
-            .find(|a| a.id == asset_id)
-            .map(|a| a.assigned_workers.clone())
-            .unwrap_or_default()
     };
-    let get_org_users = move || organization_store.get().organization_users.clone();
+    let get_org_users = move || organization_store.with(|s| s.organization_users.clone());
 
     let tint_style = format!(
         "background: rgba(255,255,255,{});",
@@ -1299,7 +1319,7 @@ pub(crate) fn AssetItem(
                                     let open = open_doc_modal.clone();
                                     let doc = doc_for_view.clone();
                                     move |_| {
-                                        if app_store.get().pending_doc_view == Some(doc_id) {
+                                        if app_store.with(|s| s.pending_doc_view) == Some(doc_id) {
                                             open.run(DocModalTarget::View(doc.clone()));
                                             app_store.update(|s| s.pending_doc_view = None);
                                             crate::utils::dom::scroll_to_id(&format!("doc-card-{}", doc_id));
@@ -1802,9 +1822,9 @@ pub(crate) fn AssetItem(
 
             // Add Role modal
             {move || if show_add_role.get() {
-                let org_id = app_store.get().portfolios.iter()
+                let org_id = app_store.with(|s| s.portfolios.iter()
                     .find(|p| p.id == portfolio_id.unwrap_or_default())
-                    .and_then(|p| p.organization_id);
+                    .and_then(|p| p.organization_id));
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_show_add_role.set(false)>
                         <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
@@ -1863,10 +1883,10 @@ pub(crate) fn AssetItem(
                                     on:change=move |ev| set_asset_org_id.set(event_target_value(&ev))
                                 >
                                     <option value="">"(None)"</option>
-                                    {move || organization_store.get().organizations.iter().map(|o| {
+                                    {move || organization_store.with(|s| s.organizations.iter().map(|o| {
                                         let id = o.id.to_string();
                                         view! { <option value={id.clone()}>{o.name.clone()}</option> }
-                                    }).collect::<Vec<_>>()}
+                                    }).collect::<Vec<_>>())}
                                 </select>
                                 <input class="login-input" type="text" placeholder="Or create a new organization"
                                     aria-label="New organization name"
@@ -1878,7 +1898,7 @@ pub(crate) fn AssetItem(
                                         let s = asset_org_id.get();
                                         if s.trim().is_empty() { None } else { Uuid::parse_str(&s).ok() }
                                     } else {
-                                        let owner_id = app_store.get().current_user.id;
+                                        let owner_id = app_store.with(|s| s.current_user.id);
                                         let org = crate::models::Organization::new(name, owner_id);
                                         let oid = org.id;
                                         organization_store.update(|s| s.add_organization(org));
@@ -1913,10 +1933,10 @@ pub(crate) fn AssetItem(
                                     on:change=move |ev| set_asset_target_portfolio_id.set(event_target_value(&ev))
                                 >
                                     <option value="">"Select a portfolio"</option>
-                                    {move || app_store.get().portfolios.iter().map(|p| {
+                                    {move || app_store.with(|s| s.portfolios.iter().map(|p| {
                                         let id = p.id.to_string();
                                         view! { <option value={id.clone()}>{p.name.clone()}</option> }
-                                    }).collect::<Vec<_>>()}
+                                    }).collect::<Vec<_>>())}
                                 </select>
                                 <button class="login-btn" on:click=move |_| {
                                     let s = asset_target_portfolio_id.get();
@@ -1950,10 +1970,10 @@ pub(crate) fn AssetItem(
                                     on:change=move |ev| set_asset_target_portfolio_id.set(event_target_value(&ev))
                                 >
                                     <option value="">"Select a portfolio"</option>
-                                    {move || app_store.get().portfolios.iter().map(|p| {
+                                    {move || app_store.with(|s| s.portfolios.iter().map(|p| {
                                         let id = p.id.to_string();
                                         view! { <option value={id.clone()}>{p.name.clone()}</option> }
-                                    }).collect::<Vec<_>>()}
+                                    }).collect::<Vec<_>>())}
                                 </select>
                                 <label class="list-item-title">"Target asset group"</label>
                                 <select
@@ -1966,13 +1986,13 @@ pub(crate) fn AssetItem(
                                     {move || {
                                         let s = asset_target_portfolio_id.get();
                                         if let Ok(target_pid) = Uuid::parse_str(&s) {
-                                            app_store.get().portfolios.iter()
+                                            app_store.with(|store| store.portfolios.iter()
                                                 .find(|p| p.id == target_pid)
                                                 .map(|p| p.asset_groups.iter().map(|g| {
                                                     let id = g.id.to_string();
                                                     view! { <option value={id.clone()}>{g.name.clone()}</option> }
                                                 }).collect::<Vec<_>>())
-                                                .unwrap_or_default()
+                                                .unwrap_or_default())
                                         } else {
                                             Vec::new()
                                         }
@@ -2048,8 +2068,9 @@ pub(crate) fn AssetItem(
                                     let amount = new_tx_amount.get().parse::<f64>().unwrap_or(0.0);
                                     let desc = new_tx_desc.get();
                                     let tx_type = new_tx_type.get();
-                                    let user_id = app_store.get().current_user.id;
-                                    let user_name = app_store.get().current_user.name.clone();
+                                    let (user_id, user_name) = app_store.with(|s| {
+                                        (s.current_user.id, s.current_user.name.clone())
+                                    });
                                     let mut tx = crate::models::Transaction::new(
                                         tx_type,
                                         amount,
@@ -2106,7 +2127,7 @@ pub(crate) fn AssetItem(
                                             set_confirm_asset_remove.set(false);
                                             if let Some(pid) = portfolio_id {
                                                 app_store.update(|s| { s.remove_asset(pid, asset_id); });
-                                                if let Some(p) = app_store.get().portfolios.iter().find(|p| p.id == pid).cloned() {
+                                                if let Some(p) = app_store.with(|s| s.portfolios.iter().find(|p| p.id == pid).cloned()) {
                                                     leptos::task::spawn_local(async move {
                                                         let _ = crate::server::save_portfolio(p).await;
                                                     });

@@ -15,11 +15,15 @@ pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
     let (validation_error, set_validation_error) = signal(Option::<String>::None);
 
     let can_manage = move || {
-        let role = organization_store.get().current_user_role_in_org(
-            org_id,
-            app_store.get().current_user.id,
-            app_store.get().current_user.role.clone(),
-        );
+        let role = app_store.with(|a| {
+            organization_store.with(|o| {
+                o.current_user_role_in_org(
+                    org_id,
+                    a.current_user.id,
+                    a.current_user.role.clone(),
+                )
+            })
+        });
         matches!(
             role,
             UserRole::Owner | UserRole::Director | UserRole::SeniorManager
@@ -27,12 +31,12 @@ pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
     };
 
     let org_rules = Memo::new(move |_| {
-        rule_store
-            .get()
-            .rules_for_org(org_id)
-            .into_iter()
-            .cloned()
-            .collect::<Vec<_>>()
+        rule_store.with(|s| {
+            s.rules_for_org(org_id)
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>()
+        })
     });
 
     let on_add_rule = move |_| {
@@ -249,11 +253,14 @@ pub fn RuleEngine(org_id: Uuid) -> impl IntoView {
 
             // Rule history modal
             {move || show_history_for.get().map(|rid| {
-                let history: Vec<_> = rule_store.get().rule_history_for_rule(rid).into_iter().cloned().collect();
-                let rule_name = rule_store.get().rules.iter()
-                    .find(|r| r.id == rid)
-                    .map(|r| r.name.clone())
-                    .unwrap_or_else(|| "Unknown".to_string());
+                let (history, rule_name) = rule_store.with(|s| {
+                    let history: Vec<_> = s.rule_history_for_rule(rid).into_iter().cloned().collect();
+                    let rule_name = s.rules.iter()
+                        .find(|r| r.id == rid)
+                        .map(|r| r.name.clone())
+                        .unwrap_or_else(|| "Unknown".to_string());
+                    (history, rule_name)
+                });
                 view! {
                     <div class="rule-history-overlay" on:click=move |_| set_show_history_for.set(None)>
                         <div class="rule-history-modal" on:click=|ev| ev.stop_propagation()
@@ -384,25 +391,27 @@ fn RuleBuilder(
     );
 
     let _org_roles: Vec<(String, String)> = organization_store
-        .get()
-        .organizations
-        .iter()
-        .find(|o| o.id == org_id)
-        .map(|o| {
-            o.roles
+        .with(|s| {
+            s.organizations
                 .iter()
-                .map(|r| (r.id.to_string(), r.name.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
+                .find(|o| o.id == org_id)
+                .map(|o| {
+                    o.roles
+                        .iter()
+                        .map(|r| (r.id.to_string(), r.name.clone()))
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
 
     let _org_portfolios: Vec<(String, String)> = app_store
-        .get()
-        .portfolios
-        .iter()
-        .filter(|p| p.organization_id == Some(org_id))
-        .map(|p| (p.id.to_string(), p.name.clone()))
-        .collect();
+        .with(|s| {
+            s.portfolios
+                .iter()
+                .filter(|p| p.organization_id == Some(org_id))
+                .map(|p| (p.id.to_string(), p.name.clone()))
+                .collect()
+        });
 
     let on_save_rule = move |_| {
         let name = rule_name.get();

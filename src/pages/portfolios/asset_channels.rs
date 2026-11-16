@@ -341,8 +341,8 @@ pub(crate) fn AssetChannelsSection(
         booking.status = BookingStatus::Confirmed;
 
         let asset_name_clone = asset_name_signal.get_untracked();
-        let channel_name =
-            channel_id.and_then(|cid| app_store.get().get_channel(cid).map(|c| c.name.clone()));
+        let channel_name = channel_id
+            .and_then(|cid| app_store.with(|s| s.get_channel(cid).map(|c| c.name.clone())));
 
         let booking_clone = booking.clone();
         app_store.update(|s| s.add_booking(booking));
@@ -1368,8 +1368,8 @@ pub(crate) fn AssetBookingControls(
         booking.status = BookingStatus::Confirmed;
 
         let booking_clone = booking.clone();
-        let channel_name =
-            channel_id.and_then(|cid| app_store.get().get_channel(cid).map(|c| c.name.clone()));
+        let channel_name = channel_id
+            .and_then(|cid| app_store.with(|s| s.get_channel(cid).map(|c| c.name.clone())));
         let asset_name_clone = asset_name_signal.get_untracked();
         app_store.update(|s| s.add_booking(booking));
         calendar_store.update(|s| {
@@ -1666,7 +1666,7 @@ pub(crate) fn AddChannelModal(
 #[component]
 pub(crate) fn ChannelManagementWindow(channel_id: Uuid, on_close: Callback<()>) -> impl IntoView {
     let app_store = use_app_store();
-    let channel = app_store.get().get_channel(channel_id).cloned();
+    let channel = app_store.with(|s| s.get_channel(channel_id).cloned());
 
     let (name, set_name) = signal(channel.as_ref().map(|c| c.name.clone()).unwrap_or_default());
     let (nightly_rate, set_nightly_rate) = signal(
@@ -1887,6 +1887,33 @@ fn find_asset_in_store(s: &AppStore, asset_id: Uuid) -> Option<crate::models::As
     None
 }
 
+/// Lightweight (id, name, file_type) list of an asset's documents for the
+/// listing picker — avoids cloning `Document.content` payloads.
+fn find_asset_doc_options(s: &AppStore, asset_id: Uuid) -> Vec<(Uuid, String, String)> {
+    for p in &s.portfolios {
+        let docs = p
+            .assets
+            .iter()
+            .find(|a| a.id == asset_id)
+            .map(|a| &a.documents)
+            .or_else(|| {
+                p.asset_groups.iter().find_map(|g| {
+                    g.assets
+                        .iter()
+                        .find(|a| a.id == asset_id)
+                        .map(|a| &a.documents)
+                })
+            });
+        if let Some(docs) = docs {
+            return docs
+                .iter()
+                .map(|d| (d.id, d.name.clone(), d.file_type.clone()))
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
 fn attach_channel_to_asset(
     s: &mut AppStore,
     asset_id: Uuid,
@@ -1961,6 +1988,25 @@ pub(crate) struct ListingComment {
     pub at: String,
 }
 
+/// One bid placed on a marketplace listing. Only the newest bid stays
+/// `active`; earlier ones become `outbid`. `won`/`lost` are reserved for
+/// auction-close resolution.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ListingBid {
+    pub bidder: String,
+    #[serde(default)]
+    pub bidder_id: Option<Uuid>,
+    pub amount: f64,
+    pub at: String,
+    /// "active" | "outbid" | "won" | "lost"
+    #[serde(default = "default_bid_state")]
+    pub state: String,
+}
+
+fn default_bid_state() -> String {
+    "active".to_string()
+}
+
 /// Listing contents bound to an asset + marketplace. Persisted inside
 /// `asset.metadata["marketplace_listings"][key]` so drafts survive reloads
 /// and published listings can be updated later.
@@ -2011,6 +2057,18 @@ pub(crate) struct MarketplaceListing {
     /// Buyer/seller comments shown on the marketplace item view.
     #[serde(default)]
     pub(crate) comments: Vec<ListingComment>,
+    /// Bids placed on this listing — the displayed status derives from
+    /// these (`effective_status`), not the stored `status` string alone.
+    #[serde(default)]
+    pub(crate) bids: Vec<ListingBid>,
+    /// Who bought the listing via buy-now, and when.
+    #[serde(default)]
+    pub(crate) sold_to: String,
+    #[serde(default)]
+    pub(crate) sold_at: String,
+    /// Price the listing sold for (buy-now amount or winning bid).
+    #[serde(default)]
+    pub(crate) sale_price: f64,
 }
 
 impl MarketplaceListing {
@@ -2109,6 +2167,10 @@ impl MarketplaceListing {
             saved_at: String::new(),
             thread_id: None,
             comments: Vec::new(),
+            bids: Vec::new(),
+            sold_to: String::new(),
+            sold_at: String::new(),
+            sale_price: 0.0,
         }
     }
 
@@ -2120,6 +2182,72 @@ impl MarketplaceListing {
         } else {
             sales.price.trim()
         }
+    }
+
+    /// The status actually shown/enforced: drafts and sales are explicit,
+    /// but "bidding" is derived — any active bid flips a live listing into
+    /// bidding automatically (eBay auctions and Red Marketplace alike).
+    pub(crate) fn effective_status(&self) -> &str {
+        match self.status.as_str() {
+            "draft" => "draft",
+            "sold" => "sold",
+            _ => {
+                if self.bids.iter().any(|b| b.state == "active") {
+                    "bidding"
+                } else {
+                    "published"
+                }
+            }
+        }
+    }
+
+    /// Highest-value bid still in play, if any.
+    pub(crate) fn high_bid(&self) -> Option<&ListingBid> {
+        self.bids
+            .iter()
+            .filter(|b| b.state == "active")
+            .max_by(|a, b| a.amount.partial_cmp(&b.amount).unwrap_or(std::cmp::Ordering::Equal))
+    }
+
+    /// Minimum amount a new bid must beat: the current high bid, or 0
+    /// when no bids exist yet.
+    pub(crate) fn min_next_bid(&self) -> f64 {
+        self.high_bid().map(|b| b.amount).unwrap_or(0.0)
+    }
+
+    /// Record a bid: every previous active bid becomes `outbid`.
+    /// Returns false when the amount doesn't beat the current high bid.
+    pub(crate) fn place_bid(
+        &mut self,
+        bidder: String,
+        bidder_id: Option<Uuid>,
+        amount: f64,
+    ) -> bool {
+        if amount <= self.min_next_bid() || amount <= 0.0 {
+            return false;
+        }
+        for b in self.bids.iter_mut() {
+            if b.state == "active" {
+                b.state = "outbid".to_string();
+            }
+        }
+        self.bids.push(ListingBid {
+            bidder,
+            bidder_id,
+            amount,
+            at: chrono::Utc::now().to_rfc3339(),
+            state: "active".to_string(),
+        });
+        true
+    }
+
+    /// Buy the listing outright — marks it sold and records the buyer.
+    pub(crate) fn buy_now(&mut self, buyer: String, buyer_id: Option<Uuid>, price: f64) {
+        self.status = "sold".to_string();
+        self.sold_to = buyer;
+        self.sold_at = chrono::Utc::now().to_rfc3339();
+        self.sale_price = price;
+        let _ = buyer_id;
     }
 }
 
@@ -2392,19 +2520,74 @@ fn MarketplaceCard(
         }
     });
 
+    // The asset's own documents — the listing picker chooses which of these
+    // are uploaded with the listing (stored as names in `form.docs`).
+    let asset_docs = Memo::new(move |_| app_store.with(|s| find_asset_doc_options(s, asset_id)));
+
+    let toggle_doc = move |name: String| {
+        let all: Vec<String> = asset_docs
+            .get_untracked()
+            .iter()
+            .map(|d| d.1.clone())
+            .collect();
+        set_form.update(|fm| {
+            // Legacy listings stored only a count — materialize the full
+            // asset doc list first so one uncheck doesn't drop all of them.
+            if fm.docs.is_empty() && fm.doc_count > 0 && !all.is_empty() {
+                fm.docs = all;
+            }
+            if let Some(i) = fm.docs.iter().position(|d| *d == name) {
+                fm.docs.remove(i);
+            } else {
+                fm.docs.push(name);
+            }
+            fm.doc_count = fm.docs.len();
+        });
+    };
+
     // Last saved draft/published listing for this marketplace (reactive).
     let listing_saved = Memo::new(move |_| {
-        load_marketplace_listing(&app_store.get(), asset_id, mp_key)
+        app_store.with(|s| load_marketplace_listing(s, asset_id, mp_key))
+    });
+
+    // Bid entry on the card — records a bid on the saved listing so its
+    // status flips to "bidding" automatically (eBay auctions + Red).
+    let (bid_bidder, set_bid_bidder) = signal(String::new());
+    let (bid_amount_val, set_bid_amount_val) = signal(String::new());
+    let (bid_msg, set_bid_msg) = signal(Option::<String>::None);
+    let record_bid = Callback::new(move |_: ()| {
+        let bidder = bid_bidder.get().trim().to_string();
+        if bidder.is_empty() {
+            set_bid_msg.set(Some("Bidder name required".to_string()));
+            return;
+        }
+        let amount: f64 = bid_amount_val.get().trim().parse().unwrap_or(0.0);
+        let Some(mut l) = listing_saved.get_untracked() else {
+            return;
+        };
+        if !l.place_bid(bidder, None, amount) {
+            set_bid_msg.set(Some(format!(
+                "Bid must be more than ${:.2}",
+                l.min_next_bid()
+            )));
+            return;
+        }
+        l.saved_at = Utc::now().to_rfc3339();
+        app_store.update(|s| save_marketplace_listing(s, asset_id, mp_key, &l));
+        persist_asset_portfolio(app_store, asset_id);
+        set_bid_bidder.set(String::new());
+        set_bid_amount_val.set(String::new());
+        set_bid_msg.set(Some("Bid recorded".to_string()));
     });
 
     let already_linked = move || {
         marketplace_channel_type(mp_key)
             .map(|ty| {
-                app_store
-                    .get()
-                    .channels_for_asset(asset_id)
-                    .iter()
-                    .any(|c| c.channel_type == ty)
+                app_store.with(|s| {
+                    s.channels_for_asset(asset_id)
+                        .iter()
+                        .any(|c| c.channel_type == ty)
+                })
             })
             .unwrap_or(false)
     };
@@ -2708,12 +2891,73 @@ fn MarketplaceCard(
                                                 format!("{} photo{}", n, if n == 1 { "" } else { "s" })
                                             }
                                         })}
-                                        {af_text_row("DOCS", "docs", {
-                                            let n = if !f.docs.is_empty() { f.docs.len() } else { f.doc_count };
-                                            if n == 0 { String::new() } else {
-                                                format!("{} doc{}", n, if n == 1 { "" } else { "s" })
+                                        {move || {
+                                            let f = form.get();
+                                            let docs = asset_docs.get();
+                                            // Explicit names win; a bare
+                                            // doc_count means "all asset docs".
+                                            let selected: Vec<String> =
+                                                if !f.docs.is_empty() {
+                                                    f.docs
+                                                } else if f.doc_count > 0 {
+                                                    docs.iter().map(|d| d.1.clone()).collect()
+                                                } else {
+                                                    Vec::new()
+                                                };
+                                            let doc_row = move |name: String,
+                                                               ftype: String,
+                                                               on: bool,
+                                                               custom: bool| {
+                                                let tn = name.clone();
+                                                view! {
+                                                    <label class="mp-af-doc"
+                                                        class:mp-af-doc-on=on
+                                                        class:mp-af-doc-custom=custom>
+                                                        <input type="checkbox" class="mp-af-doc-check"
+                                                            prop:checked=on
+                                                            on:change=move |_| toggle_doc(tn.clone()) />
+                                                        <span class="mp-af-doc-name">{name}</span>
+                                                        <span class="mp-af-doc-type">{ftype}</span>
+                                                    </label>
+                                                }
+                                            };
+                                            if docs.is_empty() && selected.is_empty() {
+                                                return view! {
+                                                    <div class="mp-af-row">
+                                                        <span class="mp-af-label">"DOCS"</span>
+                                                        <span class="mp-af-value">"No documents on this asset"</span>
+                                                    </div>
+                                                }
+                                                .into_any();
                                             }
-                                        })}
+                                            let asset_names: std::collections::HashSet<&str> =
+                                                docs.iter().map(|d| d.1.as_str()).collect();
+                                            view! {
+                                                <div class="mp-af-docs">
+                                                    <div class="mp-af-row">
+                                                        <span class="mp-af-label">"DOCS"</span>
+                                                        <span class="mp-af-value">
+                                                            {if selected.is_empty() {
+                                                                "—".to_string()
+                                                            } else {
+                                                                format!("{} selected", selected.len())
+                                                            }}
+                                                        </span>
+                                                    </div>
+                                                    <div class="mp-af-doc-list">
+                                                        {docs.iter().map(|(_, name, ftype)| {
+                                                            let on = selected.iter().any(|s| s == name);
+                                                            doc_row(name.clone(), ftype.clone(), on, false)
+                                                        }).collect::<Vec<_>>()}
+                                                        {selected.iter()
+                                                            .filter(|n| !asset_names.contains(n.as_str()))
+                                                            .map(|n| doc_row(n.clone(), "custom".to_string(), true, true))
+                                                            .collect::<Vec<_>>()}
+                                                    </div>
+                                                </div>
+                                            }
+                                            .into_any()
+                                        }}
                                         {af_text_row("TAGS", "tags", f.tags.join(", "))}
                                         {if mp_key != "EBay" { ().into_any() } else {
                                             view! {
@@ -2765,11 +3009,70 @@ fn MarketplaceCard(
                 }.into_any()
             }}
             {move || listing_saved.get().map(|l| {
-                let status_label = if l.status == "published" { "Published" } else { "Draft saved" };
+                // Status is governed by actual bid activity — "bidding"
+                // appears automatically while active bids exist.
+                let eff = l.effective_status();
+                let status_label = match eff {
+                    "published" => "Published",
+                    "bidding" => "Bidding",
+                    "sold" => "Sold",
+                    _ => "Draft saved",
+                };
+                let active_bids = l.bids.iter().filter(|b| b.state == "active").count();
+                let high = l.high_bid().map(|b| b.amount);
+                let bidding_open = matches!(eff, "published" | "bidding")
+                    && (mp_key == "EBay" || mp_key == "Red");
                 view! {
-                    <p class="mp-listing-status">
-                        {format!("{} · {}", status_label, l.saved_at)}
-                    </p>
+                    <div class="mp-listing-status-block">
+                        <p class="mp-listing-status">
+                            {format!("{} · {}", status_label, l.saved_at)}
+                            {if active_bids > 0 {
+                                format!(
+                                    " · {} bid{} · high ${:.2}",
+                                    active_bids,
+                                    if active_bids == 1 { "" } else { "s" },
+                                    high.unwrap_or(0.0)
+                                )
+                            } else { String::new() }}
+                        </p>
+                        {if !l.bids.is_empty() {
+                            view! {
+                                <div class="mp-bid-list">
+                                    {l.bids.iter().rev().take(5).map(|b| {
+                                        let is_active = b.state == "active";
+                                        view! {
+                                            <div class="mp-bid-row" class:mp-bid-active=is_active>
+                                                <span class="mp-bid-amount">{format!("${:.2}", b.amount)}</span>
+                                                <span class="mp-bid-who">{b.bidder.clone()}</span>
+                                                <span class="mp-bid-state">{b.state.clone()}</span>
+                                            </div>
+                                        }
+                                    }).collect::<Vec<_>>()}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                        {if bidding_open {
+                            view! {
+                                <div class="mp-bid-form">
+                                    <input class="login-input" type="text" placeholder="Bidder name"
+                                        aria-label="Bidder name"
+                                        prop:value=move || bid_bidder.get()
+                                        on:input=move |ev| set_bid_bidder.set(event_target_value(&ev)) />
+                                    <input class="login-input" type="text"
+                                        placeholder={if let Some(h) = high {
+                                            format!("Bid > ${:.2}", h)
+                                        } else {
+                                            "Bid amount".to_string()
+                                        }}
+                                        aria-label="Bid amount"
+                                        prop:value=move || bid_amount_val.get()
+                                        on:input=move |ev| set_bid_amount_val.set(event_target_value(&ev)) />
+                                    <button type="button" class="pf-small-btn" on:click=move |_| record_bid.run(())>"Record bid"</button>
+                                    {move || bid_msg.get().map(|m| view! { <span class="mp-hint">{m}</span> })}
+                                </div>
+                            }.into_any()
+                        } else { ().into_any() }}
+                    </div>
                 }
             })}
         }

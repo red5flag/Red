@@ -1,12 +1,13 @@
 use crate::models::{OrgRole, Organization, Perm, RoleScope, User};
 use crate::types::UserRole;
 use leptos::prelude::*;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Dedicated store for organization state, member management, and role/permission helpers.
 /// Extracted from AppStore so organization lifecycle changes do not invalidate
 /// consumers of unrelated domain state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OrganizationStore {
     pub organizations: Vec<Organization>,
     pub current_organization_id: Option<Uuid>,

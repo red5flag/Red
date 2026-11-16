@@ -1,423 +1,8 @@
 warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
 warning: variable does not need to be mutable
 warning: variable does not need to be mutable
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `notification_store`
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: `farley` (lib) generated 16 warnings (run `cargo fix --lib -p farley` to apply 7 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 22 warnings (run `cargo fix --lib -p farley` to apply 12 suggestions)
-warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `edit_field`
-warning: unused variable: `set_edit_buf`
-warning: unused variable: `commit_edit`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
 warning: variable does not need to be mutable
 warning: unused variable: `f_esc`
-warning: unused variable: `field_row`
-warning: unused variable: `begin_edit`
-warning: unused variable: `title_editing`
-warning: unused variable: `price_editing`
-warning: unused variable: `desc_editing`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `ev`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `notification_store`
-warning: unused variable: `f_esc`
-warning: unused variable: `field_row`
-warning: unused variable: `begin_edit`
-warning: unused variable: `title_editing`
-warning: unused variable: `price_editing`
-warning: unused variable: `desc_editing`
 warning: unused variable: `on_update_role`
 warning: unused variable: `is_role_dropdown_open`
 warning: unused variable: `on_toggle_role_dropdown`
@@ -432,95 +17,6 @@ warning: field `contacts` is never read
 warning: field `wallets` is never read
 warning: field `wallets` is never read
 warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `ev`
-warning: unused variable: `f_esc`
-warning: unused variable: `field_row`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `f_esc`
-warning: unused variable: `field_row`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-error[E0308]: `if` and `else` have incompatible types
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `ev`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: `farley` (lib) generated 12 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 12 warnings emitted
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-error[E0308]: `if` and `else` have incompatible types
-error[E0308]: `if` and `else` have incompatible types
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `ev`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: unused variable: `resize_drag`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: `farley` (lib) generated 7 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 7 warnings emitted
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: `farley` (lib) generated 12 warnings
-error: could not compile `farley` (lib) due to 1 previous error; 12 warnings emitted
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-error[E0382]: use of moved value: `t`
-error[E0382]: use of moved value: `d`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-error[E0382]: use of moved value: `t`
-error[E0382]: use of moved value: `d`
-warning: variable does not need to be mutable
 warning: variable does not need to be mutable
 warning: unused variable: `ev`
 warning: unused variable: `resize_drag`
@@ -530,46 +26,9 @@ warning: unused variable: `f_esc`
 warning: unused variable: `on_update_role`
 warning: unused variable: `is_role_dropdown_open`
 warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `f_esc`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
 warning: unused variable: `cascade_gen`
 warning: unused variable: `notification_store`
-warning: unused variable: `notification_store`
-warning: `farley` (lib) generated 13 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 13 warnings emitted
-warning: `farley` (lib) generated 8 warnings
-error: could not compile `farley` (lib) due to 2 previous errors; 8 warnings emitted
-warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: variable does not need to be mutable
-warning: unused variable: `f_esc`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `ev`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `set_resize_drag`
-warning: unused variable: `install_resize_listeners`
-warning: unused variable: `f_esc`
-warning: unused variable: `on_update_role`
-warning: unused variable: `is_role_dropdown_open`
-warning: unused variable: `on_toggle_role_dropdown`
-warning: unused variable: `cascade_gen`
-warning: unused variable: `notification_store`
-warning: variants `V10`, `V50`, and `V100` are never constructed
-warning: fields `invoices` and `on_new_invoice` are never read
-warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
-warning: fields `invoices` and `set_active_tab` are never read
-warning: field `contacts` is never read
-warning: field `contacts` is never read
-warning: field `wallets` is never read
-warning: field `wallets` is never read
-warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
 warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
 warning: variants `V10`, `V50`, and `V100` are never constructed
 warning: fields `invoices` and `on_new_invoice` are never read
@@ -582,9 +41,26 @@ warning: field `wallets` is never read
 warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
 warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
 warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
-warning: `farley` (lib) generated 23 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
 warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
 warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
 warning: variable does not need to be mutable
 warning: variable does not need to be mutable
 warning: unused variable: `ev`
@@ -596,8 +72,133 @@ warning: unused variable: `on_update_role`
 warning: unused variable: `is_role_dropdown_open`
 warning: unused variable: `on_toggle_role_dropdown`
 warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
 warning: variable does not need to be mutable
 warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+error: this file contains an unclosed delimiter
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
 warning: unused variable: `notification_store`
 warning: unused variable: `f_esc`
 warning: unused variable: `on_update_role`
@@ -605,6 +206,350 @@ warning: unused variable: `is_role_dropdown_open`
 warning: unused variable: `on_toggle_role_dropdown`
 warning: unused variable: `cascade_gen`
 warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+error: mismatched closing delimiter: `}`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 2 previous errors
+error: mismatched closing delimiter: `}`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 2 previous errors
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+error: mismatched closing delimiter: `}`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 2 previous errors
+error: mismatched closing delimiter: `}`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 2 previous errors
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+error: mismatched closing delimiter: `}`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 2 previous errors
+error: mismatched closing delimiter: `}`
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 2 previous errors
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error[E0308]: mismatched types
+error[E0308]: mismatched types
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `ev`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
 warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
 warning: variants `V10`, `V50`, and `V100` are never constructed
 warning: fields `invoices` and `on_new_invoice` are never read
@@ -627,6 +572,1559 @@ warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never rea
 warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
 warning: variable does not need to be mutable
 warning: variable does not need to be mutable
+error[E0515]: cannot return value referencing temporary value
+warning: variable does not need to be mutable
+error[E0515]: cannot return value referencing temporary value
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `ev`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 13 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 13 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error: mismatched closing delimiter: `)`
+error: could not compile `farley` (lib) due to 1 previous error
+error: mismatched closing delimiter: `)`
+error: could not compile `farley` (lib) due to 1 previous error
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `ev`
+warning: unused variable: `notification_store`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `ev`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+error: mismatched closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: mismatched closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: mismatched closing delimiter: `}`
+error: mismatched closing delimiter: `}`
+error: mismatched closing delimiter: `}`
+error: could not compile `farley` (lib) due to 3 previous errors
+error: mismatched closing delimiter: `}`
+error: mismatched closing delimiter: `}`
+error: mismatched closing delimiter: `}`
+error: could not compile `farley` (lib) due to 3 previous errors
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: variable does not need to be mutable
+warning: unused variable: `notification_store`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+error[E0425]: cannot find value `pid_doc` in this scope
+error[E0425]: cannot find value `pid_doc` in this scope
+error[E0425]: cannot find value `pid_role` in this scope
+error[E0425]: cannot find value `pid_assign` in this scope
+error[E0425]: cannot find value `pid_org` in this scope
+error[E0425]: cannot find value `pid_org` in this scope
+error[E0425]: cannot find value `pid_org` in this scope
+error[E0425]: cannot find value `pid_remove` in this scope
+error[E0425]: cannot find value `pid_doc` in this scope
+error[E0425]: cannot find value `pid_doc` in this scope
+error[E0425]: cannot find value `pid_role` in this scope
+error[E0425]: cannot find value `pid_assign` in this scope
+error[E0425]: cannot find value `pid_org` in this scope
+error[E0425]: cannot find value `pid_org` in this scope
+error[E0425]: cannot find value `pid_org` in this scope
+error[E0425]: cannot find value `pid_remove` in this scope
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variable does not need to be mutable
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `ev`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `notification_store`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+error: this file contains an unclosed delimiter
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: unexpected closing delimiter: `}`
+error: could not compile `farley` (lib) due to 1 previous error
+error: lifetime may not live long enough
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 17 warnings (run `cargo fix --lib -p farley` to apply 8 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 24 warnings (run `cargo fix --lib -p farley` to apply 13 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+error[E0063]: missing fields `bids`, `sale_price`, `sold_at` and 1 other field in initializer of `MarketplaceListing`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 8 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 8 warnings emitted
+error[E0063]: missing fields `bids`, `sale_price`, `sold_at` and 1 other field in initializer of `MarketplaceListing`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 13 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 13 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: methods `effective_status`, `high_bid`, `min_next_bid`, `place_bid`, and `buy_now` are never used
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: unused variable: `cascade_gen`
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: methods `effective_status`, `high_bid`, `min_next_bid`, `place_bid`, and `buy_now` are never used
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: methods `effective_status`, `high_bid`, `min_next_bid`, `place_bid`, and `buy_now` are never used
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: methods `effective_status`, `high_bid`, `min_next_bid`, `place_bid`, and `buy_now` are never used
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 19 warnings (run `cargo fix --lib -p farley` to apply 9 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 26 warnings (run `cargo fix --lib -p farley` to apply 14 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused imports: `ContactSource`, `MessageEmbed`, and `MessengerContact`
+warning: unused import: `crate::models::MessengerState`
+warning: unused imports: `save_messenger_state` and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused imports: `ContactSource`, `MessageEmbed`, and `MessengerContact`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `f_esc`
+warning: unused variable: `messenger_store`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `messenger_store`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `notification_store`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: methods `high_bid`, `min_next_bid`, `place_bid`, and `buy_now` are never used
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: methods `high_bid`, `min_next_bid`, `place_bid`, and `buy_now` are never used
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `bid_err`
+warning: unused variable: `place_bid`
+warning: unused variable: `buy_now`
+warning: unused variable: `message_seller`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `bid_err`
+warning: unused variable: `place_bid`
+warning: unused variable: `buy_now`
+warning: unused variable: `message_seller`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `bid_err`
+warning: unused variable: `place_bid`
+warning: unused variable: `buy_now`
+warning: unused variable: `message_seller`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `bid_err`
+warning: unused variable: `place_bid`
+warning: unused variable: `buy_now`
+warning: unused variable: `message_seller`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+error[E0382]: use of partially moved value: `listing`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+error[E0382]: use of partially moved value: `listing`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: `farley` (lib) generated 14 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 14 warnings emitted
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+error[E0382]: use of partially moved value: `listing`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+error[E0382]: use of partially moved value: `listing`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 14 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 14 warnings emitted
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+error[E0382]: use of partially moved value: `listing`
+error[E0382]: use of partially moved value: `listing`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `bid_msg`
+warning: unused variable: `record_bid`
+warning: variable does not need to be mutable
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 11 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 11 warnings emitted
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `bid_msg`
+warning: unused variable: `record_bid`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 16 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 16 warnings emitted
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+error[E0382]: use of partially moved value: `listing`
+error[E0382]: use of partially moved value: `listing`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 9 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 9 warnings emitted
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 14 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 14 warnings emitted
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `ev`
+warning: unused variable: `notification_store`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 18 warnings (run `cargo fix --lib -p farley` to apply 9 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 25 warnings (run `cargo fix --lib -p farley` to apply 14 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused import: `ListingBid`
+warning: unused import: `Currency`
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 18 warnings (run `cargo fix --lib -p farley` to apply 9 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 25 warnings (run `cargo fix --lib -p farley` to apply 14 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
 warning: unused variable: `f_esc`
 warning: unused variable: `on_update_role`
 warning: unused variable: `is_role_dropdown_open`
@@ -650,4 +2148,135 @@ warning: unused variable: `set_resize_drag`
 warning: unused variable: `install_resize_listeners`
 warning: unused variable: `f_esc`
 warning: unused variable: `on_update_role`
-warning: unused 
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: `farley` (lib) generated 18 warnings (run `cargo fix --lib -p farley` to apply 9 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: `farley` (lib) generated 25 warnings (run `cargo fix --lib -p farley` to apply 14 suggestions)
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: use of deprecated method `pages::portfolios::add_portfolio_modal::AddPortfolioModalPropsBuilder::<((), __desc, __image_url, __org_id)>::build`: Missing required field name
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: use of deprecated method `pages::portfolios::add_portfolio_modal::AddPortfolioModalPropsBuilder::<((), __desc, __image_url, __org_id)>::build`: Missing required field name
+error[E0061]: this method takes 1 argument but 0 arguments were supplied
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 10 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 10 warnings emitted
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: `farley` (lib) generated 15 warnings
+error: could not compile `farley` (lib) due to 1 previous error; 15 warnings emitted
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs` is never used
+warning: fields `token`, `alive`, `is_active`, and `dismiss` are never read
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused import: `ListingBid`
+warning: unused imports: `get_messenger_state`, `get_secure_messages`, `save_messenger_state`, and `send_secure_message`
+warning: unused import: `ListingBid`
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: variable does not need to be mutable
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: variants `V10`, `V50`, and `V100` are never constructed
+warning: fields `invoices` and `on_new_invoice` are never read
+warning: fields `payments`, `wallets`, `payees`, and `payers` are never read
+warning: fields `invoices` and `set_active_tab` are never read
+warning: field `contacts` is never read
+warning: field `contacts` is never read
+warning: field `wallets` is never read
+warning: field `wallets` is never read
+warning: fields `transactions`, `invoices`, `bills`, and `wallets` are never read
+warning: unused variable: `ev`
+warning: unused variable: `resize_drag`
+warning: unused variable: `set_resize_drag`
+warning: unused variable: `install_resize_listeners`
+warning: unused variable: `f_esc`
+warning: unused variable: `on_update_role`
+warning: unused variable: `is_role_dropdown_open`
+warning: unused variable: `on_toggle_role_dropdown`
+warning: unused variable: `cascade_gen`
+warning: unused variable: `notification_store`
+warning: function `repair_legacy_refs

@@ -102,7 +102,11 @@ pub(crate) fn OrganizationList(
                     key=|org| org.id
                     children=move |org| {
                         let oid = org.id;
-                        let can = organization_store.get().current_user_role_in_org(oid, app_store.get().current_user.id, app_store.get().current_user.role.clone());
+                        let can = app_store.with(|a| {
+                            organization_store.with(|o| {
+                                o.current_user_role_in_org(oid, a.current_user.id, a.current_user.role.clone())
+                            })
+                        });
                         let can_manage = matches!(
                             can,
                             UserRole::Owner | UserRole::Director | UserRole::SeniorManager | UserRole::Manager

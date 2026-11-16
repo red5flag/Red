@@ -33,13 +33,15 @@ fn use_tab_toggle(tab_type: TabType) -> Callback<()> {
     let tab_type_for_scroll = tab_type.clone();
     Callback::new(move |_| {
         let current_tab = tab_type.clone();
-        let store = app_store.get();
-        let user_id = store.current_user.id;
-        let user_name = store.current_user.name.clone();
-        let user_role = format!("{:?}", store.current_user.role);
-        let org_id = store.current_user.organization_id;
-        let already_expanded = store.is_tab_expanded(&current_tab);
-        drop(store);
+        let (user_id, user_name, user_role, org_id, already_expanded) = app_store.with(|store| {
+            (
+                store.current_user.id,
+                store.current_user.name.clone(),
+                format!("{:?}", store.current_user.role),
+                store.current_user.organization_id,
+                store.is_tab_expanded(&current_tab),
+            )
+        });
 
         if already_expanded {
             let tab_id = format!("tab-content-{:?}", tab_type_for_scroll).to_lowercase();
@@ -119,11 +121,11 @@ fn TabItem(tab_type: TabType, title: &'static str) -> impl IntoView {
     let tab_type_badge = tab_type.clone();
 
     view! {
-        <div class="tab-item" class:expanded=move || app_store.get().is_tab_expanded(&tab_type_class)>
+        <div class="tab-item" class:expanded=move || app_store.with(|s| s.is_tab_expanded(&tab_type_class))>
             <div class="tab-header" on:click=move |_| on_toggle.run(())>
                 <span class="tab-title">{title}</span>
                 {move || {
-                    let count = notification_store.get().notifications_for_tab(&tab_type_badge);
+                    let count = notification_store.with(|s| s.notifications_for_tab(&tab_type_badge));
                     if count > 0 {
                         view! { <span class="tab-notif-badge">{count}</span> }.into_any()
                     } else {
@@ -139,7 +141,7 @@ fn TabItem(tab_type: TabType, title: &'static str) -> impl IntoView {
 fn TabContent(tab_type: TabType) -> impl IntoView {
     let app_store = use_app_store();
     let tab_type_for_edit = tab_type.clone();
-    let edit_mode = Signal::derive(move || app_store.get().is_tab_edit_mode(&tab_type_for_edit));
+    let edit_mode = Signal::derive(move || app_store.with(|s| s.is_tab_edit_mode(&tab_type_for_edit)));
     provide_context(TabEditMode(edit_mode));
 
     let tab_id = format!("tab-content-{:?}", tab_type).to_lowercase();
@@ -202,7 +204,7 @@ pub fn TabList() -> impl IntoView {
                 title: "Agent",
             },
         ];
-        if ui_store.get().networking_add_member_open {
+        if ui_store.with(|s| s.networking_add_member_open) {
             items.push(TabListItem {
                 tab_type: TabType::NetworkingAddMember,
                 title: "Add Team",
@@ -230,8 +232,9 @@ pub fn TabList() -> impl IntoView {
                 }.into_any()
             }}
             {move || {
-                let pids = app_store.get().pinned_portfolio_ids.clone();
-                let aids = app_store.get().pinned_asset_ids.clone();
+                let (pids, aids) = app_store.with(|s| {
+                    (s.pinned_portfolio_ids.clone(), s.pinned_asset_ids.clone())
+                });
                 if pids.is_empty() && aids.is_empty() {
                     ().into_any()
                 } else {
@@ -239,14 +242,12 @@ pub fn TabList() -> impl IntoView {
                         <div class="tab-pinned-section">
                             <div class="tab-pinned-title">"Pinned"</div>
                             <For
-                                each=move || app_store.get().pinned_portfolio_ids.clone()
+                                each=move || app_store.with(|s| s.pinned_portfolio_ids.clone())
                                 key=|id| *id
                                 children=move |id| {
-                                    let name = app_store
-                                        .get()
-                                        .get_portfolio(id)
+                                    let name = app_store.with(|s| s.get_portfolio(id)
                                         .map(|p| p.name.clone())
-                                        .unwrap_or_else(|| "Unknown Portfolio".to_string());
+                                        .unwrap_or_else(|| "Unknown Portfolio".to_string()));
                                     view! {
                                         <div
                                             class="tab-pinned-item"
@@ -259,17 +260,15 @@ pub fn TabList() -> impl IntoView {
                                 }
                             />
                             <For
-                                each=move || app_store.get().pinned_asset_ids.clone()
+                                each=move || app_store.with(|s| s.pinned_asset_ids.clone())
                                 key=|id| *id
                                 children=move |id| {
-                                    let store = app_store.get();
-                                    let name = store
-                                        .portfolios
+                                    let name = app_store.with(|s| s.portfolios
                                         .iter()
                                         .flat_map(|p| p.get_all_assets())
                                         .find(|a| a.id == id)
                                         .map(|a| a.name.clone())
-                                        .unwrap_or_else(|| "Unknown Asset".to_string());
+                                        .unwrap_or_else(|| "Unknown Asset".to_string()));
                                     view! {
                                         <div
                                             class="tab-pinned-item"
@@ -296,7 +295,7 @@ pub fn TabsContainer() -> impl IntoView {
     // Only re-render tab content when the active tab list actually changes;
     // otherwise every app_store update would remount pages and reset their
     // local UI state (e.g. expanded organization dropdowns in PortfoliosPage).
-    let active_tabs = Memo::new(move |_| app_store.get().active_tabs.clone());
+    let active_tabs = Memo::new(move |_| app_store.with(|s| s.active_tabs.clone()));
 
     view! {
         <div class="tabs-container">

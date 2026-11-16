@@ -398,7 +398,7 @@ pub fn NetworkingPage() -> impl IntoView {
     });
 
     let filtered_contacts = Memo::new(move |_| {
-        let q = search_store.get().query.to_lowercase();
+        let q = search_store.with(|s| s.query.to_lowercase());
         let sm = sort_mode();
         let asc = sort_ascending();
         let mut list: Vec<_> = contacts
@@ -454,7 +454,7 @@ pub fn NetworkingPage() -> impl IntoView {
     });
 
     let filtered_orgs = Memo::new(move |_| {
-        let q = search_store.get().query.to_lowercase();
+        let q = search_store.with(|s| s.query.to_lowercase());
         let sm = sort_mode();
         let asc = sort_ascending();
         let mut list: Vec<_> = external_orgs

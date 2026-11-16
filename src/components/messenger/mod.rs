@@ -355,7 +355,7 @@ pub fn MessageDrawer() -> impl IntoView {
         set_right_collapsed.set(false);
     };
 
-    let _selected_contact = move || messenger_store.get().selected_chat_id;
+    let _selected_contact = move || messenger_store.with(|s| s.selected_chat_id);
     let set_selected_contact =
         move |id: Option<Uuid>| messenger_store.update(|s| s.set_selected_chat(id));
 
@@ -518,7 +518,7 @@ pub fn MessageDrawer() -> impl IntoView {
     // contact was lost (messenger state is best-effort) or the listing
     // lives on a group/portfolio where no thread was ever created.
     Effect::new(move |_| {
-        let app = app_store.get();
+        app_store.with(|app| {
         let mut wanted: Vec<(Uuid, String, &'static str)> = Vec::new();
         let mut scan_meta = |meta: &serde_json::Value, is_red: bool| {
             let parse = |v: &serde_json::Value| -> Option<crate::pages::portfolios::MarketplaceListing> {
@@ -596,11 +596,12 @@ pub fn MessageDrawer() -> impl IntoView {
                 }
             }
         });
+        })
     });
 
     let contacts = Memo::new(move |_| {
         let q = search.get().to_lowercase();
-        let all = messenger_store.get().messenger_contacts.clone();
+        let all = messenger_store.with(|s| s.messenger_contacts.clone());
         if q.is_empty() {
             all
         } else {
@@ -649,8 +650,10 @@ pub fn MessageDrawer() -> impl IntoView {
     // change (Memo compare keeps this from firing on unrelated store updates).
     #[cfg(feature = "hydrate")]
     {
-        let contacts_memo = Memo::new(move |_| messenger_store.get().messenger_contacts.clone());
-        let requests_memo = Memo::new(move |_| messenger_store.get().messenger_requests.clone());
+        let contacts_memo =
+            Memo::new(move |_| messenger_store.with(|s| s.messenger_contacts.clone()));
+        let requests_memo =
+            Memo::new(move |_| messenger_store.with(|s| s.messenger_requests.clone()));
         Effect::new(move |_| {
             let state = crate::models::MessengerState {
                 contacts: contacts_memo.get(),
@@ -691,7 +694,7 @@ pub fn MessageDrawer() -> impl IntoView {
     let send_message = move |recipient_id: Uuid| {
         let text = draft.get();
         let embeds = pending_embeds.get();
-        let current_user_id = app_store.get().current_user.id;
+        let current_user_id = app_store.with(|s| s.current_user.id);
         if text.trim().is_empty() && embeds.is_empty() {
             return;
         }
@@ -752,7 +755,7 @@ pub fn MessageDrawer() -> impl IntoView {
 
     let attach_items: Memo<Vec<AttachItem>> = Memo::new(move |_| {
         let q = attach_search.get().trim().to_lowercase();
-        let app = app_store.get();
+        app_store.with(|app| {
         let mut items: Vec<AttachItem> = Vec::new();
         let mut push = |embed: MessageEmbed, icon: &'static str, label: String, sub: String| {
             if q.is_empty()
@@ -888,6 +891,7 @@ pub fn MessageDrawer() -> impl IntoView {
             }
         }
         items
+        })
     });
 
     let toggle_embed = move |embed: MessageEmbed| {
@@ -908,8 +912,7 @@ pub fn MessageDrawer() -> impl IntoView {
     let render_embed_card = move |embed: MessageEmbed| {
         view! {
             {move || {
-                let app = app_store.get();
-                match resolve_embed(&app, &embed) {
+                match app_store.with(|app| resolve_embed(app, &embed)) {
                     Some(info) => {
                         let kind = info.kind;
                         let title = info.title.clone();
@@ -925,7 +928,7 @@ pub fn MessageDrawer() -> impl IntoView {
                                     match &card_embed {
                                         MessageEmbed::Document(doc_id) => {
                                             if let Some((entity_id, doc)) =
-                                                find_document(&app_store.get(), *doc_id)
+                                                app_store.with(|s| find_document(s, *doc_id))
                                             {
                                                 set_doc_view.set(Some((entity_id, doc)));
                                             }
@@ -988,8 +991,8 @@ pub fn MessageDrawer() -> impl IntoView {
 
     let recent_contacts: Memo<Vec<MessengerContact>> = Memo::new(move |_| {
         let all = contacts.get();
-        let current_user_id = app_store.get().current_user.id;
-        let messages = messenger_store.get().messages.clone();
+        let current_user_id = app_store.with(|s| s.current_user.id);
+        let messages = messenger_store.with(|s| s.messages.clone());
         let mut with_last: Vec<_> = all
             .iter()
             .filter_map(|c| {
@@ -1034,7 +1037,7 @@ pub fn MessageDrawer() -> impl IntoView {
     // through `thread_messages` → the keyed <For>, which diffs granularly.
     let active_contact = Memo::new(move |_| {
         let all = contacts.get();
-        let cid = messenger_store.get().selected_chat_id?;
+        let cid = messenger_store.with(|s| s.selected_chat_id)?;
         all.iter().find(|c| c.id == cid).cloned()
     });
 
@@ -1043,9 +1046,9 @@ pub fn MessageDrawer() -> impl IntoView {
             return Vec::new();
         };
         let cid = contact.id;
-        let current_user_id = app_store.get().current_user.id;
+        let current_user_id = app_store.with(|s| s.current_user.id);
         let q = chat_search.get().to_lowercase();
-        let messages = messenger_store.get().messages.clone();
+        let messages = messenger_store.with(|s| s.messages.clone());
         let is_group = contact.source == ContactSource::Group;
         messages
             .iter()
@@ -1166,25 +1169,25 @@ pub fn MessageDrawer() -> impl IntoView {
     });
 
     let accept_request = move |req: MessengerRequest| {
-        let current_user_id = app_store.get().current_user.id;
+        let current_user_id = app_store.with(|s| s.current_user.id);
         match req.kind {
             MessengerRequestKind::FriendRequest => {
-                let org = organization_store.get();
-                if let Some(user) = org
-                    .organization_users
-                    .iter()
-                    .find(|u| u.id == req.target_id)
-                {
-                    let contact = MessengerContact {
-                        id: user.id,
-                        name: user.name.clone(),
-                        source: ContactSource::Imported,
-                        phone: user.phone.clone(),
-                        email: Some(user.email.clone()),
-                        icon: user.icon.clone().or(user.avatar_url.clone()),
-                        members: Vec::new(),
-                        unread_count: 0,
-                    };
+                let contact = organization_store.with(|org| {
+                    org.organization_users
+                        .iter()
+                        .find(|u| u.id == req.target_id)
+                        .map(|user| MessengerContact {
+                            id: user.id,
+                            name: user.name.clone(),
+                            source: ContactSource::Imported,
+                            phone: user.phone.clone(),
+                            email: Some(user.email.clone()),
+                            icon: user.icon.clone().or(user.avatar_url.clone()),
+                            members: Vec::new(),
+                            unread_count: 0,
+                        })
+                });
+                if let Some(contact) = contact {
                     messenger_store.update(|s| s.accept_friend_request(req.id, contact));
                 }
             }
@@ -1207,11 +1210,7 @@ pub fn MessageDrawer() -> impl IntoView {
 
     let decline_request = move |id: Uuid| {
         if let Some(req) = messenger_store
-            .get()
-            .messenger_requests
-            .iter()
-            .find(|r| r.id == id)
-            .cloned()
+            .with(|s| s.messenger_requests.iter().find(|r| r.id == id).cloned())
         {
             if matches!(req.kind, MessengerRequestKind::WorkRequest) {
                 app_store.update(|s| {
@@ -1227,14 +1226,14 @@ pub fn MessageDrawer() -> impl IntoView {
 
     let render_request = move |req: MessengerRequest| {
         let req_id = req.id;
-        let org = organization_store.get();
-        let store = messenger_store.get();
-        let app = app_store.get();
+        let (avatar, title, sub) = organization_store.with(|org| {
+            messenger_store.with(|store| {
+                app_store.with(|app| {
         let from_user = org
             .organization_users
             .iter()
             .find(|u| u.id == req.from_user_id);
-        let (avatar, title, sub) = match req.kind {
+        match req.kind {
             MessengerRequestKind::FriendRequest => {
                 let name = from_user
                     .map(|u| u.name.clone())
@@ -1290,7 +1289,10 @@ pub fn MessageDrawer() -> impl IntoView {
                 );
                 ("🛠".to_string(), task_title, sub)
             }
-        };
+        }
+                })
+            })
+        });
         let accept_req = req.clone();
         view! {
             <div class="messenger-request">
@@ -1469,7 +1471,7 @@ pub fn MessageDrawer() -> impl IntoView {
                             let edit_name_init = contact_name.clone();
                             let edit_icon_init = contact_icon.clone();
                             let cid = contact.id;
-                            let current_user_id = app_store.get().current_user.id;
+                            let current_user_id = app_store.with(|s| s.current_user.id);
                             view! {
                                 <div class="messenger-chat-navbar">
                                     <div class="messenger-chat-title-block">
@@ -1602,8 +1604,8 @@ pub fn MessageDrawer() -> impl IntoView {
                                                     each=move || pending.clone()
                                                     key=|e| embed_key(e)
                                                     children=move |e| {
-                                                        let app = app_store.get();
-                                                        let (icon, title) = resolve_embed(&app, &e)
+                                                        let (icon, title) = app_store
+                                                            .with(|app| resolve_embed(app, &e))
                                                             .map(|i| (i.icon.to_string(), i.title))
                                                             .unwrap_or_else(|| ("❓".to_string(), "Unavailable".to_string()));
                                                         let rm = e.clone();

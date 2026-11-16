@@ -80,13 +80,30 @@ pub fn App() -> impl IntoView {
                 // Empty result = nothing persisted yet → keep seed data.
                 if let Ok(portfolios) = crate::server::get_portfolios().await {
                     if !portfolios.is_empty() {
-                        app_store.update(|s| s.portfolios = portfolios);
+                        app_store.update(|s| {
+                            s.portfolios = portfolios;
+                            s.ensure_unassigned_portfolio();
+                        });
+                    } else {
+                        app_store.update(|s| s.ensure_unassigned_portfolio());
                     }
                 }
                 // `None` = channels never saved → keep current list.
                 if let Ok(Some(channels)) = crate::server::get_channels().await {
                     app_store.update(|s| s.channels = channels);
                 }
+                // `None` = org store never saved → keep seeded orgs.
+                if let Ok(Some(org_state)) = crate::server::get_organizations().await {
+                    organization_store.update(|s| {
+                        s.organizations = org_state.organizations;
+                        s.organization_users = org_state.organization_users;
+                        s.current_organization_id = org_state.current_organization_id;
+                    });
+                }
+                // Portfolios/orgs saved before persistence existed carry
+                // ids minted by dead sessions — re-point them at live
+                // entities and at the now-stable current user id.
+                repair_legacy_refs(&app_store, &organization_store);
                 set_state_loaded.set(true);
             });
         });
@@ -114,9 +131,26 @@ pub fn App() -> impl IntoView {
             use std::collections::{HashMap, HashSet};
             use std::hash::{Hash, Hasher};
             let known: RwSignal<HashMap<uuid::Uuid, u64>> = RwSignal::new(HashMap::new());
+            let known_org_fp: RwSignal<Option<u64>> = RwSignal::new(None);
             gloo_timers::callback::Interval::new(8000, move || {
                 if !state_loaded.get() || !app_store.with(|s| s.is_authenticated) {
                     return;
+                }
+                // Organization store: whole-blob fingerprint — the save
+                // replaces the stored copy so deletes propagate too.
+                let org_fp = {
+                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                    serde_json::to_string(&organization_store.get_untracked())
+                        .unwrap_or_default()
+                        .hash(&mut h);
+                    h.finish()
+                };
+                if known_org_fp.get_untracked() != Some(org_fp) {
+                    known_org_fp.set(Some(org_fp));
+                    let org_state = organization_store.get_untracked();
+                    leptos::task::spawn_local(async move {
+                        let _ = crate::server::save_organizations(org_state).await;
+                    });
                 }
                 // Fingerprint each portfolio by its serialized form —
                 // catches every mutation including metadata-only edits.
@@ -177,7 +211,7 @@ pub fn App() -> impl IntoView {
         }
     }
 
-    let is_authenticated = Memo::new(move |_| app_store.get().is_authenticated);
+    let is_authenticated = Memo::new(move |_| app_store.with(|s| s.is_authenticated));
     let theme_attr = Memo::new(move |_| ui_store.get().theme.as_str().to_string());
     let font_size_attr = Memo::new(move |_| ui_store.get().font_size.clone());
     let reduced_motion_attr = Memo::new(move |_| {
@@ -223,4 +257,74 @@ pub fn App() -> impl IntoView {
             </div>
         </Show>
     }
+}
+
+/// Repair references left behind by pre-persistence sessions. Two kinds
+/// of dead ids existed: organization ids (orgs re-seeded with fresh UUIDs
+/// every login) and user ids (`current_user.id` was a new `Uuid::new_v4()`
+/// per page load, so every saved `owner_id`/member reference went stale).
+/// Org links are re-pointed by seed-name matching (mirrors `seed_data.rs`
+/// assignments); ownership fields are re-pointed at the stable
+/// `current_user.id`. Idempotent — live references are never rewritten.
+fn repair_legacy_refs(
+    app_store: &RwSignal<AppStore>,
+    organization_store: &RwSignal<OrganizationStore>,
+) {
+    fn seed_org_name(portfolio_name: &str) -> Option<&'static str> {
+        match portfolio_name {
+            "RedOrg Portfolio"
+            | "RedDirector Portfolio"
+            | "RedManager Portfolio"
+            | "RedWorker Portfolio"
+            | "Asset Groups Investments"
+            | "Single Assets Investments" => Some("RedOrg"),
+            "RedSales Portfolio" => Some("RedSales"),
+            "RedAsset Test Portfolio" => Some("RedAsset"),
+            "RedChannel Short Stays" | "RedChannel Long Stays" => Some("RedChannel"),
+            "NotRed Portfolio" => Some("NotRed"),
+            _ => None,
+        }
+    }
+    let orgs = organization_store.get_untracked().organizations.clone();
+    app_store.update(|s| {
+        let uid = s.current_user.id;
+        for p in &mut s.portfolios {
+            // Dead org reference → re-point at the same-named live org.
+            if let Some(oid) = p.organization_id {
+                if !orgs.is_empty() && !orgs.iter().any(|o| o.id == oid) {
+                    if let Some(org_name) = seed_org_name(&p.name) {
+                        if let Some(org) = orgs.iter().find(|o| o.name == org_name) {
+                            p.organization_id = Some(org.id);
+                        }
+                    }
+                }
+            }
+            // Legacy session user ids → the stable current user id.
+            if p.owner_id != uid {
+                p.owner_id = uid;
+            }
+            if !p.assigned_users.is_empty() {
+                p.assigned_users = vec![uid];
+            }
+        }
+        if let Some(cuid) = s.current_user.organization_id {
+            if !orgs.is_empty() && !orgs.iter().any(|o| o.id == cuid) {
+                s.current_user.organization_id = orgs
+                    .iter()
+                    .find(|o| o.name == "RedOrg")
+                    .or_else(|| orgs.first())
+                    .map(|o| o.id);
+            }
+        }
+    });
+    // Org ownership drives permission checks (`user_perms_in_org` grants
+    // owners everything) — re-point dead owner ids at the stable user.
+    organization_store.update(|s| {
+        let uid = app_store.with_untracked(|a| a.current_user.id);
+        for o in &mut s.organizations {
+            if o.owner_id != uid {
+                o.owner_id = uid;
+            }
+        }
+    });
 }

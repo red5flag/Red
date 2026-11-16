@@ -19868,6 +19868,70 @@ select.mp-af-input {
     height: 22px;
 }
 
+/* Marketplace listing — document picker */
+.mp-af-docs {
+    flex: 1 1 100%;
+    min-width: 0;
+}
+
+.mp-af-doc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 0 6px 84px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.mp-af-doc {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    font-size: 11px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    background: var(--primary-bg);
+    cursor: pointer;
+    user-select: none;
+}
+
+.mp-af-doc:hover {
+    border-color: var(--highlight);
+}
+
+.mp-af-doc-check {
+    margin: 0;
+    accent-color: var(--highlight);
+    flex-shrink: 0;
+}
+
+.mp-af-doc-on {
+    border-color: var(--highlight);
+    background: color-mix(in srgb, var(--highlight) 8%, var(--primary-bg));
+}
+
+.mp-af-doc-custom {
+    border-style: dashed;
+}
+
+.mp-af-doc-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mp-af-doc-type {
+    flex: 0 0 auto;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
 .mp-connect {
     display: flex;
     flex-direction: column;
@@ -20345,4 +20409,172 @@ select.mp-af-input {
 .listing-comment-form .mp-af-input {
     flex: 1;
     min-width: 0;
+}
+
+/* Marketplace bids & purchase actions */
+.listing-market {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 12px;
+}
+
+.listing-market-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.listing-market-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.listing-market-meta {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.listing-bid-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.listing-bid {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    background: var(--secondary-bg);
+    border: 1px solid var(--border-color);
+    font-size: 11px;
+}
+
+.listing-bid-active {
+    border-color: var(--highlight);
+}
+
+.listing-bid-amount {
+    font-weight: 700;
+    color: var(--text-primary);
+    min-width: 70px;
+}
+
+.listing-bid-who {
+    flex: 1;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.listing-bid-state {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+}
+
+.listing-bid-active .listing-bid-state {
+    color: var(--highlight);
+}
+
+.listing-market-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.listing-bid-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 220px;
+}
+
+.listing-bid-input {
+    flex: 1;
+    min-width: 0;
+}
+
+.listing-buy-btn {
+    flex-shrink: 0;
+}
+
+.listing-buy-now {
+    background: var(--accent-bg);
+    border-color: var(--highlight);
+    font-weight: 700;
+}
+
+/* Asset-card bid list + record form */
+.mp-listing-status-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mp-bid-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.mp-bid-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+    font-size: 10px;
+}
+
+.mp-bid-active {
+    border-color: var(--highlight);
+}
+
+.mp-bid-amount {
+    font-weight: 700;
+}
+
+.mp-bid-who {
+    flex: 1;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mp-bid-state {
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+}
+
+.mp-bid-active .mp-bid-state {
+    color: var(--highlight);
+}
+
+.mp-bid-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.mp-bid-form .login-input {
+    flex: 1;
+    min-width: 90px;
 }

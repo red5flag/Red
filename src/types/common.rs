@@ -209,6 +209,22 @@ impl AssetType {
         }
     }
 
+    /// Human-friendly label for display (e.g. "Real Estate").
+    pub fn display_label(&self) -> String {
+        match self {
+            AssetType::RealEstate => "Real Estate".to_string(),
+            AssetType::Vehicle => "Vehicle".to_string(),
+            AssetType::Equipment => "Equipment".to_string(),
+            AssetType::Stock => "Stock".to_string(),
+            AssetType::Bond => "Bond".to_string(),
+            AssetType::Commodity => "Commodity".to_string(),
+            AssetType::Digital => "Digital".to_string(),
+            AssetType::IntellectualProperty => "Intellectual Property".to_string(),
+            AssetType::Channel => "Channel".to_string(),
+            AssetType::Custom(name) => name.clone(),
+        }
+    }
+
     /// Known asset type labels (matches from_input/to_input_string for non-custom variants).
     pub fn all_labels() -> Vec<&'static str> {
         vec![

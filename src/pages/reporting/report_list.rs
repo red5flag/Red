@@ -6,25 +6,26 @@ use leptos::prelude::*;
 use uuid::Uuid;
 
 pub(crate) fn find_asset_name(app_store: &RwSignal<AppStore>, id: Uuid) -> String {
-    let store = app_store.get();
-    for p in &store.portfolios {
-        for a in p.get_all_assets() {
-            if a.id == id {
-                return a.name.clone();
-            }
-        }
-    }
-    "—".to_string()
+    app_store.with(|store| {
+        store
+            .portfolios
+            .iter()
+            .flat_map(|p| p.get_all_assets())
+            .find(|a| a.id == id)
+            .map(|a| a.name.clone())
+            .unwrap_or_else(|| "—".to_string())
+    })
 }
 
 pub(crate) fn find_portfolio_name(app_store: &RwSignal<AppStore>, id: Uuid) -> String {
-    let store = app_store.get();
-    store
-        .portfolios
-        .iter()
-        .find(|p| p.id == id)
-        .map(|p| p.name.clone())
-        .unwrap_or_else(|| "—".to_string())
+    app_store.with(|store| {
+        store
+            .portfolios
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "—".to_string())
+    })
 }
 
 pub(crate) fn sort_transactions(

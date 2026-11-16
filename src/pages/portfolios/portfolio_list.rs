@@ -69,17 +69,15 @@ pub(crate) fn PortfolioListItem(
     let can_edit_here = can_edit;
     let can_edit_documents_here = can_edit_documents;
     let organization_store = use_organization_store();
-    let current_user = app_store.get().current_user.clone();
+    let current_user = app_store.with(|s| s.current_user.clone());
     let current_user_id = current_user.id;
     let can_view_portfolio = portfolio.is_visible_to(current_user_id, current_user.can_view_all())
         || portfolio
             .organization_id
             .map_or(current_user.can_view_all(), |oid| {
-                organization_store.get().user_has_perm_in_org(
-                    oid,
-                    current_user_id,
-                    &Perm::ViewPortfolios,
-                )
+                organization_store.with(|s| {
+                    s.user_has_perm_in_org(oid, current_user_id, &Perm::ViewPortfolios)
+                })
             });
     if !can_view_portfolio {
         return ().into_any();
@@ -176,8 +174,8 @@ pub(crate) fn PortfolioListItem(
 
     // Deep-link scrolling from search / notifications.
     Effect::new(move |_| {
-        let target = app_store.get().pending_scroll_target.clone();
-        let slider_target = app_store.get().pending_doc_slider.clone();
+        let (target, slider_target) = app_store
+            .with(|s| (s.pending_scroll_target.clone(), s.pending_doc_slider.clone()));
         if let Some(crate::stores::ScrollTarget::Portfolio(id)) = target {
             if id == pid {
                 crate::utils::dom::scroll_to_id(&format!("portfolio-{}", pid));
@@ -204,7 +202,7 @@ pub(crate) fn PortfolioListItem(
         if n.trim().is_empty() {
             return;
         }
-        let uploaded_by = app_store.get().current_user.id;
+        let uploaded_by = app_store.with(|s| s.current_user.id);
         let ft = detect_file_type(&n);
         let doc = crate::models::Document {
             id: Uuid::new_v4(),
@@ -225,7 +223,7 @@ pub(crate) fn PortfolioListItem(
 
     // Reactive combined document list for the portfolio dropdown, including asset docs.
     let doc_entries = Memo::new(move |_| {
-        let store = app_store.get();
+        app_store.with(|store| {
         let mut entries = Vec::new();
         if let Some(p) = store.get_portfolio(pid) {
             for d in &p.documents {
@@ -280,6 +278,7 @@ pub(crate) fn PortfolioListItem(
             }
         }
         entries
+        })
     });
     let dropdown_entries = Memo::new(move |_| {
         doc_entries
@@ -297,7 +296,7 @@ pub(crate) fn PortfolioListItem(
             .collect::<Vec<_>>()
     });
     let doc_count = Memo::new(move |_| dropdown_entries.get().len());
-    let org_users = move || organization_store.get().organization_users.clone();
+    let org_users = move || organization_store.with(|s| s.organization_users.clone());
 
     let toggle_portfolio_assignment = Callback::new(move |uid: Uuid| {
         let pid = portfolio.id;
@@ -466,7 +465,7 @@ pub(crate) fn PortfolioListItem(
                                         p.updated_at = chrono::Utc::now();
                                     }
                                 });
-                                if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+                                if let Some(p) = app_store.with(|s| s.get_portfolio(pid).cloned()) {
                                     leptos::task::spawn_local(async move {
                                         let _ = crate::server::save_portfolio(p).await;
                                     });
@@ -574,7 +573,7 @@ pub(crate) fn PortfolioListItem(
             </div>
 
             {move || if view_mode.get() == ViewMode::List
-                && ui_store.get().is_red_listing_panel_open(pid)
+                && ui_store.with(|s| s.is_red_listing_panel_open(pid))
                 && can_edit_here.get()
             {
                 view! {
@@ -608,7 +607,7 @@ pub(crate) fn PortfolioListItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if view_mode.get() == ViewMode::List && ui_store.get().is_assignment_panel_open(pid) && can_edit_here.get() {
+            {move || if view_mode.get() == ViewMode::List && ui_store.with(|s| s.is_assignment_panel_open(pid)) && can_edit_here.get() {
                 let users = org_users();
                 let assigned = assigned_users.clone();
                 view! {

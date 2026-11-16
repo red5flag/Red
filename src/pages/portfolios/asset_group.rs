@@ -42,7 +42,7 @@ pub(crate) fn AssetGroupItem(
     let ui_store = use_ui_store();
     let _ = view_mode;
 
-    let current_user = app_store.get().current_user.clone();
+    let current_user = app_store.with(|s| s.current_user.clone());
     let user_id = current_user.id;
     let can_view_all = current_user.can_view_all();
     let organization_store = use_organization_store();
@@ -118,7 +118,7 @@ pub(crate) fn AssetGroupItem(
     let assets_scope = format!("group-assets-{gid}");
     let assets_scope_visible = assets_scope.clone();
     let assets_scope_expand = assets_scope.clone();
-    let page_size = move || ui_store.get().portfolio_view_count(view_mode).as_usize();
+    let page_size = move || ui_store.with(|s| s.portfolio_view_count(view_mode).as_usize());
     let visible_for_scope = move || {
         visible_counts
             .get()
@@ -180,8 +180,8 @@ pub(crate) fn AssetGroupItem(
     let group_assets = group.assets.clone();
     let group_documents = group.documents.clone();
     Effect::new(move |_| {
-        let target = app_store.get().pending_scroll_target.clone();
-        let slider_target = app_store.get().pending_doc_slider.clone();
+        let (target, slider_target) = app_store
+            .with(|s| (s.pending_scroll_target.clone(), s.pending_doc_slider.clone()));
         if let Some(crate::stores::ScrollTarget::AssetGroup(id)) = target {
             if id == gid {
                 crate::utils::dom::scroll_to_id(&format!("asset-group-{}", gid));
@@ -220,7 +220,7 @@ pub(crate) fn AssetGroupItem(
     let doc_count = Memo::new(move |_| dropdown_entries.get().len());
     let assigned_users = group.assigned_users.clone();
     let organization_store = use_organization_store();
-    let org_users = move || organization_store.get().organization_users.clone();
+    let org_users = move || organization_store.with(|s| s.organization_users.clone());
     let gid_for_assign = gid;
     let pid_for_assign = pid;
     let toggle_group_assignment = Callback::new(move |uid: Uuid| {
@@ -237,7 +237,7 @@ pub(crate) fn AssetGroupItem(
                 }
             }
         });
-        if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+        if let Some(p) = app_store.with(|s| s.get_portfolio(pid).cloned()) {
             leptos::task::spawn_local(async move {
                 let _ = crate::server::save_portfolio(p).await;
             });
@@ -459,7 +459,7 @@ pub(crate) fn AssetGroupItem(
                                         }
                                     }
                                 });
-                                if let Some(p) = app_store.get().get_portfolio(pid).cloned() {
+                                if let Some(p) = app_store.with(|s| s.get_portfolio(pid).cloned()) {
                                     leptos::task::spawn_local(async move {
                                         let _ = crate::server::save_portfolio(p).await;
                                     });
@@ -552,7 +552,7 @@ pub(crate) fn AssetGroupItem(
                                 </div>
                             }.into_any()
                         } else { ().into_any() }}
-                        {move || if ui_store.get().is_assignment_panel_open(gid) && can_edit_here.get() {
+                        {move || if ui_store.with(|s| s.is_assignment_panel_open(gid)) && can_edit_here.get() {
                             let users = org_users();
                             let assigned = assigned_users.clone();
                             view! {
@@ -598,7 +598,7 @@ pub(crate) fn AssetGroupItem(
                 }.into_any()
             } else { ().into_any() }}
 
-            {move || if ui_store.get().is_red_listing_panel_open(gid) && can_edit_here.get() {
+            {move || if ui_store.with(|s| s.is_red_listing_panel_open(gid)) && can_edit_here.get() {
                 view! {
                     <div class="pf-doc-slider-panel" on:click=|ev| ev.stop_propagation()>
                         <RedListingPanel
@@ -658,8 +658,7 @@ pub(crate) fn AssetGroupItem(
                                             app_store.update(|s| s.add_channel(channel));
                                         }
                                         set_new_asset_id.set(Some(asset_id));
-                                        set_new_channel_name.set(String::new());
-                                        set_new_channel_rate.set(String::new());
+                                        // Channel name/rate persist for repeat adds.
                                     }
                                 }>
                                 "Add Asset"
@@ -776,9 +775,9 @@ pub(crate) fn AssetGroupItem(
 
             // Add Role modal (group context menu)
             {move || if show_group_add_role.get() {
-                let org_id = app_store.get().portfolios.iter()
+                let org_id = app_store.with(|s| s.portfolios.iter()
                     .find(|p| p.id == pid)
-                    .and_then(|p| p.organization_id);
+                    .and_then(|p| p.organization_id));
                 view! {
                     <div class="doc-modal-overlay" on:click=move |_| set_show_group_add_role.set(false)>
                         <div class="doc-modal" on:click=|ev| ev.stop_propagation()>
@@ -832,10 +831,10 @@ pub(crate) fn AssetGroupItem(
                                     on:change=move |ev| set_group_org_id.set(event_target_value(&ev))
                                 >
                                     <option value="">"(None)"</option>
-                                    {move || organization_store.get().organizations.iter().map(|o| {
+                                    {move || organization_store.with(|s| s.organizations.iter().map(|o| {
                                         let id = o.id.to_string();
                                         view! { <option value={id.clone()}>{o.name.clone()}</option> }
-                                    }).collect::<Vec<_>>()}
+                                    }).collect::<Vec<_>>())}
                                 </select>
                                 <input class="login-input" type="text" placeholder="Or create a new organization"
                                     aria-label="New organization name"
@@ -847,7 +846,7 @@ pub(crate) fn AssetGroupItem(
                                         let s = group_org_id.get();
                                         if s.trim().is_empty() { None } else { Uuid::parse_str(&s).ok() }
                                     } else {
-                                        let owner_id = app_store.get().current_user.id;
+                                        let owner_id = app_store.with(|s| s.current_user.id);
                                         let org = crate::models::Organization::new(name, owner_id);
                                         let oid = org.id;
                                         organization_store.update(|s| s.add_organization(org));
@@ -882,10 +881,10 @@ pub(crate) fn AssetGroupItem(
                                     on:change=move |ev| set_group_target_portfolio_id.set(event_target_value(&ev))
                                 >
                                     <option value="">"Select a portfolio"</option>
-                                    {move || app_store.get().portfolios.iter().map(|p| {
+                                    {move || app_store.with(|s| s.portfolios.iter().map(|p| {
                                         let id = p.id.to_string();
                                         view! { <option value={id.clone()}>{p.name.clone()}</option> }
-                                    }).collect::<Vec<_>>()}
+                                    }).collect::<Vec<_>>())}
                                 </select>
                                 <button class="login-btn" on:click=move |_| {
                                     let s = group_target_portfolio_id.get();
@@ -926,7 +925,7 @@ pub(crate) fn AssetGroupItem(
                                         on:click=move |_| {
                                             set_confirm_group_remove.set(false);
                                             app_store.update(|s| { s.remove_asset_group(pid, gid); });
-                                            if let Some(p) = app_store.get().portfolios.iter().find(|p| p.id == pid).cloned() {
+                                            if let Some(p) = app_store.with(|s| s.portfolios.iter().find(|p| p.id == pid).cloned()) {
                                                 leptos::task::spawn_local(async move {
                                                     let _ = crate::server::save_portfolio(p).await;
                                                 });

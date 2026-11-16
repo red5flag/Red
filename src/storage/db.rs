@@ -293,6 +293,24 @@ impl DataStore {
         serde_json::from_slice(&v).ok()
     }
 
+    /// Persist the organization store (organizations + org users) as plain
+    /// JSON — same sensitivity level as portfolios/channels.
+    pub fn save_organization_store(
+        &self,
+        store: &crate::stores::OrganizationStore,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let value = serde_json::to_vec(store)?;
+        self.db.insert(b"org:state", value)?;
+        Ok(())
+    }
+
+    /// Load the persisted organization store. `None` means it was never
+    /// saved, so callers keep seeded state instead of wiping it.
+    pub fn load_organization_store(&self) -> Option<crate::stores::OrganizationStore> {
+        let v = self.db.get(b"org:state").ok().flatten()?;
+        serde_json::from_slice(&v).ok()
+    }
+
     /// Delete a message from DB and cache.
     pub fn delete_message(&self, id: Uuid) -> Result<(), Box<dyn std::error::Error>> {
         let id_key = format!("msg:{}", id);

@@ -373,8 +373,8 @@ pub(crate) fn OrganizationCard(
                         }
                         on:click=move |_| set_org_tab.run((oid, "portfolios"))>
                         <span>"Portfolios ("</span>
-                        {move || app_store.get().portfolios.iter()
-                            .filter(|p| p.organization_id == Some(oid)).count().to_string()}
+                        {move || app_store.with(|s| s.portfolios.iter()
+                            .filter(|p| p.organization_id == Some(oid)).count().to_string())}
                         <span>")"</span>
                         {if can_manage {
                             view! {

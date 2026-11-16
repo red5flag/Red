@@ -305,12 +305,17 @@ pub fn TransactionsPage() -> impl IntoView {
         let vc = view_count.get().value();
         let org_id = selected_org_id.get();
         let portfolio_id = selected_portfolio_id.get();
-        let portfolios = app_store.get().portfolios.clone();
-        let org_portfolio_ids: std::collections::HashSet<Uuid> = if let Some(oid) = org_id {
-            portfolios.iter().filter(|p| p.organization_id == Some(oid)).map(|p| p.id).collect()
-        } else {
-            std::collections::HashSet::new()
-        };
+        let org_portfolio_ids: std::collections::HashSet<Uuid> = app_store.with(|s| {
+            if let Some(oid) = org_id {
+                s.portfolios
+                    .iter()
+                    .filter(|p| p.organization_id == Some(oid))
+                    .map(|p| p.id)
+                    .collect()
+            } else {
+                std::collections::HashSet::new()
+            }
+        });
         let mut items: Vec<_> = transaction_store
             .get()
             .transactions
@@ -375,7 +380,7 @@ pub fn TransactionsPage() -> impl IntoView {
 
     transaction_store.update(|store| {
         if store.transactions.is_empty() {
-            let accounts = account_store.get().accounts_for_org_owned(current_org_id);
+            let accounts = account_store.with(|s| s.accounts_for_org_owned(current_org_id));
             let bank_account_id = accounts
                 .iter()
                 .find(|a| matches!(a.account_type, AccountType::Bank))
@@ -465,7 +470,7 @@ pub fn TransactionsPage() -> impl IntoView {
         }
     });
 
-    let current_user = move || app_store.get().current_user;
+    let current_user = move || app_store.with(|s| s.current_user.clone());
     let actor_name = move || current_user().name.clone();
     let actor_role = move || format!("{:?}", current_user().role);
     let actor_id = move || current_user().id;
@@ -523,32 +528,40 @@ pub fn TransactionsPage() -> impl IntoView {
     );
 
     let all_accounts = move || {
-        let org_id = selected_org_id.get().or(app_store.get().current_user.organization_id);
-        account_store.get().accounts_for_org_owned(org_id)
+        let org_id = selected_org_id
+            .get()
+            .or_else(|| app_store.with(|s| s.current_user.organization_id));
+        account_store.with(|s| s.accounts_for_org_owned(org_id))
     };
 
-    let all_organizations = move || organization_store.get().organizations.clone();
+    let all_organizations = move || organization_store.with(|s| s.organizations.clone());
 
     let portfolios_for_org = move || {
         let org_id = selected_org_id.get();
-        app_store.get().portfolios.iter()
-            .filter(|p| {
-                if let Some(oid) = org_id {
-                    p.organization_id == Some(oid) || p.secondary_organization_ids.contains(&oid)
-                } else {
-                    true
-                }
-            })
-            .cloned()
-            .collect::<Vec<_>>()
+        app_store.with(|s| {
+            s.portfolios
+                .iter()
+                .filter(|p| {
+                    if let Some(oid) = org_id {
+                        p.organization_id == Some(oid) || p.secondary_organization_ids.contains(&oid)
+                    } else {
+                        true
+                    }
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        })
     };
 
     let users_for_org = move || {
         let org_id = selected_org_id.get();
-        organization_store.get().organization_users.iter()
-            .filter(|u| u.organization_id == org_id)
-            .cloned()
-            .collect::<Vec<_>>()
+        organization_store.with(|s| {
+            s.organization_users
+                .iter()
+                .filter(|u| u.organization_id == org_id)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
     };
 
     let workers_for_org = move || {
@@ -832,7 +845,11 @@ pub fn TransactionsPage() -> impl IntoView {
                                 let id_str = node.strip_prefix("finance.accounts.").unwrap_or("");
                                 let accts = all_accounts();
                                 if let Some(a) = accts.iter().find(|a| a.id.to_string() == id_str) {
-                                    let txns = account_store.get().all_transactions_for_account(a.id, &transaction_store.get().transactions);
+                                    let txns = account_store.with(|as_| {
+                                        transaction_store.with(|ts| {
+                                            as_.all_transactions_for_account(a.id, &ts.transactions)
+                                        })
+                                    });
                                     view! {
                                         <div class="data-card">
                                             <div class="card-header">
@@ -986,7 +1003,7 @@ pub fn TransactionsPage() -> impl IntoView {
                                     </div>
                                 }.into_any()
                             } else if node == "channels" {
-                                let channels = app_store.get().channels.clone();
+                                let channels = app_store.with(|s| s.channels.clone());
                                 view! {
                                     <div class="data-card">
                                         <div class="card-header"><span class="card-title">"Channels"</span></div>
