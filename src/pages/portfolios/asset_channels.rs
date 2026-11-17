@@ -1,6 +1,7 @@
 use crate::models::{
     Asset, Booking, BookingSource, BookingStatus, Channel, ChannelType, ConditionStatus,
     ConnectionStatus, ContactSource, Message, MessageEmbed, MessengerContact, SyncDirection,
+    ebay_site,
 };
 #[cfg(feature = "hydrate")]
 use crate::models::{MessageStatus, MessengerState};
@@ -25,8 +26,6 @@ struct MarketplaceDef {
     label: &'static str,
     icon: &'static str,
     channel_type: Option<ChannelType>,
-    /// Connect methods this marketplace supports: "google" | "manual" | "browser".
-    auth: &'static [&'static str],
     hint: &'static str,
 }
 
@@ -37,7 +36,6 @@ static MARKETPLACES: &[MarketplaceDef] = &[
         icon: "🏪",
         // Internal marketplace — no external channel type or connect flow.
         channel_type: None,
-        auth: &[],
         hint: "List on the Red Marketplace — visible to your network in the Marketplace tab.",
     },
     MarketplaceDef {
@@ -45,51 +43,9 @@ static MARKETPLACES: &[MarketplaceDef] = &[
         label: "eBay",
         icon: "🛒",
         channel_type: Some(ChannelType::EBay),
-        auth: &["google", "facebook", "apple", "manual", "browser"],
         hint: "List on eBay with auto-filled title, price, photos and details.",
     },
-    MarketplaceDef {
-        key: "Amazon",
-        label: "Amazon",
-        icon: "📦",
-        channel_type: Some(ChannelType::Amazon),
-        auth: &["google", "browser"],
-        hint: "List on Amazon with auto-filled title, price, photos and details.",
-    },
-    MarketplaceDef {
-        key: "Etsy",
-        label: "Etsy",
-        icon: "🎨",
-        channel_type: Some(ChannelType::Etsy),
-        auth: &["google", "browser"],
-        hint: "List on Etsy with auto-filled title, price, photos and details.",
-    },
-    MarketplaceDef {
-        key: "Kogan",
-        label: "Kogan",
-        icon: "🏷️",
-        channel_type: Some(ChannelType::Kogan),
-        auth: &["google", "browser"],
-        hint: "List on Kogan with auto-filled title, price, photos and details.",
-    },
 ];
-
-/// Simulated marketplace API handshake used to test connectivity without an
-/// account. Returns the endpoint label on success so the UI can show which
-/// API was exercised; real OAuth/token checks replace this once API
-/// credentials are configured.
-async fn marketplace_api_test(mp_key: &str, method: &str) -> Result<String, String> {
-    let endpoint = match mp_key {
-        "EBay" => "api.ebay.com/identity/v1/oauth2/token",
-        "Amazon" => "api.amazon.com/auth/o2/token",
-        "Etsy" => "api.etsy.com/v3/application/openapi-ping",
-        "Kogan" => "api.kogan.com/v2/marketplace/ping",
-        _ => "marketplace.api/ping",
-    };
-    gloo_timers::future::TimeoutFuture::new(800).await;
-    let _ = method;
-    Ok(format!("{} ✓", endpoint))
-}
 
 fn marketplace_def(key: &str) -> Option<&'static MarketplaceDef> {
     MARKETPLACES.iter().find(|d| d.key == key)
@@ -195,32 +151,6 @@ fn marketplace_condition(cs: &ConditionStatus) -> &'static str {
         ConditionStatus::New => "New",
         ConditionStatus::Excellent | ConditionStatus::Good | ConditionStatus::Fair => "Used",
         ConditionStatus::Poor | ConditionStatus::Damaged | ConditionStatus::Unsafe => "For parts",
-    }
-}
-
-/// Long display label for a marketplace connect-method key.
-fn mp_method_label(key: &str) -> &'static str {
-    match key {
-        "internal" => "Red Marketplace",
-        "google" => "Google sign-in",
-        "facebook" => "Facebook sign-in",
-        "apple" => "Apple sign-in",
-        "browser" => "Browser session",
-        "manual" => "Manual sign-in",
-        _ => "Connected",
-    }
-}
-
-/// Short label for badges/status lines.
-fn mp_method_short(key: &str) -> &'static str {
-    match key {
-        "internal" => "Red",
-        "google" => "Google",
-        "facebook" => "Facebook",
-        "apple" => "Apple",
-        "browser" => "Browser",
-        "manual" => "Manual",
-        _ => "",
     }
 }
 
@@ -1103,9 +1033,6 @@ pub(crate) fn AssetLinkingControls(
                             <option value="Vrbo">"Vrbo"</option>
                             <option value="LinkedIn">"LinkedIn"</option>
                             <option value="EBay">"eBay"</option>
-                            <option value="Amazon">"Amazon"</option>
-                            <option value="Etsy">"Etsy"</option>
-                            <option value="Kogan">"Kogan"</option>
                         </select>
                     </label>
                     <label>"Rate"
@@ -1152,9 +1079,6 @@ pub(crate) fn AssetLinkingControls(
                                 <option value="Vrbo">"Vrbo"</option>
                                 <option value="LinkedIn">"LinkedIn"</option>
                                 <option value="EBay">"eBay"</option>
-                                <option value="Amazon">"Amazon"</option>
-                                <option value="Etsy">"Etsy"</option>
-                                <option value="Kogan">"Kogan"</option>
                                 <option value="Other">"Other"</option>
                             </select>
                             <select class="ai-channel-filter" prop:value={move || sort_by.get()}
@@ -1644,9 +1568,6 @@ pub(crate) fn AddChannelModal(
                                 <option value="Vrbo">"Vrbo"</option>
                                 <option value="LinkedIn">"LinkedIn"</option>
                                 <option value="EBay">"eBay"</option>
-                                <option value="Amazon">"Amazon"</option>
-                                <option value="Etsy">"Etsy"</option>
-                                <option value="Kogan">"Kogan"</option>
                             </select>
                         </label>
                         <label>"Nightly rate (optional)"
@@ -2012,6 +1933,9 @@ fn default_bid_state() -> String {
 /// and published listings can be updated later.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct MarketplaceListing {
+    /// eBay sites (marketplace ids) this listing publishes to.
+    #[serde(default)]
+    pub(crate) sites: Vec<String>,
     pub(crate) title: String,
     pub(crate) description: String,
     pub(crate) price: String,
@@ -2157,6 +2081,7 @@ impl MarketplaceListing {
             buy_it_now: String::new(),
             bid_increment: String::new(),
             auction_days: "7".to_string(),
+            sites: Vec::new(),
             category,
             sku,
             docs: a.documents.iter().map(|d| d.name.clone()).collect(),
@@ -2370,26 +2295,44 @@ fn MarketplaceCard(
     let def = marketplace_def(mp_key);
     let mp_icon = def.map(|d| d.icon).unwrap_or("🏪");
     let mp_hint = def.map(|d| d.hint).unwrap_or("");
-    let mp_auth: &'static [&'static str] = def.map(|d| d.auth).unwrap_or(&["manual", "browser"]);
 
-    // Connection state: (method key, account label) once connected.
-    // The internal Red Marketplace needs no connect flow — it starts
-    // "connected" so the listing tools are always available.
-    let (conn, set_conn) = signal(if mp_key == "Red" {
-        Some(("internal", "Red Marketplace".to_string()))
-    } else {
-        None
+    // Connection state comes from the account-level channel managed in
+    // the Marketplace tab (Channels view) — cards no longer connect.
+    let conn = Memo::new(move |_| -> Option<String> {
+        if mp_key == "Red" {
+            return Some("Red Marketplace".to_string());
+        }
+        let ty = marketplace_channel_type(mp_key)?;
+        app_store.with(|s| {
+            s.channels
+                .iter()
+                .find(|c| {
+                    c.is_account_level()
+                        && c.channel_type == ty
+                        && c.enabled
+                        && c.connection_status == ConnectionStatus::Connected
+                })
+                .map(|c| c.account_label.clone().unwrap_or_else(|| c.name.clone()))
+        })
     });
-    let (manual_open, set_manual_open) = signal(false);
-    let (manual_user, set_manual_user) = signal(String::new());
-    let (manual_pass, set_manual_pass) = signal(String::new());
-    let (auth_err, set_auth_err) = signal(Option::<String>::None);
-    // Single-button connect cascade: method currently being tried, whether
-    // the manual method picker is open, and a generation counter that
-    // cancels an in-flight cascade when the user picks manually.
-    let (connecting, set_connecting) = signal(Option::<&'static str>::None);
-    let (picker_open, set_picker_open) = signal(false);
-    let (cascade_gen, set_cascade_gen) = signal(0u32);
+    // eBay sites enabled in the Marketplace tab — listings publish to these.
+    let enabled_sites = Memo::new(move |_| {
+        app_store.with(|s| {
+            s.channels
+                .iter()
+                .filter(|c| {
+                    c.is_account_level() && c.channel_type == ChannelType::EBay && c.enabled
+                })
+                .filter_map(|c| c.marketplace_site.clone())
+                .collect::<Vec<String>>()
+        })
+    });
+    let open_channels_tab = move |_| {
+        app_store.update(|s| {
+            s.pending_marketplace_channels = true;
+            s.expand_tab(crate::types::TabType::Marketplace);
+        });
+    };
 
     // Listing setup state — single struct mirroring the persisted draft.
     let (listing_open, set_listing_open) = signal(false);
@@ -2592,137 +2535,11 @@ fn MarketplaceCard(
             .unwrap_or(false)
     };
 
-    let do_connect = move |method: &'static str, account: String| {
-        set_auth_err.set(None);
-        set_conn.set(Some((method, account)));
-        set_manual_open.set(false);
-        set_picker_open.set(false);
-        set_connecting.set(None);
-        set_cascade_gen.update(|g| *g += 1);
-    };
-
-    // Every connect method runs a simulated marketplace API handshake first
-    // (no account needed) — success connects, failure surfaces the error.
-    let connect_via = {
-        let dc = do_connect.clone();
-        move |method: &'static str, account: String| {
-            set_auth_err.set(None);
-            set_connecting.set(Some(method));
-            let mp = mp_key;
-            leptos::task::spawn_local(async move {
-                match marketplace_api_test(mp, method).await {
-                    Ok(api) => dc(method, format!("{} · {}", account, api)),
-                    Err(e) => {
-                        set_auth_err.set(Some(e));
-                        set_connecting.set(None);
-                    }
-                }
-            });
-        }
-    };
-
-    // Google sign-in binds to the signed-in app account — the same identity
-    // eBay/Amazon/Etsy/Kogan will see, not a generic placeholder. StoredValue
-    // keeps the string Copy so the picker closures stay FnMut.
-    let google_account = StoredValue::new({
-        let u = app_store.get_untracked().current_user.clone();
-        if u.email.trim().is_empty() {
-            u.name.clone()
-        } else {
-            format!("{} <{}>", u.name, u.email)
-        }
-    });
-    let connect_google = {
-        let cv = connect_via;
-        move |_| cv("google", google_account.get_value())
-    };
-    let connect_facebook = {
-        let cv = connect_via;
-        move |_| cv("facebook", "Facebook account".to_string())
-    };
-    let connect_apple = {
-        let cv = connect_via;
-        move |_| cv("apple", "Apple ID".to_string())
-    };
-    let connect_browser = {
-        let cv = connect_via;
-        move |_| cv("browser", "Browser session".to_string())
-    };
-    let connect_manual = {
-        let dc = do_connect.clone();
-        move |_| {
-            let user = manual_user.get().trim().to_string();
-            if user.is_empty() || manual_pass.get().is_empty() {
-                set_auth_err.set(Some("Enter username and password".to_string()));
-                return;
-            }
-            dc("manual", user);
-        }
-    };
-
-    // Connect button opens the method picker — Google account selection or
-    // browser auto-detect — whichever the marketplace supports.
-    let connect_cascade = move |_| {
-        if conn.get().is_some() || connecting.get().is_some() {
-            return;
-        }
-        set_auth_err.set(None);
-        set_manual_open.set(false);
-        set_picker_open.update(|v| *v = !*v);
-    };
-
-    let pick_manual = {
-        let dc_gen = set_cascade_gen;
-        move |_| {
-            dc_gen.update(|g| *g += 1);
-            set_connecting.set(None);
-            set_picker_open.set(false);
-            set_manual_open.set(true);
-        }
-    };
-
-    // Press-and-hold (≈ mouse2/right-click hold) reveals the method picker.
-    // A generation counter invalidates the timer if the button is released
-    // early, so a stale timeout can't open the picker afterwards.
-    let (press_gen, set_press_gen) = signal(0u32);
-    let on_press_start = move |ev: leptos::ev::MouseEvent| {
-        if ev.button() != 0 {
-            return;
-        }
-        let g = press_gen.get_untracked() + 1;
-        set_press_gen.set(g);
-        let cb = wasm_bindgen::closure::Closure::once(move || {
-            if press_gen.get_untracked() == g {
-                set_cascade_gen.update(|v| *v += 1);
-                set_connecting.set(None);
-                set_picker_open.set(true);
-            }
-        });
-        if let Some(w) = web_sys::window() {
-            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(
-                cb.as_ref().unchecked_ref(),
-                450,
-            );
-        }
-        cb.forget();
-    };
-    let on_press_end = move |_| {
-        set_press_gen.update(|g| *g += 1);
-    };
-    let on_press_end_leave = on_press_end;
-    let on_connect_context = move |ev: leptos::ev::MouseEvent| {
-        ev.prevent_default();
-        set_press_gen.update(|g| *g += 1);
-        set_cascade_gen.update(|g| *g += 1);
-        set_connecting.set(None);
-        set_picker_open.update(|v| *v = !*v);
-    };
-
     // Open the listing form: resume the saved draft if one exists, otherwise
     // auto-fill every feasible field from the asset's current contents.
     let open_listing = move |_| {
         set_form_err.set(None);
-        let listing = load_marketplace_listing(&app_store.get_untracked(), asset_id, mp_key)
+        let mut listing = load_marketplace_listing(&app_store.get_untracked(), asset_id, mp_key)
             .or_else(|| {
                 let s = app_store.get_untracked();
                 let sales = load_sales_profile(&s, asset_id);
@@ -2732,6 +2549,9 @@ fn MarketplaceCard(
                 title: asset_name_sig.get_untracked(),
                 ..Default::default()
             });
+        if mp_key == "EBay" && listing.sites.is_empty() {
+            listing.sites = enabled_sites.get_untracked();
+        }
         set_form.set(listing);
         set_listing_open.set(true);
     };
@@ -2750,45 +2570,73 @@ fn MarketplaceCard(
         if status == "published" && l.thread_id.is_none() {
             l.thread_id = Some(Uuid::new_v4());
         }
-        let was_linked = already_linked();
+        if mp_key == "EBay" {
+            if l.sites.is_empty() {
+                l.sites = enabled_sites.get_untracked();
+            }
+            if status == "published" && l.sites.is_empty() {
+                set_form_err.set(Some(
+                    "Enable at least one eBay site in Marketplace → Channels before publishing".to_string(),
+                ));
+                return;
+            }
+        }
+        let targets: Vec<Option<String>> = if mp_key == "EBay" {
+            l.sites.iter().cloned().map(Some).collect()
+        } else {
+            vec![None]
+        };
+        let asset_name = asset_name_sig.get_untracked();
         app_store.update(|s| {
             save_marketplace_listing(s, asset_id, mp_key, &l);
-            if status == "published" && !was_linked {
-                if let Some(channel_type) = marketplace_channel_type(mp_key) {
-                    let mut channel = Channel::new_test_channel(
-                        format!("{} — {}", mp_label, asset_name_sig.get()),
-                        Some(asset_id),
-                        portfolio_id,
-                    );
-                    channel.channel_type = channel_type;
-                    // Bind the listing contents to the marketplace channel so
-                    // the connection carries the listing's key details —
-                    // including eBay bidding parameters when present.
-                    let sales = load_sales_profile(s, asset_id);
-                    let eff_price = l.effective_price(&sales);
-                    let mut payload = format!(
-                        "Listing: {} · ${} · {} · {} photo{}",
-                        l.title,
-                        if eff_price.is_empty() { "0.00".to_string() } else { eff_price.to_string() },
-                        l.condition,
-                        l.photos.len(),
-                        if l.photos.len() == 1 { "" } else { "s" }
-                    );
-                    if mp_key == "EBay"
-                        && (!l.auction_start.trim().is_empty()
-                            || !l.buy_it_now.trim().is_empty())
-                    {
-                        payload.push_str(&format!(
-                            " · Auction: start ${}, BIN ${}, +${}, {}d",
-                            l.auction_start,
-                            l.buy_it_now,
-                            l.bid_increment,
-                            l.auction_days
-                        ));
-                    }
-                    channel.last_sync_status = Some(payload);
-                    attach_channel_to_asset(s, asset_id, portfolio_id, channel);
+            if status != "published" {
+                return;
+            }
+            let Some(channel_type) = marketplace_channel_type(mp_key) else { return };
+            // Bind the listing contents to the marketplace channel so the
+            // connection carries the listing's key details — including eBay
+            // bidding parameters when present.
+            let sales = load_sales_profile(s, asset_id);
+            let eff_price = l.effective_price(&sales);
+            let mut payload = format!(
+                "Listing: {} · ${} · {} · {} photo{}",
+                l.title,
+                if eff_price.is_empty() { "0.00".to_string() } else { eff_price.to_string() },
+                l.condition,
+                l.photos.len(),
+                if l.photos.len() == 1 { "" } else { "s" }
+            );
+            if mp_key == "EBay"
+                && (!l.auction_start.trim().is_empty() || !l.buy_it_now.trim().is_empty())
+            {
+                payload.push_str(&format!(
+                    " · Auction: start ${}, BIN ${}, +${}, {}d",
+                    l.auction_start, l.buy_it_now, l.bid_increment, l.auction_days
+                ));
+            }
+            for site in targets.iter() {
+                let linked = s.channels_for_asset(asset_id).iter().any(|c| {
+                    c.channel_type == channel_type && (site.is_none() || c.marketplace_site == *site)
+                });
+                if linked {
+                    continue;
                 }
+                let site_def = site.as_deref().and_then(ebay_site);
+                let label = site_def
+                    .map(|d| format!("{} {}", mp_label, d.label))
+                    .unwrap_or_else(|| mp_label.to_string());
+                let mut channel = Channel::new_test_channel(
+                    format!("{} — {}", label, asset_name),
+                    Some(asset_id),
+                    portfolio_id,
+                );
+                channel.channel_type = channel_type.clone();
+                channel.marketplace_site = site.clone();
+                if let Some(d) = site_def {
+                    channel.currency = d.currency();
+                }
+                channel.last_sync_status = Some(payload.clone());
+                attach_channel_to_asset(s, asset_id, portfolio_id, channel);
             }
         });
         // Push the updated listing metadata (and any new channel link) to
@@ -2966,6 +2814,39 @@ fn MarketplaceCard(
                                                 {af_text_row("BUY IT NOW", "buy_it_now", f.buy_it_now.clone())}
                                                 {af_text_row("BID INCREMENT", "bid_increment", f.bid_increment.clone())}
                                                 {af_text_row("DAYS", "auction_days", f.auction_days.clone())}
+                                                <div class="mp-af-section">"EBAY SITES"</div>
+                                                {move || {
+                                                    let sites = enabled_sites.get();
+                                                    if sites.is_empty() {
+                                                        return view! {
+                                                            <p class="mp-hint">"No eBay sites enabled — choose them in Marketplace → Channels."</p>
+                                                        }.into_any();
+                                                    }
+                                                    sites.into_iter().map(|id| {
+                                                        let def = ebay_site(&id);
+                                                        let name = def.map(|d| format!("{} ({})", d.label, d.domain)).unwrap_or_else(|| id.clone());
+                                                        let cur = def.map(|d| d.currency_code).unwrap_or("");
+                                                        let on_id = id.clone();
+                                                        let on = move || form.with(|fm| fm.sites.contains(&on_id));
+                                                        let on2 = on.clone();
+                                                        view! {
+                                                            <label class="mp-af-doc" class:mp-af-doc-on=on>
+                                                                <input type="checkbox" class="mp-af-doc-check"
+                                                                    prop:checked=on2
+                                                                    on:change=move |_| set_form.update(|fm| {
+                                                                        if let Some(i) = fm.sites.iter().position(|x| *x == id) {
+                                                                            fm.sites.remove(i);
+                                                                        } else {
+                                                                            fm.sites.push(id.clone());
+                                                                        }
+                                                                    })
+                                                                />
+                                                                <span class="mp-af-doc-name">{name}</span>
+                                                                <span class="mp-af-doc-type">{cur}</span>
+                                                            </label>
+                                                        }
+                                                    }).collect::<Vec<_>>().into_any()
+                                                }}
                                             }.into_any()
                                         }}
                                     </div>
@@ -2990,23 +2871,7 @@ fn MarketplaceCard(
                     </div>
                 }.into_any()
             } else {
-                view! {
-                    {move || if conn.get().is_some() && mp_key != "Red" {
-                        view! {
-                            <div class="mp-connect-row">
-                                <button type="button" class="pf-small-btn mp-disconnect"
-                                    on:click=move |_| {
-                                        set_conn.set(None);
-                                        set_cascade_gen.update(|g| *g += 1);
-                                        set_connecting.set(None);
-                                        set_picker_open.set(false);
-                                    }>
-                                    "Disconnect"
-                                </button>
-                            </div>
-                        }.into_any()
-                    } else { ().into_any() }}
-                }.into_any()
+                ().into_any()
             }}
             {move || listing_saved.get().map(|l| {
                 // Status is governed by actual bid activity — "bidding"
@@ -3104,25 +2969,10 @@ fn MarketplaceCard(
                         <button type="button" class="mp-head-btn" on:click=open_listing_messages>"Messages"</button>
                     }.into_any()
                 } else { ().into_any() }}
-                {move || if !can_link { ().into_any() } else if conn.get().is_none() {
-                    view! {
-                        <button type="button" class="mp-head-btn mp-head-connect"
-                            class:mp-connecting=move || connecting.get().is_some()
-                            title="Click to connect — right-click or press-and-hold to choose a method"
-                            on:click=connect_cascade
-                            on:contextmenu=on_connect_context
-                            on:mousedown=on_press_start
-                            on:mouseup=on_press_end
-                            on:mouseleave=on_press_end_leave>
-                            {move || if connecting.get().is_some() {
-                                "Connecting…".to_string()
-                            } else {
-                                format!("Connect {}", mp_label)
-                            }}
-                        </button>
-                    }.into_any()
+                {move || if conn.get().is_some() {
+                    view! { <span class="mp-badge mp-badge-on mp-badge-square">"● Connected"</span> }.into_any()
                 } else {
-                    view! { <span class="mp-badge mp-badge-on mp-badge-square">{format!("● Connected via {}", mp_method_short(conn.get().map(|(m, _)| m).unwrap_or("")))}</span> }.into_any()
+                    view! { <span class="mp-badge mp-badge-square">"Not connected"</span> }.into_any()
                 }}
             </div>
             {move || if !can_link {
@@ -3130,67 +2980,19 @@ fn MarketplaceCard(
             } else if conn.get().is_none() {
                 view! {
                     <div class="mp-connect">
-                        <p class="mp-hint">"Connect your {mp_label} account:"</p>
+                        <p class="mp-hint">{format!("{} isn't connected. Connect it once in the Marketplace tab, under Channels.", mp_label)}</p>
                         {if !mp_hint.is_empty() {
                             view! { <p class="mp-hint mp-hint-sub">{mp_hint}</p> }.into_any()
                         } else { ().into_any() }}
-                        {move || if let Some(m) = connecting.get() {
-                            view! { <p class="mp-hint mp-connecting">{format!("Connecting via {}…", mp_method_label(m))}</p> }.into_any()
-                        } else { ().into_any() }}
-                        {move || if picker_open.get() {
-                            view! {
-                                <div class="mp-method-picker">
-                                    <p class="mp-hint">"Connect {mp_label} — choose a method:"</p>
-                                    <div class="mp-method-bar">
-                                        <div class="mp-connect-row">
-                                            {mp_auth.iter().map(|m| match *m {
-                                                "google" => view! {
-                                                    <button type="button" class="pf-small-btn" on:click=connect_google>
-                                                        {format!("Google — {}", google_account.get_value())}
-                                                    </button>
-                                                }.into_any(),
-                                                "facebook" => view! {
-                                                    <button type="button" class="pf-small-btn" on:click=connect_facebook>"Connect with Facebook"</button>
-                                                }.into_any(),
-                                                "apple" => view! {
-                                                    <button type="button" class="pf-small-btn" on:click=connect_apple>"Sign in with Apple"</button>
-                                                }.into_any(),
-                                                "manual" => view! {
-                                                    <button type="button" class="pf-small-btn" on:click=pick_manual>"Email / username"</button>
-                                                }.into_any(),
-                                                "browser" => view! {
-                                                    <button type="button" class="pf-small-btn" on:click=connect_browser>"Auto-detect browser"</button>
-                                                }.into_any(),
-                                                _ => ().into_any(),
-                                            }).collect::<Vec<_>>()}
-                                        </div>
-                                        <button type="button" class="pf-small-btn mp-method-back" on:click=move |_| set_picker_open.set(false)>"Back"</button>
-                                    </div>
-                                </div>
-                            }.into_any()
-                        } else { ().into_any() }}
-                        {move || manual_open.get().then(|| view! {
-                            <div class="mp-manual-form">
-                                <input class="login-input" type="text" placeholder="Username or email"
-                                    aria-label={format!("{} username", mp_label)}
-                                    prop:value=move || manual_user.get()
-                                    on:input=move |ev| set_manual_user.set(event_target_value(&ev)) />
-                                <input class="login-input" type="password" placeholder="Password"
-                                    aria-label={format!("{} password", mp_label)}
-                                    prop:value=move || manual_pass.get()
-                                    on:input=move |ev| set_manual_pass.set(event_target_value(&ev)) />
-                                <button type="button" class="login-btn" on:click=connect_manual>"Sign in"</button>
-                            </div>
-                        })}
-                        {move || auth_err.get().map(|e| view! { <p class="mp-error">{e}</p> })}
+                        <button type="button" class="pf-small-btn" on:click=open_channels_tab>"Open Marketplace channels"</button>
                         {listing_section()}
                     </div>
                 }.into_any()
             } else {
                 view! {
                     <div class="mp-connected">
-                        {move || conn.get().map(|(method, account)| view! {
-                            <p class="mp-account">"✓ "{mp_method_label(method)}" — "{account}</p>
+                        {move || conn.get().map(|account| view! {
+                            <p class="mp-account">"✓ Connected — "{account}</p>
                         })}
                         {listing_section()}
                     </div>

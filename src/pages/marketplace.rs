@@ -13,6 +13,7 @@ use crate::stores::{
 };
 use crate::types::TabType;
 use leptos::prelude::*;
+use crate::pages::marketplace_channels::MarketplaceChannelsPanel;
 use uuid::Uuid;
 
 /// Sort options for the Red Marketplace browse view.
@@ -867,8 +868,33 @@ pub fn MarketplacePage() -> impl IntoView {
         .into_any()
     };
 
+    // Listings browser vs. central channel control (eBay sites, account).
+    let (view_mode, set_view_mode) = signal("listings");
+    Effect::new(move |_| {
+        if app_store.with(|s| s.pending_marketplace_channels) {
+            set_view_mode.set("channels");
+            app_store.update(|s| s.pending_marketplace_channels = false);
+        }
+    });
+
     view! {
         <div class="marketplace-page">
+            <div class="mkt-view-tabs" role="tablist">
+                <button type="button" role="tab" class="mkt-view-tab"
+                    class:active=move || view_mode.get() == "listings"
+                    attr:aria-selected=move || (view_mode.get() == "listings").to_string()
+                    on:click=move |_| set_view_mode.set("listings")
+                >"Listings"</button>
+                <button type="button" role="tab" class="mkt-view-tab"
+                    class:active=move || view_mode.get() == "channels"
+                    attr:aria-selected=move || (view_mode.get() == "channels").to_string()
+                    on:click=move |_| set_view_mode.set("channels")
+                >"Channels"</button>
+            </div>
+            {move || if view_mode.get() == "channels" {
+                view! { <MarketplaceChannelsPanel /> }.into_any()
+            } else { ().into_any() }}
+            <div class="mkt-listings-view" style:display=move || if view_mode.get() == "channels" { "none" } else { "" }>
             <div class="marketplace-controls">
                 <div class="sort-dropdown-wrap sort-dropdown-inline">
                     <button class="sort-btn"
@@ -1029,6 +1055,7 @@ pub fn MarketplacePage() -> impl IntoView {
                     </div>
                 }.into_any()
             }}
+            </div>
         </div>
     }
 }
