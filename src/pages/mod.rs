@@ -5,6 +5,7 @@ pub mod email_valid;
 pub mod history;
 pub mod login;
 pub mod marketplace;
+pub mod marketplace_channels;
 pub mod networking;
 pub mod organization;
 pub mod overview;

@@ -20578,3 +20578,26 @@ select.mp-af-input {
     flex: 1;
     min-width: 90px;
 }
+
+/* Marketplace tab: Listings / Channels switch and central channel control */
+.mkt-view-tabs { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.mkt-view-tab { padding: 0.5rem 1rem; border: 1px solid var(--border-color, #444); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; font-weight: 600; }
+.mkt-view-tab.active { background: var(--accent-color, #c0392b); border-color: var(--accent-color, #c0392b); color: #fff; }
+.mkt-channels { display: flex; flex-direction: column; gap: 1rem; }
+.mkt-ch-section { border: 1px solid var(--border-color, #444); border-radius: 8px; padding: 1rem; }
+.mkt-ch-title { margin: 0 0 0.25rem; font-size: 1.1rem; }
+.mkt-ch-hint { margin: 0 0 0.75rem; opacity: 0.8; }
+.mkt-ch-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.mkt-ch-label { font-weight: 600; }
+.mkt-ch-input, .mkt-ch-select { padding: 0.4rem 0.5rem; border-radius: 6px; border: 1px solid var(--border-color, #444); background: transparent; color: inherit; }
+.mkt-ch-fee { width: 5rem; }
+.mkt-ch-status.on { color: #2ecc71; font-weight: 600; }
+.mkt-ch-notice { margin: 0.5rem 0 0; }
+.mkt-ch-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0.5rem; }
+.mkt-ch-site { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.5rem; border: 1px solid var(--border-color, #444); border-radius: 6px; cursor: pointer; }
+.mkt-ch-site.on { border-color: var(--accent-color, #c0392b); }
+.mkt-ch-site-name { font-weight: 600; }
+.mkt-ch-site-meta { width: 100%; font-size: 0.85rem; opacity: 0.75; }
+.mkt-ch-table { width: 100%; border-collapse: collapse; }
+.mkt-ch-table th, .mkt-ch-table td { text-align: left; padding: 0.4rem; border-bottom: 1px solid var(--border-color, #444); }
+.mkt-ch-list { margin: 0; padding-left: 1.25rem; }

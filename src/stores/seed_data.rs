@@ -1053,6 +1053,8 @@ fn make_channel(
         last_sync_status: Some("Connected (seeded)".to_string()),
         sync_errors: Vec::new(),
         enabled: true,
+        marketplace_site: None,
+        account_label: None,
         created_at: now,
         updated_at: now,
     }

@@ -63,6 +63,8 @@ pub struct AppStore {
     /// When set, MarketplacePage should open the listing detail for this
     /// entity id — used by marketplace notification click navigation.
     pub pending_marketplace_entity: Option<Uuid>,
+    /// When set, MarketplacePage opens its Channels view.
+    pub pending_marketplace_channels: bool,
     // Pinned portfolios and assets for quick tab access
     pub pinned_portfolio_ids: Vec<Uuid>,
     pub pinned_asset_ids: Vec<Uuid>,
@@ -177,6 +179,7 @@ impl Default for AppStore {
             pending_doc_view: None,
             pending_doc_slider: None,
             pending_marketplace_entity: None,
+            pending_marketplace_channels: false,
             pinned_portfolio_ids: Vec::new(),
             pinned_asset_ids: Vec::new(),
             is_authenticated: false,
