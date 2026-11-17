@@ -2570,22 +2570,19 @@ fn MarketplaceCard(
         if status == "published" && l.thread_id.is_none() {
             l.thread_id = Some(Uuid::new_v4());
         }
-        if mp_key == "EBay" {
-            if l.sites.is_empty() {
-                l.sites = enabled_sites.get_untracked();
-            }
-            if status == "published" && l.sites.is_empty() {
-                set_form_err.set(Some(
-                    "Enable at least one eBay site in Marketplace → Channels before publishing".to_string(),
-                ));
-                return;
-            }
-        }
+        // eBay publishes only to sites still enabled in Marketplace → Channels.
         let targets: Vec<Option<String>> = if mp_key == "EBay" {
-            l.sites.iter().cloned().map(Some).collect()
+            let enabled = enabled_sites.get_untracked();
+            l.sites.iter().filter(|x| enabled.contains(x)).cloned().map(Some).collect()
         } else {
             vec![None]
         };
+        if mp_key == "EBay" && status == "published" && targets.is_empty() {
+            set_form_err.set(Some(
+                "Select at least one enabled eBay site (Marketplace → Channels) before publishing".to_string(),
+            ));
+            return;
+        }
         let asset_name = asset_name_sig.get_untracked();
         app_store.update(|s| {
             save_marketplace_listing(s, asset_id, mp_key, &l);
@@ -2613,6 +2610,17 @@ fn MarketplaceCard(
                     " · Auction: start ${}, BIN ${}, +${}, {}d",
                     l.auction_start, l.buy_it_now, l.bid_increment, l.auction_days
                 ));
+            }
+            if mp_key == "EBay" {
+                let stale: Vec<Uuid> = s
+                    .channels_for_asset(asset_id)
+                    .iter()
+                    .filter(|c| c.channel_type == channel_type && !targets.contains(&c.marketplace_site))
+                    .map(|c| c.id)
+                    .collect();
+                for id in stale {
+                    s.remove_channel(id);
+                }
             }
             for site in targets.iter() {
                 let linked = s.channels_for_asset(asset_id).iter().any(|c| {
