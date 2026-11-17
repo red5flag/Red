@@ -110,6 +110,9 @@ pub fn MarketplacePage() -> impl IntoView {
             .or(Some(sel))
     });
 
+    // Listings browser vs. central channel control (eBay sites, account).
+    let (view_mode, set_view_mode) = signal("listings");
+
     // Notification click navigation: open the listing detail for the
     // pending entity once it resolves in the live items list.
     Effect::new(move |_| {
@@ -119,6 +122,7 @@ pub fn MarketplacePage() -> impl IntoView {
             if let Some(item) = items.with(|v| {
                 v.iter().find(|i| i.entity_id == entity_id).cloned()
             }) {
+                set_view_mode.set("listings");
                 set_selected.set(Some(item));
             }
         }
@@ -868,8 +872,6 @@ pub fn MarketplacePage() -> impl IntoView {
         .into_any()
     };
 
-    // Listings browser vs. central channel control (eBay sites, account).
-    let (view_mode, set_view_mode) = signal("listings");
     Effect::new(move |_| {
         if app_store.with(|s| s.pending_marketplace_channels) {
             set_view_mode.set("channels");
