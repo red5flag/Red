@@ -655,7 +655,7 @@ pub(crate) fn AssetItem(
     let asset_name_for_confirm = asset.name.clone();
     let (_asset_name_signal, _set_asset_name) = signal(a_name.clone());
     // snapshot values for the detail panel
-    let a_type = format!("{:?}", asset.asset_type);
+    let a_type = asset.asset_type.to_input_string();
     let a_type_grid = a_type.clone();
     let a_subtype_grid = asset
         .asset_subtype

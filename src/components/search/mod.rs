@@ -357,7 +357,7 @@ pub fn SearchResults() -> impl IntoView {
                 )
             }
             SearchResultItem::Asset { asset, .. } => {
-                format!("{:?} · ${:.2}", asset.asset_type, asset.current_value)
+                format!("{} · ${:.2}", asset.asset_type.to_input_string(), asset.current_value)
             }
             SearchResultItem::AssetDetail(d) => d.snippet.clone(),
             SearchResultItem::Document { document, .. } => {

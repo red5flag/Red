@@ -11,7 +11,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use leptos::prelude::*;
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
-use super::phantom_edit_scope;
+use super::{document_icon, phantom_edit_scope};
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 
@@ -72,6 +72,22 @@ static MARKETPLACES: &[MarketplaceDef] = &[
         auth: &["google", "browser"],
         hint: "List on Kogan with auto-filled title, price, photos and details.",
     },
+    MarketplaceDef {
+        key: "Gumtree",
+        label: "Gumtree",
+        icon: "🌳",
+        channel_type: Some(ChannelType::Gumtree),
+        auth: &["google", "facebook", "manual", "browser"],
+        hint: "List on Gumtree with auto-filled title, price, photos and details.",
+    },
+    MarketplaceDef {
+        key: "FacebookMarketplace",
+        label: "Facebook Marketplace",
+        icon: "🏬",
+        channel_type: Some(ChannelType::FacebookMarketplace),
+        auth: &["facebook", "browser", "manual"],
+        hint: "List on Facebook Marketplace with auto-filled title, price, photos and details.",
+    },
 ];
 
 /// Simulated marketplace API handshake used to test connectivity without an
@@ -84,6 +100,8 @@ async fn marketplace_api_test(mp_key: &str, method: &str) -> Result<String, Stri
         "Amazon" => "api.amazon.com/auth/o2/token",
         "Etsy" => "api.etsy.com/v3/application/openapi-ping",
         "Kogan" => "api.kogan.com/v2/marketplace/ping",
+        "Gumtree" => "api.gumtree.com.au/v1/ads/ping",
+        "FacebookMarketplace" => "graph.facebook.com/v19.0/me",
         _ => "marketplace.api/ping",
     };
     gloo_timers::future::TimeoutFuture::new(800).await;
@@ -102,6 +120,8 @@ pub(crate) fn marketplace_display_label(key: &str) -> &'static str {
         "Amazon" => "Amazon",
         "Etsy" => "Etsy",
         "Kogan" => "Kogan",
+        "Gumtree" => "Gumtree",
+        "FacebookMarketplace" => "Facebook Marketplace",
         _ => "Marketplace",
     })
 }
@@ -1979,6 +1999,68 @@ fn load_sales_profile(s: &AppStore, asset_id: Uuid) -> SalesProfile {
         .unwrap_or_default()
 }
 
+/// Cross-marketplace description block — the union of fields Gumtree, eBay
+/// and Facebook Marketplace require. Filled once per asset and shown on
+/// every marketplace's listing form; marketplace-specific fields may still
+/// override per store. Persisted at `asset.metadata["listing_shared"]`.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct SharedListingInfo {
+    #[serde(default)]
+    pub brand: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub size: String,
+    #[serde(default)]
+    pub colour: String,
+    #[serde(default)]
+    pub material: String,
+    /// "fixed" | "negotiable" | "free" | "offers"
+    #[serde(default)]
+    pub price_type: String,
+    /// e.g. "shipping" | "pickup" | "dropoff" — comma-edited.
+    #[serde(default)]
+    pub delivery: Vec<String>,
+    #[serde(default)]
+    pub payment: String,
+    /// "messages" | "phone" | "email"
+    #[serde(default)]
+    pub contact: String,
+    #[serde(default)]
+    pub suburb: String,
+    #[serde(default)]
+    pub warranty: String,
+    /// "offered" | "wanted" | "free"
+    #[serde(default)]
+    pub ad_type: String,
+    #[serde(default)]
+    pub quantity: String,
+    #[serde(default)]
+    pub notes: String,
+}
+
+fn load_shared_info(s: &AppStore, asset_id: Uuid) -> SharedListingInfo {
+    find_asset_metadata(s, asset_id)
+        .and_then(|m| m.get("listing_shared").cloned())
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default()
+}
+
+fn save_shared_info(s: &mut AppStore, asset_id: Uuid, info: &SharedListingInfo) {
+    let Some(a) = find_asset_mut(s, asset_id) else {
+        return;
+    };
+    if !a.metadata.is_object() {
+        a.metadata = serde_json::json!({});
+    }
+    if let Ok(v) = serde_json::to_value(info) {
+        a.metadata
+            .as_object_mut()
+            .unwrap()
+            .insert("listing_shared".to_string(), v);
+    }
+}
+
 /// One comment on a marketplace listing — stored inside the listing's
 /// own metadata so it persists with the draft/published record.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -2038,6 +2120,54 @@ pub(crate) struct MarketplaceListing {
     pub(crate) bid_increment: String,
     #[serde(default)]
     pub(crate) auction_days: String,
+    /// eBay "Complete your listing" fields — only surfaced on the eBay card.
+    #[serde(default)]
+    pub(crate) video: String,
+    #[serde(default)]
+    pub(crate) ebay_category: String,
+    #[serde(default)]
+    pub(crate) spec_material: String,
+    #[serde(default)]
+    pub(crate) spec_colour: String,
+    /// "original" | "reproduction"
+    #[serde(default)]
+    pub(crate) spec_reproduction: String,
+    #[serde(default)]
+    pub(crate) spec_era: String,
+    #[serde(default)]
+    pub(crate) spec_country: String,
+    #[serde(default)]
+    pub(crate) spec_region: String,
+    /// "buy_it_now" | "auction"
+    #[serde(default)]
+    pub(crate) listing_format: String,
+    #[serde(default)]
+    pub(crate) quantity: String,
+    #[serde(default)]
+    pub(crate) allow_offers: bool,
+    #[serde(default)]
+    pub(crate) minimum_offer: String,
+    #[serde(default)]
+    pub(crate) schedule_start: String,
+    /// "shipping_pickup" | "shipping_only" | "pickup_only"
+    #[serde(default)]
+    pub(crate) delivery_option: String,
+    /// "parcel_10" | "parcel_20"
+    #[serde(default)]
+    pub(crate) package_size: String,
+    #[serde(default)]
+    pub(crate) domestic_postage: String,
+    #[serde(default)]
+    pub(crate) delivery_info: String,
+    #[serde(default)]
+    pub(crate) item_postcode: String,
+    #[serde(default)]
+    pub(crate) handling_time: String,
+    /// "no_returns" | "30_days" | "60_days"
+    #[serde(default)]
+    pub(crate) returns_policy: String,
+    #[serde(default)]
+    pub(crate) promote_percent: String,
     /// Messenger thread id for this listing's conversation — created on
     /// publish so buyer/seller messages thread with the listing embedded.
     #[serde(default)]
@@ -2074,7 +2204,7 @@ pub(crate) struct MarketplaceListing {
 impl MarketplaceListing {
     /// Auto-fill every feasible field from the asset's contents and the
     /// shared Sales profile (single data point sent to every store).
-    fn from_asset(a: &Asset, sales: &SalesProfile) -> Self {
+    fn from_asset(a: &Asset, sales: &SalesProfile, shared: &SharedListingInfo) -> Self {
         // Shared sales price wins; otherwise fall back to asset values.
         let price = if !sales.price.trim().is_empty() {
             sales.price.trim().to_string()
@@ -2114,8 +2244,42 @@ impl MarketplaceListing {
         // When the asset has no description, compose one in the exact same
         // label format the asset detail uses so listings stay interpretable.
         let description = {
+            // Cross-marketplace mean info lines from the shared block —
+            // every listing description carries the same descriptor set so
+            // the information only needs entering once.
+            let mut shared_lines: Vec<String> = Vec::new();
+            if !shared.brand.trim().is_empty() {
+                shared_lines.push(format!("Brand: {}", shared.brand.trim()));
+            }
+            if !shared.model.trim().is_empty() {
+                shared_lines.push(format!("Model: {}", shared.model.trim()));
+            }
+            if !shared.size.trim().is_empty() {
+                shared_lines.push(format!("Size: {}", shared.size.trim()));
+            }
+            if !shared.colour.trim().is_empty() {
+                shared_lines.push(format!("Colour: {}", shared.colour.trim()));
+            }
+            if !shared.material.trim().is_empty() {
+                shared_lines.push(format!("Material: {}", shared.material.trim()));
+            }
+            if !shared.suburb.trim().is_empty() {
+                shared_lines.push(format!("Suburb: {}", shared.suburb.trim()));
+            }
+            if !shared.delivery.is_empty() {
+                shared_lines.push(format!("Delivery: {}", shared.delivery.join(", ")));
+            }
+            if !shared.payment.trim().is_empty() {
+                shared_lines.push(format!("Payment: {}", shared.payment.trim()));
+            }
+            if !shared.warranty.trim().is_empty() {
+                shared_lines.push(format!("Warranty: {}", shared.warranty.trim()));
+            }
+            if !shared.notes.trim().is_empty() {
+                shared_lines.push(shared.notes.trim().to_string());
+            }
             let d = a.description.clone().unwrap_or_default();
-            if d.trim().is_empty() {
+            let base = if d.trim().is_empty() {
                 let mut lines = vec![format!("Type: {}", category)];
                 if let Some(loc) = a.location.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                     lines.push(format!("Address: {}", loc));
@@ -2131,6 +2295,11 @@ impl MarketplaceListing {
                 lines.join("\n")
             } else {
                 d
+            };
+            if shared_lines.is_empty() {
+                base
+            } else {
+                format!("{}\n\n{}", base, shared_lines.join("\n"))
             }
         };
         let condition = if !sales.condition.trim().is_empty() {
@@ -2157,6 +2326,42 @@ impl MarketplaceListing {
             buy_it_now: String::new(),
             bid_increment: String::new(),
             auction_days: "7".to_string(),
+            // eBay "Complete your listing" defaults — seeded from the shared
+            // cross-marketplace block so info is only typed once.
+            video: String::new(),
+            ebay_category: category.clone(),
+            spec_material: shared.material.clone(),
+            spec_colour: shared.colour.clone(),
+            spec_reproduction: "original".to_string(),
+            spec_era: String::new(),
+            spec_country: String::new(),
+            spec_region: String::new(),
+            listing_format: "buy_it_now".to_string(),
+            quantity: if shared.quantity.is_empty() { "1".to_string() } else { shared.quantity.clone() },
+            allow_offers: shared.price_type == "offers" || shared.price_type == "negotiable",
+            minimum_offer: String::new(),
+            schedule_start: String::new(),
+            delivery_option: {
+                let ship = shared.delivery.iter().any(|d| d == "shipping");
+                let pick = shared
+                    .delivery
+                    .iter()
+                    .any(|d| d == "pickup" || d == "dropoff");
+                match (ship, pick) {
+                    (true, true) => "shipping_pickup",
+                    (true, false) => "shipping_only",
+                    (false, true) => "pickup_only",
+                    (false, false) => "shipping_pickup",
+                }
+            }
+            .to_string(),
+            package_size: "parcel_10".to_string(),
+            domestic_postage: String::new(),
+            delivery_info: String::new(),
+            item_postcode: shared.suburb.clone(),
+            handling_time: "2 business days".to_string(),
+            returns_policy: "no_returns".to_string(),
+            promote_percent: String::new(),
             category,
             sku,
             docs: a.documents.iter().map(|d| d.name.clone()).collect(),
@@ -2394,6 +2599,8 @@ fn MarketplaceCard(
     // Listing setup state — single struct mirroring the persisted draft.
     let (listing_open, set_listing_open) = signal(false);
     let (form, set_form) = signal(MarketplaceListing::default());
+    // Cross-marketplace shared block — one fill covers eBay/Gumtree/Facebook.
+    let (shared, set_shared) = signal(SharedListingInfo::default());
     let (published, set_published) = signal(false);
     let (form_err, set_form_err) = signal(Option::<String>::None);
 
@@ -2423,8 +2630,50 @@ fn MarketplaceCard(
                 "buy_it_now" => fm.buy_it_now = buf.clone(),
                 "bid_increment" => fm.bid_increment = buf.clone(),
                 "auction_days" => fm.auction_days = buf.clone(),
+                "video" => fm.video = buf.clone(),
+                "ebay_category" => fm.ebay_category = buf.clone(),
+                "spec_material" => fm.spec_material = buf.clone(),
+                "spec_colour" => fm.spec_colour = buf.clone(),
+                "spec_reproduction" => fm.spec_reproduction = buf.clone(),
+                "spec_era" => fm.spec_era = buf.clone(),
+                "spec_country" => fm.spec_country = buf.clone(),
+                "spec_region" => fm.spec_region = buf.clone(),
+                "listing_format" => fm.listing_format = buf.clone(),
+                "quantity" => fm.quantity = buf.clone(),
+                "minimum_offer" => fm.minimum_offer = buf.clone(),
+                "schedule_start" => fm.schedule_start = buf.clone(),
+                "delivery_option" => fm.delivery_option = buf.clone(),
+                "package_size" => fm.package_size = buf.clone(),
+                "domestic_postage" => fm.domestic_postage = buf.clone(),
+                "delivery_info" => fm.delivery_info = buf.clone(),
+                "item_postcode" => fm.item_postcode = buf.clone(),
+                "handling_time" => fm.handling_time = buf.clone(),
+                "returns_policy" => fm.returns_policy = buf.clone(),
+                "promote_percent" => fm.promote_percent = buf.clone(),
                 _ => {}
             });
+        }
+        if let Some(field) = edit_field.get_untracked() {
+            let buf = edit_buf.get_untracked();
+            if field.starts_with("sh_") {
+                set_shared.update(|sh| match field {
+                    "sh_brand" => sh.brand = buf.clone(),
+                    "sh_model" => sh.model = buf.clone(),
+                    "sh_size" => sh.size = buf.clone(),
+                    "sh_colour" => sh.colour = buf.clone(),
+                    "sh_material" => sh.material = buf.clone(),
+                    "sh_price_type" => sh.price_type = buf.clone(),
+                    "sh_delivery" => sh.delivery = csv_to_list(&buf),
+                    "sh_payment" => sh.payment = buf.clone(),
+                    "sh_contact" => sh.contact = buf.clone(),
+                    "sh_suburb" => sh.suburb = buf.clone(),
+                    "sh_warranty" => sh.warranty = buf.clone(),
+                    "sh_ad_type" => sh.ad_type = buf.clone(),
+                    "sh_quantity" => sh.quantity = buf.clone(),
+                    "sh_notes" => sh.notes = buf.clone(),
+                    _ => {}
+                });
+            }
         }
         set_edit_field.set(None);
     };
@@ -2452,6 +2701,40 @@ fn MarketplaceCard(
             "buy_it_now" => form.get_untracked().buy_it_now,
             "bid_increment" => form.get_untracked().bid_increment,
             "auction_days" => form.get_untracked().auction_days,
+            "video" => form.get_untracked().video,
+            "ebay_category" => form.get_untracked().ebay_category,
+            "spec_material" => form.get_untracked().spec_material,
+            "spec_colour" => form.get_untracked().spec_colour,
+            "spec_reproduction" => form.get_untracked().spec_reproduction,
+            "spec_era" => form.get_untracked().spec_era,
+            "spec_country" => form.get_untracked().spec_country,
+            "spec_region" => form.get_untracked().spec_region,
+            "listing_format" => form.get_untracked().listing_format,
+            "quantity" => form.get_untracked().quantity,
+            "minimum_offer" => form.get_untracked().minimum_offer,
+            "schedule_start" => form.get_untracked().schedule_start,
+            "delivery_option" => form.get_untracked().delivery_option,
+            "package_size" => form.get_untracked().package_size,
+            "domestic_postage" => form.get_untracked().domestic_postage,
+            "delivery_info" => form.get_untracked().delivery_info,
+            "item_postcode" => form.get_untracked().item_postcode,
+            "handling_time" => form.get_untracked().handling_time,
+            "returns_policy" => form.get_untracked().returns_policy,
+            "promote_percent" => form.get_untracked().promote_percent,
+            "sh_brand" => shared.get_untracked().brand,
+            "sh_model" => shared.get_untracked().model,
+            "sh_size" => shared.get_untracked().size,
+            "sh_colour" => shared.get_untracked().colour,
+            "sh_material" => shared.get_untracked().material,
+            "sh_price_type" => shared.get_untracked().price_type,
+            "sh_delivery" => shared.get_untracked().delivery.join(", "),
+            "sh_payment" => shared.get_untracked().payment,
+            "sh_contact" => shared.get_untracked().contact,
+            "sh_suburb" => shared.get_untracked().suburb,
+            "sh_warranty" => shared.get_untracked().warranty,
+            "sh_ad_type" => shared.get_untracked().ad_type,
+            "sh_quantity" => shared.get_untracked().quantity,
+            "sh_notes" => shared.get_untracked().notes,
             _ => String::new(),
         };
         set_edit_buf.set(current);
@@ -2485,6 +2768,50 @@ fn MarketplaceCard(
                         let v = if value.is_empty() { "—".to_string() } else { value.clone() };
                         view! {
                             <span class="mp-af-value mp-af-editable" on:dblclick=move |_| start_edit(field)>{v}</span>
+                        }.into_any()
+                    }
+                }}
+            </div>
+        }
+        .into_any()
+    };
+
+    // Same row pattern with a <select> for enumerated fields (eBay options).
+    let af_select_row = move |label: &'static str,
+                              field: &'static str,
+                              value: String,
+                              options: &'static [(&'static str, &'static str)]|
+     -> AnyView {
+        view! {
+            <div class="mp-af-row">
+                <span class="mp-af-label">{label}</span>
+                {move || {
+                    if edit_field.get() == Some(field) {
+                        view! {
+                            <select class="mp-af-input"
+                                prop:value=move || edit_buf.get()
+                                on:change=move |ev| {
+                                    set_edit_buf.set(event_target_value(&ev));
+                                    commit_edit();
+                                }
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                                    if ev.key() == "Escape" { cancel_edit(); }
+                                }>
+                                {options.iter().map(|(v, l)| view! {
+                                    <option value={*v}>{*l}</option>
+                                }).collect::<Vec<_>>()}
+                            </select>
+                        }.into_any()
+                    } else {
+                        let shown = options
+                            .iter()
+                            .find(|(v, _)| *v == value)
+                            .map(|(_, l)| l.to_string())
+                            .unwrap_or_else(|| {
+                                if value.is_empty() { "—".to_string() } else { value.clone() }
+                            });
+                        view! {
+                            <span class="mp-af-value mp-af-editable" on:dblclick=move |_| start_edit(field)>{shown}</span>
                         }.into_any()
                     }
                 }}
@@ -2722,17 +3049,20 @@ fn MarketplaceCard(
     // auto-fill every feasible field from the asset's current contents.
     let open_listing = move |_| {
         set_form_err.set(None);
+        let shared_info = load_shared_info(&app_store.get_untracked(), asset_id);
         let listing = load_marketplace_listing(&app_store.get_untracked(), asset_id, mp_key)
             .or_else(|| {
                 let s = app_store.get_untracked();
                 let sales = load_sales_profile(&s, asset_id);
-                find_asset_in_store(&s, asset_id).map(|a| MarketplaceListing::from_asset(&a, &sales))
+                find_asset_in_store(&s, asset_id)
+                    .map(|a| MarketplaceListing::from_asset(&a, &sales, &shared_info))
             })
             .unwrap_or_else(|| MarketplaceListing {
                 title: asset_name_sig.get_untracked(),
                 ..Default::default()
             });
         set_form.set(listing);
+        set_shared.set(shared_info);
         set_listing_open.set(true);
     };
 
@@ -2753,6 +3083,7 @@ fn MarketplaceCard(
         let was_linked = already_linked();
         app_store.update(|s| {
             save_marketplace_listing(s, asset_id, mp_key, &l);
+            save_shared_info(s, asset_id, &shared.get_untracked());
             if status == "published" && !was_linked {
                 if let Some(channel_type) = marketplace_channel_type(mp_key) {
                     let mut channel = Channel::new_test_channel(
@@ -2909,14 +3240,21 @@ fn MarketplaceCard(
                                                                on: bool,
                                                                custom: bool| {
                                                 let tn = name.clone();
+                                                let short_name = if name.len() > 18 {
+                                                    format!("{}...", &name[..15])
+                                                } else {
+                                                    name.clone()
+                                                };
                                                 view! {
                                                     <label class="mp-af-doc"
                                                         class:mp-af-doc-on=on
-                                                        class:mp-af-doc-custom=custom>
+                                                        class:mp-af-doc-custom=custom
+                                                        title={name.clone()}>
                                                         <input type="checkbox" class="mp-af-doc-check"
                                                             prop:checked=on
                                                             on:change=move |_| toggle_doc(tn.clone()) />
-                                                        <span class="mp-af-doc-name">{name}</span>
+                                                        <span class="mp-af-doc-thumb">{document_icon(&ftype)}</span>
+                                                        <span class="mp-af-doc-name">{short_name}</span>
                                                         <span class="mp-af-doc-type">{ftype}</span>
                                                     </label>
                                                 }
@@ -2959,13 +3297,108 @@ fn MarketplaceCard(
                                             .into_any()
                                         }}
                                         {af_text_row("TAGS", "tags", f.tags.join(", "))}
+                                        {let sh = shared.get();
+                                        view! {
+                                            <div class="mp-af-section">"SHARED — FILL ONCE (EBAY · GUMTREE · FACEBOOK)"</div>
+                                            {af_text_row("BRAND", "sh_brand", sh.brand.clone())}
+                                            {af_text_row("MODEL", "sh_model", sh.model.clone())}
+                                            {af_text_row("SIZE / DIMS", "sh_size", sh.size.clone())}
+                                            {af_text_row("COLOUR", "sh_colour", sh.colour.clone())}
+                                            {af_text_row("MATERIAL", "sh_material", sh.material.clone())}
+                                            {af_select_row("PRICE TYPE", "sh_price_type", sh.price_type.clone(), &[
+                                                ("fixed", "Fixed price"),
+                                                ("negotiable", "Negotiable"),
+                                                ("offers", "Offers accepted"),
+                                                ("free", "Free"),
+                                            ])}
+                                            {af_text_row("QUANTITY", "sh_quantity", sh.quantity.clone())}
+                                            {af_text_row("DELIVERY", "sh_delivery", sh.delivery.join(", "))}
+                                            {af_text_row("PAYMENT", "sh_payment", sh.payment.clone())}
+                                            {af_select_row("CONTACT", "sh_contact", sh.contact.clone(), &[
+                                                ("messages", "Messages"),
+                                                ("phone", "Phone"),
+                                                ("email", "Email"),
+                                            ])}
+                                            {af_text_row("SUBURB", "sh_suburb", sh.suburb.clone())}
+                                            {af_text_row("WARRANTY", "sh_warranty", sh.warranty.clone())}
+                                            {af_select_row("AD TYPE", "sh_ad_type", sh.ad_type.clone(), &[
+                                                ("offered", "Offered"),
+                                                ("wanted", "Wanted"),
+                                                ("free", "Free"),
+                                            ])}
+                                            {af_text_row("NOTES", "sh_notes", sh.notes.clone())}
+                                        }.into_any()}
                                         {if mp_key != "EBay" { ().into_any() } else {
+                                            let media_n = f.photos.len()
+                                                + usize::from(!f.video.trim().is_empty());
                                             view! {
-                                                <div class="mp-af-section">"EBAY BIDDING"</div>
+                                                <div class="mp-af-section">"EBAY — COMPLETE YOUR LISTING"</div>
+                                                <div class="mp-af-row">
+                                                    <span class="mp-af-label">"MEDIA"</span>
+                                                    <span class="mp-af-value">
+                                                        {format!("{}/25 photos or videos uploaded", media_n)}
+                                                    </span>
+                                                </div>
+                                                {af_text_row("VIDEO (1 MIN)", "video", f.video.clone())}
+                                                {af_text_row("ITEM CATEGORY", "ebay_category", f.ebay_category.clone())}
+                                                <div class="mp-af-section">"ITEM SPECIFICS"</div>
+                                                {af_text_row("MATERIAL", "spec_material", f.spec_material.clone())}
+                                                {af_text_row("COLOUR", "spec_colour", f.spec_colour.clone())}
+                                                {af_select_row("ORIGINAL/REPRO", "spec_reproduction", f.spec_reproduction.clone(), &[
+                                                    ("original", "Original"),
+                                                    ("reproduction", "Reproduction"),
+                                                ])}
+                                                {af_text_row("ERA", "spec_era", f.spec_era.clone())}
+                                                {af_text_row("COUNTRY OF ORIGIN", "spec_country", f.spec_country.clone())}
+                                                {af_text_row("REGION OF ORIGIN", "spec_region", f.spec_region.clone())}
+                                                <div class="mp-af-section">"PRICING"</div>
+                                                {af_select_row("FORMAT", "listing_format", f.listing_format.clone(), &[
+                                                    ("buy_it_now", "Buy It Now"),
+                                                    ("auction", "Auction"),
+                                                ])}
+                                                {af_text_row("QUANTITY", "quantity", f.quantity.clone())}
+                                                <div class="mp-af-row">
+                                                    <span class="mp-af-label">"ALLOW OFFERS"</span>
+                                                    <label class="mp-af-value">
+                                                        <input type="checkbox" class="mp-af-doc-check"
+                                                            prop:checked=move || form.get().allow_offers
+                                                            on:change=move |ev| {
+                                                                let on = event_target_checked(&ev);
+                                                                set_form.update(|fm| fm.allow_offers = on);
+                                                            } />
+                                                        " Buyers can send offers"
+                                                    </label>
+                                                </div>
+                                                {af_text_row("MINIMUM OFFER", "minimum_offer", {
+                                                    if f.minimum_offer.is_empty() { String::new() } else { format!("${}", f.minimum_offer) }
+                                                })}
+                                                {af_text_row("SCHEDULE START", "schedule_start", f.schedule_start.clone())}
+                                                <div class="mp-af-section">"EBAY AUCTION"</div>
                                                 {af_text_row("START BID", "auction_start", f.auction_start.clone())}
                                                 {af_text_row("BUY IT NOW", "buy_it_now", f.buy_it_now.clone())}
                                                 {af_text_row("BID INCREMENT", "bid_increment", f.bid_increment.clone())}
                                                 {af_text_row("DAYS", "auction_days", f.auction_days.clone())}
+                                                <div class="mp-af-section">"DELIVERY"</div>
+                                                {af_select_row("DELIVERY", "delivery_option", f.delivery_option.clone(), &[
+                                                    ("shipping_pickup", "Shipping and local pickup"),
+                                                    ("shipping_only", "Shipping only"),
+                                                    ("pickup_only", "Local pickup only"),
+                                                ])}
+                                                {af_select_row("PACKAGE SIZE", "package_size", f.package_size.clone(), &[
+                                                    ("parcel_10", "Parcel · Up to 10 kg (50x40x20 cm)"),
+                                                    ("parcel_20", "Parcel · Up to 20 kg (105x40x30 cm)"),
+                                                ])}
+                                                {af_text_row("DOMESTIC POSTAGE", "domestic_postage", f.domestic_postage.clone())}
+                                                {af_text_row("DELIVERY INFO", "delivery_info", f.delivery_info.clone())}
+                                                {af_text_row("ITEM LOCATION", "item_postcode", f.item_postcode.clone())}
+                                                {af_text_row("HANDLING TIME", "handling_time", f.handling_time.clone())}
+                                                {af_select_row("RETURNS", "returns_policy", f.returns_policy.clone(), &[
+                                                    ("no_returns", "No returns allowed"),
+                                                    ("30_days", "30-day returns"),
+                                                    ("60_days", "60-day returns"),
+                                                ])}
+                                                <div class="mp-af-section">"PROMOTE"</div>
+                                                {af_text_row("AD RATE %", "promote_percent", f.promote_percent.clone())}
                                             }.into_any()
                                         }}
                                     </div>
@@ -2983,9 +3416,9 @@ fn MarketplaceCard(
                         }}
                         {move || form_err.get().map(|e| view! { <p class="mp-error">{e}</p> })}
                         <div class="mp-form-actions">
-                            <button type="button" class="pf-small-btn" on:click=move |_| set_listing_open.set(false)>"Cancel"</button>
-                            <button type="button" class="pf-small-btn" on:click=save_draft>"Save draft"</button>
-                            <button type="button" class="login-btn sell" on:click=publish>"Publish listing"</button>
+                            <button type="button" class="nav-portfolio-btn" on:click=move |_| set_listing_open.set(false)>"Cancel"</button>
+                            <button type="button" class="nav-portfolio-btn" on:click=save_draft>"Save draft"</button>
+                            <button type="button" class="nav-portfolio-btn active" on:click=publish>"Publish listing"</button>
                         </div>
                     </div>
                 }.into_any()

@@ -66,7 +66,7 @@ fn group_stats(g: &crate::models::AssetGroup, p: &Portfolio) -> String {
 }
 
 fn asset_sub(a: &Asset, portfolio_name: &str, currency: &Currency) -> String {
-    let mut s = format!("{:?} · {:.2} {}", a.asset_type, a.current_value, currency);
+    let mut s = format!("{} · {:.2} {}", a.asset_type.to_input_string(), a.current_value, currency);
     if let Some(loc) = a.location.as_deref().filter(|l| !l.is_empty()) {
         s.push_str(&format!(" · {}", loc));
     }
@@ -1379,7 +1379,7 @@ pub fn MessageDrawer() -> impl IntoView {
                     <div
                         class="messenger-sidebar"
                         class:msb-hidden={move || left_collapsed.get()}
-                        class:msb-compact={move || sidebar_compact.get() && !right_collapsed.get()}
+                        class:msb-compact={move || sidebar_compact.get() || right_collapsed.get()}
                         style={move || {
                             if right_collapsed.get() {
                                 "flex:1 1 auto;width:auto;min-width:0;max-width:none;"

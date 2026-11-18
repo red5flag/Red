@@ -591,7 +591,7 @@ pub(crate) fn assets_view(app_store: &RwSignal<AppStore>) -> impl IntoView {
                                     <div class="reporting-row">
                                         <div class="reporting-td">{a.name}</div>
                                         <div class="reporting-td">{portfolio}</div>
-                                        <div class="reporting-td">{format!("{:?}", a.asset_type)}</div>
+                                        <div class="reporting-td">{a.asset_type.to_input_string()}</div>
                                         <div class="reporting-td">{format!("{} | {} | {} | {}", a.lifecycle_status.as_str(), a.availability_status.as_str(), a.condition_status.as_str(), a.commercial_status.as_str())}</div>
                                         <div class="reporting-td">{fmt_dollars(a.current_value)}</div>
                                         <div class={format!("reporting-td {}", pl_cls)}>{format!("{:+.1}%", a.profit_loss_percent)}</div>

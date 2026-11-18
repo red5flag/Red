@@ -486,6 +486,7 @@ pub fn MarketplacePage() -> impl IntoView {
         let listing = item.listing.clone();
         let comments = listing.comments.clone();
         let eff_status = listing.effective_status().to_string();
+        let is_draft = eff_status == "draft";
         let bids = listing.bids.clone();
         let high_bid = listing.high_bid().map(|b| b.amount);
         let listing_price = listing.price.clone();
@@ -823,6 +824,8 @@ pub fn MarketplacePage() -> impl IntoView {
                         </div>
                     }.into_any()
                 }}
+                {if is_draft { ().into_any() } else {
+                view! {
                 <div class="listing-comments">
                     <div class="listing-comments-head">{format!("Comments ({})", comments.len())}</div>
                     {if comments.is_empty() {
@@ -862,6 +865,8 @@ pub fn MarketplacePage() -> impl IntoView {
                             on:click=move |_| post_comment.run(())>"Post"</button>
                     </div>
                 </div>
+                }.into_any()
+                }}
             </div>
         }
         .into_any()

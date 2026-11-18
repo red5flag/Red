@@ -444,7 +444,7 @@ pub(crate) fn AssetDetailView(
                             <input id="asset-ref" type="text" class="android-input" prop:value=move || local.get().reference_code.clone().unwrap_or_default() on:input=move |ev| set_local.update(|a| a.reference_code = Some(event_target_value(&ev))) disabled=disabled />
 
                             <label class="android-label" for="asset-desc">"Description"</label>
-                            <textarea id="asset-desc" class="android-input" rows="3" prop:value=move || local.get().description.clone().unwrap_or_default() on:input=move |ev| set_local.update(|a| a.description = Some(event_target_value(&ev))) disabled=disabled></textarea>
+                            <textarea id="asset-desc" class="android-input" rows="3" placeholder="Brand, model, size, colour, material, condition, delivery — the shared fields every marketplace asks for" prop:value=move || local.get().description.clone().unwrap_or_default() on:input=move |ev| set_local.update(|a| a.description = Some(event_target_value(&ev))) disabled=disabled></textarea>
 
                             <label class="android-label" for="asset-loc">"Location"</label>
                             <input id="asset-loc" type="text" class="android-input" prop:value=move || local.get().location.clone().unwrap_or_default() on:input=move |ev| set_local.update(|a| a.location = Some(event_target_value(&ev))) disabled=disabled />

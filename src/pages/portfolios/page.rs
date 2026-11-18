@@ -15,7 +15,8 @@ use super::{
     asset_placeholder_url, clear_pf_drag_kind, clamp_context_menu, detect_file_type,
     mobile_tab_gestures, name_click_handlers, nav_tab_from_drag_event, pf_drop_target,
     phantom_edit_scope, read_image_as_data_url, set_drag_tab_data, sort_portfolios_for_ui,
-    AddPortfolioModal, AssetTarget, DocEntry, DocSlider, NavTab, NavTabKind, PortfolioListItem,
+    AddPortfolioModal, AssetTarget, AssetViewer, DocEntry, DocSlider, NavTab, NavTabKind,
+    PortfolioListItem,
 };
 
 #[derive(Clone, PartialEq)]
@@ -637,9 +638,42 @@ pub fn PortfoliosPage() -> impl IntoView {
     let render_portfolio = move |(tint_idx, portfolio): (usize, Portfolio)| -> AnyView {
         let portfolio_id = portfolio.id;
         let org_id = portfolio.organization_id;
-        let is_expanded = Memo::new(move |_| selected_ids().contains(&portfolio_id));
         let can = Memo::new(move |_| can_edit(org_id));
         let can_docs = Memo::new(move |_| can_edit_documents(org_id));
+        // The built-in Unassigned bucket gets no portfolio wrapper — its
+        // assets render freely at the same level as the portfolio cards.
+        if crate::stores::app_store::is_unassigned_portfolio(portfolio_id) {
+            if portfolio.assets.is_empty() && portfolio.asset_groups.is_empty() {
+                return ().into_any();
+            }
+            return view! {
+                <div class="pf-unassigned">
+                    <AssetViewer
+                        portfolio={portfolio}
+                        can_edit={can}
+                        can_edit_documents={can_docs}
+                        view_mode={view_mode}
+                        show_add_group={show_add_group}
+                        set_show_add_group={set_show_add_group}
+                        _new_group_name={new_group_name}
+                        set_new_group_name={set_new_group_name}
+                        on_add_group={on_add_group}
+                        show_add_asset={show_add_asset}
+                        set_show_add_asset={set_show_add_asset}
+                        new_asset_name={new_asset_name}
+                        set_new_asset_name={set_new_asset_name}
+                        new_asset_type={new_asset_type}
+                        set_new_asset_type={set_new_asset_type}
+                        new_asset_value={new_asset_value}
+                        set_new_asset_value={set_new_asset_value}
+                        on_add_asset={on_add_asset}
+                        child_depth={tint_idx}
+                    />
+                </div>
+            }
+            .into_any();
+        }
+        let is_expanded = Memo::new(move |_| selected_ids().contains(&portfolio_id));
         view! {
             <PortfolioListItem
                 portfolio={portfolio}

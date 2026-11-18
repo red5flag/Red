@@ -388,7 +388,14 @@ pub fn Navbar() -> impl IntoView {
             <div class="navbar-row navbar-row-1">
                 <div class="nav-row1-left">
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&0)} on:click=on_tabs_drawer title="Tabs">"☰"</button>
-                    <button class="nav-btn nav-search-btn" class:clicked={move || clicked.get().contains(&3)} on:click=on_search_click title="Search">"🔍"</button>
+                    <button class="nav-btn nav-search-btn" class:clicked={move || clicked.get().contains(&3)} on:click=on_search_click title="Search" aria-label="Search">
+                        <span aria-hidden="true" class="nav-icon-wrap">
+                            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="m21 21-4.35-4.35"/>
+                            </svg>
+                        </span>
+                    </button>
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&1)} on:click=on_redo
                         on:contextmenu=on_redo_context
                         disabled={move || !can_redo()} title="Redo (hold for list)">"↻"</button>
@@ -398,7 +405,11 @@ pub fn Navbar() -> impl IntoView {
                         on:contextmenu=on_undo_context
                         disabled={move || !can_undo()} title="Undo (hold for list)">"↺"</button>
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&5)} on:click=on_message_click title="Open messages" aria-label="Open messages">
-                        <span aria-hidden="true">"💬"</span>
+                        <span aria-hidden="true" class="nav-icon-wrap">
+                            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+                            </svg>
+                        </span>
                         {move || {
                             let count = message_count();
                             if count > 0 {
@@ -407,7 +418,12 @@ pub fn Navbar() -> impl IntoView {
                         }}
                     </button>
                     <button class="nav-btn" class:clicked={move || clicked.get().contains(&6)} on:click=on_notifications_click title="Notifications" aria-label="Notifications">
-                        <span aria-hidden="true">"🔔"</span>
+                        <span aria-hidden="true" class="nav-icon-wrap">
+                            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+                            </svg>
+                        </span>
                         {move || {
                             let count = notification_count();
                             if count > 0 {

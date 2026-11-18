@@ -576,6 +576,18 @@ html, body {
     animation: nav-click-flash 1s ease-out;
 }
 
+/* White outline SVG icons in navbar buttons (inherit button color) */
+.nav-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-btn .nav-icon {
+    width: calc(var(--nav-icon-size) * 0.75);
+    height: calc(var(--nav-icon-size) * 0.75);
+}
+
 /* Overview sort tools row in navbar (same style as portfolio controls row) */
 .navbar-row-overview-tools {
     height: var(--bar-h);
@@ -11141,7 +11153,42 @@ html, body {
 .mp-form-actions {
     display: flex;
     justify-content: center;
-    gap: 6px;
+    gap: 0;
+}
+
+/* Listing form actions match the nav button style (flat, bar-height,
+   border-separated, highlight on the primary action) */
+.mp-form-actions .nav-portfolio-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 10px;
+    height: var(--controls-h);
+    min-height: var(--controls-h);
+    aspect-ratio: auto;
+    background: var(--accent-bg);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: clamp(14px, 2vh, 16px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mp-form-actions .nav-portfolio-btn:last-child {
+    border-right: none;
+}
+
+.mp-form-actions .nav-portfolio-btn:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.mp-form-actions .nav-portfolio-btn.active {
+    background: var(--highlight);
+    color: #fff;
 }
 
 .mp-error {
@@ -18691,6 +18738,12 @@ html, body {
     display: none;
 }
 
+/* Unassigned assets — no portfolio wrapper, flow freely at page level */
+.pf-unassigned {
+    grid-column: 1 / -1;
+}
+
+
 /* ═══════════════════════════════════════════
    FULL-SCREEN MESSENGER
    ═══════════════════════════════════════════ */
@@ -19710,7 +19763,7 @@ body:active .messenger-resizer {
 
 .messenger-sidebar.msb-compact .messenger-sidebar-list {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
     gap: 1px;
     background: var(--border-color);
     align-content: start;
@@ -19724,6 +19777,8 @@ body:active .messenger-resizer {
     border-bottom: none;
     border-right: none;
     background: var(--secondary-bg);
+    min-width: 0;
+    overflow: hidden;
 }
 
 .messenger-sidebar.msb-compact .messenger-contact-avatar {
@@ -19755,6 +19810,8 @@ body:active .messenger-resizer {
     grid-column: 1 / -1;
     background: var(--secondary-bg);
     padding: 8px 10px;
+    min-width: 0;
+    overflow: hidden;
 }
 
 /* Marketplace listing — asset-format included block */
@@ -19874,26 +19931,53 @@ select.mp-af-input {
     min-width: 0;
 }
 
+/* Marketplace doc picker — horizontal tile strip, same shape as the
+   asset .ai-doc-slider documentation row */
 .mp-af-doc-list {
     display: flex;
-    flex-direction: column;
-    gap: 3px;
+    gap: 0;
     padding: 4px 0 6px 84px;
-    max-height: 150px;
-    overflow-y: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+.mp-af-doc-list::-webkit-scrollbar {
+    height: 4px;
+    background: transparent;
+}
+
+.mp-af-doc-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+}
+
+.mp-af-doc-list::-webkit-scrollbar-thumb:hover {
+    background: var(--highlight);
 }
 
 .mp-af-doc {
+    flex-shrink: 0;
+    position: relative;
+    width: 72px;
+    aspect-ratio: 1 / 1;
+    box-sizing: border-box;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 3px 6px;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
     font-size: 11px;
     color: var(--text-primary);
     border: 1px solid var(--border-color);
+    border-left: none;
     background: var(--primary-bg);
     cursor: pointer;
     user-select: none;
+}
+
+.mp-af-doc:first-child {
+    border-left: 1px solid var(--border-color);
 }
 
 .mp-af-doc:hover {
@@ -19901,9 +19985,16 @@ select.mp-af-input {
 }
 
 .mp-af-doc-check {
+    position: absolute;
+    top: 2px;
+    left: 2px;
     margin: 0;
     accent-color: var(--highlight);
-    flex-shrink: 0;
+}
+
+.mp-af-doc-thumb {
+    font-size: 20px;
+    line-height: 1;
 }
 
 .mp-af-doc-on {
@@ -19911,21 +20002,27 @@ select.mp-af-input {
     background: color-mix(in srgb, var(--highlight) 8%, var(--primary-bg));
 }
 
+.mp-af-doc-on + .mp-af-doc,
+.mp-af-doc:hover + .mp-af-doc {
+    border-left-color: var(--highlight);
+}
+
 .mp-af-doc-custom {
     border-style: dashed;
 }
 
 .mp-af-doc-name {
-    flex: 1;
-    min-width: 0;
+    max-width: 100%;
+    padding: 0 2px;
+    font-size: 8px;
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .mp-af-doc-type {
-    flex: 0 0 auto;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
